@@ -87,6 +87,81 @@ pub struct RelayEditorSeed {
     pub is_new: bool,
 }
 
+#[derive(Debug, Clone)]
+pub enum PendingActionConfirm {
+    // 1. 客户端进程停止 / 重启 / 接管
+    StopCodex,
+    RestartCodex,
+    StopAntigravity {
+        target: String,
+    },
+    RestartAntigravity {
+        target: String,
+        clean_conflict: bool,
+    },
+    StopMultiInstance {
+        instance_id: String,
+        label: String,
+    },
+    RestartMultiInstance {
+        instance_id: String,
+        label: String,
+    },
+    TriggerTakeoverNow,
+
+    // 2. 配置删除 / 卸载 / 清空 / 覆写同步
+    DeleteMcpEntry {
+        id: String,
+    },
+    SyncMcpToLive {
+        managed_count: usize,
+        live_count: usize,
+    },
+    UninstallSkill {
+        id: String,
+        name: String,
+    },
+    DeleteSkillRepo {
+        key: String,
+    },
+    RestoreSkillBackup {
+        backup_id: String,
+        label: String,
+    },
+    DeleteSkillBackup {
+        backup_id: String,
+        label: String,
+    },
+    DeleteUserScript {
+        key: String,
+        name: String,
+    },
+    RemoveProxyNode {
+        node_id: String,
+        name: String,
+        url: String,
+    },
+    ClearAppLogs,
+
+    // 3. 系统环境 / 设备指纹 / 索引与配置批量重写 / 手动点火
+    RemoveAllEnvConflicts {
+        summary: String,
+    },
+    RestoreAgFingerprintBaseline,
+    RegenerateAgFingerprint,
+    ResetImageOverlay,
+    RepairSessionIndex,
+    ApplyStaleSessionCleanup {
+        count: usize,
+    },
+    SyncHistoryProviders,
+    ManualIgniteLamplighter {
+        group_key: String,
+        display_label: String,
+        effective_proxy: String,
+    },
+}
+
 pub struct AppStore {
     pub tokio_handle: tokio::runtime::Handle,
     pub prefs: UiPreferences,
@@ -210,6 +285,7 @@ pub struct AppStore {
 
     pub proxy_testing: bool,
     pub reset_confirm_open: bool,
+    pub pending_action_confirm: Option<PendingActionConfirm>,
     pub network_proxy_snapshot: NetworkProxySnapshot,
 
     // Antigravity 原生管理状态
@@ -382,6 +458,7 @@ impl AppStore {
 
             proxy_testing: false,
             reset_confirm_open: false,
+            pending_action_confirm: None,
             network_proxy_snapshot: commands::load_network_proxies().payload,
 
             ag_snapshot: Some(antigravity_commands::load_antigravity_snapshot().payload.snapshot),
@@ -605,7 +682,77 @@ impl AppStore {
         self.reset_confirm_open = false;
         self.session_delete_confirm = None;
         self.cache_confirm_open = false;
+        self.pending_action_confirm = None;
         cx.notify();
+    }
+
+    pub fn request_action_confirm(&mut self, action: PendingActionConfirm, cx: &mut Context<Self>) {
+        self.pending_action_confirm = Some(action);
+        cx.notify();
+    }
+
+    pub fn execute_confirmed_action(
+        &mut self,
+        action: PendingActionConfirm,
+        cx: &mut Context<Self>,
+    ) {
+        self.pending_action_confirm = None;
+        cx.notify();
+        match action {
+            PendingActionConfirm::StopCodex => self.stop_codex(cx),
+            PendingActionConfirm::RestartCodex => self.restart_codex(cx),
+            PendingActionConfirm::StopAntigravity { target } => {
+                self.stop_antigravity_by_target(&target, cx)
+            }
+            PendingActionConfirm::RestartAntigravity {
+                target,
+                clean_conflict: _,
+            } => self.launch_antigravity_by_target(&target, true, cx),
+            PendingActionConfirm::StopMultiInstance { instance_id, .. } => {
+                self.stop_multi_instance(instance_id, cx)
+            }
+            PendingActionConfirm::RestartMultiInstance { instance_id, .. } => {
+                self.restart_multi_instance(instance_id, cx)
+            }
+            PendingActionConfirm::TriggerTakeoverNow => self.trigger_takeover_now(cx),
+            PendingActionConfirm::DeleteMcpEntry { id } => self.delete_mcp_entry(id, cx),
+            PendingActionConfirm::SyncMcpToLive { .. } => self.sync_mcp_to_live(cx),
+            PendingActionConfirm::UninstallSkill { id, .. } => self.uninstall_skill_by_id(id, cx),
+            PendingActionConfirm::DeleteSkillRepo { key } => {
+                self.delete_skill_repo_by_key(key, cx)
+            }
+            PendingActionConfirm::RestoreSkillBackup { backup_id, .. } => {
+                self.restore_skill_from_backup(backup_id, cx)
+            }
+            PendingActionConfirm::DeleteSkillBackup { backup_id, .. } => {
+                self.delete_skill_backup_by_id(backup_id, cx)
+            }
+            PendingActionConfirm::DeleteUserScript { key, .. } => {
+                self.delete_local_user_script(key, cx)
+            }
+            PendingActionConfirm::RemoveProxyNode { node_id, .. } => {
+                self.remove_proxy_node(node_id, cx)
+            }
+            PendingActionConfirm::ClearAppLogs => self.clear_app_logs(cx),
+            PendingActionConfirm::RemoveAllEnvConflicts { .. } => {
+                self.remove_all_env_conflicts(cx)
+            }
+            PendingActionConfirm::RestoreAgFingerprintBaseline => {
+                self.restore_antigravity_fingerprint_baseline(cx)
+            }
+            PendingActionConfirm::RegenerateAgFingerprint => {
+                self.regenerate_antigravity_fingerprint(None, cx)
+            }
+            PendingActionConfirm::ResetImageOverlay => self.reset_image_overlay(cx),
+            PendingActionConfirm::RepairSessionIndex => self.run_repair_session_index(cx),
+            PendingActionConfirm::ApplyStaleSessionCleanup { .. } => {
+                self.apply_stale_session_cleanup(cx)
+            }
+            PendingActionConfirm::SyncHistoryProviders => self.sync_history_providers_now(cx),
+            PendingActionConfirm::ManualIgniteLamplighter { group_key, .. } => {
+                self.manual_ignite_lamplighter_group(group_key, cx)
+            }
+        }
     }
 
     pub fn refresh_settings_silent(&mut self, cx: &mut Context<Self>) {

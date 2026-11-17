@@ -311,6 +311,8 @@ impl LamplighterView {
                             ),
                     )
                     .when(grp.ignite_supported, |row| {
+                        let g_disp = grp.display_label.clone();
+                        let g_proxy = grp.effective_proxy.clone();
                         row.child(
                             AppButton::new(SharedString::from(format!(
                                 "ll-ignite-{}",
@@ -327,8 +329,17 @@ impl LamplighterView {
                             })
                             .on_click(move |_, _, cx| {
                                 let k = gkey.clone();
+                                let disp = g_disp.clone();
+                                let px_lbl = g_proxy.clone();
                                 store_ig.update(cx, |s, cx| {
-                                    s.manual_ignite_lamplighter_group(k, cx)
+                                    s.request_action_confirm(
+                                        crate::store::PendingActionConfirm::ManualIgniteLamplighter {
+                                            group_key: k,
+                                            display_label: disp,
+                                            effective_proxy: px_lbl,
+                                        },
+                                        cx,
+                                    )
                                 });
                             }),
                         )

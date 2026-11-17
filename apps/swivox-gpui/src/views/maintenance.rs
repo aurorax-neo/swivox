@@ -308,8 +308,12 @@ impl Render for MaintenanceView {
                                             .icon(IconName::Rocket)
                                             .label(t("立即接管运行实例"))
                                             .on_click(move |_, _, cx| {
-                                                store_takeover_now
-                                                    .update(cx, |s, cx| s.trigger_takeover_now(cx));
+                                                store_takeover_now.update(cx, |s, cx| {
+                                                    s.request_action_confirm(
+                                                        crate::store::PendingActionConfirm::TriggerTakeoverNow,
+                                                        cx,
+                                                    )
+                                                });
                                             }),
                                     ),
                             ),
@@ -438,8 +442,12 @@ impl Render for MaintenanceView {
                                         t("一键对齐历史会话")
                                     })
                                     .on_click(move |_, _, cx| {
-                                        store_sync_hist
-                                            .update(cx, |s, cx| s.sync_history_providers_now(cx));
+                                        store_sync_hist.update(cx, |s, cx| {
+                                            s.request_action_confirm(
+                                                crate::store::PendingActionConfirm::SyncHistoryProviders,
+                                                cx,
+                                            )
+                                        });
                                     }),
                             ),
                     ),

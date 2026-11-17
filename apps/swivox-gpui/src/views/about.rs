@@ -305,8 +305,12 @@ pub fn render_about(store: &Entity<AppStore>, cx: &App) -> impl IntoElement {
                                         .icon(IconName::Trash)
                                         .label(t("清空日志"))
                                         .on_click(move |_, _, cx| {
-                                            store_clear_log
-                                                .update(cx, |s, cx| s.clear_app_logs(cx));
+                                            store_clear_log.update(cx, |s, cx| {
+                                                s.request_action_confirm(
+                                                    crate::store::PendingActionConfirm::ClearAppLogs,
+                                                    cx,
+                                                )
+                                            });
                                         }),
                                 ),
                         ),

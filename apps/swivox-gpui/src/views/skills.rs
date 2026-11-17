@@ -135,7 +135,14 @@ impl SkillsView {
                                 .icon(IconName::Trash)
                                 .on_click(move |_, _, cx| {
                                     let k = key_del.clone();
-                                    store_del.update(cx, |s, cx| s.delete_skill_repo_by_key(k, cx));
+                                    store_del.update(cx, |s, cx| {
+                                        s.request_action_confirm(
+                                            crate::store::PendingActionConfirm::DeleteSkillRepo {
+                                                key: k,
+                                            },
+                                            cx,
+                                        )
+                                    });
                                 }),
                             ),
                     )
@@ -323,6 +330,7 @@ impl Render for SkillsView {
                     } else {
                         skill.name.clone()
                     };
+                    let title_uninst = title.clone();
                     let initial = title
                         .chars()
                         .next()
@@ -457,8 +465,15 @@ impl Render for SkillsView {
                                         .tooltip(t("卸载（自动移入备份区）"))
                                         .on_click(move |_, _, cx| {
                                             let id = id_uninst.clone();
+                                            let nm = title_uninst.clone();
                                             store_uninst.update(cx, |s, cx| {
-                                                s.uninstall_skill_by_id(id, cx)
+                                                s.request_action_confirm(
+                                                    crate::store::PendingActionConfirm::UninstallSkill {
+                                                        id,
+                                                        name: nm,
+                                                    },
+                                                    cx,
+                                                )
                                             });
                                         }),
                                     )
@@ -586,6 +601,9 @@ impl Render for SkillsView {
                         let store_res = self.store.clone();
                         let bid_del = bk.id.clone();
                         let store_del = self.store.clone();
+                        let bk_label = format!("{} ({})", bk.name, bk.skill_id);
+                        let bk_label_res = bk_label.clone();
+                        let bk_label_del = bk_label.clone();
                         div()
                             .h_flex()
                             .w_full()
@@ -633,8 +651,15 @@ impl Render for SkillsView {
                                         .label(t("恢复"))
                                         .on_click(move |_, _, cx| {
                                             let id = bid_res.clone();
+                                            let lbl = bk_label_res.clone();
                                             store_res.update(cx, |s, cx| {
-                                                s.restore_skill_from_backup(id, cx)
+                                                s.request_action_confirm(
+                                                    crate::store::PendingActionConfirm::RestoreSkillBackup {
+                                                        backup_id: id,
+                                                        label: lbl,
+                                                    },
+                                                    cx,
+                                                )
                                             });
                                         }),
                                     )
@@ -648,8 +673,15 @@ impl Render for SkillsView {
                                         .icon(IconName::Trash)
                                         .on_click(move |_, _, cx| {
                                             let id = bid_del.clone();
+                                            let lbl = bk_label_del.clone();
                                             store_del.update(cx, |s, cx| {
-                                                s.delete_skill_backup_by_id(id, cx)
+                                                s.request_action_confirm(
+                                                    crate::store::PendingActionConfirm::DeleteSkillBackup {
+                                                        backup_id: id,
+                                                        label: lbl,
+                                                    },
+                                                    cx,
+                                                )
                                             });
                                         }),
                                     ),

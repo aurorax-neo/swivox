@@ -411,16 +411,25 @@ impl RelayView {
                                 ),
                         ),
                 )
-                .child(
+                .child({
+                    let conflict_summary = summary.join(" · ");
                     AppButton::new("relay-clean-env-conflicts")
                         .secondary()
                         .small()
                         .icon(IconName::Trash)
                         .label(t("备份并移除冲突变量"))
                         .on_click(move |_, _, cx| {
-                            store_clean.update(cx, |s, cx| s.remove_all_env_conflicts(cx));
-                        }),
-                )
+                            let sum = conflict_summary.clone();
+                            store_clean.update(cx, |s, cx| {
+                                s.request_action_confirm(
+                                    crate::store::PendingActionConfirm::RemoveAllEnvConflicts {
+                                        summary: sum,
+                                    },
+                                    cx,
+                                )
+                            });
+                        })
+                })
                 .into_any_element(),
         )
     }

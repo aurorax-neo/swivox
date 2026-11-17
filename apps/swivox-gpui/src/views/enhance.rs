@@ -994,7 +994,12 @@ impl EnhanceView {
                                 .small()
                                 .label(t("恢复默认"))
                                 .on_click(move |_, _, cx| {
-                                    store_reset.update(cx, |s, cx| s.reset_image_overlay(cx));
+                                    store_reset.update(cx, |s, cx| {
+                                        s.request_action_confirm(
+                                            crate::store::PendingActionConfirm::ResetImageOverlay,
+                                            cx,
+                                        )
+                                    });
                                 }),
                         )
                         .child(

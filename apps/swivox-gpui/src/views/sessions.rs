@@ -135,8 +135,14 @@ impl Render for SessionsView {
                                     .small()
                                     .label(t("立即备份并清理"))
                                     .on_click(move |_, _, cx| {
-                                        store_apply
-                                            .update(cx, |s, cx| s.apply_stale_session_cleanup(cx));
+                                        store_apply.update(cx, |s, cx| {
+                                            s.request_action_confirm(
+                                                crate::store::PendingActionConfirm::ApplyStaleSessionCleanup {
+                                                    count: cnt,
+                                                },
+                                                cx,
+                                            )
+                                        });
                                     }),
                             )
                         }),
@@ -358,8 +364,12 @@ impl Render for SessionsView {
                                     .icon(IconName::Wrench)
                                     .label(t("修复会话索引"))
                                     .on_click(move |_, _, cx| {
-                                        store_repair
-                                            .update(cx, |s, cx| s.run_repair_session_index(cx));
+                                        store_repair.update(cx, |s, cx| {
+                                            s.request_action_confirm(
+                                                crate::store::PendingActionConfirm::RepairSessionIndex,
+                                                cx,
+                                            )
+                                        });
                                     }),
                             )
                             .child(

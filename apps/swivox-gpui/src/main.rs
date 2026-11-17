@@ -1109,6 +1109,49 @@ mod visual_audit {
                     });
                 }),
             ),
+            (
+                "en_21a_confirm_ignite_modal.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.active_tool = "antigravity".to_string();
+                            s.lamplighter_tab = "overview";
+                            s.navigate(Route::Lamplighter, cx);
+                            s.request_action_confirm(
+                                crate::store::PendingActionConfirm::ManualIgniteLamplighter {
+                                    group_key: "antigravity:demo:gemini".to_string(),
+                                    display_label: "Antigravity#Tarik Marques · Gemini".to_string(),
+                                    effective_proxy: "http://127.0.0.1:7890".to_string(),
+                                },
+                                cx,
+                            );
+                        });
+                    });
+                }),
+            ),
+            (
+                "21b_zh_confirm_stop_ag_modal.png",
+                Box::new(|hcx, store| {
+                    i18n::set_language(Language::Zh);
+                    hcx.update(|app| {
+                        Theme::change(ThemeMode::Dark, None, app);
+                        widgets::apply_cjk_typography(app);
+                        store.update(app, |s, cx| {
+                            s.prefs.theme = UiThemeMode::Dark;
+                            s.prefs.language = Language::Zh;
+                            s.dismiss_all_confirm_modals(cx);
+                            s.active_tool = "antigravity".to_string();
+                            s.navigate(Route::Overview, cx);
+                            s.request_action_confirm(
+                                crate::store::PendingActionConfirm::StopAntigravity {
+                                    target: "desktop".to_string(),
+                                },
+                                cx,
+                            );
+                        });
+                    });
+                }),
+            ),
         ];
 
         for (filename, step_fn) in steps {

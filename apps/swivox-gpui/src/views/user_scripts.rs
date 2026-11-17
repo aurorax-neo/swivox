@@ -46,6 +46,11 @@ pub fn render_user_scripts(store: &Entity<AppStore>, cx: &App) -> impl IntoEleme
                 let key_sw = sc.key.clone();
                 let store_sw = store.clone();
                 let key_del = sc.key.clone();
+                let name_del = if sc.name.trim().is_empty() {
+                    sc.key.clone()
+                } else {
+                    sc.name.clone()
+                };
                 let store_del = store.clone();
                 let is_user = sc.source == "user";
 
@@ -135,8 +140,15 @@ pub fn render_user_scripts(store: &Entity<AppStore>, cx: &App) -> impl IntoEleme
                                     .tooltip(t("卸载用户脚本"))
                                     .on_click(move |_, _, cx| {
                                         let k = key_del.clone();
+                                        let nm = name_del.clone();
                                         store_del.update(cx, |s, cx| {
-                                            s.delete_local_user_script(k, cx)
+                                            s.request_action_confirm(
+                                                crate::store::PendingActionConfirm::DeleteUserScript {
+                                                    key: k,
+                                                    name: nm,
+                                                },
+                                                cx,
+                                            )
                                         });
                                     }),
                                 )

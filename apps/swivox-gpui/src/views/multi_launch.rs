@@ -91,6 +91,8 @@ pub fn render_multi_launch(store: &Entity<AppStore>, cx: &App) -> impl IntoEleme
 
                 let id_restart = inst.instance_id.clone();
                 let id_stop = inst.instance_id.clone();
+                let label_restart = label.clone();
+                let label_stop = label.clone();
                 let store_restart = store.clone();
                 let store_stop = store.clone();
 
@@ -161,7 +163,16 @@ pub fn render_multi_launch(store: &Entity<AppStore>, cx: &App) -> impl IntoEleme
                                 .tooltip(t("重启此 Codex 实例"))
                                 .on_click(move |_, _, cx| {
                                     let id = id_restart.clone();
-                                    store_restart.update(cx, |s, cx| s.restart_multi_instance(id, cx));
+                                    let lbl = label_restart.clone();
+                                    store_restart.update(cx, |s, cx| {
+                                        s.request_action_confirm(
+                                            crate::store::PendingActionConfirm::RestartMultiInstance {
+                                                instance_id: id,
+                                                label: lbl,
+                                            },
+                                            cx,
+                                        )
+                                    });
                                 }),
                             )
                             .child(
@@ -181,7 +192,16 @@ pub fn render_multi_launch(store: &Entity<AppStore>, cx: &App) -> impl IntoEleme
                                 })
                                 .on_click(move |_, _, cx| {
                                     let id = id_stop.clone();
-                                    store_stop.update(cx, |s, cx| s.stop_multi_instance(id, cx));
+                                    let lbl = label_stop.clone();
+                                    store_stop.update(cx, |s, cx| {
+                                        s.request_action_confirm(
+                                            crate::store::PendingActionConfirm::StopMultiInstance {
+                                                instance_id: id,
+                                                label: lbl,
+                                            },
+                                            cx,
+                                        )
+                                    });
                                 }),
                             ),
                     )

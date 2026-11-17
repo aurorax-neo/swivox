@@ -160,6 +160,8 @@ impl Render for SettingsView {
                 .iter()
                 .map(|node| {
                     let node_id_del = node.id.clone();
+                    let node_name_del = node.name.clone();
+                    let node_url_del = node.url.clone();
                     let node_url_test = node.url.clone();
                     let st_test = self.store.clone();
                     let st_del = self.store.clone();
@@ -224,7 +226,18 @@ impl Render for SettingsView {
                                     .tooltip(t("删除代理节点"))
                                     .on_click(move |_, _, cx| {
                                         let id = node_id_del.clone();
-                                        st_del.update(cx, |s, cx| s.remove_proxy_node(id, cx));
+                                        let name = node_name_del.clone();
+                                        let url = node_url_del.clone();
+                                        st_del.update(cx, |s, cx| {
+                                            s.request_action_confirm(
+                                                crate::store::PendingActionConfirm::RemoveProxyNode {
+                                                    node_id: id,
+                                                    name,
+                                                    url,
+                                                },
+                                                cx,
+                                            )
+                                        });
                                     }),
                                 ),
                         )

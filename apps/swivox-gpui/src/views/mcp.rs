@@ -822,7 +822,14 @@ impl Render for McpView {
                                     .tooltip(t("删除"))
                                     .on_click(move |_, _, cx| {
                                         let id = id_del.clone();
-                                        store_del.update(cx, |s, cx| s.delete_mcp_entry(id, cx));
+                                        store_del.update(cx, |s, cx| {
+                                            s.request_action_confirm(
+                                                crate::store::PendingActionConfirm::DeleteMcpEntry {
+                                                    id,
+                                                },
+                                                cx,
+                                            )
+                                        });
                                     }),
                                 ),
                         )
@@ -875,8 +882,19 @@ impl Render for McpView {
                                     .small()
                                     .icon(IconName::RefreshCw)
                                     .label(t("同步至 config.toml"))
-                                    .on_click(move |_, _, cx| {
-                                        store_sync.update(cx, |s, cx| s.sync_mcp_to_live(cx));
+                                    .on_click({
+                                        let managed_cnt = managed.len();
+                                        move |_, _, cx| {
+                                            store_sync.update(cx, |s, cx| {
+                                                s.request_action_confirm(
+                                                    crate::store::PendingActionConfirm::SyncMcpToLive {
+                                                        managed_count: managed_cnt,
+                                                        live_count,
+                                                    },
+                                                    cx,
+                                                )
+                                            });
+                                        }
                                     }),
                             )
                             .child(

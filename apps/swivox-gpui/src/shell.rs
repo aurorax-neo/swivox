@@ -13,7 +13,7 @@ use crate::routes::{
     GLOBAL_NAVIGATION_ROUTES, NAVIGATION_SECTIONS, Route, SectionPlacement, StatusTone,
     status_label, status_tone, tool_tooltip,
 };
-use crate::store::AppStore;
+use crate::store::{AppStore, PendingActionConfirm};
 use crate::views;
 use crate::views::antigravity_accounts::AntigravityAccountsView;
 use crate::views::antigravity_enhance::AntigravityEnhanceView;
@@ -500,7 +500,12 @@ impl ManagerShell {
                                     .icon(IconName::PowerOff)
                                     .label(t("停止 Codex"))
                                     .on_click(move |_, _, cx| {
-                                        store_stop.update(cx, |s, cx| s.stop_codex(cx));
+                                        store_stop.update(cx, |s, cx| {
+                                            s.request_action_confirm(
+                                                PendingActionConfirm::StopCodex,
+                                                cx,
+                                            )
+                                        });
                                     }),
                             )
                         })
@@ -518,7 +523,10 @@ impl ManagerShell {
                                 .on_click(move |_, _, cx| {
                                     store_launch.update(cx, |s, cx| {
                                         if codex_running {
-                                            s.restart_codex(cx);
+                                            s.request_action_confirm(
+                                                PendingActionConfirm::RestartCodex,
+                                                cx,
+                                            );
                                         } else {
                                             s.launch_codex(cx);
                                         }
@@ -558,7 +566,13 @@ impl ManagerShell {
                                     .label(t("清理冲突"))
                                     .on_click(move |_, _, cx| {
                                         store_ag_clean.update(cx, |s, cx| {
-                                            s.launch_antigravity_by_target("desktop", true, cx)
+                                            s.request_action_confirm(
+                                                PendingActionConfirm::RestartAntigravity {
+                                                    target: "desktop".to_string(),
+                                                    clean_conflict: true,
+                                                },
+                                                cx,
+                                            )
                                         });
                                     }),
                             )
@@ -574,7 +588,12 @@ impl ManagerShell {
                                     .label(t("停止桌面版"))
                                     .on_click(move |_, _, cx| {
                                         store_ag_desk_stop.update(cx, |s, cx| {
-                                            s.stop_antigravity_by_target("desktop", cx)
+                                            s.request_action_confirm(
+                                                PendingActionConfirm::StopAntigravity {
+                                                    target: "desktop".to_string(),
+                                                },
+                                                cx,
+                                            )
                                         });
                                     }),
                             )
@@ -592,11 +611,17 @@ impl ManagerShell {
                                 })
                                 .on_click(move |_, _, cx| {
                                     store_ag_desk_launch.update(cx, |s, cx| {
-                                        s.launch_antigravity_by_target(
-                                            "desktop",
-                                            ag_desktop_running,
-                                            cx,
-                                        );
+                                        if ag_desktop_running {
+                                            s.request_action_confirm(
+                                                PendingActionConfirm::RestartAntigravity {
+                                                    target: "desktop".to_string(),
+                                                    clean_conflict: false,
+                                                },
+                                                cx,
+                                            );
+                                        } else {
+                                            s.launch_antigravity_by_target("desktop", false, cx);
+                                        }
                                     });
                                 }),
                         )
@@ -618,7 +643,12 @@ impl ManagerShell {
                                     .label(t("停止 IDE"))
                                     .on_click(move |_, _, cx| {
                                         store_ag_ide_stop.update(cx, |s, cx| {
-                                            s.stop_antigravity_by_target("ide", cx)
+                                            s.request_action_confirm(
+                                                PendingActionConfirm::StopAntigravity {
+                                                    target: "ide".to_string(),
+                                                },
+                                                cx,
+                                            )
                                         });
                                     }),
                             )
@@ -636,7 +666,17 @@ impl ManagerShell {
                                 })
                                 .on_click(move |_, _, cx| {
                                     store_ag_ide_launch.update(cx, |s, cx| {
-                                        s.launch_antigravity_by_target("ide", ag_ide_running, cx);
+                                        if ag_ide_running {
+                                            s.request_action_confirm(
+                                                PendingActionConfirm::RestartAntigravity {
+                                                    target: "ide".to_string(),
+                                                    clean_conflict: false,
+                                                },
+                                                cx,
+                                            );
+                                        } else {
+                                            s.launch_antigravity_by_target("ide", false, cx);
+                                        }
                                     });
                                 }),
                         ),
@@ -1257,6 +1297,297 @@ impl ManagerShell {
                         .label(t("确认清理"))
                         .on_click(move |_, _, cx| {
                             st_exec.update(cx, |s, cx| s.clean_selected_agent_cache(cx));
+                        })
+                        .into_any_element(),
+                ],
+            ));
+        }
+
+        // 10. 通用高影响操作二次确认弹窗（进程停止/重启/接管、配置删除/卸载/清空、指纹与索引重写、手动点火）
+        if let Some(action) = data.pending_action_confirm.clone() {
+            let st_dismiss = self.store.clone();
+            let st_cancel = self.store.clone();
+            let st_exec = self.store.clone();
+            let action_exec = action.clone();
+
+            let (title, body, is_danger, confirm_label, confirm_icon) = match &action {
+                PendingActionConfirm::StopCodex => (
+                    t("确认停止 Codex？"),
+                    t("停止后将关闭当前运行中的 Codex 桌面实例与本地协议代理，正在生成的回复将被中断。"),
+                    true,
+                    t("确认停止"),
+                    IconName::PowerOff,
+                ),
+                PendingActionConfirm::RestartCodex => (
+                    t("确认重启 Codex？"),
+                    t("将关闭并重新拉起当前运行中的 Codex 桌面实例，正在进行中的任务将被中断。"),
+                    false,
+                    t("确认重启"),
+                    IconName::Rocket,
+                ),
+                PendingActionConfirm::StopAntigravity { target } => {
+                    if target == "ide" {
+                        (
+                            t("确认停止 Antigravity IDE？"),
+                            t("将关闭当前正在运行的 Antigravity IDE 编辑器进程，请确保未保存的文件已妥善保存。"),
+                            true,
+                            t("确认停止"),
+                            IconName::PowerOff,
+                        )
+                    } else {
+                        (
+                            t("确认停止 Antigravity 桌面版？"),
+                            t("将关闭当前正在运行的 Antigravity 桌面版客户端与后台对话连接。"),
+                            true,
+                            t("确认停止"),
+                            IconName::PowerOff,
+                        )
+                    }
+                }
+                PendingActionConfirm::RestartAntigravity {
+                    target,
+                    clean_conflict,
+                } => {
+                    if *clean_conflict {
+                        (
+                            t("确认清理冲突并重启 Antigravity？"),
+                            t("将强制结束残留冲突的 Antigravity 进程，并按当前免 TUN 隔离代理与增强配置重新启动。"),
+                            true,
+                            t("清理并重启"),
+                            IconName::RotateCcw,
+                        )
+                    } else if target == "ide" {
+                        (
+                            t("确认重启 Antigravity IDE？"),
+                            t("将关闭并按当前 IDE 隔离代理配置重新启动 Antigravity IDE 编辑器。"),
+                            false,
+                            t("确认重启"),
+                            IconName::Rocket,
+                        )
+                    } else {
+                        (
+                            t("确认重启 Antigravity 桌面版？"),
+                            t("将关闭并按当前桌面版隔离代理与 CDP 增强配置重新启动 Antigravity 桌面版。"),
+                            false,
+                            t("确认重启"),
+                            IconName::Rocket,
+                        )
+                    }
+                }
+                PendingActionConfirm::StopMultiInstance { label, .. } => (
+                    t("确认结束多开实例？"),
+                    tf("确定结束独立运行的 Codex 多开实例「{0}」吗？", &[label]),
+                    true,
+                    t("确认结束"),
+                    IconName::PowerOff,
+                ),
+                PendingActionConfirm::RestartMultiInstance { label, .. } => (
+                    t("确认重启多开实例？"),
+                    tf("确定关闭并重启独立运行的 Codex 多开实例「{0}」吗？", &[label]),
+                    false,
+                    t("确认重启"),
+                    IconName::RotateCcw,
+                ),
+                PendingActionConfirm::TriggerTakeoverNow => (
+                    t("确认立即接管运行实例？"),
+                    t("将平滑重启当前正在运行的官方 Codex 实例，并自动挂载 Swivox 渲染层增强与本地协议代理。"),
+                    false,
+                    t("确认接管"),
+                    IconName::Rocket,
+                ),
+                PendingActionConfirm::DeleteMcpEntry { id } => (
+                    t("删除 MCP 服务器"),
+                    tf(
+                        "确定从受管列表移除 MCP 服务器「{0}」并同步更新 config.toml 吗？",
+                        &[id],
+                    ),
+                    true,
+                    t("确认删除"),
+                    IconName::Trash,
+                ),
+                PendingActionConfirm::SyncMcpToLive {
+                    managed_count,
+                    live_count,
+                } => (
+                    t("确认同步 MCP 至 config.toml？"),
+                    tf(
+                        "即将把当前托管的 {0} 个 MCP 服务器写入本机 ~/.codex/config.toml（当前文件内有 {1} 个生效项）。",
+                        &[&managed_count.to_string(), &live_count.to_string()],
+                    ),
+                    false,
+                    t("确认同步"),
+                    IconName::RefreshCw,
+                ),
+                PendingActionConfirm::UninstallSkill { name, .. } => (
+                    t("确认卸载 Skill？"),
+                    tf(
+                        "确定从本地 Codex 技能目录卸载「{0}」吗？卸载前将自动归档至下方本地备份区。",
+                        &[name],
+                    ),
+                    true,
+                    t("确认卸载"),
+                    IconName::Trash,
+                ),
+                PendingActionConfirm::DeleteSkillRepo { key } => (
+                    t("删除 Skill 仓库源"),
+                    tf("确定从技能源列表移除仓库「{0}」吗？", &[key]),
+                    true,
+                    t("确认删除"),
+                    IconName::Trash,
+                ),
+                PendingActionConfirm::RestoreSkillBackup { label, .. } => (
+                    t("确认从备份恢复 Skill？"),
+                    tf(
+                        "将使用备份「{0}」还原本地 Skill 目录；若当前存在同名 Skill 将被覆盖。",
+                        &[label],
+                    ),
+                    false,
+                    t("确认恢复"),
+                    IconName::RotateCcw,
+                ),
+                PendingActionConfirm::DeleteSkillBackup { label, .. } => (
+                    t("彻底删除 Skill 备份"),
+                    tf(
+                        "确定永久删除本地备份「{0}」吗？删除后将无法再恢复该历史归档。",
+                        &[label],
+                    ),
+                    true,
+                    t("彻底删除"),
+                    IconName::Trash,
+                ),
+                PendingActionConfirm::DeleteUserScript { name, .. } => (
+                    t("卸载本地用户脚本"),
+                    tf(
+                        "确定从 ~/.swivox/user_scripts 删除拓展脚本「{0}」吗？",
+                        &[name],
+                    ),
+                    true,
+                    t("确认卸载"),
+                    IconName::Trash,
+                ),
+                PendingActionConfirm::RemoveProxyNode { name, url, .. } => (
+                    t("删除代理节点"),
+                    tf(
+                        "确定从代理节点列表中移除「{0}（{1}）」吗？正在使用该节点的客户端或账号将自动回退为跟随系统代理。",
+                        &[name, url],
+                    ),
+                    true,
+                    t("确认删除"),
+                    IconName::Trash,
+                ),
+                PendingActionConfirm::ClearAppLogs => (
+                    t("确认清空运行日志？"),
+                    t("确定清空 ~/.swivox/swivox.log 中的全部历史运行与诊断日志记录吗？此操作不可撤销。"),
+                    true,
+                    t("确认清空"),
+                    IconName::Trash,
+                ),
+                PendingActionConfirm::RemoveAllEnvConflicts { summary } => (
+                    t("备份并移除冲突环境变量"),
+                    tf(
+                        "将自动备份并清理以下可能覆盖供应商配置的环境变量：{0}。",
+                        &[summary],
+                    ),
+                    true,
+                    t("备份并移除"),
+                    IconName::Trash,
+                ),
+                PendingActionConfirm::RestoreAgFingerprintBaseline => (
+                    t("恢复原始设备指纹基线"),
+                    t("确定将本机 Antigravity 的 storage.json 与 state.vscdb 设备机器码覆写回初始原始基线吗？"),
+                    false,
+                    t("确认恢复"),
+                    IconName::RotateCcw,
+                ),
+                PendingActionConfirm::RegenerateAgFingerprint => (
+                    t("生成随机新设备指纹"),
+                    t("确定生成全新随机机器码（machineId / macMachineId / devDeviceId / sqmId）并覆写当前目标与激活账号绑定指纹吗？"),
+                    false,
+                    t("确认生成"),
+                    IconName::RefreshCw,
+                ),
+                PendingActionConfirm::ResetImageOverlay => (
+                    t("恢复默认背景图层"),
+                    t("确定清空已配置的自定义背景壁纸路径，并将图层不透明度与填充模式恢复为默认值吗？"),
+                    true,
+                    t("确认恢复"),
+                    IconName::RotateCcw,
+                ),
+                PendingActionConfirm::RepairSessionIndex => (
+                    t("确认修复本地会话索引？"),
+                    t("将扫描本地 SQLite 会话数据库与 rollout 文件并对齐重建 session_index（执行前会自动备份原索引文件）。"),
+                    false,
+                    t("开始修复"),
+                    IconName::Wrench,
+                ),
+                PendingActionConfirm::ApplyStaleSessionCleanup { count } => (
+                    t("清理孤立会话索引记录"),
+                    tf(
+                        "即将备份原索引并清理 {0} 条仅存在于索引中的孤立失效记录（不会删除任何真实对话文件）。",
+                        &[&count.to_string()],
+                    ),
+                    true,
+                    t("备份并清理"),
+                    IconName::Trash,
+                ),
+                PendingActionConfirm::SyncHistoryProviders => (
+                    t("一键对齐历史会话供应商归属"),
+                    t("将扫描并批量对齐本地 SQLite 数据库与 rollout 文件中的供应商归属标识，使历史会话重新显示在列表中（自动创建完整备份）。"),
+                    false,
+                    t("确认对齐"),
+                    IconName::RefreshCw,
+                ),
+                PendingActionConfirm::ManualIgniteLamplighter {
+                    display_label,
+                    effective_proxy,
+                    ..
+                } => (
+                    t("确认立即手动点火？"),
+                    tf(
+                        "将通过隔离代理「{1}」向「{0}」发送极小点火请求；若当前尚未开启 5 小时周期，将立即触发新一轮 5 小时额度倒计时。",
+                        &[display_label, effective_proxy],
+                    ),
+                    false,
+                    t("立即点火"),
+                    IconName::Zap,
+                ),
+            };
+
+            let exec_btn = AppButton::new("pending-action-confirm-exec")
+                .small()
+                .icon(confirm_icon)
+                .label(confirm_label);
+            let exec_btn = if is_danger {
+                exec_btn.danger()
+            } else {
+                exec_btn.primary()
+            };
+
+            return Some(views::modal_dialog_overlay(
+                cx,
+                "modal-pending-action-confirm",
+                title,
+                body,
+                is_danger,
+                move |_, cx| {
+                    st_dismiss.update(cx, |s, cx| s.dismiss_all_confirm_modals(cx));
+                },
+                vec![
+                    AppButton::new("pending-action-confirm-cancel")
+                        .outline()
+                        .small()
+                        .label(t("取消"))
+                        .on_click(move |_, _, cx| {
+                            st_cancel.update(cx, |s, cx| {
+                                s.pending_action_confirm = None;
+                                cx.notify();
+                            });
+                        })
+                        .into_any_element(),
+                    exec_btn
+                        .on_click(move |_, _, cx| {
+                            let act = action_exec.clone();
+                            st_exec.update(cx, |s, cx| s.execute_confirmed_action(act, cx));
                         })
                         .into_any_element(),
                 ],

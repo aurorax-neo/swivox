@@ -564,7 +564,10 @@ impl Render for AntigravityEnhanceView {
                                             .label(t("恢复原始基线"))
                                             .on_click(move |_, _, cx| {
                                                 st_restore.update(cx, |s, cx| {
-                                                    s.restore_antigravity_fingerprint_baseline(cx)
+                                                    s.request_action_confirm(
+                                                        crate::store::PendingActionConfirm::RestoreAgFingerprintBaseline,
+                                                        cx,
+                                                    )
                                                 });
                                             }),
                                     )
@@ -576,7 +579,10 @@ impl Render for AntigravityEnhanceView {
                                             .label(t("生成随机新指纹"))
                                             .on_click(move |_, _, cx| {
                                                 st_regen.update(cx, |s, cx| {
-                                                    s.regenerate_antigravity_fingerprint(None, cx)
+                                                    s.request_action_confirm(
+                                                        crate::store::PendingActionConfirm::RegenerateAgFingerprint,
+                                                        cx,
+                                                    )
                                                 });
                                             }),
                                     ),

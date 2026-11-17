@@ -1,4 +1,4 @@
-// Auto-ported from apps/swivox-manager/src/i18n-en.ts
+// 英文词典（最初移植自已退役的旧前端，现由 Rust 端独立维护）
 
 pub const EN_PLAIN_ENTRIES: &[(&str, &str)] = &[
     ("本地服务器状态", "Local server status"),

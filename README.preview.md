@@ -12,7 +12,7 @@
   <a href="https://github.com/aurorax-neo/swivox/stargazers"><img src="https://img.shields.io/github/stars/aurorax-neo/swivox?style=flat-square&amp;color=e8b86d" alt="GitHub Stars"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-838da8?style=flat-square" alt="许可证 AGPL-3.0-only"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS-838da8?style=flat-square" alt="支持 Windows 和 macOS">
-  <img src="https://img.shields.io/badge/built%20with-Rust%20%2B%20Tauri-838da8?style=flat-square" alt="使用 Rust 与 Tauri 构建">
+  <img src="https://img.shields.io/badge/built%20with-Rust%20%2B%20GPUI-838da8?style=flat-square" alt="使用 Rust 与 GPUI 构建">
 </p>
 
 Swivox 是面向 OpenAI Codex / ChatGPT 桌面应用的统一管理工具，完整说明见 [README.md](README.md)。

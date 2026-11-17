@@ -1070,7 +1070,6 @@ enum ProcessWindowScore {
     Fallback,
     Titled,
     AppWindow,
-    TauriWindow,
 }
 
 #[cfg(windows)]
@@ -1094,9 +1093,6 @@ unsafe extern "system" fn find_process_window_proc(hwnd: HWND, lparam: LPARAM) -
             state.hwnd = hwnd;
             state.score = score;
         }
-        if score == ProcessWindowScore::TauriWindow {
-            return BOOL(0);
-        }
     }
     BOOL(1)
 }
@@ -1111,8 +1107,6 @@ fn process_window_score(
     let is_tool_window = extended_style & WS_EX_TOOLWINDOW.0 != 0;
     if is_tool_window || is_auxiliary_window_class(class_name) {
         ProcessWindowScore::Fallback
-    } else if class_name.eq_ignore_ascii_case("Tauri Window") {
-        ProcessWindowScore::TauriWindow
     } else if is_app_window && !is_tool_window {
         ProcessWindowScore::AppWindow
     } else if has_title {
@@ -1126,7 +1120,7 @@ fn process_window_score(
 fn is_auxiliary_window_class(class_name: &str) -> bool {
     matches!(
         class_name.to_ascii_lowercase().as_str(),
-        "ime" | "msctfime ui" | "tray_icon_app" | "tao thread event target"
+        "ime" | "msctfime ui" | "tray_icon_app"
     )
 }
 
@@ -1300,13 +1294,13 @@ mod tests {
     #[test]
     fn application_window_outranks_titled_ime_and_tool_windows() {
         let ime_score = process_window_score(true, 0, "IME");
-        let tool_score = process_window_score(false, WS_EX_TOOLWINDOW.0, "Tao Thread Event Target");
+        let tool_score = process_window_score(false, WS_EX_TOOLWINDOW.0, "Hidden Event Target");
         let app_score = process_window_score(true, WS_EX_APPWINDOW.0, "Chrome_WidgetWin_1");
-        let tauri_score = process_window_score(true, 0, "Tauri Window");
+        let titled_score = process_window_score(true, 0, "Zed::Window");
         let auxiliary_app_score = process_window_score(true, WS_EX_APPWINDOW.0, "tray_icon_app");
 
-        assert!(tauri_score > app_score);
-        assert!(app_score > ime_score);
+        assert!(app_score > titled_score);
+        assert!(titled_score > ime_score);
         assert_eq!(ime_score, tool_score);
         assert_eq!(auxiliary_app_score, ProcessWindowScore::Fallback);
     }

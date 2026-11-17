@@ -57,7 +57,7 @@ pub enum CliInterceptOutcome {
     Handled(i32),
 }
 
-/// 处理与 Tauri 版一致的命令行早期分支（多开 worker、旧兼容壳、开机自启跳过、更新 helper、URL 导入）。
+/// 处理与旧版管理器兼容的命令行早期分支（多开 worker、旧兼容壳、开机自启跳过、更新 helper、URL 导入）。
 pub fn handle_cli_intercepts() -> CliInterceptOutcome {
     let args: Vec<_> = std::env::args_os().collect();
     if let Some(options_path) = args

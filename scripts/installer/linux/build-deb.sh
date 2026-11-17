@@ -7,16 +7,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-PROJECT_DIR="$REPO_DIR/apps/swivox-manager"
+GPUI_DIR="$REPO_DIR/apps/swivox-gpui"
 BUILD_DIR="$REPO_DIR/.linux-build"
 DEB_DIR="$BUILD_DIR/deb"
 PACKAGE_NAME="swivox"
-VERSION="${1:-1.3.0}"
+# 默认取 workspace 版本，保证与 GPUI 二进制一致。
+VERSION="${1:-$(sed -n 's/^version = "\(.*\)"$/\1/p' "$REPO_DIR/Cargo.toml" | head -n 1)}"
 ARCH="$(dpkg --print-architecture)"
-# Node / 包管理器：优先从环境变量取，其次探测 PATH。
-# 不要写死绝对路径——这里是给所有贡献者和 CI 用的，不是某台机器的构建脚本。
-NODE_BIN="${NODE_BIN:-$(command -v node || true)}"
-PNPM_BIN="${PNPM_BIN:-$(command -v pnpm || true)}"
 
 echo "=== Swivox Linux .deb 构建 ==="
 echo "版本: $VERSION"
@@ -38,9 +35,15 @@ install_system_deps() {
         libglib2.0-dev \
         libgtk-3-dev \
         libayatana-appindicator3-dev \
-        libjavascriptcoregtk-4.1-dev \
-        libwebkit2gtk-4.1-dev \
-        libsoup-3.0-dev \
+        libxkbcommon-dev \
+        libxkbcommon-x11-dev \
+        libwayland-dev \
+        libvulkan-dev \
+        libx11-xcb-dev \
+        libxcb1-dev \
+        libfontconfig-dev \
+        libfreetype-dev \
+        libasound2-dev \
         libz3-dev
     echo ">>> 系统依赖安装完成"
 }
@@ -56,30 +59,7 @@ install_rust() {
     echo ">>> Rust 安装完成: $(cargo --version)"
 }
 
-# ── 3. 构建前端 ──────────────────────────────────────────────
-build_frontend() {
-    echo ">>> 构建前端..."
-    cd "$PROJECT_DIR"
-    # vite 需要 node 在 PATH 上；允许通过 NODE_BIN 指定非 PATH 中的安装。
-    if [ -n "$NODE_BIN" ] && [ -x "$NODE_BIN" ]; then
-        export PATH="$(dirname "$NODE_BIN"):$PATH"
-    fi
-    local PM="$PNPM_BIN"
-    if [ -z "$PM" ] || [ ! -x "$PM" ]; then
-        PM="$(command -v pnpm || true)"
-    fi
-    if [ -z "$PM" ]; then
-        echo "error: 找不到 pnpm。请安装（npm i -g pnpm）或用 PNPM_BIN=/path/to/pnpm 指定。" >&2
-        return 1
-    fi
-    export PATH="$(dirname "$PM"):$PATH"
-    "$PM" install
-    # Build vite directly (skip npm/pnpm wrapper issues)
-    node_modules/.bin/vite build
-    echo ">>> 前端构建完成"
-}
-
-# ── 4. 构建 Rust 二进制 ──────────────────────────────────────
+# ── 3. 构建 GPUI 原生二进制（纯 Rust） ──────────────────────────────────────
 build_rust() {
     echo ">>> 构建 Rust 二进制..."
     export PATH="$HOME/.cargo/bin:$PATH"
@@ -87,7 +67,7 @@ build_rust() {
     echo ">>> Rust 构建完成"
 }
 
-# ── 5. 打包 .deb ─────────────────────────────────────────────
+# ── 4. 打包 .deb ─────────────────────────────────────────────
 package_deb() {
     echo ">>> 打包 .deb..."
     local stage="$DEB_DIR/usr"
@@ -104,25 +84,16 @@ package_deb() {
     # ── 目录结构 ──
     mkdir -p "$stage/bin"
     mkdir -p "$stage/share/applications"
-    mkdir -p "$stage/share/icons/hicolor/128x128/apps"
+    mkdir -p "$stage/share/pixmaps"
     mkdir -p "$stage/share/doc/$PACKAGE_NAME"
     mkdir -p "$DEB_DIR/DEBIAN"
-    mkdir -p "$stage/lib/${PACKAGE_NAME}"
 
     # ── 复制二进制 ──
     cp "$REPO_DIR/target/release/swivox" "$stage/bin/"
     chmod 755 "$stage/bin/swivox"
 
-    # ── 复制前端资源 ──
-    if [ -d "$PROJECT_DIR/dist" ]; then
-        cp -r "$PROJECT_DIR/dist" "$stage/lib/${PACKAGE_NAME}/"
-    fi
-
-    # ── 复制图标 ──
-    local icon_src="$PROJECT_DIR/src-tauri/icons/icon.png"
-    if [ -f "$icon_src" ]; then
-        cp "$icon_src" "$stage/share/icons/hicolor/128x128/apps/${PACKAGE_NAME}.png"
-    fi
+    # ── 复制图标（GPUI 应用图标，1024×1024，放 pixmaps 由桌面环境按需缩放）──
+    cp "$GPUI_DIR/icons/icon.png" "$stage/share/pixmaps/${PACKAGE_NAME}.png"
 
     # ── Desktop 文件 ──
     cat > "$stage/share/applications/${PACKAGE_NAME}.desktop" <<'EOF'
@@ -153,8 +124,8 @@ Section: misc
 Priority: optional
 Architecture: ${ARCH}
 Maintainer: BigPizzaV3 <1727732@qq.com>
-Installed-Size: 70620
-Depends: libc6 (>= 2.34), libgcc-s1 (>= 4.2), libstdc++6 (>= 13), libdbus-1-3, libglib2.0-0t64, libgtk-3-0t64, libwebkit2gtk-4.1-0, libsoup-3.0-0, libjavascriptcoregtk-4.1-0, libssl3t64 (>= 3.0.0), libz3-4, libatspi2.0-0t64, libasound2t64
+Installed-Size: ${installed_size}
+Depends: libc6 (>= 2.34), libgcc-s1 (>= 4.2), libstdc++6 (>= 13), libdbus-1-3, libglib2.0-0t64, libgtk-3-0t64, libayatana-appindicator3-1, libxkbcommon0, libxkbcommon-x11-0, libwayland-client0, libvulkan1, libxcb1, libfontconfig1, libfreetype6, libssl3t64 (>= 3.0.0), libz3-4, libasound2t64
 
 Recommends: codex
 Description: Swivox configures and launches OpenAI Codex / ChatGPT desktop apps.
@@ -200,7 +171,6 @@ EOF
 main() {
     install_system_deps
     install_rust
-    build_frontend
     build_rust
     package_deb
 

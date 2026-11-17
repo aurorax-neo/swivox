@@ -9,24 +9,24 @@
 
 | PR | 作者 | 结论 | 关键理由 |
 |---|---|---|---|
-| [#2186](https://github.com/ChatGPTX/ChatGPTX/pull/2186) | dongyu23 | ✅ **可合** | 26.908 RPC stub 冻结的完整适配，CI 全绿 |
-| [#2187](https://github.com/ChatGPTX/ChatGPTX/pull/2187) | dongyu23 | ✅ **可合** | 皮肤重扫性能修复 + 顺带修了 Windows 基线，CI 全绿 |
-| [#2196](https://github.com/ChatGPTX/ChatGPTX/pull/2196) | dongyu23 | ✅ **可合** | 端口问题修复质量最高，CI 全绿 |
-| [#2197](https://github.com/ChatGPTX/ChatGPTX/pull/2197) | dongyu23 | ✅ **可合** | 窗口字段适配，Windows CI 红是 main 既有问题 |
-| [#2195](https://github.com/ChatGPTX/ChatGPTX/pull/2195) | dongyu23 | ✅ **可合** | CI 全绿，测试扎实 |
-| [#2192](https://github.com/ChatGPTX/ChatGPTX/pull/2192) | 130040167 | ✅ **可合** | CI 全绿，微信连接修复 |
-| [#2155](https://github.com/ChatGPTX/ChatGPTX/pull/2155) | dongyu23 | ✅ **可合** | CI 全绿，0x80270254 兜底 |
-| [#2183](https://github.com/ChatGPTX/ChatGPTX/pull/2183) | 2277533612 | ✅ **可合** | 已 rebase，逻辑自洽 |
-| [#2172](https://github.com/ChatGPTX/ChatGPTX/pull/2172) | 0xTotoroX | ✅ **可合** | 前端断言同步更新完好 |
-| [#2084](https://github.com/ChatGPTX/ChatGPTX/pull/2084) | liulinboyi | 🟡 **可合但需注意** | 你已 APPROVED，但 `atomic_write_with` 会与 #2176 冲突 |
-| [#2137](https://github.com/ChatGPTX/ChatGPTX/pull/2137) | zzr767299 | 🟡 **需先 rebase** | 基于 26 commit 前的 main，且与 #2197 同域 |
-| [#2202](https://github.com/ChatGPTX/ChatGPTX/pull/2202) | czw2591686773-ui | ❌ **需修改** | 2 个新测试在 macOS 上必挂；含硬编码本机路径 |
-| [#2168](https://github.com/ChatGPTX/ChatGPTX/pull/2168) | 0xTotoroX | ❌ **需补一处** | 版本号升到 2.0.8 但断言仍写 2.0.7 |
-| [#2176](https://github.com/ChatGPTX/ChatGPTX/pull/2176) | 130040167 | ⚠️ **有共享文件冲突** | 功能没问题，但与 #2187/#2174/#2192 改同一组测试 |
-| [#2174](https://github.com/ChatGPTX/ChatGPTX/pull/2174) | dongyu23 | ⚠️ **有共享文件冲突** | 同上；且与 #2178 功能完全重复 |
-| [#2178](https://github.com/ChatGPTX/ChatGPTX/pull/2178) | dongyu23 | ❌ **建议关闭重开** | 7 个 commit 含 2 次 Revert；重复 #2174；**偷偷缩小了 CI 测试范围** |
-| [#2159](https://github.com/ChatGPTX/ChatGPTX/pull/2159) | yytw21 | ✅ **可合** | 6 行改动，但需补交叉检查 |
-| [#1770](https://github.com/ChatGPTX/ChatGPTX/pull/1770) | Story19240 | 🟡 **需 rebase** | 基于 21 commit 前，缺 `tools` 字段无法编译 |
+| [#2186](https://github.com/Swivox/Swivox/pull/2186) | dongyu23 | ✅ **可合** | 26.908 RPC stub 冻结的完整适配，CI 全绿 |
+| [#2187](https://github.com/Swivox/Swivox/pull/2187) | dongyu23 | ✅ **可合** | 皮肤重扫性能修复 + 顺带修了 Windows 基线，CI 全绿 |
+| [#2196](https://github.com/Swivox/Swivox/pull/2196) | dongyu23 | ✅ **可合** | 端口问题修复质量最高，CI 全绿 |
+| [#2197](https://github.com/Swivox/Swivox/pull/2197) | dongyu23 | ✅ **可合** | 窗口字段适配，Windows CI 红是 main 既有问题 |
+| [#2195](https://github.com/Swivox/Swivox/pull/2195) | dongyu23 | ✅ **可合** | CI 全绿，测试扎实 |
+| [#2192](https://github.com/Swivox/Swivox/pull/2192) | 130040167 | ✅ **可合** | CI 全绿，微信连接修复 |
+| [#2155](https://github.com/Swivox/Swivox/pull/2155) | dongyu23 | ✅ **可合** | CI 全绿，0x80270254 兜底 |
+| [#2183](https://github.com/Swivox/Swivox/pull/2183) | 2277533612 | ✅ **可合** | 已 rebase，逻辑自洽 |
+| [#2172](https://github.com/Swivox/Swivox/pull/2172) | 0xTotoroX | ✅ **可合** | 前端断言同步更新完好 |
+| [#2084](https://github.com/Swivox/Swivox/pull/2084) | liulinboyi | 🟡 **可合但需注意** | 你已 APPROVED，但 `atomic_write_with` 会与 #2176 冲突 |
+| [#2137](https://github.com/Swivox/Swivox/pull/2137) | zzr767299 | 🟡 **需先 rebase** | 基于 26 commit 前的 main，且与 #2197 同域 |
+| [#2202](https://github.com/Swivox/Swivox/pull/2202) | czw2591686773-ui | ❌ **需修改** | 2 个新测试在 macOS 上必挂；含硬编码本机路径 |
+| [#2168](https://github.com/Swivox/Swivox/pull/2168) | 0xTotoroX | ❌ **需补一处** | 版本号升到 2.0.8 但断言仍写 2.0.7 |
+| [#2176](https://github.com/Swivox/Swivox/pull/2176) | 130040167 | ⚠️ **有共享文件冲突** | 功能没问题，但与 #2187/#2174/#2192 改同一组测试 |
+| [#2174](https://github.com/Swivox/Swivox/pull/2174) | dongyu23 | ⚠️ **有共享文件冲突** | 同上；且与 #2178 功能完全重复 |
+| [#2178](https://github.com/Swivox/Swivox/pull/2178) | dongyu23 | ❌ **建议关闭重开** | 7 个 commit 含 2 次 Revert；重复 #2174；**偷偷缩小了 CI 测试范围** |
+| [#2159](https://github.com/Swivox/Swivox/pull/2159) | yytw21 | ✅ **可合** | 6 行改动，但需补交叉检查 |
+| [#1770](https://github.com/Swivox/Swivox/pull/1770) | Story19240 | 🟡 **需 rebase** | 基于 21 commit 前，缺 `tools` 字段无法编译 |
 
 ---
 
@@ -61,7 +61,7 @@ test settings::tests::settings_store_save_load_roundtrip_uses_custom_path ... FA
 ```diff
   - name: Rust tests
 -   run: cargo test --workspace
-+   run: cargo test -p chatgptx-core --test relay_config
++   run: cargo test -p swivox-core --test relay_config
 ```
 
 这是 `.github/workflows/pr-build.yml` 的改动，混在一个名叫「修复 Windows 测试的路径与设置断言」的 commit 里。**合并后 99% 的 CI 覆盖会静默消失。**
@@ -86,9 +86,9 @@ CONFLICT pr2192      CONFLICT pr2176      OK       pr2186
 **冲突全部集中在 3 个文件**：
 
 ```
-crates/chatgptx-core/src/codex_home.rs     ← #2187 #2192 #2176 #2174 #2178 #2186
-crates/chatgptx-core/src/settings.rs       ← 同上（13/18 个 PR 都碰这个文件）
-crates/chatgptx-core/src/relay_config.rs   ← #2174 #2178
+crates/swivox-core/src/codex_home.rs     ← #2187 #2192 #2176 #2174 #2178 #2186
+crates/swivox-core/src/settings.rs       ← 同上（13/18 个 PR 都碰这个文件）
+crates/swivox-core/src/relay_config.rs   ← #2174 #2178
 ```
 
 **注意 `settings.rs` 被 13 个 PR 触碰**——这是全仓库最热的文件，`--theirs` 式的粗暴解决会静默丢掉功能代码。我实测中 `git checkout --theirs` 就丢掉了 #1770 的 `standard_openai_protocol` 字段和 #2084 的 `atomic_write_with` 函数，两者都只在编译期才暴露。
@@ -114,7 +114,7 @@ crates/chatgptx-core/src/relay_config.rs   ← #2174 #2178
 作者的两段式方案：
 
 1. 渲染层加 `codexServiceTierDispatcherPatchable()` 探测，遇到不可写 stub 优雅跳过——**先消除崩溃**；
-2. 新增 CDP Debugger 条件断点捕获：渲染层用纯文本定位算出 `sendRequest` 的断点坐标（UTF-16 计数，与 V8 语义一致）上报 bridge，bridge 用独立 CDP 会话下条件断点 `!window.__chatgptxAppServerClientClass`，命中时 `evaluateOnCallFrame` 把类构造器挂到 window。
+2. 新增 CDP Debugger 条件断点捕获：渲染层用纯文本定位算出 `sendRequest` 的断点坐标（UTF-16 计数，与 V8 语义一致）上报 bridge，bridge 用独立 CDP 会话下条件断点 `!window.__swivoxAppServerClientClass`，命中时 `evaluateOnCallFrame` 把类构造器挂到 window。
 
 **我的检查**：
 
@@ -140,7 +140,7 @@ crates/chatgptx-core/src/relay_config.rs   ← #2174 #2178
 **我的检查**：
 
 - 回归测试用 IIFE 边界提取 bootstrap 片段做断言，方法可靠
-- 保留了 `window.__CHATGPTX_DREAM_SKIN_API_OBSERVER__` 契约
+- 保留了 `window.__SWIVOX_DREAM_SKIN_API_OBSERVER__` 契约
 - **第二个 commit 顺带修了 Windows 基线**（就是问题 1 的那两个文件）——这也是它冲突的来源
 - CI 全绿
 
@@ -152,12 +152,12 @@ crates/chatgptx-core/src/relay_config.rs   ← #2174 #2178
 
 **这批里工程质量最高的一个。**
 
-根因：Windows 上 Hyper-V/WSL 开机会把动态端口范围（49152-65535）里的段划进排除区间，57321 落在里面时 bind 报 os error 10013。这不是 `AddrInUse`，过去既不重试也不解释，而且配置持久化在协议代理模式，之后每次启动都撞同一堵墙。
+根因：Windows 上 Hyper-V/WSL 开机会把动态端口范围（49152-65535）里的段划进排除区间，58321 落在里面时 bind 报 os error 10013。这不是 `AddrInUse`，过去既不重试也不解释，而且配置持久化在协议代理模式，之后每次启动都撞同一堵墙。
 
 三处改动都很扎实：
 
 1. **错误分类**：`error_is_bind_forbidden()` 区分「被占用 / 被系统保留 / 其他」，被保留时立即失败（不烧 6 秒重试预算）并给出 `netsh` 检查、重启、换端口三条出路；无关错误原样冒泡**不误贴标签**
-2. **`CHATGPTX_PROTOCOL_PROXY_PORT` 环境变量**：沿用 `CHATGPTX_GUARD_PORT` 的既有模式，写入 base_url 与检测配置的**全部 14 处**调用点统一走 `protocol_proxy_port()`，管理端同步替换。我 grep 确认没有遗漏
+2. **`SWIVOX_PROTOCOL_PROXY_PORT` 环境变量**：沿用 `SWIVOX_GUARD_PORT` 的既有模式，写入 base_url 与检测配置的**全部 14 处**调用点统一走 `protocol_proxy_port()`，管理端同步替换。我 grep 确认没有遗漏
 3. **测试**：新增独立测试文件 `protocol_proxy_port_env.rs`，验证环境变量覆盖后写入侧与检测侧一致；新增两个 launcher 测试验证分类报错与错误冒泡
 
 **我的检查**：
@@ -259,7 +259,7 @@ CI 全绿。**能关**：#2190
 - 写入前重新校验源文件 SHA-256，文件被外部修改时跳过——**不会覆盖新内容**，这个设计对
 - 回滚改为基于原始 `session_meta` 行的数量/顺序/hash 校验，不再缓存整份 rollout，同时恢复原始 mtime 和权限
 - `vars_os()` 容错处理避免 macOS 非 UTF-8 环境变量导致 manager 崩溃
-- 隔离测试 `cargo test -p chatgptx-core --test launcher` 通过
+- 隔离测试 `cargo test -p swivox-core --test launcher` 通过
 
 **合并时要注意**：它给 `settings.rs` 加了 `atomic_write_with`，与 #2176 的 `atomic_write` 调用点在同一个区域，会冲突。#2176 的 `ensure_windows_sandbox_usable_for_current_user` 需要改成走 `atomic_write`（这个函数在新版里仍然存在，只是内部改调 `atomic_write_with`），所以是机械冲突。
 

@@ -2,7 +2,7 @@
 
 ## Summary
 
-ChatGPTX will replace the current relay-profile-centered provider management with a cc-switch-style provider system. Providers become the primary persisted entity, the manager UI edits providers directly, and runtime configuration is generated from the active provider instead of reading `relayProfiles` as the source of truth.
+Swivox will replace the current relay-profile-centered provider management with a cc-switch-style provider system. Providers become the primary persisted entity, the manager UI edits providers directly, and runtime configuration is generated from the active provider instead of reading `relayProfiles` as the source of truth.
 
 The redesign aims for high compatibility with cc-switch’s provider model and import semantics without copying every peripheral feature. The focus is provider CRUD, migration from existing relay profiles, active-provider selection, runtime config generation, and external import compatibility.
 
@@ -24,9 +24,9 @@ The redesign aims for high compatibility with cc-switch’s provider model and i
 
 ## Current State
 
-Today provider-like data is stored in `BackendSettings.relayProfiles` and selected by `activeRelayId` in `crates/chatgptx-core/src/settings.rs`. Each relay profile mixes persisted provider details with runtime-oriented relay configuration fields such as base URL, API key, protocol, auth/config text, and context-related relay options.
+Today provider-like data is stored in `BackendSettings.relayProfiles` and selected by `activeRelayId` in `crates/swivox-core/src/settings.rs`. Each relay profile mixes persisted provider details with runtime-oriented relay configuration fields such as base URL, API key, protocol, auth/config text, and context-related relay options.
 
-The manager UI exposes settings and relay-related behavior through `apps/chatgptx-manager/src/App.tsx`, but there is no dedicated standalone provider resource layer. The backend already contains an external import path in `apps/chatgptx-manager/src-tauri/src/commands.rs` and `crates/chatgptx-core/src/ccs_import.rs`, but imports currently materialize as relay profiles.
+The manager UI exposes settings and relay-related behavior through `apps/swivox-manager/src/App.tsx`, but there is no dedicated standalone provider resource layer. The backend already contains an external import path in `apps/swivox-manager/src-tauri/src/commands.rs` and `crates/swivox-core/src/ccs_import.rs`, but imports currently materialize as relay profiles.
 
 This creates three problems:
 
@@ -77,7 +77,7 @@ This keeps runtime behavior deterministic while decoupling editing/storage from 
 
 ### Provider structure
 
-The new provider entity should preserve high-value compatibility with cc-switch while staying scoped to ChatGPTX needs.
+The new provider entity should preserve high-value compatibility with cc-switch while staying scoped to Swivox needs.
 
 Recommended fields:
 
@@ -88,7 +88,7 @@ Recommended fields:
 - `notes: Option<String>`
 - `meta: Option<ProviderMeta>`
 
-`ProviderMeta` should start intentionally small and only cover fields that ChatGPTX will consume in this phase. It may include compatibility placeholders for future interop, but implementation should not depend on unused surface area.
+`ProviderMeta` should start intentionally small and only cover fields that Swivox will consume in this phase. It may include compatibility placeholders for future interop, but implementation should not depend on unused surface area.
 
 Initial meta candidates:
 

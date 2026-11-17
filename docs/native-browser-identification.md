@@ -20,14 +20,14 @@ it does not create a separate Chrome opt-in. The persistent identification
 disclosure below applies to either browser.
 
 Saving does not patch a running service or restart an application. The next
-ChatGPTX launcher takes a settings snapshot and applies compatibility before
+Swivox launcher takes a settings snapshot and applies compatibility before
 launching Codex when a supported runtime already exists. Restarting an old
 launcher is necessary when installing this version; activating an existing
 instance does not start another runtime owner.
 
 **Persistent effect:** native controlled-tab requests can carry an
 `x-browser-agent: ChatGPT/<session-id>` header to destination websites. The native
-extension retains identification enablement. Disabling this ChatGPTX option or
+extension retains identification enablement. Disabling this Swivox option or
 restoring the service does **not** turn off identification already retained by
 the extension. Site restrictions, enterprise policy, native operation approvals,
 and user-stop handling remain in the original execution path.
@@ -202,7 +202,7 @@ revoked by changing the setting; native operation approvals remain independent.
 
 Original service bytes, exact candidate bytes, original modification time and
 journals are retained in
-`~/.chatgptx/native-browser-identification`, outside Desktop's
+`~/.swivox/native-browser-identification`, outside Desktop's
 runtime-cache cleanup scope. Writes use an exclusive transaction lock, synced
 backups, and atomic replacement. Windows directory handles prevent parent
 renaming during transactions. Restored bytes and modification time are prepared
@@ -218,14 +218,14 @@ fixed admission list). Restoration recomputes the
 minimal transformation and requires it to equal the recorded candidate; hashes
 alone are insufficient. Both formats remain recoverable without starting Node,
 with a missing descriptor, or after other runtime components have changed.
-Deleted service caches are not recreated. Older ChatGPTX builds and the standalone
+Deleted service caches are not recreated. Older Swivox builds and the standalone
 browser unlocker v0.1.0 do not understand schema 2: restore with this or a newer
-compatible ChatGPTX before downgrading or switching recovery tools. Future
+compatible Swivox before downgrading or switching recovery tools. Future
 helper or insertion-format changes must retain or version the schema-2
 reconstruction algorithm so existing journals remain recoverable. Do not delete
 the journal to suppress a conflict.
 
-To disable the adapter, save the option as off and restart ChatGPTX and Codex.
+To disable the adapter, save the option as off and restart Swivox and Codex.
 The new launcher disables the helper control file and restores known candidates.
 Already-original files keep their modification times; deleted caches are not
 recreated. Backups are retained. If recovery reports a conflict, preserve the
@@ -293,7 +293,7 @@ a temporary directory for transformation and recovery:
 ```powershell
 $env:CPP_NATIVE_BROWSER_FIXTURE = 'C:\path\to\pinned\cua_node\runtime'
 $env:CPP_NATIVE_BROWSER_DESCRIPTOR = 'C:\path\to\unified-computer-use\version\.mcp.json'
-cargo test -p chatgptx-core native_browser::tests::pinned_fixture_transaction_recovery_and_external_change --lib -- --ignored --exact
+cargo test -p swivox-core native_browser::tests::pinned_fixture_transaction_recovery_and_external_change --lib -- --ignored --exact
 ```
 
 `CPP_NATIVE_BROWSER_FIXTURE` must be an unmodified, supported 16-character runtime directory

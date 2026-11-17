@@ -1,8 +1,8 @@
 # 阶段一完成报告：按模型上下文 catalog 生成（原型）
 
 > 日期：2026-06-24  
-> 范围：ChatGPTX 后端核心（`chatgptx-core`）  
-> 目标：让 ChatGPTX 应用 relay profile 时，根据 `model_list` 后缀语法自动生成 codex 原生 `model_catalog_json` 文件并写入 config.toml 指针，使 codex 客户端按模型识别真实上下文窗口。
+> 范围：Swivox 后端核心（`swivox-core`）  
+> 目标：让 Swivox 应用 relay profile 时，根据 `model_list` 后缀语法自动生成 codex 原生 `model_catalog_json` 文件并写入 config.toml 指针，使 codex 客户端按模型识别真实上下文窗口。
 
 ---
 
@@ -23,11 +23,11 @@
 
 | 任务 | 状态 | 关键交付 |
 |------|------|----------|
-| 1. 后缀解析器 | ✅ 完成 | `crates/chatgptx-core/src/model_suffix.rs` |
+| 1. 后缀解析器 | ✅ 完成 | `crates/swivox-core/src/model_suffix.rs` |
 | 2. 条目收集与 catalog 构建 | ✅ 完成 | `collect_catalog_entries`、`build_model_catalog_json` |
 | 3. apply 接入 3 个入口 | ✅ 完成 | `relay_config.rs` 三处接入 |
 | 4. 兼容性与回归测试 | ✅ 完成 | `tests/model_suffix.rs` 9 个、`tests/relay_config.rs` 3 个新增 |
-| 5. 手工验证 example | ✅ 完成 | `crates/chatgptx-core/examples/generate_model_catalog.rs` |
+| 5. 手工验证 example | ✅ 完成 | `crates/swivox-core/examples/generate_model_catalog.rs` |
 | 6. 实跑验证 A/B | ✅ 完成 | 结论写入 `docs/research/01-调研结果.md` 第九节 |
 
 ---
@@ -80,7 +80,7 @@ complete_relay_profile_config → merge_common → preserve_unmanaged
 ### 4.1 单元测试
 
 ```bash
-cargo test -p chatgptx-core --test model_suffix
+cargo test -p swivox-core --test model_suffix
 ```
 
 **结果：9 passed; 0 failed**
@@ -99,7 +99,7 @@ cargo test -p chatgptx-core --test model_suffix
 ### 4.2 集成测试
 
 ```bash
-cargo test -p chatgptx-core --test relay_config
+cargo test -p swivox-core --test relay_config
 ```
 
 **结果：83 passed; 0 failed**
@@ -112,14 +112,14 @@ cargo test -p chatgptx-core --test relay_config
 ### 4.3 桌面端编译
 
 ```bash
-cd apps/chatgptx-manager
+cd apps/swivox-manager
 npm install
 npm run vite:build
-cargo build -p chatgptx-manager
-cargo test -p chatgptx-manager
+cargo build -p swivox-manager
+cargo test -p swivox-manager
 ```
 
-**结果：** 前端构建成功，`chatgptx-manager` 编译成功，12 个 manager 测试通过。
+**结果：** 前端构建成功，`swivox-manager` 编译成功，12 个 manager 测试通过。
 
 ---
 
@@ -140,7 +140,7 @@ cargo test -p chatgptx-manager
 使用 example 生成原型 catalog：
 
 ```bash
-cargo run -p chatgptx-core --example generate_model_catalog -- \
+cargo run -p swivox-core --example generate_model_catalog -- \
   "deepseek-v4-pro[1M]" "claude-sonnet-4[200K]" 2>/dev/null > /tmp/catalog.json
 ```
 
@@ -161,7 +161,7 @@ cargo run -p chatgptx-core --example generate_model_catalog -- \
 
 | 问题 | 影响 | 计划处理 |
 |------|------|----------|
-| `cargo test -p chatgptx-core` 全量运行有 1 个既有 `settings` 测试失败 | 与本次改动无关 | 不阻塞阶段一，后续单独排查 |
+| `cargo test -p swivox-core` 全量运行有 1 个既有 `settings` 测试失败 | 与本次改动无关 | 不阻塞阶段一，后续单独排查 |
 | 模板使用 gpt-5.5 的 `base_instructions` 等人格/能力字段 | 第三方模型可能携带 GPT-5.5 专属系统提示 | 阶段二/三评估是否需要覆盖/清空 |
 | Windows 路径兼容性未验证 | 相对路径使用正斜杠 | 阶段二/三在 Windows 环境补测 |
 | 前端 UI 仍为纯文本 textarea，无后缀高亮/校验/结构化展示 | 用户体验一般 | 阶段三前端改造 |
@@ -187,7 +187,7 @@ cargo run -p chatgptx-core --example generate_model_catalog -- \
 
 ---
 
-## 八、当前能否通过 ChatGPTX 桌面端测试
+## 八、当前能否通过 Swivox 桌面端测试
 
 **可以，但需要手动输入后缀。**
 
@@ -198,7 +198,7 @@ deepseek-v4-pro[1M]
 claude-sonnet-4[200K]
 ```
 
-然后点击 apply/切换，ChatGPTX 就会自动：
+然后点击 apply/切换，Swivox 就会自动：
 1. 生成 `~/.codex/model-catalogs/<profile-id>.json`
 2. 在 `~/.codex/config.toml` 写入 `model_catalog_json = "model-catalogs/<profile-id>.json"`
 3. codex 客户端启动后读取 catalog，按模型使用真实窗口
@@ -210,7 +210,7 @@ claude-sonnet-4[200K]
 ## 九、下一步建议
 
 如果目标是“现在就能在桌面端用”，阶段一已经够用，只需：
-1. 按上面方式编译/运行 `chatgptx-manager`。
+1. 按上面方式编译/运行 `swivox-manager`。
 2. 在 profile 的模型列表里手写带后缀的模型 slug。
 3. 应用 profile，验证 `~/.codex/config.toml` 和 catalog 文件。
 

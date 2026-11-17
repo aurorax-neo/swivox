@@ -1,21 +1,21 @@
 # Plugin Entry Unlock Restoration Design
 
-**Goal:** Restore the ChatGPTX 1.1.9 plugin entry unlock path while keeping the current marketplace unlock path, and expose separate switches for entry unlock, marketplace unlock, and force install/load.
+**Goal:** Restore the Swivox 1.1.9 plugin entry unlock path while keeping the current marketplace unlock path, and expose separate switches for entry unlock, marketplace unlock, and force install/load.
 
-**Architecture:** Split plugin-related injection into three independently controlled layers: current marketplace request/filter patching, restored legacy plugin entry unlocking, and force install button unlocking. Backend settings persist each layer independently, while the injected ChatGPTX menu and manager settings expose clear toggles.
+**Architecture:** Split plugin-related injection into three independently controlled layers: current marketplace request/filter patching, restored legacy plugin entry unlocking, and force install button unlocking. Backend settings persist each layer independently, while the injected Swivox menu and manager settings expose clear toggles.
 
-**Tech Stack:** Rust settings persistence (`chatgptx-core`), Tauri manager commands/UI, React/TypeScript manager UI, and runtime JavaScript injection in `assets/inject/renderer-inject.js`.
+**Tech Stack:** Rust settings persistence (`swivox-core`), Tauri manager commands/UI, React/TypeScript manager UI, and runtime JavaScript injection in `assets/inject/renderer-inject.js`.
 
 ---
 
 ## Requirements
 
-1. Keep the current ChatGPTX marketplace unlock behavior.
+1. Keep the current Swivox marketplace unlock behavior.
    - The current `list-plugins` request patch must stay available.
    - The current marketplace/filter patch and marketplace display-name handling must stay available.
    - This layer is controlled by a dedicated `插件市场解锁` switch.
 
-2. Restore the ChatGPTX 1.1.9 plugin entry unlock behavior.
+2. Restore the Swivox 1.1.9 plugin entry unlock behavior.
    - Find the left navigation Plugins/插件 button.
    - Use the React fiber auth context path from 1.1.9 to temporarily set `authMethod` to `chatgpt`.
    - Force the entry button visible and enabled.
@@ -68,7 +68,7 @@ Current code has these relevant pieces:
     - `clearPluginEntryUnlockLabel`
     - `enablePluginEntry`
 
-- `crates/chatgptx-core/src/settings.rs`
+- `crates/swivox-core/src/settings.rs`
   - Already has `codex_app_plugin_entry_unlock` and `codex_app_force_plugin_install`.
   - Needs `codex_app_plugin_marketplace_unlock`.
 
@@ -127,7 +127,7 @@ During `scanDeferred()`:
 
 ## UI Design
 
-ChatGPTX injected menu shows three plugin rows:
+Swivox injected menu shows three plugin rows:
 
 1. **插件市场解锁**
    - Description: `API Key 模式下扩展插件市场请求，尽量显示完整插件列表。`
@@ -170,10 +170,10 @@ Diagnostics must not include tokens or sensitive config values.
    - `scanDeferred()` invokes all three independent paths.
 
 3. Verification commands:
-   - `cargo test -p chatgptx-core settings`
-   - `cargo test -p chatgptx-core cdp_bridge -- --nocapture` if injection static tests live there
-   - `cargo check -p chatgptx-manager`
-   - `npm --prefix apps/chatgptx-manager run check`
+   - `cargo test -p swivox-core settings`
+   - `cargo test -p swivox-core cdp_bridge -- --nocapture` if injection static tests live there
+   - `cargo check -p swivox-manager`
+   - `npm --prefix apps/swivox-manager run check`
 
 ## Out of Scope
 

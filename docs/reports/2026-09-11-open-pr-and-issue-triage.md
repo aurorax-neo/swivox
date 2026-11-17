@@ -9,11 +9,11 @@
 
 | PR | 作者 | 状态 | 结论 |
 |---|---|---|---|
-| [#2136](https://github.com/ChatGPTX/ChatGPTX/pull/2136) 恒写 `wire_api = "responses"` | zzr767299 | MERGEABLE/UNSTABLE | **建议直接合** |
-| [#2137](https://github.com/ChatGPTX/ChatGPTX/pull/2137) 自定义 Responses provider 始终生成 catalog | zzr767299 | MERGEABLE/UNSTABLE | **可以合，但须先 rebase 到含 #2136 的 main** |
-| [#1770](https://github.com/ChatGPTX/ChatGPTX/pull/1770) 纯标准 OpenAI 协议开关 | Story19240 | MERGEABLE（base 落后 37 commit） | **先 rebase，需补 UI 入口缺失** |
-| [#2084](https://github.com/ChatGPTX/ChatGPTX/pull/2084) 历史会话流式修复 | liulinboyi | CONFLICTING/DIRTY | **不能按现状合，需按每会话架构重建** |
-| [#2128](https://github.com/ChatGPTX/ChatGPTX/pull/2128) 会话任务树 userscript | Songjun113 | DRAFT | 草稿，未审 |
+| [#2136](https://github.com/Swivox/Swivox/pull/2136) 恒写 `wire_api = "responses"` | zzr767299 | MERGEABLE/UNSTABLE | **建议直接合** |
+| [#2137](https://github.com/Swivox/Swivox/pull/2137) 自定义 Responses provider 始终生成 catalog | zzr767299 | MERGEABLE/UNSTABLE | **可以合，但须先 rebase 到含 #2136 的 main** |
+| [#1770](https://github.com/Swivox/Swivox/pull/1770) 纯标准 OpenAI 协议开关 | Story19240 | MERGEABLE（base 落后 37 commit） | **先 rebase，需补 UI 入口缺失** |
+| [#2084](https://github.com/Swivox/Swivox/pull/2084) 历史会话流式修复 | liulinboyi | CONFLICTING/DIRTY | **不能按现状合，需按每会话架构重建** |
+| [#2128](https://github.com/Swivox/Swivox/pull/2128) 会话任务树 userscript | Songjun113 | DRAFT | 草稿，未审 |
 
 ### #2136 — 建议直接合 ✅
 
@@ -21,20 +21,20 @@
 
 **我的验证**（`/tmp/rev-2136`，与 main 同 target 目录）：
 
-- `cargo test -p chatgptx-core --test relay_config --test protocol_proxy --test launcher` → **148 passed / 0 failed**
-- `cargo test -p chatgptx-core --lib` → 343 passed，唯一失败是 `vision::tests::test_vlm_once_send_error_on_connection_refused`（`timeout` vs `send_error`），这是**依赖真实网络连接、main 上同样会挂**的既有问题，与 PR 无关
+- `cargo test -p swivox-core --test relay_config --test protocol_proxy --test launcher` → **148 passed / 0 failed**
+- `cargo test -p swivox-core --lib` → 343 passed，唯一失败是 `vision::tests::test_vlm_once_send_error_on_connection_refused`（`timeout` vs `send_error`），这是**依赖真实网络连接、main 上同样会挂**的既有问题，与 PR 无关
 
-**正确性论证**：恒写 `responses` 安全的前提是 chat 上游一定有本地代理兜底，这一点成立 —— `BackendSettings::active_relay_transport_uses_protocol_proxy()`（[settings.rs:809](crates/chatgptx-core/src/settings.rs:809)）在 `protocol == ChatCompletions` 时就返回 true，`protocol_proxy` 负责 responses→chat 转换。所以对 Codex 暴露 `responses` 不丢信息。
+**正确性论证**：恒写 `responses` 安全的前提是 chat 上游一定有本地代理兜底，这一点成立 —— `BackendSettings::active_relay_transport_uses_protocol_proxy()`（[settings.rs:809](crates/swivox-core/src/settings.rs:809)）在 `protocol == ChatCompletions` 时就返回 true，`protocol_proxy` 负责 responses→chat 转换。所以对 Codex 暴露 `responses` 不丢信息。
 
 **配套改动是必需的，不是顺手加的**：因为 `wire_api` 恒为 `responses`，`custom_responses_provider(&config_text)`（读 config 文本判断）这个信号就失真了 —— chat 上游也会被读成 responses。PR 把它改成由 `profile.protocol` + `active_provider_id` 判定，逻辑上别无选择。旧函数已整体删除，无残留调用点。
 
-**遗留一点风险（不阻塞）**：`custom_responses_provider` 的语义被改动后，其它路径若还有"从 config 文本反推上游协议"的做法会同样失真。`protocol_proxy` 内部走的是 `relay.protocol`（[protocol_proxy.rs:1160](crates/chatgptx-core/src/protocol_proxy.rs:1160)），没有这个问题；建议合并后再 grep 一轮同类模式。
+**遗留一点风险（不阻塞）**：`custom_responses_provider` 的语义被改动后，其它路径若还有"从 config 文本反推上游协议"的做法会同样失真。`protocol_proxy` 内部走的是 `relay.protocol`（[protocol_proxy.rs:1160](crates/swivox-core/src/protocol_proxy.rs:1160)），没有这个问题；建议合并后再 grep 一轮同类模式。
 
-**关联 issue**：[#2150](https://github.com/ChatGPTX/ChatGPTX/issues/2150)（chat 协议好几个版本无法使用，grok/claude 接不进来）、[#1476](https://github.com/ChatGPTX/ChatGPTX/issues/1476)、[#1795](https://github.com/ChatGPTX/ChatGPTX/issues/1795)。#2150 的现象高度吻合，但里面提到 grok/claude，可能还有上游侧独立问题，合并时建议引用而不断言已修复。
+**关联 issue**：[#2150](https://github.com/Swivox/Swivox/issues/2150)（chat 协议好几个版本无法使用，grok/claude 接不进来）、[#1476](https://github.com/Swivox/Swivox/issues/1476)、[#1795](https://github.com/Swivox/Swivox/issues/1795)。#2150 的现象高度吻合，但里面提到 grok/claude，可能还有上游侧独立问题，合并时建议引用而不断言已修复。
 
 ### #2137 — 可以合，但别单独合 ⚠️
 
-**修的什么**：`apply_model_catalog_to_config`（[relay_config.rs:1962](crates/chatgptx-core/src/relay_config.rs:1962)）在模型列表没有显式窗口/元数据覆写时跳过 catalog 生成，导致自定义 Responses provider 的模型选择器只显示内置模型名。
+**修的什么**：`apply_model_catalog_to_config`（[relay_config.rs:1962](crates/swivox-core/src/relay_config.rs:1962)）在模型列表没有显式窗口/元数据覆写时跳过 catalog 生成，导致自定义 Responses provider 的模型选择器只显示内置模型名。
 
 **改动本身很克制**：只加了一个例外条件 `&& !(custom_responses && profile.has_model_routes())`，保留了"纯平铺 model_list 且无后缀不落盘"的既有契约（`apply_relay_profile_does_not_write_model_catalog_json_for_selected_models` 等测试仍过）。`custom_responses` 和 `has_model_routes` 都在作用域内，helper 已存在。
 
@@ -53,7 +53,7 @@
 
 那个 launcher 失败**不是 PR 的锅**：main 上这个测试已改名为 `a_busy_floating_helper_port_respects_the_platform_retry_budget`，断言 macOS 重试 31 次；PR 的 merge-base 停在 `48d43158`（2026-09-04），比那次重写早，所以带的是旧版本测试。**rebase 到最新 main 后这个失败会自然消失**（该文件在 PR 里只多了一行 `standard_openai_protocol: false` 字面量）。
 
-**真正需要作者补的是**：`settings.rs` 加了 `standard_openai_protocol` 字段和 2 个 serde 测试，但 `crates/chatgptx-core/src/ccs_import.rs` / `provider_import.rs` 里只各补了一行字面量 —— **导入路径不会让用户打开这个开关**，只能在管理器 UI 里手动勾。另外 PR 的 head commit 是 `fix: declare noAuth on RelayProfile`，把 `noAuth` 从 `RelayProfile` 类型里补齐了（`noAuth` 在 main 里早就在用但类型没声明），这属于必要的类型修正，不是夹带。
+**真正需要作者补的是**：`settings.rs` 加了 `standard_openai_protocol` 字段和 2 个 serde 测试，但 `crates/swivox-core/src/ccs_import.rs` / `provider_import.rs` 里只各补了一行字面量 —— **导入路径不会让用户打开这个开关**，只能在管理器 UI 里手动勾。另外 PR 的 head commit 是 `fix: declare noAuth on RelayProfile`，把 `noAuth` 从 `RelayProfile` 类型里补齐了（`noAuth` 在 main 里早就在用但类型没声明），这属于必要的类型修正，不是夹带。
 
 ### #2084 — 现状不能合，需要重建架构 ❌
 
@@ -96,18 +96,18 @@
 
 | issue | 问题 | 备注 |
 |---|---|---|
-| [#2146](https://github.com/ChatGPTX/ChatGPTX/issues/2146) | 整个 `%USERPROFILE%\.codex` 被永久删除，454MB 会话历史只剩 1.1% | **数据不可逆，最高优先** |
-| [#2123](https://github.com/ChatGPTX/ChatGPTX/issues/2123) | `invalid transport in mcp_servers.codex_app` + `model_catalog_json` 指向不存在文件致整份配置加载失败 | 两个独立故障点，附了最小复现 |
-| [#2147](https://github.com/ChatGPTX/ChatGPTX/issues/2147) | 通用配置合并丢 Obsidian MCP（`url` + `http_headers`），且"编辑通用配置"打不开 | 与 #2123 同源 |
-| [#2142](https://github.com/ChatGPTX/ChatGPTX/issues/2142) | 删除会话后重启出现幽灵索引，`local_thread_catalog` 有行、rollout 已无 | #2092 可能未完全覆盖 |
-| [#2134](https://github.com/ChatGPTX/ChatGPTX/issues/2134) / [#1948](https://github.com/ChatGPTX/ChatGPTX/issues/1948) / [#1980](https://github.com/ChatGPTX/ChatGPTX/issues/1980) | 历史会话/项目批量消失 | 与 #2146 同族 |
-| [#2140](https://github.com/ChatGPTX/ChatGPTX/issues/2140) | 启动报 `找不到包。 (0x80073CF1)` | MSIX 包标识问题 |
-| [#2148](https://github.com/ChatGPTX/ChatGPTX/issues/2148) | 1.3.0 重启报 `0x80270254` | 日志显示包名已变 `OpenAI.ChatGPT-Desktop` |
-| [#2074](https://github.com/ChatGPTX/ChatGPTX/issues/2074) | 环境变量误判、图标丢失、API 配置不注入 | |
-| [#2072](https://github.com/ChatGPTX/ChatGPTX/issues/2072) | 市场迁移后 GitHub 已装插件不在列表/会话工具中 | |
-| [#1310](https://github.com/ChatGPTX/ChatGPTX/issues/1310) / [#2076](https://github.com/ChatGPTX/ChatGPTX/issues/2076) | helper 端口 57321 绑定失败 / 端口排除范围 | 硬编码端口类 |
+| [#2146](https://github.com/Swivox/Swivox/issues/2146) | 整个 `%USERPROFILE%\.codex` 被永久删除，454MB 会话历史只剩 1.1% | **数据不可逆，最高优先** |
+| [#2123](https://github.com/Swivox/Swivox/issues/2123) | `invalid transport in mcp_servers.codex_app` + `model_catalog_json` 指向不存在文件致整份配置加载失败 | 两个独立故障点，附了最小复现 |
+| [#2147](https://github.com/Swivox/Swivox/issues/2147) | 通用配置合并丢 Obsidian MCP（`url` + `http_headers`），且"编辑通用配置"打不开 | 与 #2123 同源 |
+| [#2142](https://github.com/Swivox/Swivox/issues/2142) | 删除会话后重启出现幽灵索引，`local_thread_catalog` 有行、rollout 已无 | #2092 可能未完全覆盖 |
+| [#2134](https://github.com/Swivox/Swivox/issues/2134) / [#1948](https://github.com/Swivox/Swivox/issues/1948) / [#1980](https://github.com/Swivox/Swivox/issues/1980) | 历史会话/项目批量消失 | 与 #2146 同族 |
+| [#2140](https://github.com/Swivox/Swivox/issues/2140) | 启动报 `找不到包。 (0x80073CF1)` | MSIX 包标识问题 |
+| [#2148](https://github.com/Swivox/Swivox/issues/2148) | 1.3.0 重启报 `0x80270254` | 日志显示包名已变 `OpenAI.ChatGPT-Desktop` |
+| [#2074](https://github.com/Swivox/Swivox/issues/2074) | 环境变量误判、图标丢失、API 配置不注入 | |
+| [#2072](https://github.com/Swivox/Swivox/issues/2072) | 市场迁移后 GitHub 已装插件不在列表/会话工具中 | |
+| [#1310](https://github.com/Swivox/Swivox/issues/1310) / [#2076](https://github.com/Swivox/Swivox/issues/2076) | helper 端口 58321 绑定失败 / 端口排除范围 | 硬编码端口类 |
 
-**#2146 值得单独说**：这是一条风险预警而非可复现 bug，报告质量很高（DiskGenius 目录项 + 逐文件校验 + 完整时间线，删于 `2026-09-10 14:39:48`，`.codex` 重建于 14:59）。我按 AGENTS.md 的安全规则扫了一遍递归删除点：`skills.rs` 的 `remove_link` 对软链用 `remove_file`/`remove_dir`、只对实体目录用 `remove_dir_all`，注释里明确写了"绝不能用 remove_dir_all 顺着链接删"；`plugin_marketplace.rs` / `skills.rs` 的 `remove_dir_all` 都指向 staging/backup 目录。**没有找到能删整个 `.codex` 的代码路径**。但用户环境是 `launchMode: "patch"` + Codex 桌面版当天自动更新 + ChatGPTX 自更新三者同时发生，最可疑的是更新流程里的路径失效后回退。建议：加一道"拒绝删除 `CODEX_HOME` 本身及其祖先目录"的硬校验，无论触发源是什么。
+**#2146 值得单独说**：这是一条风险预警而非可复现 bug，报告质量很高（DiskGenius 目录项 + 逐文件校验 + 完整时间线，删于 `2026-09-10 14:39:48`，`.codex` 重建于 14:59）。我按 AGENTS.md 的安全规则扫了一遍递归删除点：`skills.rs` 的 `remove_link` 对软链用 `remove_file`/`remove_dir`、只对实体目录用 `remove_dir_all`，注释里明确写了"绝不能用 remove_dir_all 顺着链接删"；`plugin_marketplace.rs` / `skills.rs` 的 `remove_dir_all` 都指向 staging/backup 目录。**没有找到能删整个 `.codex` 的代码路径**。但用户环境是 `launchMode: "patch"` + Codex 桌面版当天自动更新 + Swivox 自更新三者同时发生，最可疑的是更新流程里的路径失效后回退。建议：加一道"拒绝删除 `CODEX_HOME` 本身及其祖先目录"的硬校验，无论触发源是什么。
 
 ### C. 聚类 → 一份改动能关一片（约 50 条）
 

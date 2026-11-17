@@ -9,7 +9,7 @@
 
 ## 缺陷 1：切回 official 后中转站配置残留（**已独立复现**）
 
-对应 issue [#2216](https://github.com/ChatGPTX/ChatGPTX/issues/2216)，严重度**高**。
+对应 issue [#2216](https://github.com/Swivox/Swivox/issues/2216)，严重度**高**。
 
 ### 复现
 
@@ -48,7 +48,7 @@ show-context-window-usage = true
 
 ```rust
 const RELAY_PROVIDER: &str = "custom";
-const LEGACY_RELAY_PROVIDERS: &[&str] = &["ChatGPTX", "CodexPP"];
+const LEGACY_RELAY_PROVIDERS: &[&str] = &["Swivox", "CodexPP"];
 ```
 
 - 它只对 `LEGACY_RELAY_PROVIDERS` 里的名字调用 `remove_table`（删整个 provider 段）；

@@ -16,8 +16,8 @@
   ```
 
   记下 `PackageFullName` 与 `Application Id`（预期是 `App`），后面要用。
-- 打开 ChatGPTX 管理工具的「设置 → 日志」，能实时看到 `chatgptx.log`；
-  日志与状态文件在 `%USERPROFILE%\.chatgptx\`。
+- 打开 Swivox 管理工具的「设置 → 日志」，能实时看到 `swivox.log`；
+  日志与状态文件在 `%USERPROFILE%\.swivox\`。
 - 准备好**两个**不同供应商身份（例如 DeepSeek 与 Zhipu GLM），都能单开跑通。
 - 需要抓进程命令行时用：
 
@@ -40,11 +40,11 @@
 
 | # | 操作 | 预期 |
 |---|---|---|
-| 2.1 | 多开页点供应商 A 的「启动」 | 90 秒内出现第二个 Codex 窗口（标题带 `ChatGPTX 多开 · <身份>`） |
+| 2.1 | 多开页点供应商 A 的「启动」 | 90 秒内出现第二个 Codex 窗口（标题带 `Swivox 多开 · <身份>`） |
 | 2.2 | 多开列表 | 该实例显示**运行中**，PID / CDP / API 三列有值 |
 | 2.3 | 用上面 `Get-CimInstance` 抓命令行 | 必须能看到 `--remote-debugging-port=<端口>`、`--user-data-dir=<实例目录>`，端口与列表里 CDP 一致 |
-| 2.4 | 看 `%USERPROFILE%\.chatgptx\chatgptx.log` | 有 `launcher.packaged_multi_instance_activated`；**不应**出现 `launcher.packaged_multi_instance_fallback`（出现了说明降级了，请把该行连同上下文回我） |
-| 2.5 | 增强是否注入成功 | 多开窗口里能打开 ChatGPTX 的增强界面（不是裸 Codex） |
+| 2.4 | 看 `%USERPROFILE%\.swivox\swivox.log` | 有 `launcher.packaged_multi_instance_activated`；**不应**出现 `launcher.packaged_multi_instance_fallback`（出现了说明降级了，请把该行连同上下文回我） |
+| 2.5 | 增强是否注入成功 | 多开窗口里能打开 Swivox 的增强界面（不是裸 Codex） |
 
 **关键失败表现**：点了没窗口、列表却显示运行中 → 说明激活那条路没走通；
 90 秒后列表变「启动失败」并给出原因 → 把 `launch-result.json` 一起回我。
@@ -53,9 +53,9 @@
 
 | # | 操作 | 预期 |
 |---|---|---|
-| 3.1 | 多开实例起来后 | `%LOCALAPPDATA%\ChatGPTX\multi\<slug>\` 下有 `codex-home` / `sqlite-home` / `worker-home` / `user-data` / `packaged-launch.cmd` |
+| 3.1 | 多开实例起来后 | `%LOCALAPPDATA%\Swivox\multi\<slug>\` 下有 `codex-home` / `sqlite-home` / `worker-home` / `user-data` / `packaged-launch.cmd` |
 | 3.2 | 对照主实例 | 主实例的 `~\.codex` 与多开的 `codex-home` 内容各自独立，新会话只出现在多开自己的目录里 |
-| 3.3 | Windows 上 `HOME` 无效的回归点 | `worker-home\.chatgptx\latest-status.json` 与 `settings.json` **确实被写入**（这是本次修的 P0：改动前 worker 读的是主实例的 settings，`--user-data-dir` 根本传不下去） |
+| 3.3 | Windows 上 `HOME` 无效的回归点 | `worker-home\.swivox\latest-status.json` 与 `settings.json` **确实被写入**（这是本次修的 P0：改动前 worker 读的是主实例的 settings，`--user-data-dir` 根本传不下去） |
 | 3.4 | 两个多开实例并行 | 各自 `codex-home` / `user-data-dir` 不同，互不覆盖；两个窗口登录态、会话列表互不影响 |
 
 ## 4. 判活与结束：不能再「一停全停」（本次另一个 P0）
@@ -87,7 +87,7 @@
 4. `-PreventBreakaway` 的包身份是否真的传到 `start` 出来的孙进程（文档说「所有子进程」，
    但令牌「相似但不同」）。
 5. 用户名含中文/非 ASCII 时，cmd 按 OEM 代码页解析 `.cmd` 是否正确。
-6. **以管理员身份运行 ChatGPTX 时**：提权上下文激活 MSIX 会失败（issue #2351 的已知限制），
+6. **以管理员身份运行 Swivox 时**：提权上下文激活 MSIX 会失败（issue #2351 的已知限制），
    这时应看到明确的失败提示，而不是静默卡住。
 7. 同一台机器上**从未装过 Store 版**（免安装/自解包形态）时，多开不走包上下文，
    直接按路径启动——若此时 `--user-data-dir` 未被 Electron 尊重导致第二实例只是聚焦第一个窗口，
@@ -101,6 +101,6 @@ Windows 版本 / Codex 包版本：
 操作：
 实际现象：
 关键命令行（Get-CimInstance 输出）：
-相关日志行（chatgptx.log / launch-result.json）：
+相关日志行（swivox.log / launch-result.json）：
 是否可复现：
 ```

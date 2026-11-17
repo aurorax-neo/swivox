@@ -1,10 +1,10 @@
   // 完整上游引擎的词法宿主：不替换页面全局 API；挂件关闭时释放所有副作用。
-  const chatgptxWhaleFullStoragePrefix = "chatgptx.whale.full.v1.";
-  function chatgptxWhaleFullNumber(value) {
+  const swivoxWhaleFullStoragePrefix = "swivox.whale.full.v1.";
+  function swivoxWhaleFullNumber(value) {
     if (value === null || value === undefined || value === "") return null;
     const n = Number(value); return Number.isFinite(n) && n >= 0 ? n : null;
   }
-  function chatgptxWhaleFullBuiltin(url) {
+  function swivoxWhaleFullBuiltin(url) {
     let parsed;
     try { parsed = new URL(String(url), "https://codex-whale.invalid"); } catch { return ""; }
     const path = parsed.pathname, id = parsed.searchParams.get("id"), set = parsed.searchParams.get("set");
@@ -15,10 +15,10 @@
     if (path === "/dsh-whale/bubble-img.png") file = ({ bimg_petpet: "bubble-petpet.gif", bimg_money1: "bubble-money1.gif" })[id];
     if (/^\/dsh-whale\/sound\/(press|release)\.mp3$/.test(path) && (!set || set === "duck" || set === "fx1")) file = fragments[(set === "fx1" ? "d" : "ya") + (path.includes("press") ? "1" : "2")];
     if (path === "/dsh-whale/role-image.png" && id === "default") file = "DSniang1.png";
-    return file ? window.__CHATGPTX_WHALE_ASSETS__?.[file] || (file === "DSniang1.png" ? window.__CHATGPTX_WHALE_IMAGE__ : "") || "" : "";
+    return file ? window.__SWIVOX_WHALE_ASSETS__?.[file] || (file === "DSniang1.png" ? window.__SWIVOX_WHALE_IMAGE__ : "") || "" : "";
   }
 
-  function chatgptxWhaleFullDataResponse(source) {
+  function swivoxWhaleFullDataResponse(source) {
     // 直接读取本地内嵌字节，避免 fetch(data:) 受到宿主 connect-src 限制。
     const match = /^data:((?:audio|image)\/[A-Za-z0-9.+-]+);base64,([A-Za-z0-9+/]*={0,2})$/.exec(source);
     if (!match) throw new Error("不支持的本地媒体数据");
@@ -26,14 +26,14 @@
     return new Response(bytes, { status: 200, headers: { "Content-Type": match[1] } });
   }
 
-  function createChatGPTXWhaleFullRuntime() {
+  function createSwivoxWhaleFullRuntime() {
     const state = { disposed: false, paused: document.hidden === true, timers: new Map(), rafs: new Map(), observers: new Set(), nodes: new Set(), listeners: [], audio: new Set(), pending: new Set(), media: new Map(), objectUrls: new Set(), subscriptions: [], dispatcher: null, sessionId: "", session: null, sessionAt: 0, sessionPending: null, history: null, historyAt: 0, historyPrices: "", historyPending: null, models: [], relayProfiles: [], turn: null, completed: new Set(), seq: 0, pendingWait: null, completion: null, controls: null, serial: 0 };
     const isolated = Object.create(null);
     const wrappedMedia = new WeakSet();
     const storage = {
-      getItem(key) { return localStorage.getItem(chatgptxWhaleFullStoragePrefix + key); },
-      setItem(key, value) { return localStorage.setItem(chatgptxWhaleFullStoragePrefix + key, String(value)); },
-      removeItem(key) { return localStorage.removeItem(chatgptxWhaleFullStoragePrefix + key); },
+      getItem(key) { return localStorage.getItem(swivoxWhaleFullStoragePrefix + key); },
+      setItem(key, value) { return localStorage.setItem(swivoxWhaleFullStoragePrefix + key, String(value)); },
+      removeItem(key) { return localStorage.removeItem(swivoxWhaleFullStoragePrefix + key); },
     };
     try { state.seq = Math.max(0, Number(storage.getItem("dshw-last-seq")) || 0); } catch {}
     state.initialSeq = state.seq;
@@ -146,9 +146,9 @@
       const result = [];
       for (const model of state.models) {
         const price = model.price;
-        if (!price || ![price.hit, price.miss, price.out].every((value) => value !== "" && chatgptxWhaleFullNumber(value) !== null)) continue;
+        if (!price || ![price.hit, price.miss, price.out].every((value) => value !== "" && swivoxWhaleFullNumber(value) !== null)) continue;
         const matchIds = model.matchIds?.length ? model.matchIds : [model.id];
-        const currency = String(price.cur || "USD").toUpperCase(), rate = currency === "CNY" ? 1 : chatgptxWhaleFullNumber(price.rate);
+        const currency = String(price.cur || "USD").toUpperCase(), rate = currency === "CNY" ? 1 : swivoxWhaleFullNumber(price.rate);
         if (!(rate > 0) || !["CNY", "USD"].includes(currency)) continue;
         // 匹配交给数据层：精确匹配优先，其次最长的大小写不敏感子串。
         for (const id of matchIds) result.push({ model: id, currency: "CNY", input: Number(price.miss) * rate, cachedInput: Number(price.hit) * rate, output: Number(price.out) * rate });
@@ -172,19 +172,19 @@
     const toTokens = (period) => {
       if (state.codexStatsOn === false) return "—";
       const value = state.history?.periods?.[period]?.usage?.totalTokens ?? state.history?.machineSummary?.[({ today: "todayTokens", month: "monthTokens", all: "totalTokens" })[period]];
-      const number = chatgptxWhaleFullNumber(value);
+      const number = swivoxWhaleFullNumber(value);
       if (number === null) return "—";
       return number.toLocaleString("zh-CN", { maximumFractionDigits: 0 });
     };
     function codexModel(model, summary) {
       const data = summary?.codex || summary?.machineSummary || {};
-      const total = (period) => chatgptxWhaleFullNumber(summary?.periods?.[period]?.usage?.totalTokens);
+      const total = (period) => swivoxWhaleFullNumber(summary?.periods?.[period]?.usage?.totalTokens);
       const limits = state.session?.rateLimits || summary?.rateLimits || [];
       const windows = limits.filter((entry) => entry.resetAt == null || Number(entry.resetAt) * 1000 > Date.now()).map((entry, index) => ({ usedPct: entry.usedPercent, windowMinutes: entry.windowMinutes || (index === 0 ? 300 : 10080), resetAt: entry.resetAt == null ? null : Number(entry.resetAt) * 1000 }));
       return { ...model, codex: { ...data, ok: summary?.status === "ok" || summary?.status === "partial" || data.ok === true, complete: summary?.complete === true, deferred: summary?.complete === false ? Math.max(1, summary?.scan?.deferred || 1) : 0, todayTokens: total("today") ?? data.todayTokens, monthTokens: total("month") ?? data.monthTokens, totalTokens: total("all") ?? data.totalTokens, sessions: summary?.scan?.sessions ?? data.sessions ?? 0, days7: data.days7 || (summary?.days || []).slice(-7).map((day) => ({ date: day.date, tokens: day.usage?.totalTokens })), windows: data.windows || { primary: windows[0] || null, secondary: windows[1] || null } }, planSupport: windows.length > 0, plan: windows.length ? { ok: true, usedPct: windows[0].usedPct, remainPct: windows[0].usedPct == null ? null : 100 - windows[0].usedPct, windows: windows.map((entry, index) => ({ id: index === 0 ? "rolling" : "weekly", key: index === 0 ? "rolling" : "weekly", label: index === 0 ? "5h" : "周", usedPct: entry.usedPct, remainPct: entry.usedPct == null ? null : 100 - entry.usedPct, resetAt: entry.resetAt })) } : model.plan };
     }
     function subscribe() {
-      const dispatcher = window.__chatgptxRemoteSessionRecoveryDispatcher;
+      const dispatcher = window.__swivoxRemoteSessionRecoveryDispatcher;
       if (state.dispatcher === dispatcher && state.onEvent) return;
       for (const unsubscribe of state.subscriptions.splice(0)) { try { unsubscribe(); } catch {} }
       state.dispatcher = dispatcher;
@@ -301,12 +301,12 @@
     }
     async function fetchCompat(value, options = {}) {
       if (!active() || state.paused) throw new Error("挂件已暂停");
-      const raw = String(value), builtin = chatgptxWhaleFullBuiltin(raw);
-      if (builtin) return chatgptxWhaleFullDataResponse(builtin);
+      const raw = String(value), builtin = swivoxWhaleFullBuiltin(raw);
+      if (builtin) return swivoxWhaleFullDataResponse(builtin);
       const parsed = new URL(raw, "https://codex-whale.invalid");
       if (parsed.origin !== "https://codex-whale.invalid" || !parsed.pathname.startsWith("/dsh-whale/")) {
         // 上游只有本机资源 fetch；用户显式配置的超链接通过 window.open。
-        if (raw.startsWith("data:")) return chatgptxWhaleFullDataResponse(raw);
+        if (raw.startsWith("data:")) return swivoxWhaleFullDataResponse(raw);
         if (raw.startsWith("blob:")) return nativeFetch(raw, options);
         throw new Error("挂件资源只允许本机桥接");
       }
@@ -318,14 +318,14 @@
       const result = await compatibilityJson(parsed.pathname, method, query, body);
       if (!active() || options.signal?.aborted) throw new Error("挂件请求已取消");
       if (result?.builtinFragmentId) {
-        const uri = chatgptxWhaleFullBuiltin("/dsh-whale/audio-fragment.wav?id=" + encodeURIComponent(result.builtinFragmentId));
+        const uri = swivoxWhaleFullBuiltin("/dsh-whale/audio-fragment.wav?id=" + encodeURIComponent(result.builtinFragmentId));
         if (!uri) throw new Error("内置音频缺失");
         return nativeFetch(uri);
       }
       return responseOf(result);
     }
     async function resolveMedia(path) {
-      const builtin = chatgptxWhaleFullBuiltin(path); if (builtin) return builtin;
+      const builtin = swivoxWhaleFullBuiltin(path); if (builtin) return builtin;
       if (state.media.has(path)) return state.media.get(path);
       const pending = (async () => {
       const result = await fetchCompat(path);
@@ -346,7 +346,7 @@
       try { Object.defineProperty(node, "src", { configurable: true, get() { return descriptor?.get ? descriptor.get.call(node) : node.getAttribute("src") || ""; }, set(value) {
         const rev = ++revision, raw = String(value || "");
         if (!raw.startsWith("/dsh-whale/")) { if (!raw || /^(data:image\/(png|jpeg|webp|gif|avif);|data:audio\/|blob:)/i.test(raw)) set(raw); return; }
-        const builtin = chatgptxWhaleFullBuiltin(raw);
+        const builtin = swivoxWhaleFullBuiltin(raw);
         if (builtin) { set(builtin); return; }
         void resolveMedia(raw).then((url) => { if (active() && rev === revision) set(url); }).catch(() => { if (active() && rev === revision) node.dispatchEvent?.(new Event("error")); });
       } }); } catch {}
@@ -355,7 +355,7 @@
     function mark(node) {
       if (!active()) throw new Error("挂件已关闭");
       if (!node) return node;
-      node.setAttribute?.("data-chatgptx-ext", "whale-widget");
+      node.setAttribute?.("data-swivox-ext", "whale-widget");
       if (["IMG", "AUDIO", "VIDEO", "SOURCE"].includes(node.tagName)) mediaNode(node);
       return node;
     }
@@ -372,7 +372,7 @@
       const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
     } });
     const win = new Proxy(window, { get(target, key) {
-      if (key === "__chatgptxWhaleHost") return host;
+      if (key === "__swivoxWhaleHost") return host;
       if (typeof key === "string" && (key.startsWith("__dsh") || key === "dshwRegisterMask")) return isolated[key];
       if (key === "document") return doc;
       if (key === "localStorage") return storage;
@@ -423,7 +423,7 @@
         if (data.historyArchive?.detailRetentionDays) { const note = mark(document.createElement("span")); note.textContent = `明细保留 ${data.historyArchive.detailRetentionDays} 天；更早用量保留在日汇总中。`; note.style.width = "100%"; area.appendChild(note); }
         body.appendChild(area);
       },
-      fail(error) { state.initializationError = error?.name || "Error"; console.warn("[ChatGPTX] 完整鲸鱼初始化失败", state.initializationError); },
+      fail(error) { state.initializationError = error?.name || "Error"; console.warn("[Swivox] 完整鲸鱼初始化失败", state.initializationError); },
       bind(controls) { state.controls = controls; subscribe(); },
       defaultBubbleItems(items) {
         const copy = JSON.parse(JSON.stringify(items));
@@ -451,7 +451,7 @@
       state.startupConfig = configuration.body;
       setStatsEnabled(configuration.body.codexStatsOn);
       let legacy;
-      try { legacy = JSON.parse(localStorage.getItem("chatgptx.whaleWidget.v1") || "null"); } catch {}
+      try { legacy = JSON.parse(localStorage.getItem("swivox.whaleWidget.v1") || "null"); } catch {}
       if (!legacy || storage.getItem("legacy-migrated") === "1") return;
       if (configuration.body.hasSavedConfig === true) { storage.setItem("legacy-migrated", "1"); return; }
       // 只迁移用户实际保存过的旧偏好；保存失败保留旧数据并允许下次重试。
@@ -476,14 +476,14 @@
       const limits = Object.values(legacy.thresholds || {}).find((value) => value && typeof value === "object");
       if (limits) {
         const patch = { models: { "current-provider": {} } };
-        if (chatgptxWhaleFullNumber(limits.low) > 0) patch.models["current-provider"].alert = { on: true, below: Number(limits.low) };
-        if (chatgptxWhaleFullNumber(limits.budget) > 0) patch.models["current-provider"].budget = { on: true, amount: Number(limits.budget) };
+        if (swivoxWhaleFullNumber(limits.low) > 0) patch.models["current-provider"].alert = { on: true, below: Number(limits.low) };
+        if (swivoxWhaleFullNumber(limits.budget) > 0) patch.models["current-provider"].budget = { on: true, amount: Number(limits.budget) };
         await send("usage-settings.json", "PUT", patch);
       }
       const base = Math.max(122, Math.min(250, Math.min(window.innerWidth || 1024, window.innerHeight || 768) * 0.28));
       const config = { ...configuration.body, sound: legacy.sound === true, turnCostOn: legacy.completion !== false };
-      if (chatgptxWhaleFullNumber(legacy.size) > 0) config.scale = Math.min(2.5, Math.max(0.6, Number(legacy.size) / (base * 0.5945)));
-      if (chatgptxWhaleFullNumber(legacy.x) !== null && chatgptxWhaleFullNumber(legacy.y) !== null) {
+      if (swivoxWhaleFullNumber(legacy.size) > 0) config.scale = Math.min(2.5, Math.max(0.6, Number(legacy.size) / (base * 0.5945)));
+      if (swivoxWhaleFullNumber(legacy.x) !== null && swivoxWhaleFullNumber(legacy.y) !== null) {
         const fullSize = base * (config.scale || 1.5), right = Math.max(0, (window.innerWidth || 1024) - Number(legacy.x) - Number(legacy.size || 88)), bottom = Math.max(0, (window.innerHeight || 768) - Number(legacy.y) - Number(legacy.size || 88));
         storage.setItem("dshw-pos", JSON.stringify({ v: 2, hAnchor: legacy.x < (window.innerWidth || 1024) / 2 ? "left" : "right", hDist: legacy.x < (window.innerWidth || 1024) / 2 ? Math.max(0, legacy.x - fullSize * 0.4055) : right, vAnchor: legacy.y < (window.innerHeight || 768) / 2 ? "top" : "bottom", vDist: legacy.y < (window.innerHeight || 768) / 2 ? Math.max(0, legacy.y - fullSize * 0.4055) : bottom }));
       }

@@ -1,8 +1,8 @@
-  function renderChatGPTXMenu() {
-    const settings = chatgptxSettings();
-    document.querySelectorAll(".chatgptx-toggle[data-chatgptx-setting]").forEach((button) => {
-      const key = button.getAttribute("data-chatgptx-setting");
-      const waitsForBackend = chatgptxBackendMappedSettings.has(key) && !chatgptxBackendSettingsLoaded;
+  function renderSwivoxMenu() {
+    const settings = swivoxSettings();
+    document.querySelectorAll(".swivox-toggle[data-swivox-setting]").forEach((button) => {
+      const key = button.getAttribute("data-swivox-setting");
+      const waitsForBackend = swivoxBackendMappedSettings.has(key) && !swivoxBackendSettingsLoaded;
       button.dataset.enabled = String(!!settings[key]);
       button.setAttribute("aria-checked", button.dataset.enabled);
       button.dataset.pending = String(waitsForBackend);
@@ -10,15 +10,15 @@
     });
     refreshConversationViewControls();
     refreshCodexServiceTierControls();
-    document.querySelectorAll("[data-chatgptx-typing-effect]").forEach((select) => {
+    document.querySelectorAll("[data-swivox-typing-effect]").forEach((select) => {
       select.value = ["rainbow", "fireworks", "stars"].includes(settings.typingEffect) ? settings.typingEffect : "off";
-      select.disabled = !chatgptxBackendSettingsLoaded || chatgptxBackendSettings.enhancementsEnabled === false;
-      if (typeof syncChatGPTXTypingEffectDropdown === "function") syncChatGPTXTypingEffectDropdown(select);
+      select.disabled = !swivoxBackendSettingsLoaded || swivoxBackendSettings.enhancementsEnabled === false;
+      if (typeof syncSwivoxTypingEffectDropdown === "function") syncSwivoxTypingEffectDropdown(select);
     });
   }
 
-  let chatgptxBackendSettings = { providerSyncEnabled: false, enhancementsEnabled: true, codexAppVersion: "" };
-  let chatgptxBackendSettingsSeq = 0;
+  let swivoxBackendSettings = { providerSyncEnabled: false, enhancementsEnabled: true, codexAppVersion: "" };
+  let swivoxBackendSettingsSeq = 0;
   const codexPluginLegacyEntryUnlockBeforeVersion = "26.601.2237";
   const codexPluginBridgeRequestUnlockFromVersion = "26.616.0";
   const codexPluginBroadCatalogKindsFromVersion = "26.803.0";
@@ -47,18 +47,18 @@
   }
 
   function codexPluginUnlockStrategy() {
-    const version = String(chatgptxBackendSettings.codexAppVersion || "").trim();
+    const version = String(swivoxBackendSettings.codexAppVersion || "").trim();
     const comparison = compareCodexVersions(version, codexPluginLegacyEntryUnlockBeforeVersion);
     if (comparison == null) return "unknown";
     return comparison < 0 ? "legacy" : "modern";
   }
 
   function logCodexPluginUnlockStrategy(strategy) {
-    const codexAppVersion = String(chatgptxBackendSettings.codexAppVersion || "").trim();
+    const codexAppVersion = String(swivoxBackendSettings.codexAppVersion || "").trim();
     const signature = `${strategy}:${codexAppVersion || "unknown"}`;
     if (window.__codexPluginUnlockStrategyLogged === signature) return;
     window.__codexPluginUnlockStrategyLogged = signature;
-    sendChatGPTXDiagnostic("plugin_unlock_strategy_selected", {
+    sendSwivoxDiagnostic("plugin_unlock_strategy_selected", {
       strategy,
       codexAppVersion,
       cutoff: codexPluginLegacyEntryUnlockBeforeVersion,
@@ -68,19 +68,19 @@
   function codexPluginMarketplaceRequestPatchStrategy() {
     const pluginStrategy = codexPluginUnlockStrategy();
     if (pluginStrategy === "legacy") return "none";
-    const version = String(chatgptxBackendSettings.codexAppVersion || "").trim();
+    const version = String(swivoxBackendSettings.codexAppVersion || "").trim();
     const comparison = compareCodexVersions(version, codexPluginBridgeRequestUnlockFromVersion);
     if (comparison == null) return "unknown";
     return comparison >= 0 ? "bridge" : "client";
   }
 
   function codexPluginUsesBroadCatalogKinds() {
-    const version = String(chatgptxBackendSettings.codexAppVersion || "").trim();
+    const version = String(swivoxBackendSettings.codexAppVersion || "").trim();
     const comparison = compareCodexVersions(version, codexPluginBroadCatalogKindsFromVersion);
     return comparison != null && comparison >= 0;
   }
 
-  let chatgptxBackendSettingsLoaded = false;
+  let swivoxBackendSettingsLoaded = false;
   let codexServiceTierState = {
     status: "loading",
     serviceTier: null,
@@ -104,10 +104,10 @@
   // namePart -> { at, attempts, error }，见 loadCodexAppModule 里的说明。
   // 挂在 window 上跨重注入保留：否则每次重注入都会清空失败记录，重新全量 fetch asset
   // （issue #2330 / #2169：桥接看门狗重注入后 asset rescan 被重新跑满）。
-  const codexAppModuleFailures = window.__chatgptxAppModuleFailures || (window.__chatgptxAppModuleFailures = new Map());
+  const codexAppModuleFailures = window.__swivoxAppModuleFailures || (window.__swivoxAppModuleFailures = new Map());
   // namePart -> { at, url }：codexAppAssetUrlFromScriptText 的查找结果，未命中也缓存，
   // 同样跨重注入保留（有调用方会绕过 asset loader 直接调它）。
-  const codexAppAssetUrlLookups = window.__chatgptxAssetUrlLookups || (window.__chatgptxAssetUrlLookups = new Map());
+  const codexAppAssetUrlLookups = window.__swivoxAssetUrlLookups || (window.__swivoxAssetUrlLookups = new Map());
   const codexAppModuleRetryCooldownMs = 30000;
   const codexAppModuleMaxAttempts = 8;
   const codexServiceTierSupportedFastModels = new Set(["gpt-5.4", "gpt-5.5"]);
@@ -188,13 +188,13 @@
   // （issue #1316 的「未找到 Codex App asset: vscode-api-」就是这么冒到用户面前的）。
   function codexAppAssetMissingError(namePart) {
     const error = new Error(`未找到 Codex App asset: ${namePart}`);
-    error.code = "CHATGPTX_ASSET_MISSING";
+    error.code = "SWIVOX_ASSET_MISSING";
     error.assetNamePart = namePart;
     return error;
   }
 
   function isCodexAppAssetMissingError(error) {
-    return !!error && (error.code === "CHATGPTX_ASSET_MISSING" || error.name === "ChatGPTXAssetMissingError");
+    return !!error && (error.code === "SWIVOX_ASSET_MISSING" || error.name === "SwivoxAssetMissingError");
   }
 
   async function loadCodexAppModule(namePart) {
@@ -436,8 +436,8 @@
 
   // threadId -> 模型名。挂在 window 上跨重注入保留（重注入不该丢掉已知的线程模型）。
   // 只在请求路径观测到模型时写入，用于让界面判定跟上线程当前模型（issue #1463）。
-  const codexServiceTierThreadModels = window.__chatgptxServiceTierThreadModels
-    || (window.__chatgptxServiceTierThreadModels = new Map());
+  const codexServiceTierThreadModels = window.__swivoxServiceTierThreadModels
+    || (window.__swivoxServiceTierThreadModels = new Map());
 
   // 线程中途换模型后，全局 catalog 的 model 字段往往还没更新，直接拿它判 Fast 可用性
   // 会落后一拍。因此界面优先读「当前线程最近一次实际请求用的模型」，读不到才回落全局。
@@ -477,7 +477,7 @@
     // 不按名字猜：模型叫 deepseek 不代表它的中转站支持 priority tier。
     // 只认上游模型元数据里明确声明的 priority。
     try {
-      const metadata = typeof chatgptxModelMetadata === "function" ? chatgptxModelMetadata(modelName) : null;
+      const metadata = typeof swivoxModelMetadata === "function" ? swivoxModelMetadata(modelName) : null;
       if (typeof metadata?.prioritySupportOverride === "boolean") return metadata.prioritySupportOverride;
       const tierIs = (tier, expected) => String(typeof tier === "string" ? tier : tier?.id || "").trim().toLowerCase() === expected;
       if (Array.isArray(metadata?.serviceTiers) && metadata.serviceTiers.some((tier) => tierIs(tier, "priority"))) return true;

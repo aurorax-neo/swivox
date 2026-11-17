@@ -2,7 +2,7 @@
     return await codexStateCall("set-global-state", { params: { key, value } });
   }
 
-  function dispatchChatGPTXMessage(dispatcher, type, payload) {
+  function dispatchSwivoxMessage(dispatcher, type, payload) {
     const message = codexServiceTierRequestOverride({ ...(payload || {}), type });
     const nextType = message?.type || type;
     const { type: _type, ...nextPayload } = message || {};
@@ -25,25 +25,25 @@
   let codexModelCatalogPromise = null;
   let codexModelWhitelistRefreshTimer = 0;
   let codexModelWhitelistRefreshUntil = 0;
-  const chatgptxModelListRequestIds = new Set();
-  const chatgptxModelListRequestHosts = new Map();
+  const swivoxModelListRequestIds = new Set();
+  const swivoxModelListRequestHosts = new Map();
   // 跨重注入保留原生数据快照；WeakMap 仅持有模型集合，不缓存 DOM。
-  const chatgptxModelCollectionSnapshots = window.__chatgptxModelCollectionSnapshots
-    || (window.__chatgptxModelCollectionSnapshots = new WeakMap());
-  const chatgptxModelDefaultSnapshots = window.__chatgptxModelDefaultSnapshots
-    || (window.__chatgptxModelDefaultSnapshots = new WeakMap());
+  const swivoxModelCollectionSnapshots = window.__swivoxModelCollectionSnapshots
+    || (window.__swivoxModelCollectionSnapshots = new WeakMap());
+  const swivoxModelDefaultSnapshots = window.__swivoxModelDefaultSnapshots
+    || (window.__swivoxModelDefaultSnapshots = new WeakMap());
 
-  if (window.__CHATGPTX_TEST_SERVICE_TIER__) {
-    window.__chatgptxServiceTierTest = {
+  if (window.__SWIVOX_TEST_SERVICE_TIER__) {
+    window.__swivoxServiceTierTest = {
       applyServiceTierOverride: (method, params, threadIdHint = "") => applyCodexServiceTierRequestOverride(method, params, threadIdHint),
       applyProviderOverride: (method, params) => applyCodexRemoteSessionProviderOverride(method, params),
       remoteSessionStartedThreadId: (value) => codexRemoteSessionStartedThreadId(value),
       observeRemoteSessionNotification: (value) => observeCodexRemoteSessionNotification(value),
       installRemoteSessionRecoveryListener: () => installCodexRemoteSessionRecoveryListener(),
       installRemoteSessionDispatcherSubscription: (dispatcher, assetPrefix = "test") => installCodexRemoteSessionDispatcherSubscription(dispatcher, assetPrefix),
-      dispatchMessage: (dispatcher, type, payload) => dispatchChatGPTXMessage(dispatcher, type, payload),
+      dispatchMessage: (dispatcher, type, payload) => dispatchSwivoxMessage(dispatcher, type, payload),
       requestOverride: (message) => codexServiceTierRequestOverride(message),
-      diagnostics: () => [...(window.__chatgptxServiceTierTestDiagnostics || [])],
+      diagnostics: () => [...(window.__swivoxServiceTierTestDiagnostics || [])],
       statusSummary: (state = {}) => {
         const summaryState = { ...codexServiceTierState, ...state };
         return serviceTierStatusMessage(
@@ -58,7 +58,7 @@
       resolveInheritedServiceTier: () => resolveInheritedServiceTier(),
       currentModelName: () => codexServiceTierCurrentModelName(),
       fastAvailability: (modelName = codexServiceTierCurrentModelName()) => codexServiceTierFastAvailability(modelName),
-      modelDescriptor: (modelName) => chatgptxModelDescriptor(modelName),
+      modelDescriptor: (modelName) => swivoxModelDescriptor(modelName),
       setModelCatalog: (catalog = {}) => {
         codexModelCatalog = {
           status: "ok",
@@ -83,8 +83,8 @@
       patchMcpModelResponseData,
       recordModelListRequest,
       setBackendSettings: (settings = {}) => {
-        chatgptxBackendSettings = { ...chatgptxBackendSettings, ...settings };
-        chatgptxBackendSettingsLoaded = true;
+        swivoxBackendSettings = { ...swivoxBackendSettings, ...settings };
+        swivoxBackendSettingsLoaded = true;
       },
       providerPatchEnabled: () => codexRemoteSessionProviderPatchEnabled(),
       providerNormalizationEnabled: () => codexRemoteSessionProviderNormalizationEnabled(),
@@ -107,18 +107,18 @@
       locateAppServerClientBreakpoint: locateCodexAppServerClientBreakpoint,
       installAppServerClientPrototypePatch: installCodexAppServerClientPrototypePatch,
       appServerClientPrototypeState: () => ({
-        hasClass: typeof window.__chatgptxAppServerClientClass === "function",
-        installed: window.__chatgptxAppServerClientPrototypePatchInstalled || null,
+        hasClass: typeof window.__swivoxAppServerClientClass === "function",
+        installed: window.__swivoxAppServerClientPrototypePatchInstalled || null,
       }),
     };
     return;
   }
 
-  function chatgptxModelUnlockEnabled() {
-    return !!chatgptxSettings().modelWhitelistUnlock;
+  function swivoxModelUnlockEnabled() {
+    return !!swivoxSettings().modelWhitelistUnlock;
   }
 
-  function chatgptxModelNames() {
+  function swivoxModelNames() {
     return uniqueValues([
       ...(Array.isArray(codexModelCatalog.models) ? codexModelCatalog.models : []),
       codexModelCatalog.default_model,
@@ -143,16 +143,16 @@
                 if (extraModels.length > 0) {
                   codexModelCatalog.models = extraModels;
                   codexModelCatalog.default_model = codexModelCatalog.default_model || extraModels[0];
-                  sendChatGPTXDiagnostic("model_catalog_fallback_applied", { count: extraModels.length });
+                  sendSwivoxDiagnostic("model_catalog_fallback_applied", { count: extraModels.length });
                 }
               }
             }
           } catch (fallbackError) {
-            sendChatGPTXDiagnostic("model_catalog_fallback_error", { error: String(fallbackError?.message || fallbackError) });
+            sendSwivoxDiagnostic("model_catalog_fallback_error", { error: String(fallbackError?.message || fallbackError) });
           }
         }
         codexModelCatalogLoadedAt = Date.now();
-        renderChatGPTXMenu();
+        renderSwivoxMenu();
         scheduleCodexModelWhitelistRefresh();
         return codexModelCatalog;
       })
@@ -167,7 +167,7 @@
     return codexModelCatalogPromise;
   }
 
-  function chatgptxModelMetadata(modelName) {
+  function swivoxModelMetadata(modelName) {
     const metadata = codexModelCatalog.modelMetadata || codexModelCatalog.model_metadata;
     const normalizedName = codexServiceTierModelFromValue(modelName);
     const exact = metadata && typeof metadata === "object" ? metadata[normalizedName] : null;
@@ -179,7 +179,7 @@
   }
 
   function modelReasoningEfforts(modelName) {
-    const supported = chatgptxModelMetadata(modelName)?.supportedReasoningEfforts;
+    const supported = swivoxModelMetadata(modelName)?.supportedReasoningEfforts;
     if (Array.isArray(supported) && supported.length > 0) {
       const efforts = supported.map((entry) => ({ ...entry }));
       const hasMax = efforts.some((e) => e.reasoningEffort === "max");
@@ -196,8 +196,8 @@
     return ["low", "medium", "high", "xhigh", "max", "ultra"].map((reasoningEffort) => ({ reasoningEffort, description: `${reasoningEffort} effort` }));
   }
 
-  function applyChatGPTXModelMetadata(descriptor, modelName) {
-    const metadata = chatgptxModelMetadata(modelName);
+  function applySwivoxModelMetadata(descriptor, modelName) {
+    const metadata = swivoxModelMetadata(modelName);
     if (!descriptor || !metadata) return false;
     let changed = false;
     const targetDisplayName = typeof metadata.displayName === "string" && metadata.displayName.trim()
@@ -223,8 +223,8 @@
     return changed;
   }
 
-  function chatgptxModelDescriptor(modelName) {
-    const metadata = chatgptxModelMetadata(modelName);
+  function swivoxModelDescriptor(modelName) {
+    const metadata = swivoxModelMetadata(modelName);
     const displayName = typeof metadata?.displayName === "string" && metadata.displayName.trim()
       ? metadata.displayName.trim()
       : modelName;
@@ -257,21 +257,21 @@
     return item && typeof item === "object" && typeof item.model === "string" ? item.model : "";
   }
 
-  /// ChatGPTX 模型列表顺序是纯 API 模式下的权威顺序。
-  /// `chatgptxModelNames()` 为了默认选中会把当前模型提到前面，这里只取目录
+  /// Swivox 模型列表顺序是纯 API 模式下的权威顺序。
+  /// `swivoxModelNames()` 为了默认选中会把当前模型提到前面，这里只取目录
   /// `models` 的原始顺序；目录缺失的模型再按名称清单补到末尾。
-  function chatgptxCatalogOrderedModelNames() {
+  function swivoxCatalogOrderedModelNames() {
     return uniqueValues([
       ...(Array.isArray(codexModelCatalog.models) ? codexModelCatalog.models : []),
-      ...chatgptxModelNames(),
+      ...swivoxModelNames(),
     ]);
   }
 
   /// 原生 app-server 会保留旧缓存顺序，后加入的模型只能追加到末尾，导致 Codex
-  /// 选择器与 ChatGPTX「模型列表」顺序不一致。纯 API 目录是权威快照，命中时整组
+  /// 选择器与 Swivox「模型列表」顺序不一致。纯 API 目录是权威快照，命中时整组
   /// 按目录顺序重排；出现目录外模型时保持原顺序，避免误动官方模型。
   function reorderModelCollectionByCatalog(models) {
-    const order = chatgptxCatalogOrderedModelNames();
+    const order = swivoxCatalogOrderedModelNames();
     if (order.length < 2) return false;
     const rank = new Map(order.map((name, index) => [name, index]));
     const ranked = models.map((item, index) => ({ item, index, rank: rank.get(modelItemName(item)) }));
@@ -294,7 +294,7 @@
     if (!stringArrayLooksPatchable(models)) return false;
     const allowed = codexPureApiAllowedModelSet(hostId);
     let changed = prepareModelCollection(models, allowed);
-    const customModels = chatgptxModelNames();
+    const customModels = swivoxModelNames();
     if (!customModels.length) return changed;
     if (allowed) {
       const retained = models.filter((name) => allowed.has(name));
@@ -324,7 +324,7 @@
 
   function prepareModelCollection(collection, allowed) {
     const policy = modelFilterPolicy(allowed);
-    const previous = chatgptxModelCollectionSnapshots.get(collection);
+    const previous = swivoxModelCollectionSnapshots.get(collection);
     let current = [...collection];
     let changed = false;
     if (previous && previous.policy !== policy && sameModelCollection(current, previous.patched)) {
@@ -335,21 +335,21 @@
         changed = true;
       }
     }
-    if (!allowed) chatgptxModelCollectionSnapshots.delete(collection);
+    if (!allowed) swivoxModelCollectionSnapshots.delete(collection);
     else if (!previous || previous.policy !== policy || !sameModelCollection(current, previous.patched)) {
-      chatgptxModelCollectionSnapshots.set(collection, { policy, original: current, patched: null });
+      swivoxModelCollectionSnapshots.set(collection, { policy, original: current, patched: null });
     }
     return changed;
   }
 
   function finishModelCollection(collection) {
-    const snapshot = chatgptxModelCollectionSnapshots.get(collection);
+    const snapshot = swivoxModelCollectionSnapshots.get(collection);
     if (snapshot) snapshot.patched = [...collection];
   }
 
   function patchModelDefaults(value, allowed) {
     const policy = modelFilterPolicy(allowed);
-    const previous = chatgptxModelDefaultSnapshots.get(value);
+    const previous = swivoxModelDefaultSnapshots.get(value);
     let changed = false;
     if (previous && previous.policy !== policy) {
       for (const [key, state] of Object.entries(previous.fields)) {
@@ -358,24 +358,24 @@
           changed = true;
         }
       }
-      chatgptxModelDefaultSnapshots.delete(value);
+      swivoxModelDefaultSnapshots.delete(value);
     }
     if (!allowed) return changed;
-    const snapshot = chatgptxModelDefaultSnapshots.get(value) || { policy, fields: {} };
+    const snapshot = swivoxModelDefaultSnapshots.get(value) || { policy, fields: {} };
     const fallback = [codexModelCatalog.model, codexModelCatalog.default_model, ...allowed]
       .find((name) => typeof name === "string" && allowed.has(name));
     for (const key of ["defaultModel", "default_model"]) {
       const original = value[key];
       const name = typeof original === "string" ? original : original?.model || original?.id || original?.slug;
       if (!name || allowed.has(name)) continue;
-      const patched = typeof original === "string" ? fallback : chatgptxModelDescriptor(fallback);
+      const patched = typeof original === "string" ? fallback : swivoxModelDescriptor(fallback);
       if (!snapshot.fields[key] || original !== snapshot.fields[key].patched) {
         snapshot.fields[key] = { original, patched };
       }
       value[key] = patched;
       changed = true;
     }
-    chatgptxModelDefaultSnapshots.set(value, snapshot);
+    swivoxModelDefaultSnapshots.set(value, snapshot);
     return changed;
   }
 
@@ -400,13 +400,13 @@
   function codexPureApiAllowedModelSet(hostId) {
     if (hostId !== "local") return null;
     const profile = codexRemoteSessionActiveProfile();
-    if (!chatgptxModelUnlockEnabled() || !chatgptxBackendSettingsLoaded
+    if (!swivoxModelUnlockEnabled() || !swivoxBackendSettingsLoaded
         || profile?.relayMode !== "pureApi" || codexModelCatalog.status !== "ok") return null;
     const profileId = String(profile.id || "").trim();
     const belongsToProfile = profileId && (codexModelCatalog.model_provider === profileId
       || (Array.isArray(codexModelCatalog.sources)
         && codexModelCatalog.sources.some((source) => source?.id === `relay-profile:${profileId}`)));
-    const names = chatgptxModelNames();
+    const names = swivoxModelNames();
     return belongsToProfile && names.length ? new Set(names) : null;
   }
 
@@ -414,7 +414,7 @@
     if (!modelArrayLooksPatchable(models, allowEmpty)) return false;
     const allowed = codexPureApiAllowedModelSet(hostId);
     let changed = prepareModelCollection(models, allowed);
-    const customModels = chatgptxModelNames();
+    const customModels = swivoxModelNames();
     if (!customModels.length) return changed;
     if (allowed) {
       const retained = models.filter((item) => allowed.has(item.model));
@@ -430,12 +430,12 @@
           item.hidden = false;
           changed = true;
         }
-        if (applyChatGPTXModelMetadata(item, item.model)) changed = true;
+        if (applySwivoxModelMetadata(item, item.model)) changed = true;
       }
     });
     customModels.forEach((modelName) => {
       if (!existing.has(modelName)) {
-        models.push(chatgptxModelDescriptor(modelName));
+        models.push(swivoxModelDescriptor(modelName));
         changed = true;
       }
     });
@@ -457,7 +457,7 @@
     if (patchModelArray(value.result?.models, false, hostId)) changed = true;
     if (patchModelArray(value.message?.result?.data, false, hostId)) changed = true;
     if (patchModelArray(value.message?.result?.models, false, hostId)) changed = true;
-    const names = chatgptxModelNames();
+    const names = swivoxModelNames();
     const allowed = codexPureApiAllowedModelSet(hostId);
     if (value.availableModels instanceof Set) {
       if (prepareModelCollection(value.availableModels, allowed)) changed = true;
@@ -533,26 +533,26 @@
   }
 
   async function patchModelJsonResponse(payload) {
-    if (!chatgptxModelUnlockEnabled()) return payload;
-    if (!chatgptxModelNames().length) await loadCodexModelCatalog();
+    if (!swivoxModelUnlockEnabled()) return payload;
+    if (!swivoxModelNames().length) await loadCodexModelCatalog();
     if (!modelJsonResponseLooksPatchable(payload)) return payload;
     try {
       patchModelContainer(payload, modelResponseHostId(payload, payload.result, payload.message));
     } catch (error) {
-      window.__chatgptxModelPatchFailures = window.__chatgptxModelPatchFailures || [];
-      window.__chatgptxModelPatchFailures.push(String(error?.stack || error));
+      window.__swivoxModelPatchFailures = window.__swivoxModelPatchFailures || [];
+      window.__swivoxModelPatchFailures.push(String(error?.stack || error));
     }
     return payload;
   }
 
   function installModelJsonResponsePatch() {
-    if (window.__chatgptxModelJsonResponsePatchInstalled === "3") return;
-    window.__chatgptxModelJsonResponsePatchInstalled = "3";
-    window.__chatgptxModelJsonResponseOriginals = window.__chatgptxModelJsonResponseOriginals || {};
-    const originals = window.__chatgptxModelJsonResponseOriginals;
+    if (window.__swivoxModelJsonResponsePatchInstalled === "3") return;
+    window.__swivoxModelJsonResponsePatchInstalled = "3";
+    window.__swivoxModelJsonResponseOriginals = window.__swivoxModelJsonResponseOriginals || {};
+    const originals = window.__swivoxModelJsonResponseOriginals;
     originals.responseJson = originals.responseJson || Response.prototype.json;
     if (typeof originals.responseJson !== "function") return;
-    Response.prototype.json = async function chatgptxPatchedResponseJson(...args) {
+    Response.prototype.json = async function swivoxPatchedResponseJson(...args) {
       const payload = await originals.responseJson.apply(this, args);
       return await patchModelJsonResponse(payload);
     };
@@ -562,11 +562,11 @@
     const value = config?.value;
     if (!value || typeof value !== "object") return config;
     const availableModels = Array.isArray(value.available_models) ? [...value.available_models] : [];
-    const collectionSnapshot = chatgptxModelCollectionSnapshots.get(value.available_models);
-    if (collectionSnapshot) chatgptxModelCollectionSnapshots.set(availableModels, { ...collectionSnapshot });
+    const collectionSnapshot = swivoxModelCollectionSnapshots.get(value.available_models);
+    if (collectionSnapshot) swivoxModelCollectionSnapshots.set(availableModels, { ...collectionSnapshot });
     const nextValue = { ...value, available_models: availableModels };
-    const defaultSnapshot = chatgptxModelDefaultSnapshots.get(value);
-    if (defaultSnapshot) chatgptxModelDefaultSnapshots.set(nextValue, { ...defaultSnapshot, fields: { ...defaultSnapshot.fields } });
+    const defaultSnapshot = swivoxModelDefaultSnapshots.get(value);
+    if (defaultSnapshot) swivoxModelDefaultSnapshots.set(nextValue, { ...defaultSnapshot, fields: { ...defaultSnapshot.fields } });
     hostId = modelResponseHostId(hostId, value);
     const listChanged = patchModelNameArray(availableModels, hostId);
     const defaultsChanged = patchModelDefaults(nextValue, codexPureApiAllowedModelSet(hostId));
@@ -590,13 +590,13 @@
   function patchStatsigModelWhitelist() {
     statsigClients().forEach((client) => {
       if (typeof client.getDynamicConfig !== "function") return;
-      if (client.__chatgptxModelWhitelistPatched !== "3") {
+      if (client.__swivoxModelWhitelistPatched !== "3") {
         const originalGetDynamicConfig = client.getDynamicConfig.bind(client);
         client.getDynamicConfig = (name, options) => {
           const result = originalGetDynamicConfig(name, options);
           return String(name) === "107580212" ? patchStatsigModelDynamicConfig(result) : result;
         };
-        client.__chatgptxModelWhitelistPatched = "3";
+        client.__swivoxModelWhitelistPatched = "3";
       }
       try {
         patchStatsigModelDynamicConfig(client.getDynamicConfig("107580212", { disableExposureLog: true }));
@@ -606,8 +606,8 @@
   }
 
   function patchAppServerModelMessages() {
-    if (window.__chatgptxModelMessagePatchInstalled === "3") return;
-    window.__chatgptxModelMessagePatchInstalled = "3";
+    if (window.__swivoxModelMessagePatchInstalled === "3") return;
+    window.__swivoxModelMessagePatchInstalled = "3";
     window.addEventListener("codex-message-from-view", (event) => {
       try {
         const detail = event?.detail;
@@ -620,8 +620,8 @@
           }
         }
       } catch (error) {
-        window.__chatgptxModelPatchFailures = window.__chatgptxModelPatchFailures || [];
-        window.__chatgptxModelPatchFailures.push(String(error?.stack || error));
+        window.__swivoxModelPatchFailures = window.__swivoxModelPatchFailures || [];
+        window.__swivoxModelPatchFailures.push(String(error?.stack || error));
       }
     }, true);
 
@@ -629,37 +629,37 @@
       try {
         patchMcpModelResponseData(event?.data);
       } catch (error) {
-        window.__chatgptxModelPatchFailures = window.__chatgptxModelPatchFailures || [];
-        window.__chatgptxModelPatchFailures.push(String(error?.stack || error));
+        window.__swivoxModelPatchFailures = window.__swivoxModelPatchFailures || [];
+        window.__swivoxModelPatchFailures.push(String(error?.stack || error));
       }
     }, true);
   }
 
   function recordModelListRequest(requestId, hostId) {
-    if (chatgptxModelListRequestIds.has(requestId)
-        && chatgptxModelListRequestHosts.get(requestId) !== hostId) hostId = "";
-    chatgptxModelListRequestIds.add(requestId);
-    chatgptxModelListRequestHosts.set(requestId, hostId);
-    if (chatgptxModelListRequestIds.size > 64) {
-      const oldest = chatgptxModelListRequestIds.values().next().value;
-      chatgptxModelListRequestIds.delete(oldest);
-      chatgptxModelListRequestHosts.delete(oldest);
+    if (swivoxModelListRequestIds.has(requestId)
+        && swivoxModelListRequestHosts.get(requestId) !== hostId) hostId = "";
+    swivoxModelListRequestIds.add(requestId);
+    swivoxModelListRequestHosts.set(requestId, hostId);
+    if (swivoxModelListRequestIds.size > 64) {
+      const oldest = swivoxModelListRequestIds.values().next().value;
+      swivoxModelListRequestIds.delete(oldest);
+      swivoxModelListRequestHosts.delete(oldest);
     }
     window.setTimeout(() => {
-      chatgptxModelListRequestIds.delete(requestId);
-      chatgptxModelListRequestHosts.delete(requestId);
+      swivoxModelListRequestIds.delete(requestId);
+      swivoxModelListRequestHosts.delete(requestId);
     }, 30_000);
   }
 
   function patchMcpModelResponseData(data) {
-    if (!chatgptxModelUnlockEnabled()) return false;
+    if (!swivoxModelUnlockEnabled()) return false;
     if (data?.type !== "mcp-response") return false;
     const message = data.message || data.response;
     const requestId = message?.id != null ? String(message.id) : "";
-    if (chatgptxModelListRequestIds.size === 0 || !chatgptxModelListRequestIds.has(requestId)) return false;
-    const hostId = modelResponseHostId(data, message, chatgptxModelListRequestHosts.get(requestId));
-    chatgptxModelListRequestIds.delete(requestId);
-    chatgptxModelListRequestHosts.delete(requestId);
+    if (swivoxModelListRequestIds.size === 0 || !swivoxModelListRequestIds.has(requestId)) return false;
+    const hostId = modelResponseHostId(data, message, swivoxModelListRequestHosts.get(requestId));
+    swivoxModelListRequestIds.delete(requestId);
+    swivoxModelListRequestHosts.delete(requestId);
     let changed = false;
     if (patchModelArray(message?.result?.data, true, hostId)) changed = true;
     if (patchModelArray(message?.result?.models, true, hostId)) changed = true;
@@ -686,13 +686,13 @@
       if (Array.isArray(result)) patchModelArray(result, true, hostId);
       if (Array.isArray(result?.data)) patchModelArray(result.data, true, hostId);
       if (Array.isArray(result?.models)) patchModelArray(result.models, true, hostId);
-      sendChatGPTXDiagnostic("model_app_server_result_patched", {
+      sendSwivoxDiagnostic("model_app_server_result_patched", {
         method,
         modelCount: Array.isArray(result?.data) ? result.data.length : Array.isArray(result?.models) ? result.models.length : Array.isArray(result) ? result.length : null,
       });
     } catch (error) {
-      window.__chatgptxModelPatchFailures = window.__chatgptxModelPatchFailures || [];
-      window.__chatgptxModelPatchFailures.push(String(error?.stack || error));
+      window.__swivoxModelPatchFailures = window.__swivoxModelPatchFailures || [];
+      window.__swivoxModelPatchFailures.push(String(error?.stack || error));
     }
     return result;
   }
@@ -721,21 +721,21 @@
     if (String(method || "") !== "turn/start" || !codexPerModelContextEnabled()) return null;
     const { threadId, model } = codexThreadModelRequestState(method, params);
     if (!threadId || !model) return null;
-    const previousModel = client.__chatgptxThreadModels?.get(threadId) || "";
+    const previousModel = client.__swivoxThreadModels?.get(threadId) || "";
     if (!previousModel || previousModel === model) return null;
     let resumeParams = { threadId, model };
     resumeParams = applyCodexRemoteSessionProviderOverride("thread/resume", resumeParams);
     try {
       await originalSendRequest("thread/resume", resumeParams, options);
-      client.__chatgptxThreadModels.set(threadId, model);
-      sendChatGPTXDiagnostic("thread_model_context_refreshed", {
+      client.__swivoxThreadModels.set(threadId, model);
+      sendSwivoxDiagnostic("thread_model_context_refreshed", {
         threadId,
         from: previousModel,
         to: model,
       });
       return true;
     } catch (error) {
-      sendChatGPTXDiagnostic("thread_model_context_refresh_failed", {
+      sendSwivoxDiagnostic("thread_model_context_refresh_failed", {
         threadId,
         from: previousModel,
         to: model,
@@ -752,10 +752,10 @@
     try {
       if (!Object.isExtensible(client)) return false;
       for (const key of [
-        "__chatgptxModelRequestPatch",
-        "__chatgptxModelOriginalSendRequest",
-        "__chatgptxThreadModels",
-        "__chatgptxServiceTierOriginalPrewarmThreadStart",
+        "__swivoxModelRequestPatch",
+        "__swivoxModelOriginalSendRequest",
+        "__swivoxThreadModels",
+        "__swivoxServiceTierOriginalPrewarmThreadStart",
         "sendRequest",
         "prewarmThreadStart",
       ]) {
@@ -765,12 +765,12 @@
     } catch {
       return false;
     }
-    if (client.__chatgptxModelRequestPatch === codexAppServerModelRequestPatchVersion) return true;
-    const originalSendRequest = client.__chatgptxModelOriginalSendRequest || client.sendRequest.bind(client);
-    client.__chatgptxModelOriginalSendRequest = originalSendRequest;
-    client.__chatgptxThreadModels = client.__chatgptxThreadModels || new Map();
-    client.sendRequest = async function chatgptxModelPatchedSendRequest(method, params, options) {
-      const managed = chatgptxPluginNativeInterceptClient(method, params, options,
+    if (client.__swivoxModelRequestPatch === codexAppServerModelRequestPatchVersion) return true;
+    const originalSendRequest = client.__swivoxModelOriginalSendRequest || client.sendRequest.bind(client);
+    client.__swivoxModelOriginalSendRequest = originalSendRequest;
+    client.__swivoxThreadModels = client.__swivoxThreadModels || new Map();
+    client.sendRequest = async function swivoxModelPatchedSendRequest(method, params, options) {
+      const managed = swivoxPluginNativeInterceptClient(method, params, options,
         (nextOptions) => originalSendRequest(method, params, nextOptions), client.hostId);
       if (managed) return await managed;
       const requestMethod = appServerModelRequestMethod(String(method || ""), params);
@@ -781,7 +781,7 @@
         const settingsLoaded = await loadBackendSettingsState(codexAppServerPreparationTimeoutMs);
         providerRefreshFailed = !settingsLoaded;
         if (providerRefreshFailed) {
-          sendChatGPTXDiagnostic("remote_session_provider_refresh_failed", {});
+          sendSwivoxDiagnostic("remote_session_provider_refresh_failed", {});
         }
       } else if (codexRemoteSessionProviderRequestMethod(requestMethod)
           && codexRemoteSessionProviderOverrideEnabled()
@@ -803,22 +803,22 @@
       const threadState = codexThreadModelRequestState(requestMethod, nextParams, result);
       if (modelContextRefresh !== false && threadState.threadId && threadState.model
           && ["thread/start", "thread/resume", "turn/start"].includes(threadState.requestMethod)) {
-        client.__chatgptxThreadModels.set(threadState.threadId, threadState.model);
+        client.__swivoxThreadModels.set(threadState.threadId, threadState.model);
       }
-      if (!chatgptxModelUnlockEnabled() || !["list-models-for-host", "model/list"].includes(requestMethod)) return result;
-      if (!chatgptxModelNames().length) await loadCodexModelCatalog();
+      if (!swivoxModelUnlockEnabled() || !["list-models-for-host", "model/list"].includes(requestMethod)) return result;
+      if (!swivoxModelNames().length) await loadCodexModelCatalog();
       return patchAppServerModelResult(requestMethod, result, modelResponseHostId(params, client));
     };
     if (typeof client.prewarmThreadStart === "function"
-        && !client.__chatgptxServiceTierOriginalPrewarmThreadStart) {
+        && !client.__swivoxServiceTierOriginalPrewarmThreadStart) {
       const originalPrewarmThreadStart = client.prewarmThreadStart.bind(client);
-      client.__chatgptxServiceTierOriginalPrewarmThreadStart = originalPrewarmThreadStart;
-      client.prewarmThreadStart = async function chatgptxServiceTierPrewarmThreadStart(params, options) {
+      client.__swivoxServiceTierOriginalPrewarmThreadStart = originalPrewarmThreadStart;
+      client.prewarmThreadStart = async function swivoxServiceTierPrewarmThreadStart(params, options) {
         const nextParams = applyCodexServiceTierRequestOnly("thread/start", params);
         return originalPrewarmThreadStart(nextParams, options);
       };
     }
-    client.__chatgptxModelRequestPatch = codexAppServerModelRequestPatchVersion;
+    client.__swivoxModelRequestPatch = codexAppServerModelRequestPatchVersion;
     return true;
   }
 
@@ -826,8 +826,8 @@
   // 渲染层扫描在新版上永远 not_found，直接改写 dispatcher 又会撞上不可写的 RPC stub。
   // 改为两段式接管：这里先用纯文本定位算出 sendRequest 的断点坐标（按 UTF-16 计数，
   // 与 V8 断点坐标语义一致），launcher 侧 bridge.rs 再用 CDP Debugger 按坐标下条件断点，
-  // 命中时把类构造器挂到 window.__chatgptxAppServerClientClass，随后对原型套用与
-  // 实例版完全一致的请求补丁。断点条件 `!window.__chatgptxAppServerClientClass`
+  // 命中时把类构造器挂到 window.__swivoxAppServerClientClass，随后对原型套用与
+  // 实例版完全一致的请求补丁。断点条件 `!window.__swivoxAppServerClientClass`
   // 保证页面重载后自动重新捕获，且每次页面生命周期内只暂停一次。
     function locateCodexAppServerClientBreakpoint(text) {
     if (typeof text !== "string" || !text) return null;
@@ -907,7 +907,7 @@
 
     let codexAppServerClientCaptureStarted = false;
   async function installCodexAppServerClientCapture() {
-    if (codexAppServerClientCaptureStarted || window.__chatgptxAppServerClientCapture) return;
+    if (codexAppServerClientCaptureStarted || window.__swivoxAppServerClientCapture) return;
     codexAppServerClientCaptureStarted = true;
     try {
       if (typeof fetch !== "function") return;
@@ -915,22 +915,22 @@
       if (!hit) {
         // 区分「一个候选资产都没有」和「有资产但没有类定义」：
         // 前者是页面还没加载完，后者才是 Codex 真的改了产物形状。
-        sendChatGPTXDiagnostic("app_server_client_capture_locate_failed", {
+        sendSwivoxDiagnostic("app_server_client_capture_locate_failed", {
           reason: urls.length === 0 ? "asset_url_missing" : "anchor_missing",
           candidateCount: urls.length,
         });
         return;
       }
       const urlRegex = hit.url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      window.__chatgptxAppServerClientCapture = { urlRegex, ...hit.location };
-      sendChatGPTXDiagnostic("app_server_client_capture_located", {
+      window.__swivoxAppServerClientCapture = { urlRegex, ...hit.location };
+      sendSwivoxDiagnostic("app_server_client_capture_located", {
         lineNumber: hit.location.lineNumber,
         columnNumber: hit.location.columnNumber,
         asset: (hit.url.split("/").pop() || "").split("?")[0],
       });
     } catch (error) {
       codexAppServerClientCaptureStarted = false;
-      sendChatGPTXDiagnostic("app_server_client_capture_locate_failed", {
+      sendSwivoxDiagnostic("app_server_client_capture_locate_failed", {
         errorName: error?.name || "",
         errorMessage: error?.message || String(error),
       });
@@ -938,38 +938,38 @@
   }
 
     function installCodexAppServerClientPrototypePatch() {
-    if (window.__chatgptxAppServerClientPrototypePatchInstalled === codexAppServerModelRequestPatchVersion) return true;
-    const wanted = chatgptxModelUnlockEnabled()
+    if (window.__swivoxAppServerClientPrototypePatchInstalled === codexAppServerModelRequestPatchVersion) return true;
+    const wanted = swivoxModelUnlockEnabled()
       || codexPluginMarketplacePatchEnabled()
-      || (chatgptxBackendSettingsLoaded && codexRemoteSessionProviderPatchEnabled())
-      || chatgptxSettings().serviceTierControls
-      || chatgptxSettings().sessionDelete;
+      || (swivoxBackendSettingsLoaded && codexRemoteSessionProviderPatchEnabled())
+      || swivoxSettings().serviceTierControls
+      || swivoxSettings().sessionDelete;
     if (!wanted) return false;
-    const klass = window.__chatgptxAppServerClientClass;
+    const klass = window.__swivoxAppServerClientClass;
     if (!klass || typeof klass !== "function" || !klass.prototype) return false;
     const proto = klass.prototype;
-    if (proto.__chatgptxModelRequestPatch === codexAppServerModelRequestPatchVersion) {
-      window.__chatgptxAppServerClientPrototypePatchInstalled = codexAppServerModelRequestPatchVersion;
+    if (proto.__swivoxModelRequestPatch === codexAppServerModelRequestPatchVersion) {
+      window.__swivoxAppServerClientPrototypePatchInstalled = codexAppServerModelRequestPatchVersion;
       return true;
     }
     try {
       const descriptor = Object.getOwnPropertyDescriptor(proto, "sendRequest");
       if (!descriptor || descriptor.writable === false) {
-        sendChatGPTXDiagnostic("app_server_client_prototype_patch_skipped", {});
-        window.__chatgptxAppServerClientPrototypePatchInstalled = codexAppServerModelRequestPatchVersion;
+        sendSwivoxDiagnostic("app_server_client_prototype_patch_skipped", {});
+        window.__swivoxAppServerClientPrototypePatchInstalled = codexAppServerModelRequestPatchVersion;
         return false;
       }
     } catch {
-      window.__chatgptxAppServerClientPrototypePatchInstalled = codexAppServerModelRequestPatchVersion;
+      window.__swivoxAppServerClientPrototypePatchInstalled = codexAppServerModelRequestPatchVersion;
       return false;
     }
-    const originalSendRequest = proto.__chatgptxModelOriginalSendRequest || proto.sendRequest;
-    proto.__chatgptxModelOriginalSendRequest = originalSendRequest;
-    proto.__chatgptxThreadModels = proto.__chatgptxThreadModels || new Map();
-    proto.sendRequest = async function chatgptxModelPatchedSendRequest(method, params, options) {
+    const originalSendRequest = proto.__swivoxModelOriginalSendRequest || proto.sendRequest;
+    proto.__swivoxModelOriginalSendRequest = originalSendRequest;
+    proto.__swivoxThreadModels = proto.__swivoxThreadModels || new Map();
+    proto.sendRequest = async function swivoxModelPatchedSendRequest(method, params, options) {
       const client = this;
       registerNativeHostClient(client);
-      const managed = chatgptxPluginNativeInterceptClient(method, params, options,
+      const managed = swivoxPluginNativeInterceptClient(method, params, options,
         (nextOptions) => originalSendRequest.call(client, method, params, nextOptions), client.hostId);
       if (managed) return await managed;
       const requestMethod = appServerModelRequestMethod(String(method || ""), params);
@@ -980,7 +980,7 @@
         const settingsLoaded = await loadBackendSettingsState(codexAppServerPreparationTimeoutMs);
         providerRefreshFailed = !settingsLoaded;
         if (providerRefreshFailed) {
-          sendChatGPTXDiagnostic("remote_session_provider_refresh_failed", {});
+          sendSwivoxDiagnostic("remote_session_provider_refresh_failed", {});
         }
       } else if (codexRemoteSessionProviderRequestMethod(requestMethod)
           && codexRemoteSessionProviderOverrideEnabled()
@@ -1002,24 +1002,24 @@
       const threadState = codexThreadModelRequestState(requestMethod, nextParams, result);
       if (modelContextRefresh !== false && threadState.threadId && threadState.model
           && ["thread/start", "thread/resume", "turn/start"].includes(threadState.requestMethod)) {
-        client.__chatgptxThreadModels.set(threadState.threadId, threadState.model);
+        client.__swivoxThreadModels.set(threadState.threadId, threadState.model);
       }
-      if (!chatgptxModelUnlockEnabled() || !["list-models-for-host", "model/list"].includes(requestMethod)) return result;
-      if (!chatgptxModelNames().length) await loadCodexModelCatalog();
+      if (!swivoxModelUnlockEnabled() || !["list-models-for-host", "model/list"].includes(requestMethod)) return result;
+      if (!swivoxModelNames().length) await loadCodexModelCatalog();
       return patchAppServerModelResult(requestMethod, result, modelResponseHostId(params, client));
     };
     if (typeof proto.prewarmThreadStart === "function"
-        && !proto.__chatgptxServiceTierOriginalPrewarmThreadStart) {
+        && !proto.__swivoxServiceTierOriginalPrewarmThreadStart) {
       const originalPrewarmThreadStart = proto.prewarmThreadStart;
-      proto.__chatgptxServiceTierOriginalPrewarmThreadStart = originalPrewarmThreadStart;
-      proto.prewarmThreadStart = async function chatgptxServiceTierPrewarmThreadStart(params, options) {
+      proto.__swivoxServiceTierOriginalPrewarmThreadStart = originalPrewarmThreadStart;
+      proto.prewarmThreadStart = async function swivoxServiceTierPrewarmThreadStart(params, options) {
         const nextParams = applyCodexServiceTierRequestOnly("thread/start", params);
         return originalPrewarmThreadStart.call(this, nextParams, options);
       };
     }
-    proto.__chatgptxModelRequestPatch = codexAppServerModelRequestPatchVersion;
-    window.__chatgptxAppServerClientPrototypePatchInstalled = codexAppServerModelRequestPatchVersion;
-    sendChatGPTXDiagnostic("app_server_client_prototype_patch_installed", {});
+    proto.__swivoxModelRequestPatch = codexAppServerModelRequestPatchVersion;
+    window.__swivoxAppServerClientPrototypePatchInstalled = codexAppServerModelRequestPatchVersion;
+    sendSwivoxDiagnostic("app_server_client_prototype_patch_installed", {});
     return true;
   }
 
@@ -1055,7 +1055,7 @@
     // config / React state / response JSON patch) keep injecting the custom
     // models on their own.
     if (appServerModelRequestPatchMissCount === 1) {
-      sendChatGPTXDiagnostic(event, detail);
+      sendSwivoxDiagnostic(event, detail);
     }
     // issue #2256：provider 重试路径以前在这里提前 return，绕过下面的 maxMisses
     // 熔断，失败变成 250ms 无限重试（每轮全量 rescan 全部 app assets）。
@@ -1064,7 +1064,7 @@
       appServerModelRequestPatchDisabled = true;
       clearTimeout(appServerModelRequestPatchRetryTimer);
       appServerModelRequestPatchRetryTimer = 0;
-      sendChatGPTXDiagnostic("model_app_server_request_patch_skipped", {
+      sendSwivoxDiagnostic("model_app_server_request_patch_skipped", {
         misses: appServerModelRequestPatchMissCount,
         lastEvent: event,
       });
@@ -1076,7 +1076,7 @@
   }
 
   function installAppServerModelRequestPatch() {
-    if (window.__chatgptxAppServerModelRequestPatchInstalled === codexAppServerModelRequestPatchVersion) return;
+    if (window.__swivoxAppServerModelRequestPatchInstalled === codexAppServerModelRequestPatchVersion) return;
     if (appServerModelRequestPatchDisabled) return;
     if (appServerModelRequestPatchPromise) return;
     const patch = async () => {
@@ -1097,8 +1097,8 @@
           appServerModelRequestPatchRetryTimer = 0;
           appServerModelRequestPatchMissCount = 0;
           appServerModelRequestPatchRetryDelayMs = 250;
-          window.__chatgptxAppServerModelRequestPatchInstalled = codexAppServerModelRequestPatchVersion;
-          sendChatGPTXDiagnostic("model_app_server_request_patch_installed", {
+          window.__swivoxAppServerModelRequestPatchInstalled = codexAppServerModelRequestPatchVersion;
+          sendSwivoxDiagnostic("model_app_server_request_patch_installed", {
             moduleCount: modules.length,
             candidateCount: candidates.length,
             patchedCount,
@@ -1127,37 +1127,37 @@
   }
 
   function ensureCodexModelWhitelistInstalls() {
-    if (chatgptxModelUnlockEnabled()
+    if (swivoxModelUnlockEnabled()
         || codexPluginMarketplacePatchEnabled()
-        || (chatgptxBackendSettingsLoaded && codexRemoteSessionProviderPatchEnabled())
-        || chatgptxSettings().serviceTierControls
-        || chatgptxSettings().sessionDelete) {
+        || (swivoxBackendSettingsLoaded && codexRemoteSessionProviderPatchEnabled())
+        || swivoxSettings().serviceTierControls
+        || swivoxSettings().sessionDelete) {
       installAppServerModelRequestPatch();
       void installCodexAppServerClientCapture().catch(() => {});
     }
     void installDictationSupportPatch();
-    if (!chatgptxModelUnlockEnabled()) return;
+    if (!swivoxModelUnlockEnabled()) return;
     installModelJsonResponsePatch();
     patchAppServerModelMessages();
   }
 
   function runCodexModelWhitelistRefreshPass() {
-    if (!chatgptxModelUnlockEnabled() || !chatgptxModelNames().length) return false;
+    if (!swivoxModelUnlockEnabled() || !swivoxModelNames().length) return false;
     try {
       patchStatsigModelWhitelist();
       installAppServerModelRequestPatch();
     } catch (error) {
-      window.__chatgptxModelPatchFailures = window.__chatgptxModelPatchFailures || [];
-      window.__chatgptxModelPatchFailures.push(String(error?.stack || error));
+      window.__swivoxModelPatchFailures = window.__swivoxModelPatchFailures || [];
+      window.__swivoxModelPatchFailures.push(String(error?.stack || error));
     }
     return false;
   }
 
   function scheduleCodexModelWhitelistRefresh(durationMs = 2500) {
-    if (!chatgptxModelUnlockEnabled()) return;
+    if (!swivoxModelUnlockEnabled()) return;
     codexModelWhitelistRefreshUntil = Math.max(codexModelWhitelistRefreshUntil, Date.now() + durationMs);
     if (codexModelWhitelistRefreshTimer) return;
-    sendChatGPTXDiagnostic("model_whitelist_refresh_scheduled", { durationMs });
+    sendSwivoxDiagnostic("model_whitelist_refresh_scheduled", { durationMs });
     const tick = () => {
       codexModelWhitelistRefreshTimer = 0;
       runCodexModelWhitelistRefreshPass();
@@ -1170,7 +1170,7 @@
 
   function refreshCodexModelWhitelistFromScan(mutations) {
     ensureCodexModelWhitelistInstalls();
-    if (!chatgptxModelNames().length) {
+    if (!swivoxModelNames().length) {
       loadCodexModelCatalog();
       return;
     }

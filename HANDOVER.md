@@ -1,10 +1,10 @@
-# HANDOVER — ChatGPTX
+# HANDOVER — Swivox
 
 ## Active Work
 
 ### PR #1247: guard port auto-offset for multi-user RDP
 
-**PR:** https://github.com/ChatGPTX/ChatGPTX/pull/1247
+**PR:** https://github.com/Swivox/Swivox/pull/1247
 **Branch:** `fix/guard-port-offset` (on lennney fork)
 
 ### What was done
@@ -13,13 +13,13 @@ Replaced hardcoded guard port constants with dynamic resolution:
 
 | Before | After |
 |--------|-------|
-| `LAUNCHER_GUARD_PORT = 57320` | `launcher_guard_port()` — function with offset |
-| `MANAGER_GUARD_PORT = 57319` | `manager_guard_port()` — function with offset |
+| `LAUNCHER_GUARD_PORT = 58320` | `launcher_guard_port()` — function with offset |
+| `MANAGER_GUARD_PORT = 58319` | `manager_guard_port()` — function with offset |
 
 Resolution order:
-1. `CHATGPTX_GUARD_PORT` — exact port override
-2. `CHATGPTX_{LAUNCHER,MANAGER}_GUARD_PORT` — per-role override
-3. `CHATGPTX_GUARD_PORT_OFFSET` — explicit offset (e.g. +50)
+1. `SWIVOX_GUARD_PORT` — exact port override
+2. `SWIVOX_{LAUNCHER,MANAGER}_GUARD_PORT` — per-role override
+3. `SWIVOX_GUARD_PORT_OFFSET` — explicit offset (e.g. +50)
 4. Windows: `USERNAME` hash mod 1000 (auto per-user isolation)
 5. Other platforms: 0 (backward compatible)
 
@@ -35,10 +35,10 @@ Resolution order:
 
 | File | Change |
 |------|--------|
-| `crates/chatgptx-core/src/ports.rs` | +2 functions, +6 tests, base constants, Option chain fix |
-| `apps/chatgptx-launcher/src/main.rs` | 4 references updated + test assertion |
-| `apps/chatgptx-manager/src-tauri/src/lib.rs` | 5 references updated |
-| `apps/chatgptx-manager/src-tauri/tests/windows_subsystem.rs` | 1 assertion updated |
+| `crates/swivox-core/src/ports.rs` | +2 functions, +6 tests, base constants, Option chain fix |
+| `apps/swivox-launcher/src/main.rs` | 4 references updated + test assertion |
+| `apps/swivox-manager/src-tauri/src/lib.rs` | 5 references updated |
+| `apps/swivox-manager/src-tauri/tests/windows_subsystem.rs` | 1 assertion updated |
 
 ### Commits
 

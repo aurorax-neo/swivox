@@ -42,14 +42,14 @@
     const quota = location.quotaVariable;
     const host = location.hostVariable;
     // 条件始终返回 false，页面不会因这条断点暂停。
-    return `(${quota}&&window.__chatgptxExternalApiQuotaAllowed?.(${host})===true&&(${quota}=false),false)`;
+    return `(${quota}&&window.__swivoxExternalApiQuotaAllowed?.(${host})===true&&(${quota}=false),false)`;
   }
 
   let refreshedComposers = new WeakMap();
   function refreshComposers(location, force = false) {
     if (!condition(location)) return 0;
     if (force) refreshedComposers = new WeakMap();
-    const allowed = window.__chatgptxExternalApiQuotaAllowed?.("local") === true;
+    const allowed = window.__swivoxExternalApiQuotaAllowed?.("local") === true;
     let refreshed = 0;
     for (const root of document.querySelectorAll("[data-codex-composer-root]")) {
       let fiber = root[Object.keys(root).find(key => key.startsWith("__reactFiber$"))];
@@ -80,9 +80,9 @@
 
   // 复用增强模式的 Query 发布点，不依赖压缩变量名或 app 资源文件名。
   function installNative(settings) {
-    if (window.__chatgptxNativeQuotaRuntime) {
-      window.__chatgptxNativeQuotaRuntime.update(settings);
-      return window.__chatgptxNativeQuotaRuntime;
+    if (window.__swivoxNativeQuotaRuntime) {
+      window.__swivoxNativeQuotaRuntime.update(settings);
+      return window.__swivoxNativeQuotaRuntime;
     }
     let currentSettings = settings;
     const officialUsageRuntime = {
@@ -222,9 +222,9 @@
     const query = listed.find((item) => typeof Object.getPrototypeOf(item)?.setData === "function");
     if (!query) return;
     const proto = Object.getPrototypeOf(query);
-    if (typeof proto.setData !== "function" || proto.setData.__chatgptxNativeQuotaPublication) return;
+    if (typeof proto.setData !== "function" || proto.setData.__swivoxNativeQuotaPublication) return;
     const original = proto.setData;
-    function chatgptxPublishUsageData(data, ...rest) {
+    function swivoxPublishUsageData(data, ...rest) {
       if (!isMainRateLimitQueryKey(this?.queryKey)) return original.call(this, data, ...rest);
       const raw = officialUsageRuntime.rawPayloads.get(data) || data;
       const next = officialUsageRuntime.rewrite(data);
@@ -248,16 +248,16 @@
         else officialUsageRuntime.pendingPublications.delete(this);
       }
     }
-    chatgptxPublishUsageData.__chatgptxNativeQuotaPublication = true;
-    proto.setData = chatgptxPublishUsageData;
+    swivoxPublishUsageData.__swivoxNativeQuotaPublication = true;
+    proto.setData = swivoxPublishUsageData;
   }
 
   function patchOfficialUsageQueryClient(client) {
     if (!client || typeof client.setQueryData !== "function") return;
     patchOfficialUsageQueryPublication(client);
-    if (client.__chatgptxNativeQuotaRewrite) return;
+    if (client.__swivoxNativeQuotaRewrite) return;
     const original = client.setQueryData;
-    client.setQueryData = function chatgptxSetUsageQueryData(queryKey, updater, ...rest) {
+    client.setQueryData = function swivoxSetUsageQueryData(queryKey, updater, ...rest) {
       if (!isMainRateLimitQueryKey(queryKey)) {
         return original.call(this, queryKey, updater, ...rest);
       }
@@ -289,7 +289,7 @@
         client.setQueryData(query.queryKey, next);
       });
     }
-    client.__chatgptxNativeQuotaRewrite = true;
+    client.__swivoxNativeQuotaRewrite = true;
   }
 
   function rewriteCachedOfficialUsage(client) {
@@ -368,7 +368,7 @@
       refresh: syncOfficialUsagePolicy,
     };
     officialUsageRuntime.rewrite = rewriteTrackedOfficialUsagePayload;
-    window.__chatgptxNativeQuotaRuntime = runtime;
+    window.__swivoxNativeQuotaRuntime = runtime;
     syncOfficialUsagePolicy();
     return runtime;
   }
@@ -376,9 +376,9 @@
   const api = { permitsExternalApi, locate, condition, refreshComposers, installNative };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (typeof window !== "undefined") {
-    window.__chatgptxApiQuotaGate = api;
-    if (typeof window.__chatgptxExternalApiQuotaAllowed !== "function") {
-      window.__chatgptxExternalApiQuotaAllowed = (hostId) => permitsExternalApi(window.__chatgptxSettings, hostId);
+    window.__swivoxApiQuotaGate = api;
+    if (typeof window.__swivoxExternalApiQuotaAllowed !== "function") {
+      window.__swivoxExternalApiQuotaAllowed = (hostId) => permitsExternalApi(window.__swivoxSettings, hostId);
     }
   }
 })();

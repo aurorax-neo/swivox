@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ChatGPTX Linux .deb 打包脚本
+# Swivox Linux .deb 打包脚本
 # 用法: sudo bash scripts/installer/linux/build-deb.sh [VERSION]
 #       或分步执行下面的各个函数
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-PROJECT_DIR="$REPO_DIR/apps/chatgptx-manager"
+PROJECT_DIR="$REPO_DIR/apps/swivox-manager"
 BUILD_DIR="$REPO_DIR/.linux-build"
 DEB_DIR="$BUILD_DIR/deb"
-PACKAGE_NAME="chatgptx"
+PACKAGE_NAME="swivox"
 VERSION="${1:-1.3.0}"
 ARCH="$(dpkg --print-architecture)"
 # Node / 包管理器：优先从环境变量取，其次探测 PATH。
@@ -18,7 +18,7 @@ ARCH="$(dpkg --print-architecture)"
 NODE_BIN="${NODE_BIN:-$(command -v node || true)}"
 PNPM_BIN="${PNPM_BIN:-$(command -v pnpm || true)}"
 
-echo "=== ChatGPTX Linux .deb 构建 ==="
+echo "=== Swivox Linux .deb 构建 ==="
 echo "版本: $VERSION"
 echo "架构: $ARCH"
 echo "仓库: $REPO_DIR"
@@ -83,7 +83,7 @@ build_frontend() {
 build_rust() {
     echo ">>> 构建 Rust 二进制..."
     export PATH="$HOME/.cargo/bin:$PATH"
-    cargo build --release -p chatgptx-gpui --bin chatgptx
+    cargo build --release -p swivox-gpui --bin swivox
     echo ">>> Rust 构建完成"
 }
 
@@ -110,8 +110,8 @@ package_deb() {
     mkdir -p "$stage/lib/${PACKAGE_NAME}"
 
     # ── 复制二进制 ──
-    cp "$REPO_DIR/target/release/chatgptx" "$stage/bin/"
-    chmod 755 "$stage/bin/chatgptx"
+    cp "$REPO_DIR/target/release/swivox" "$stage/bin/"
+    chmod 755 "$stage/bin/swivox"
 
     # ── 复制前端资源 ──
     if [ -d "$PROJECT_DIR/dist" ]; then
@@ -127,15 +127,15 @@ package_deb() {
     # ── Desktop 文件 ──
     cat > "$stage/share/applications/${PACKAGE_NAME}.desktop" <<'EOF'
 [Desktop Entry]
-Name=ChatGPTX
+Name=Swivox
 Comment=Configure and launch the official Codex desktop app
-Exec=chatgptx %u
-Icon=chatgptx
+Exec=swivox %u
+Icon=swivox
 Type=Application
 Categories=Development;Utility;
 Terminal=false
 StartupNotify=true
-MimeType=x-scheme-handler/chatgptx;x-scheme-handler/dreamskin;
+MimeType=x-scheme-handler/swivox;x-scheme-handler/dreamskin;
 EOF
 
     # ── 复制文档 ──
@@ -157,12 +157,12 @@ Installed-Size: 70620
 Depends: libc6 (>= 2.34), libgcc-s1 (>= 4.2), libstdc++6 (>= 13), libdbus-1-3, libglib2.0-0t64, libgtk-3-0t64, libwebkit2gtk-4.1-0, libsoup-3.0-0, libjavascriptcoregtk-4.1-0, libssl3t64 (>= 3.0.0), libz3-4, libatspi2.0-0t64, libasound2t64
 
 Recommends: codex
-Description: ChatGPTX configures and launches OpenAI Codex / ChatGPT desktop apps.
+Description: Swivox configures and launches OpenAI Codex / ChatGPT desktop apps.
  It provides provider switching, protocol conversion, session management and UI enhancements
  via Chromium DevTools Protocol and a local helper service, without modifying the official
  app.asar or writing patches to the installation directory.
  .
- Includes one application, chatgptx, for provider and model configuration,
+ Includes one application, swivox, for provider and model configuration,
  sessions, enhancements and launching the official desktop app from its window.
 EOF
 

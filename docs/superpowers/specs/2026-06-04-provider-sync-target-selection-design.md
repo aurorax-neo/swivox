@@ -2,7 +2,7 @@
 
 ## Goal
 
-Add a user-selectable sync target to the ChatGPTX session sync page, and align ChatGPTX provider discovery and sync behavior with `Dailin521/codex-provider-sync`.
+Add a user-selectable sync target to the Swivox session sync page, and align Swivox provider discovery and sync behavior with `Dailin521/codex-provider-sync`.
 
 The feature lets users choose which Provider ID historical sessions should be synchronized to, while keeping the current Codex `config.toml` provider unchanged unless a future separate switch feature is added.
 
@@ -68,13 +68,13 @@ The progress message includes the chosen target:
 
 ## Architecture
 
-Keep provider sync inside `crates/chatgptx-data/src/provider_sync.rs`; do not depend on the external Node.js or .NET project at runtime.
+Keep provider sync inside `crates/swivox-data/src/provider_sync.rs`; do not depend on the external Node.js or .NET project at runtime.
 
 Add three focused backend capabilities:
 
 1. Provider target discovery, matching the reference project's source merge rules.
 2. Explicit-target provider sync, matching `codex-provider sync --provider <id>` semantics.
-3. More complete sync repair logic for global workspace state, matching the reference project where ChatGPTX currently differs.
+3. More complete sync repair logic for global workspace state, matching the reference project where Swivox currently differs.
 
 The Tauri manager exposes two commands:
 
@@ -85,7 +85,7 @@ The launcher keeps calling the existing no-argument provider sync behavior so au
 
 ## Backend data model
 
-Add serializable provider target types in `crates/chatgptx-data/src/provider_sync.rs`:
+Add serializable provider target types in `crates/swivox-data/src/provider_sync.rs`:
 
 ```rust
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -129,7 +129,7 @@ It builds a map from provider ID to sources, mirroring the reference project:
 2. Add the current root `model_provider` with source `Config`.
 3. Add rollout provider IDs from `sessions/**/rollout-*.jsonl` and `archived_sessions/**/rollout-*.jsonl` with source `Rollout`.
 4. Add SQLite provider IDs from `state_5.sqlite` `threads.model_provider`, split by archived/non-archived only for counting; source is still `Sqlite`.
-5. Add saved/manual providers from ChatGPTX settings with source `Manual` once those settings fields exist.
+5. Add saved/manual providers from Swivox settings with source `Manual` once those settings fields exist.
 6. Add the default provider `openai` through the config-provider parser behavior, matching the reference `listConfiguredProviderIds()` default inclusion.
 
 Provider IDs that are missing, empty, or whitespace-only are ignored. Missing `model_provider` falls back to `openai`.
@@ -197,7 +197,7 @@ When the current `payload.model_provider` differs from the target provider, rewr
 
 If a rollout contains `encrypted_content`, count it by its original provider and return the existing warning behavior. Sync must not decrypt, re-encrypt, or rewrite encrypted conversation payloads.
 
-Continue to preserve file modification time after rewriting, matching current ChatGPTX behavior and the reference project.
+Continue to preserve file modification time after rewriting, matching current Swivox behavior and the reference project.
 
 ## SQLite sync behavior
 
@@ -233,7 +233,7 @@ Malformed or busy SQLite errors should return a skipped/failed sync result with 
 
 ## Global state sync behavior
 
-Align ChatGPTX global state repair with the reference `GlobalStateService.SyncWorkspaceRootsAsync()`.
+Align Swivox global state repair with the reference `GlobalStateService.SyncWorkspaceRootsAsync()`.
 
 Read `.codex-global-state.json` if present. If absent, return zero global state updates.
 
@@ -249,7 +249,7 @@ electron-workspace-root-labels
 open-in-target-preferences.perPath
 ```
 
-ChatGPTX currently handles the first four groups partially; this design adds `open-in-target-preferences.perPath` and uses SQLite cwd stats to resolve stored paths in the same spirit as the reference project.
+Swivox currently handles the first four groups partially; this design adds `open-in-target-preferences.perPath` and uses SQLite cwd stats to resolve stored paths in the same spirit as the reference project.
 
 When global state changes, write both:
 
@@ -281,7 +281,7 @@ metadata.json
 
 `session-meta-backup.json` records original first-line metadata for rollout files that will be changed, including path, original first line, separator, and original last-write timestamp when available.
 
-Expand `metadata.json` to include structured fields while preserving ChatGPTX's existing `managedBy` marker for pruning:
+Expand `metadata.json` to include structured fields while preserving Swivox's existing `managedBy` marker for pruning:
 
 ```json
 {
@@ -292,7 +292,7 @@ Expand `metadata.json` to include structured fields while preserving ChatGPTX's 
   "createdAt": "...",
   "dbFiles": ["state_5.sqlite"],
   "changedSessionFiles": 3,
-  "managedBy": "ChatGPTX provider sync"
+  "managedBy": "Swivox provider sync"
 }
 ```
 
@@ -300,7 +300,7 @@ After successful sync, keep pruning managed backups to the newest 5.
 
 ## Failure recovery
 
-Improve ChatGPTX recovery semantics to match the reference project more closely.
+Improve Swivox recovery semantics to match the reference project more closely.
 
 Before writes, create a backup. Then:
 
@@ -360,7 +360,7 @@ The returned payload continues to include `targetProvider`, update counts, skipp
 
 ## Frontend changes
 
-In `apps/chatgptx-manager/src/App.tsx`:
+In `apps/swivox-manager/src/App.tsx`:
 
 - Add types for provider sync target list and target options.
 - Load targets when the app initializes and when the sessions page or sync area refreshes.
@@ -376,7 +376,7 @@ If target loading fails, the dropdown shows a disabled fallback option and sync 
 
 Launcher behavior remains compatible:
 
-- `apps/chatgptx-launcher/src/main.rs` continues calling `chatgptx_data::run_provider_sync(None)`.
+- `apps/swivox-launcher/src/main.rs` continues calling `swivox_data::run_provider_sync(None)`.
 - Startup sync still targets current root `model_provider`.
 - No launcher UI selection is added.
 
@@ -417,7 +417,7 @@ Automated tests should cover:
 
 Manual verification should cover:
 
-1. Open ChatGPTX manager.
+1. Open Swivox manager.
 2. Confirm the sync target dropdown lists providers from config, rollout files, and SQLite.
 3. Pick a non-current provider.
 4. Run sync.

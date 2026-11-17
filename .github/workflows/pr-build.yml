@@ -28,7 +28,7 @@ jobs:
         with:
           node-version: "22"
           cache: "npm"
-          cache-dependency-path: apps/chatgptx-manager/package-lock.json
+          cache-dependency-path: apps/swivox-manager/package-lock.json
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -63,7 +63,7 @@ jobs:
           if (-not $makensis) { throw "NSIS 安装失败或编译器不可用，停止 PR 构建。" }
 
       - name: Install frontend dependencies
-        working-directory: apps/chatgptx-manager
+        working-directory: apps/swivox-manager
         run: npm ci
 
       - name: Check native browser inspector bundle
@@ -73,12 +73,12 @@ jobs:
         run: cargo test --workspace --lib --bins
 
       - name: Build release application
-        run: cargo build --release -p chatgptx-gpui --bin chatgptx
+        run: cargo build --release -p swivox-gpui --bin swivox
       - name: Stage Windows app files
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist/windows/app | Out-Null
-          Copy-Item target/release/chatgptx.exe dist/windows/app/
+          Copy-Item target/release/swivox.exe dist/windows/app/
           if ((Get-ChildItem dist/windows/app -Filter *.exe).Count -ne 1) { throw "Windows 安装包必须只有一个应用程序。" }
 
       - name: Build Windows installer
@@ -104,7 +104,7 @@ jobs:
           }
           Push-Location scripts/installer/windows
           try {
-            & $makensis "/INPUTCHARSET" "UTF8" "/DVERSION=$version" ChatGPTX.nsi
+            & $makensis "/INPUTCHARSET" "UTF8" "/DVERSION=$version" Swivox.nsi
             if ($LASTEXITCODE -ne 0) { throw "NSIS 打包失败，退出码 $LASTEXITCODE" }
           } finally {
             Pop-Location
@@ -113,14 +113,14 @@ jobs:
       - name: Upload Windows binaries
         uses: actions/upload-artifact@v4
         with:
-          name: chatgptx-windows-binaries
+          name: swivox-windows-binaries
           path: dist/windows/app/*
           if-no-files-found: error
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: chatgptx-windows-installer
+          name: swivox-windows-installer
           path: dist/windows/*.exe
           if-no-files-found: error
 
@@ -138,7 +138,7 @@ jobs:
         with:
           node-version: "22"
           cache: "npm"
-          cache-dependency-path: apps/chatgptx-manager/package-lock.json
+          cache-dependency-path: apps/swivox-manager/package-lock.json
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -151,7 +151,7 @@ jobs:
           cache-on-failure: true
 
       - name: Install frontend dependencies
-        working-directory: apps/chatgptx-manager
+        working-directory: apps/swivox-manager
         run: npm ci
 
       - name: Check native browser inspector bundle
@@ -165,7 +165,7 @@ jobs:
           if [ -z "$VERSION" ] || [ "$VERSION" = "main" ]; then
             VERSION="0.0.0-${GITHUB_RUN_NUMBER}"
           fi
-          cargo build --release -p chatgptx-gpui --bins
+          cargo build --release -p swivox-gpui --bins
           BINARY_DIR="target/release" bash scripts/installer/macos/package-dmg.sh "$VERSION" universal
       - name: Verify macOS bundle structure
         run: |
@@ -175,19 +175,19 @@ jobs:
           apps=(dist/macos/stage/*.app)
           test "${#apps[@]}" = "2"
           test -f "dist/macos/stage/.hidden"
-          grep -qx "ChatGPTX 管理工具.app" "dist/macos/stage/.hidden"
-          for app in "dist/macos/stage/ChatGPTX.app" "dist/macos/stage/ChatGPTX 管理工具.app"; do
+          grep -qx "Swivox 管理工具.app" "dist/macos/stage/.hidden"
+          for app in "dist/macos/stage/Swivox.app" "dist/macos/stage/Swivox 管理工具.app"; do
             test -f "$app/Contents/Info.plist"
             test -f "$app/Contents/PkgInfo"
             test -x "$app/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")"
             if [[ "$app" == *"管理工具.app" ]]; then
-              test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = "com.chatgptx.app.manager"
-              test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")" = "ChatGPTXManager"
+              test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = "com.swivox.app.manager"
+              test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")" = "SwivoxManager"
             else
-              test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = "com.chatgptx.app"
-              test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")" = "ChatGPTX"
+              test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = "com.swivox.app"
+              test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")" = "Swivox"
             fi
-            test "$(/usr/libexec/PlistBuddy -c 'Print :ChatGPTXUnifiedApp' "$app/Contents/Info.plist")" = "true"
+            test "$(/usr/libexec/PlistBuddy -c 'Print :SwivoxUnifiedApp' "$app/Contents/Info.plist")" = "true"
             plutil -lint "$app/Contents/Info.plist" >/dev/null
             codesign -dv "$app" >/dev/null 2>&1
             echo "verified: $app"
@@ -196,6 +196,6 @@ jobs:
       - name: Upload macOS DMG
         uses: actions/upload-artifact@v4
         with:
-          name: chatgptx-macos-universal-dmg
+          name: swivox-macos-universal-dmg
           path: dist/macos/*.dmg
           if-no-files-found: error

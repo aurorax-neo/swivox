@@ -153,7 +153,7 @@
   }
 
   function setCodexServiceTierControlMode(mode) {
-    if (chatgptxBackendStatus.status !== "ok") {
+    if (swivoxBackendStatus.status !== "ok") {
       showToast("后端未连接，无法切换服务模式", null);
       refreshCodexServiceTierControls();
       return;
@@ -189,7 +189,7 @@
   }
 
   function syncCodexServiceTierEffectiveState() {
-    if (!chatgptxSettings().serviceTierControls) {
+    if (!swivoxSettings().serviceTierControls) {
       codexServiceTierState = {
         ...codexServiceTierState,
         activeThreadId: "",
@@ -234,8 +234,8 @@
   }
 
   function codexServiceTierBadgeState() {
-    if (chatgptxBackendStatus.status === "checking") return { tier: "loading", label: "...", disabled: true, title: "服务模式：正在检查后端连接" };
-    if (chatgptxBackendStatus.status && chatgptxBackendStatus.status !== "ok") return { tier: "failed", label: "未连接", disabled: true, title: "服务模式：后端未连接，无法切换" };
+    if (swivoxBackendStatus.status === "checking") return { tier: "loading", label: "...", disabled: true, title: "服务模式：正在检查后端连接" };
+    if (swivoxBackendStatus.status && swivoxBackendStatus.status !== "ok") return { tier: "failed", label: "未连接", disabled: true, title: "服务模式：后端未连接，无法切换" };
     if (codexServiceTierState.status === "loading") return { tier: "loading", label: "...", title: "服务模式：正在读取" };
     if (codexServiceTierState.status === "failed") return { tier: "failed", label: "?", title: "服务模式：读取失败" };
     const fastAvailability = codexServiceTierFastAvailability();
@@ -270,9 +270,9 @@
 
   function refreshCodexServiceTierControls() {
     syncCodexServiceTierEffectiveState();
-    const featureEnabled = !!chatgptxSettings().serviceTierControls;
-    const backendConnected = chatgptxBackendStatus.status === "ok";
-    const backendChecking = chatgptxBackendStatus.status === "checking";
+    const featureEnabled = !!swivoxSettings().serviceTierControls;
+    const backendConnected = swivoxBackendStatus.status === "ok";
+    const backendChecking = swivoxBackendStatus.status === "checking";
     if (featureEnabled && backendConnected) codexServiceTierMaybeLoadModelCatalog();
     const fastAvailability = codexServiceTierFastAvailability();
     const fastDisabled = !featureEnabled || !backendConnected || codexServiceTierState.status === "loading" || !fastAvailability.supported;
@@ -356,7 +356,7 @@
   }
 
   async function loadCodexServiceTierState() {
-    if (!chatgptxSettings().serviceTierControls) {
+    if (!swivoxSettings().serviceTierControls) {
       codexServiceTierState = { ...codexServiceTierState, status: "idle", message: "未启用" };
       refreshCodexServiceTierControls();
       return;
@@ -379,7 +379,7 @@
         status: "failed",
         message: "读取失败",
       };
-      sendChatGPTXDiagnostic("service_tier_read_failed", {
+      sendSwivoxDiagnostic("service_tier_read_failed", {
         errorName: error?.name || "",
         errorMessage: error?.message || String(error),
       });
@@ -389,7 +389,7 @@
   }
 
   function setCodexThreadServiceTierMode(mode) {
-    if (chatgptxBackendStatus.status !== "ok") {
+    if (swivoxBackendStatus.status !== "ok") {
       showToast("后端未连接，无法切换服务模式", null);
       refreshCodexServiceTierControls();
       return;
@@ -412,7 +412,7 @@
   }
 
   function toggleCodexServiceTierFromBadge() {
-    if (chatgptxBackendStatus.status !== "ok") {
+    if (swivoxBackendStatus.status !== "ok") {
       showToast("后端未连接，无法切换服务模式", null);
       refreshCodexServiceTierControls();
       return;
@@ -460,7 +460,7 @@
   }
 
   function codexServiceTierOverrideForRequest(method, params, threadIdHint = "") {
-    if (!chatgptxSettings().serviceTierControls) return null;
+    if (!swivoxSettings().serviceTierControls) return null;
     if (!codexServiceTierRequestMethods().has(method) || !params || typeof params !== "object") return null;
     const state = readThreadServiceTierState();
     const controlMode = normalizeCodexServiceTierControlMode(state.mode);
@@ -501,7 +501,7 @@
     if (Object.prototype.hasOwnProperty.call(nextParams, "service_tier") || override.fastBlocked) {
       nextParams.service_tier = override.serviceTier;
     }
-    sendChatGPTXDiagnostic("service_tier_request_override_applied", {
+    sendSwivoxDiagnostic("service_tier_request_override_applied", {
       method,
       threadId: override.threadId || "",
       mode: override.mode,
@@ -519,11 +519,11 @@
   }
 
   function codexRemoteSessionActiveProfile() {
-    if (!chatgptxBackendSettings.relayProfilesEnabled) return null;
-    const profiles = Array.isArray(chatgptxBackendSettings.relayProfiles)
-      ? chatgptxBackendSettings.relayProfiles
+    if (!swivoxBackendSettings.relayProfilesEnabled) return null;
+    const profiles = Array.isArray(swivoxBackendSettings.relayProfiles)
+      ? swivoxBackendSettings.relayProfiles
       : [];
-    const activeId = String(chatgptxBackendSettings.activeRelayId || "");
+    const activeId = String(swivoxBackendSettings.activeRelayId || "");
     return profiles.find((item) => String(item?.id || "") === activeId) || null;
   }
 
@@ -540,7 +540,7 @@
     const profile = codexRemoteSessionActiveProfile();
     if (String(profile?.relayMode || "") !== "official") return false;
     const sessionProvider = String(
-      chatgptxBackendSettings.activeRelaySessionProvider || "custom"
+      swivoxBackendSettings.activeRelaySessionProvider || "custom"
     ).trim().toLowerCase();
     return sessionProvider !== "openai";
   }
@@ -575,7 +575,7 @@
     // pureApi 且 profile 自己没声明供应方时回到 "custom"，不去读可能陈旧的全局缓存。
     if (relayMode === "pureApi") return "custom";
     return String(
-      chatgptxBackendSettings.activeRelayCodexProvider
+      swivoxBackendSettings.activeRelayCodexProvider
       || codexModelCatalog?.codex_model_provider
       || codexModelCatalog?.codexModelProvider
       || codexModelCatalog?.model_provider
@@ -621,7 +621,7 @@
     }
     const nextParams = { ...params, modelProvider: targetProvider };
     delete nextParams.model_provider;
-    sendChatGPTXDiagnostic("remote_session_provider_override_applied", {
+    sendSwivoxDiagnostic("remote_session_provider_override_applied", {
       method: requestMethod,
       from: requestedProvider || "(missing)",
       to: targetProvider,
@@ -680,7 +680,7 @@
 
   function requestCodexRemoteSessionRecovery(threadId, attempt) {
     const payload = { thread_id: threadId };
-    const testHook = window.__CHATGPTX_TEST_REMOTE_RECOVERY__;
+    const testHook = window.__SWIVOX_TEST_REMOTE_RECOVERY__;
     const request = typeof testHook === "function"
       ? Promise.resolve(testHook(payload, attempt))
       : postJson("/remote-control-session/recover", payload);
@@ -688,7 +688,7 @@
       if (attempt === 0
         || result?.message === "Remote Control session recovery complete"
         || result?.message === "Remote Control session catalog recovery complete") {
-        sendChatGPTXDiagnostic("remote_session_recovery_requested", {
+        sendSwivoxDiagnostic("remote_session_recovery_requested", {
           threadId,
           attempt,
           status: result?.status || "",
@@ -700,7 +700,7 @@
       return result;
     }).catch((error) => {
       if (attempt === 0) {
-        sendChatGPTXDiagnostic("remote_session_recovery_failed", {
+        sendSwivoxDiagnostic("remote_session_recovery_failed", {
           threadId,
           attempt,
           errorName: error?.name || "",
@@ -715,8 +715,8 @@
     if (!codexRemoteSessionProviderNormalizationEnabled()) return false;
     const normalizedThreadId = String(threadId || "").trim();
     if (!normalizedThreadId || normalizedThreadId.length > 128) return false;
-    window.__chatgptxRemoteSessionRecoveryPending = window.__chatgptxRemoteSessionRecoveryPending || new Map();
-    const pending = window.__chatgptxRemoteSessionRecoveryPending;
+    window.__swivoxRemoteSessionRecoveryPending = window.__swivoxRemoteSessionRecoveryPending || new Map();
+    const pending = window.__swivoxRemoteSessionRecoveryPending;
     if (pending.has(normalizedThreadId)) return false;
     const retryOffsets = [100, 350, 800, 1600, 3000];
     const state = { timer: 0 };
@@ -758,12 +758,12 @@
   }
 
   function installCodexRemoteSessionRecoveryListener() {
-    if (window.__chatgptxRemoteSessionRecoveryInstalled === codexRemoteSessionRecoveryVersion) return true;
-    if (window.__chatgptxRemoteSessionRecoveryMessageHandler) {
-      window.removeEventListener("message", window.__chatgptxRemoteSessionRecoveryMessageHandler, true);
+    if (window.__swivoxRemoteSessionRecoveryInstalled === codexRemoteSessionRecoveryVersion) return true;
+    if (window.__swivoxRemoteSessionRecoveryMessageHandler) {
+      window.removeEventListener("message", window.__swivoxRemoteSessionRecoveryMessageHandler, true);
     }
-    if (window.__chatgptxRemoteSessionRecoveryViewHandler) {
-      window.removeEventListener("codex-message-from-view", window.__chatgptxRemoteSessionRecoveryViewHandler, true);
+    if (window.__swivoxRemoteSessionRecoveryViewHandler) {
+      window.removeEventListener("codex-message-from-view", window.__swivoxRemoteSessionRecoveryViewHandler, true);
     }
     const messageHandler = (event) => {
       if (event?.source !== window) return false;
@@ -772,12 +772,12 @@
       return observeCodexRemoteSessionNotification(event?.data);
     };
     const viewHandler = (event) => observeCodexRemoteSessionNotification(event?.detail);
-    window.__chatgptxRemoteSessionRecoveryMessageHandler = messageHandler;
-    window.__chatgptxRemoteSessionRecoveryViewHandler = viewHandler;
+    window.__swivoxRemoteSessionRecoveryMessageHandler = messageHandler;
+    window.__swivoxRemoteSessionRecoveryViewHandler = viewHandler;
     window.addEventListener("message", messageHandler, true);
     window.addEventListener("codex-message-from-view", viewHandler, true);
-    window.__chatgptxRemoteSessionRecoveryInstalled = codexRemoteSessionRecoveryVersion;
-    sendChatGPTXDiagnostic("remote_session_recovery_listener_installed", {
+    window.__swivoxRemoteSessionRecoveryInstalled = codexRemoteSessionRecoveryVersion;
+    sendSwivoxDiagnostic("remote_session_recovery_listener_installed", {
       version: codexRemoteSessionRecoveryVersion,
     });
     return true;
@@ -785,13 +785,13 @@
 
   function installCodexRemoteSessionDispatcherSubscription(dispatcher, assetPrefix = "") {
     if (!dispatcher || typeof dispatcher.subscribe !== "function") return false;
-    if (window.__chatgptxRemoteSessionRecoveryDispatcher === dispatcher
-        && window.__chatgptxRemoteSessionRecoveryDispatcherVersion === codexRemoteSessionRecoveryVersion) {
+    if (window.__swivoxRemoteSessionRecoveryDispatcher === dispatcher
+        && window.__swivoxRemoteSessionRecoveryDispatcherVersion === codexRemoteSessionRecoveryVersion) {
       return true;
     }
-    if (typeof window.__chatgptxRemoteSessionRecoveryDispatcherUnsubscribe === "function") {
+    if (typeof window.__swivoxRemoteSessionRecoveryDispatcherUnsubscribe === "function") {
       try {
-        window.__chatgptxRemoteSessionRecoveryDispatcherUnsubscribe();
+        window.__swivoxRemoteSessionRecoveryDispatcherUnsubscribe();
       } catch {
       }
     }
@@ -815,9 +815,9 @@
       dispatcher.subscribe("thread/started", handler),
       dispatcher.subscribe("browser-sidebar-browser-use-state", browserUseHandler),
     ];
-    window.__chatgptxRemoteSessionRecoveryDispatcher = dispatcher;
-    window.__chatgptxRemoteSessionRecoveryDispatcherHandler = handler;
-    window.__chatgptxRemoteSessionRecoveryDispatcherUnsubscribe = () => {
+    window.__swivoxRemoteSessionRecoveryDispatcher = dispatcher;
+    window.__swivoxRemoteSessionRecoveryDispatcherHandler = handler;
+    window.__swivoxRemoteSessionRecoveryDispatcherUnsubscribe = () => {
       for (const unsubscribe of unsubscribers) {
         if (typeof unsubscribe !== "function") continue;
         try {
@@ -826,8 +826,8 @@
         }
       }
     };
-    window.__chatgptxRemoteSessionRecoveryDispatcherVersion = codexRemoteSessionRecoveryVersion;
-    sendChatGPTXDiagnostic("remote_session_dispatcher_subscription_installed", { assetPrefix });
+    window.__swivoxRemoteSessionRecoveryDispatcherVersion = codexRemoteSessionRecoveryVersion;
+    sendSwivoxDiagnostic("remote_session_dispatcher_subscription_installed", { assetPrefix });
     return true;
   }
 
@@ -980,16 +980,16 @@
           dispatcher.__codexServiceTierOriginalDispatchMessage = dispatcher.dispatchMessage.bind(dispatcher);
         }
         dispatcher.dispatchMessage = (type, payload) => {
-          return dispatchChatGPTXMessage(dispatcher, type, payload);
+          return dispatchSwivoxMessage(dispatcher, type, payload);
         };
         installCodexRemoteSessionDispatcherSubscription(dispatcher, assetPrefix);
         window.__codexServiceTierRequestOverrideInstalled = codexServiceTierRequestOverrideVersion;
         serviceTierDispatcherPatchMissCount = 0;
-        sendChatGPTXDiagnostic("service_tier_dispatcher_patch_installed", { assetPrefix });
+        sendSwivoxDiagnostic("service_tier_dispatcher_patch_installed", { assetPrefix });
       } catch (error) {
         serviceTierDispatcherPatchMissCount += 1;
         if (serviceTierDispatcherPatchMissCount === 1) {
-          sendChatGPTXDiagnostic("service_tier_dispatcher_patch_failed", {
+          sendSwivoxDiagnostic("service_tier_dispatcher_patch_failed", {
             errorName: error?.name || "",
             errorMessage: error?.message || String(error),
           });
@@ -997,7 +997,7 @@
         if (serviceTierDispatcherPatchMissCount >= serviceTierDispatcherPatchMaxMisses
             && !serviceTierDispatcherPatchDisabled) {
           serviceTierDispatcherPatchDisabled = true;
-          sendChatGPTXDiagnostic("service_tier_dispatcher_patch_skipped", {
+          sendSwivoxDiagnostic("service_tier_dispatcher_patch_skipped", {
             misses: serviceTierDispatcherPatchMissCount,
           });
         }
@@ -1010,7 +1010,7 @@
 
   // 保留旧调用入口，语音能力由独立的 opt-in 控件提供。
   function installDictationSupportPatch() {
-    installChatGPTXDictation();
+    installSwivoxDictation();
   }
 
   const codexAppServerPreparationTimeoutMs = 2000;
@@ -1024,8 +1024,8 @@
         postJson(path, payload),
         new Promise((_, reject) => {
           timeoutId = setTimeout(() => {
-            sendChatGPTXDiagnostic("app_server_preparation_read_timeout", { path, timeoutMs });
-            reject(new Error(`ChatGPTX preparation read timed out: ${path}`));
+            sendSwivoxDiagnostic("app_server_preparation_read_timeout", { path, timeoutMs });
+            reject(new Error(`Swivox preparation read timed out: ${path}`));
           }, timeoutMs);
         }),
       ]);
@@ -1035,7 +1035,7 @@
   }
 
   async function loadBackendSettingsState(timeoutMs = 0) {
-    const seq = chatgptxBackendSettingsSeq;
+    const seq = swivoxBackendSettingsSeq;
     try {
       const settings = await (timeoutMs > 0
         ? readCodexAppServerPreparation("/settings/get", {}, timeoutMs)
@@ -1043,16 +1043,16 @@
       if (!settings || typeof settings !== "object" || (!("enhancementsEnabled" in settings) && !("providerSyncEnabled" in settings))) {
         throw new Error("invalid backend settings response");
       }
-      if (seq !== chatgptxBackendSettingsSeq) {
+      if (seq !== swivoxBackendSettingsSeq) {
         return false;
       }
-      chatgptxBackendSettings = { ...chatgptxBackendSettings, ...settings };
-      chatgptxBackendSettingsLoaded = true;
+      swivoxBackendSettings = { ...swivoxBackendSettings, ...settings };
+      swivoxBackendSettingsLoaded = true;
     } catch (_) {
       return false;
     }
     // 设置已加载成功；语音 UI 的异常不应使 provider/Fast 刷新误判为失败。
     // service-tier harness 在 70 分片提前返回，尚未初始化 93 分片的录音状态。
-    if (!window.__CHATGPTX_TEST_SERVICE_TIER__) runScanStep(installChatGPTXDictation);
+    if (!window.__SWIVOX_TEST_SERVICE_TIER__) runScanStep(installSwivoxDictation);
     return true;
   }

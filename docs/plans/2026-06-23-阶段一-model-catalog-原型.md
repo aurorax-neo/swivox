@@ -2,7 +2,7 @@
 
 > **面向 AI 代理的工作者：** 必需子技能：使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐任务实现此计划。步骤使用复选框（`- [ ]`）语法来跟踪进度。
 
-**目标：** 让 ChatGPTX 应用 profile 时，根据 `model_list` 后缀语法（如 `deepseek-v4-pro[1M]`）自动生成 codex 原生 `model_catalog_json` 文件并写入 config.toml 指针，使 codex 客户端按模型识别真实上下文窗口。
+**目标：** 让 Swivox 应用 profile 时，根据 `model_list` 后缀语法（如 `deepseek-v4-pro[1M]`）自动生成 codex 原生 `model_catalog_json` 文件并写入 config.toml 指针，使 codex 客户端按模型识别真实上下文窗口。
 
 **架构：** 新增纯函数模块 `model_suffix.rs`（后缀解析 + catalog JSON 构建，无副作用、易测）；在 `relay_config.rs` 新增一个可选步骤 `apply_model_catalog_to_config`，接入现有 3 个 apply 入口（`apply_context_limits_to_config` 之后、落盘之前），靠后缀 opt-in，无后缀则 no-op，不破坏现有 per-profile 单值行为。
 
@@ -16,16 +16,16 @@
 
 ## 文件结构
 
-- 创建：`crates/chatgptx-core/src/model_suffix.rs`
+- 创建：`crates/swivox-core/src/model_suffix.rs`
   - 职责：后缀语法解析（`slug[1M]` → `(slug, window)`）、收集 profile 全部模型条目、构建 catalog JSON 字符串。纯函数，无 IO，无对 relay_config 私有函数的依赖。
-- 创建：`crates/chatgptx-core/examples/generate_model_catalog.rs`
+- 创建：`crates/swivox-core/examples/generate_model_catalog.rs`
   - 职责：命令行小工具，调用 `model_suffix` 公开 API 生成 catalog JSON，供手工验证（B 对拍）使用。
-- 修改：`crates/chatgptx-core/src/lib.rs`
+- 修改：`crates/swivox-core/src/lib.rs`
   - 职责：注册 `pub mod model_suffix;`。
-- 修改：`crates/chatgptx-core/src/relay_config.rs`
+- 修改：`crates/swivox-core/src/relay_config.rs`
   - 职责：新增 `apply_model_catalog_to_config`（访问本模块私有 toml 工具函数）+ `sanitize_catalog_filename`；接入 3 个 apply 入口。
-- 测试：`crates/chatgptx-core/tests/model_suffix.rs`（新）
-- 测试：`crates/chatgptx-core/tests/relay_config.rs`（加用例）
+- 测试：`crates/swivox-core/tests/model_suffix.rs`（新）
+- 测试：`crates/swivox-core/tests/relay_config.rs`（加用例）
 
 **为何 `apply_model_catalog_to_config` 放在 `relay_config.rs` 而非新模块：** 它需要 `parse_toml_document` / `normalize_optional_toml` / `parse_optional_positive_u64`（私有）和 `root_key_string`（pub）。放在同模块可访问私有函数，避免为单个函数提升 3 个私有工具为 pub(crate)，改动最小。纯逻辑（解析/构建）拆到 `model_suffix.rs` 独立可测。
 
@@ -34,16 +34,16 @@
 ## 任务 1：后缀解析器（model_suffix 模块基础）
 
 **文件：**
-- 创建：`crates/chatgptx-core/src/model_suffix.rs`
-- 修改：`crates/chatgptx-core/src/lib.rs`（注册模块）
-- 测试：`crates/chatgptx-core/tests/model_suffix.rs`
+- 创建：`crates/swivox-core/src/model_suffix.rs`
+- 修改：`crates/swivox-core/src/lib.rs`（注册模块）
+- 测试：`crates/swivox-core/tests/model_suffix.rs`
 
 - [ ] **步骤 1：编写失败的测试**
 
-创建 `crates/chatgptx-core/tests/model_suffix.rs`：
+创建 `crates/swivox-core/tests/model_suffix.rs`：
 
 ```rust
-use chatgptx_core::model_suffix::parse_model_suffix;
+use swivox_core::model_suffix::parse_model_suffix;
 
 #[test]
 fn parse_suffix_extracts_k_and_m_units() {
@@ -101,18 +101,18 @@ fn parse_suffix_rejects_zero_and_negative() {
 
 - [ ] **步骤 2：运行测试验证失败**
 
-运行：`cargo test -p chatgptx-core --test model_suffix 2>&1 | tail -20`
+运行：`cargo test -p swivox-core --test model_suffix 2>&1 | tail -20`
 预期：编译失败，报错 `unresolved module model_suffix` 或 `cannot find function parse_model_suffix`。
 
 - [ ] **步骤 3：编写最少实现代码**
 
-在 `crates/chatgptx-core/src/lib.rs` 找到模块声明区（`pub mod model_catalog;` 附近，约第 16 行），新增一行：
+在 `crates/swivox-core/src/lib.rs` 找到模块声明区（`pub mod model_catalog;` 附近，约第 16 行），新增一行：
 
 ```rust
 pub mod model_suffix;
 ```
 
-创建 `crates/chatgptx-core/src/model_suffix.rs`：
+创建 `crates/swivox-core/src/model_suffix.rs`：
 
 ```rust
 //! model_list 后缀语法解析与 catalog JSON 构建。
@@ -175,13 +175,13 @@ fn parse_window_token(token: &str) -> Option<u64> {
 
 - [ ] **步骤 4：运行测试验证通过**
 
-运行：`cargo test -p chatgptx-core --test model_suffix 2>&1 | tail -20`
+运行：`cargo test -p swivox-core --test model_suffix 2>&1 | tail -20`
 预期：4 个测试 PASS。
 
 - [ ] **步骤 5：Commit**
 
 ```bash
-git add crates/chatgptx-core/src/model_suffix.rs crates/chatgptx-core/src/lib.rs crates/chatgptx-core/tests/model_suffix.rs
+git add crates/swivox-core/src/model_suffix.rs crates/swivox-core/src/lib.rs crates/swivox-core/tests/model_suffix.rs
 git commit -m "feat(model_suffix): 新增 model_list 后缀解析器
 
 解析 deepseek-v4-pro[1M] 这类后缀语法，剥离后缀得到 slug 与窗口值。
@@ -193,15 +193,15 @@ git commit -m "feat(model_suffix): 新增 model_list 后缀解析器
 ## 任务 2：条目收集与 catalog JSON 构建
 
 **文件：**
-- 修改：`crates/chatgptx-core/src/model_suffix.rs`（追加函数）
-- 测试：`crates/chatgptx-core/tests/model_suffix.rs`（追加用例）
+- 修改：`crates/swivox-core/src/model_suffix.rs`（追加函数）
+- 测试：`crates/swivox-core/tests/model_suffix.rs`（追加用例）
 
 - [ ] **步骤 1：编写失败的测试**
 
-在 `crates/chatgptx-core/tests/model_suffix.rs` 末尾追加：
+在 `crates/swivox-core/tests/model_suffix.rs` 末尾追加：
 
 ```rust
-use chatgptx_core::model_suffix::{collect_catalog_entries, build_model_catalog_json};
+use swivox_core::model_suffix::{collect_catalog_entries, build_model_catalog_json};
 
 #[test]
 fn collect_entries_includes_current_model_and_strips_suffix() {
@@ -247,12 +247,12 @@ fn build_catalog_json_uses_fallback_for_no_suffix_entries() {
 
 - [ ] **步骤 2：运行测试验证失败**
 
-运行：`cargo test -p chatgptx-core --test model_suffix 2>&1 | tail -20`
+运行：`cargo test -p swivox-core --test model_suffix 2>&1 | tail -20`
 预期：编译失败，报错 `cannot find function collect_catalog_entries` / `build_model_catalog_json`。
 
 - [ ] **步骤 3：编写最少实现代码**
 
-在 `crates/chatgptx-core/src/model_suffix.rs` 末尾追加：
+在 `crates/swivox-core/src/model_suffix.rs` 末尾追加：
 
 ```rust
 /// 收集 profile 的全部模型条目（当前 model + model_list），去重并解析后缀。
@@ -318,13 +318,13 @@ pub fn build_model_catalog_json(
 
 - [ ] **步骤 4：运行测试验证通过**
 
-运行：`cargo test -p chatgptx-core --test model_suffix 2>&1 | tail -20`
+运行：`cargo test -p swivox-core --test model_suffix 2>&1 | tail -20`
 预期：8 个测试全部 PASS。
 
 - [ ] **步骤 5：Commit**
 
 ```bash
-git add crates/chatgptx-core/src/model_suffix.rs crates/chatgptx-core/tests/model_suffix.rs
+git add crates/swivox-core/src/model_suffix.rs crates/swivox-core/tests/model_suffix.rs
 git commit -m "feat(model_suffix): 新增条目收集与 catalog JSON 构建
 
 collect_catalog_entries 收集 profile 全部模型（解 #1064 单模型副作用），
@@ -336,12 +336,12 @@ build_model_catalog_json 生成 codex 原生 catalog 格式，auto_compact 留 n
 ## 任务 3：apply_model_catalog_to_config + 接入 3 个入口
 
 **文件：**
-- 修改：`crates/chatgptx-core/src/relay_config.rs`（新增函数 + 3 处接入）
-- 测试：`crates/chatgptx-core/tests/relay_config.rs`（新增用例）
+- 修改：`crates/swivox-core/src/relay_config.rs`（新增函数 + 3 处接入）
+- 测试：`crates/swivox-core/tests/relay_config.rs`（新增用例）
 
 - [ ] **步骤 1：编写失败的测试**
 
-在 `crates/chatgptx-core/tests/relay_config.rs` 末尾追加：
+在 `crates/swivox-core/tests/relay_config.rs` 末尾追加：
 
 ```rust
 #[test]
@@ -390,12 +390,12 @@ experimental_bearer_token = "sk-new"
 
 - [ ] **步骤 2：运行测试验证失败**
 
-运行：`cargo test -p chatgptx-core --test relay_config apply_relay_profile_generates_model_catalog_for_suffixed_models 2>&1 | tail -20`
+运行：`cargo test -p swivox-core --test relay_config apply_relay_profile_generates_model_catalog_for_suffixed_models 2>&1 | tail -20`
 预期：FAIL，断言 `config.contains("model_catalog_json")` 失败（当前不生成 catalog）。
 
 - [ ] **步骤 3：编写最少实现代码**
 
-在 `crates/chatgptx-core/src/relay_config.rs` 中，找到 `apply_context_limits_to_config` 函数（约第 1355 行），在其后新增两个函数：
+在 `crates/swivox-core/src/relay_config.rs` 中，找到 `apply_context_limits_to_config` 函数（约第 1355 行），在其后新增两个函数：
 
 ```rust
 fn apply_model_catalog_to_config(
@@ -550,13 +550,13 @@ fn sanitize_catalog_filename(id: &str) -> String {
 
 - [ ] **步骤 7：运行新测试验证通过**
 
-运行：`cargo test -p chatgptx-core --test relay_config apply_relay_profile_generates_model_catalog_for_suffixed_models 2>&1 | tail -20`
+运行：`cargo test -p swivox-core --test relay_config apply_relay_profile_generates_model_catalog_for_suffixed_models 2>&1 | tail -20`
 预期：PASS。
 
 - [ ] **步骤 8：Commit**
 
 ```bash
-git add crates/chatgptx-core/src/relay_config.rs crates/chatgptx-core/tests/relay_config.rs
+git add crates/swivox-core/src/relay_config.rs crates/swivox-core/tests/relay_config.rs
 git commit -m "feat(relay_config): apply 时按后缀生成 model_catalog_json
 
 新增 apply_model_catalog_to_config，接入 3 个 apply 入口（limits 之后、落盘之前）。
@@ -568,11 +568,11 @@ git commit -m "feat(relay_config): apply 时按后缀生成 model_catalog_json
 ## 任务 4：兼容性与回归测试
 
 **文件：**
-- 测试：`crates/chatgptx-core/tests/relay_config.rs`（新增用例 + 跑现有回归）
+- 测试：`crates/swivox-core/tests/relay_config.rs`（新增用例 + 跑现有回归）
 
 - [ ] **步骤 1：编写无后缀 no-op 测试**
 
-在 `crates/chatgptx-core/tests/relay_config.rs` 末尾追加：
+在 `crates/swivox-core/tests/relay_config.rs` 末尾追加：
 
 ```rust
 #[test]
@@ -648,23 +648,23 @@ experimental_bearer_token = "sk-new"
 
 - [ ] **步骤 2：运行新测试验证通过**
 
-运行：`cargo test -p chatgptx-core --test relay_config apply_relay_profile_no_catalog_when_model_list_has_no_suffix apply_relay_profile_does_not_overwrite_user_model_catalog_json 2>&1 | tail -20`
+运行：`cargo test -p swivox-core --test relay_config apply_relay_profile_no_catalog_when_model_list_has_no_suffix apply_relay_profile_does_not_overwrite_user_model_catalog_json 2>&1 | tail -20`
 预期：2 个测试 PASS。
 
 - [ ] **步骤 3：跑现有「不写 catalog」回归测试确认未破坏**
 
-运行：`cargo test -p chatgptx-core --test relay_config apply_relay_profile_does_not_write_model_catalog_json_for_selected_models apply_relay_profile_preserves_user_model_catalog_json 2>&1 | tail -20`
+运行：`cargo test -p swivox-core --test relay_config apply_relay_profile_does_not_write_model_catalog_json_for_selected_models apply_relay_profile_preserves_user_model_catalog_json 2>&1 | tail -20`
 预期：2 个现有测试仍 PASS（无后缀 no-op + 手写指针保留，行为不变）。
 
 - [ ] **步骤 4：跑 relay_config 全量回归**
 
-运行：`cargo test -p chatgptx-core --test relay_config 2>&1 | tail -20`
+运行：`cargo test -p swivox-core --test relay_config 2>&1 | tail -20`
 预期：全部 PASS。
 
 - [ ] **步骤 5：Commit**
 
 ```bash
-git add crates/chatgptx-core/tests/relay_config.rs
+git add crates/swivox-core/tests/relay_config.rs
 git commit -m "test(relay_config): 补充 catalog 生成的兼容性与回归用例
 
 无后缀 no-op、用户手写指针不覆盖；确认现有 does_not_write / preserves 用例未破坏。"
@@ -675,19 +675,19 @@ git commit -m "test(relay_config): 补充 catalog 生成的兼容性与回归用
 ## 任务 5：手工验证工具（example）
 
 **文件：**
-- 创建：`crates/chatgptx-core/examples/generate_model_catalog.rs`
+- 创建：`crates/swivox-core/examples/generate_model_catalog.rs`
 
 - [ ] **步骤 1：创建 example**
 
-创建 `crates/chatgptx-core/examples/generate_model_catalog.rs`：
+创建 `crates/swivox-core/examples/generate_model_catalog.rs`：
 
 ```rust
 //! 手工验证工具：从命令行参数生成 catalog JSON。
 //! 用法：
-//!   cargo run -p chatgptx-core --example generate_model_catalog -- \
+//!   cargo run -p swivox-core --example generate_model_catalog -- \
 //!       "deepseek-v4-pro[1M]" "claude-sonnet-4[200K]" > catalog.json
 
-use chatgptx_core::model_suffix::{build_model_catalog_json, collect_catalog_entries};
+use swivox_core::model_suffix::{build_model_catalog_json, collect_catalog_entries};
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -699,13 +699,13 @@ fn main() {
 
 - [ ] **步骤 2：编译验证**
 
-运行：`cargo build -p chatgptx-core --example generate_model_catalog 2>&1 | tail -10`
+运行：`cargo build -p swivox-core --example generate_model_catalog 2>&1 | tail -10`
 预期：编译成功，无错误。
 
 - [ ] **步骤 3：Commit**
 
 ```bash
-git add crates/chatgptx-core/examples/generate_model_catalog.rs
+git add crates/swivox-core/examples/generate_model_catalog.rs
 git commit -m "feat(example): 新增 generate_model_catalog 手工验证工具"
 ```
 
@@ -764,7 +764,7 @@ codex debug models \
 用 example 生成原型 catalog：
 
 ```bash
-cargo run -p chatgptx-core --example generate_model_catalog -- "deepseek-v4-pro[1M]" "claude-sonnet-4[200K]" > /tmp/cpp-proto-out.json
+cargo run -p swivox-core --example generate_model_catalog -- "deepseek-v4-pro[1M]" "claude-sonnet-4[200K]" > /tmp/cpp-proto-out.json
 cat /tmp/cpp-proto-out.json
 ```
 
@@ -803,9 +803,9 @@ git commit -m "docs(research): 补充阶段一 A/B 实跑验证结论（Mac 路�
 
 ## 全量验收
 
-- [ ] **步骤 1：chatgptx-core 全量测试**
+- [ ] **步骤 1：swivox-core 全量测试**
 
-运行：`cargo test -p chatgptx-core 2>&1 | tail -30`
+运行：`cargo test -p swivox-core 2>&1 | tail -30`
 预期：全部 PASS（含 model_suffix 8 个 + relay_config 新增 3 个 + 现有全部）。
 
 - [ ] **步骤 2：全 workspace 编译**
@@ -814,7 +814,7 @@ git commit -m "docs(research): 补充阶段一 A/B 实跑验证结论（Mac 路�
 预期：编译成功。
 
 - [ ] **阶段一完成标准**
-  - `cargo test -p chatgptx-core` 全过，旧测试未破坏
+  - `cargo test -p swivox-core` 全过，旧测试未破坏
   - `codex debug models` 读原型 catalog 报 1M（非 272000）
   - catalog 含全部模型，无单模型副作用
   - 验证结论已记录

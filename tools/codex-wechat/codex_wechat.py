@@ -87,7 +87,7 @@ class BridgeConfig:
     max_reply_chars: int = 1800
     enable_typing: bool = True
     state_dir: Path = field(
-        default_factory=lambda: Path.home() / ".chatgptx" / "wechat-claw"
+        default_factory=lambda: Path.home() / ".swivox" / "wechat-claw"
     )
     codex: CodexConfig = field(default_factory=CodexConfig)
 
@@ -135,7 +135,7 @@ def load_config(path: Path) -> BridgeConfig:
         max_consecutive_failures=int(raw.get("max_consecutive_failures", 3)),
         max_reply_chars=int(raw.get("max_reply_chars", 1800)),
         enable_typing=bool(raw.get("enable_typing", True)),
-        state_dir=Path(str(raw.get("state_dir") or "")) if raw.get("state_dir") else Path.home() / ".chatgptx" / "wechat-claw",
+        state_dir=Path(str(raw.get("state_dir") or "")) if raw.get("state_dir") else Path.home() / ".swivox" / "wechat-claw",
         codex=CodexConfig(
             backend=str(codex_raw.get("backend") or "app-server"),
             command=str(codex_raw.get("command") or "codex"),

@@ -4,15 +4,15 @@ const fs = require("node:fs");
 const vm = require("node:vm");
 
 const source = fs.readFileSync(require.resolve("./site.js"), "utf8");
-const releasesUrl = "https://github.com/ChatGPTX/ChatGPTX/releases/latest";
+const releasesUrl = "https://github.com/Swivox/Swivox/releases/latest";
 
 const asset = (name) => ({
   name,
   size: 10 * 1024 * 1024,
-  browser_download_url: `https://github.com/ChatGPTX/ChatGPTX/releases/download/published-tag/${name}`,
+  browser_download_url: `https://github.com/Swivox/Swivox/releases/download/published-tag/${name}`,
 });
-const windowsAsset = asset("ChatGPTX-9.8.7-windows-x64-setup.exe");
-const macAsset = asset("ChatGPTX-9.8.7-macos-universal.dmg");
+const windowsAsset = asset("Swivox-9.8.7-windows-x64-setup.exe");
+const macAsset = asset("Swivox-9.8.7-macos-universal.dmg");
 
 async function loadSite({ release, status = 200, offline = false }) {
   const links = { windows: { href: releasesUrl }, macos: { href: releasesUrl } };
@@ -73,7 +73,7 @@ function assertLanguageRoundTrip(page, expectedLinks, version = null) {
 test("downloads use actual Windows and universal macOS assets across language switches", async () => {
   const page = await loadSite({ release: {
     tag_name: "v9.8.7",
-    assets: [asset("ChatGPTX-9.8.7-macos-arm64.dmg"), windowsAsset, macAsset],
+    assets: [asset("Swivox-9.8.7-macos-arm64.dmg"), windowsAsset, macAsset],
   } });
   assertLanguageRoundTrip(page, { windows: windowsAsset.browser_download_url, macos: macAsset.browser_download_url }, "v9.8.7");
   assert.match(page.metadata.macos.textContent, /通用安装包 · 10.0 MB/);
@@ -84,7 +84,7 @@ test("downloads use actual Windows and universal macOS assets across language sw
 test("legacy split macOS packages lead to Releases with an architecture selection prompt", async () => {
   const page = await loadSite({ release: {
     tag_name: "v1.2.46",
-    assets: [windowsAsset, asset("ChatGPTX-1.2.46-macos-arm64.dmg"), asset("ChatGPTX-1.2.46-macos-x64.dmg")],
+    assets: [windowsAsset, asset("Swivox-1.2.46-macos-arm64.dmg"), asset("Swivox-1.2.46-macos-x64.dmg")],
   } });
   assertLanguageRoundTrip(page, { windows: windowsAsset.browser_download_url, macos: releasesUrl }, "v1.2.46");
   assert.equal(page.metadata.macos.textContent, "前往 Releases 选择对应架构");
@@ -111,8 +111,8 @@ test("a missing platform asset falls back while keeping the available asset and 
 test("invalid download URLs fall back to Releases", async (t) => {
   for (const url of [
     "not a URL",
-    "http://github.com/ChatGPTX/ChatGPTX/releases/download/tag/setup.exe",
-    "https://example.com/ChatGPTX/ChatGPTX/releases/download/tag/setup.exe",
+    "http://github.com/Swivox/Swivox/releases/download/tag/setup.exe",
+    "https://example.com/Swivox/Swivox/releases/download/tag/setup.exe",
     "https://github.com/other/project/releases/download/tag/setup.exe",
   ]) {
     await t.test(url, async () => {

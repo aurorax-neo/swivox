@@ -35,10 +35,10 @@ function fixture(bridge) {
     postJson: async (path, payload) => { calls.push({ path, payload }); return await bridge(path, payload); },
   });
   vm.runInContext(`${source}\nglobalThis.ui = {
-    state: chatgptxPluginMarketState, catalog: chatgptxPluginMarketCatalog,
-    load: loadChatGPTXPluginMarket, render: renderChatGPTXPluginMarket,
-    filtered: chatgptxPluginMarketFilteredPlugins, install: installChatGPTXPluginMarketPlugin,
-    poll: pollChatGPTXPluginMarketInstall,
+    state: swivoxPluginMarketState, catalog: swivoxPluginMarketCatalog,
+    load: loadSwivoxPluginMarket, render: renderSwivoxPluginMarket,
+    filtered: swivoxPluginMarketFilteredPlugins, install: installSwivoxPluginMarketPlugin,
+    poll: pollSwivoxPluginMarketInstall,
   };`, context);
   return {
     ui: context.ui, calls, nodes, sources, timers,
@@ -186,16 +186,16 @@ test("两个导航布局只保留原生插件入口，旧按钮清理、市场�
   const nativeAdapter = readFileSync(`${fragmentRoot}/62-plugin-market-adapter.js`, "utf8");
   const extensionApi = readFileSync(`${fragmentRoot}/91-extension-api.js`, "utf8");
   const manifest = JSON.parse(readFileSync(`${fragmentRoot}/manifest.json`, "utf8"));
-  assert.doesNotMatch(navigation, /id: chatgptxRailPluginMarketId, label: "Codex 插件市场"/);
-  assert.doesNotMatch(navigation, /\[chatgptxRailPluginMarketId, "plugin-market"\]/);
-  assert.doesNotMatch(navigation, /installChatGPTXPluginMarketSidebarNavigation\(/);
-  assert.doesNotMatch(source, /function (?:chatgptxPluginMarketIconMarkup|installChatGPTXPluginMarketSidebarNavigation)\(/);
-  assert.match(entryNavigation, /document\.getElementById\(chatgptxRailPluginMarketId\)\?\.remove\(\)/);
-  assert.match(entryNavigation, /document\.getElementById\(chatgptxSidebarPluginMarketId\)\?\.remove\(\)/);
-  assert.match(nativeAdapter, /function chatgptxNativePluginNavigationEntry\(/);
-  assert.match(nativeAdapter, /function openChatGPTXNativePluginMarket\(/);
+  assert.doesNotMatch(navigation, /id: swivoxRailPluginMarketId, label: "Codex 插件市场"/);
+  assert.doesNotMatch(navigation, /\[swivoxRailPluginMarketId, "plugin-market"\]/);
+  assert.doesNotMatch(navigation, /installSwivoxPluginMarketSidebarNavigation\(/);
+  assert.doesNotMatch(source, /function (?:swivoxPluginMarketIconMarkup|installSwivoxPluginMarketSidebarNavigation)\(/);
+  assert.match(entryNavigation, /document\.getElementById\(swivoxRailPluginMarketId\)\?\.remove\(\)/);
+  assert.match(entryNavigation, /document\.getElementById\(swivoxSidebarPluginMarketId\)\?\.remove\(\)/);
+  assert.match(nativeAdapter, /function swivoxNativePluginNavigationEntry\(/);
+  assert.match(nativeAdapter, /function openSwivoxNativePluginMarket\(/);
   assert.match(nativeAdapter, /native\.click\(\)/);
-  assert.match(source, /markChatGPTXExtensionNode\(overlay, "builtin-plugin-market"\)/);
+  assert.match(source, /markSwivoxExtensionNode\(overlay, "builtin-plugin-market"\)/);
   assert.doesNotMatch(source, /(?:codexStateCall|sendRequest|postJson)\(["']plugin\/install["']/);
   assert.doesNotMatch(extensionApi, /["']\/plugin-market\/(?:install|list|install-status)["']/);
   assert.ok(manifest.fragments.some((fragment) => fragment.name === "61-plugin-market-ui.js"));

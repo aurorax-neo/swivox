@@ -2,25 +2,25 @@
 
 ## Goal
 
-Add an optional ChatGPTX startup sync that keeps existing Codex conversations visible after the user changes `model_provider`.
+Add an optional Swivox startup sync that keeps existing Codex conversations visible after the user changes `model_provider`.
 
 ## User experience
 
-ChatGPTX settings gains a `Provider 同步` toggle. The toggle is off by default.
+Swivox settings gains a `Provider 同步` toggle. The toggle is off by default.
 
-When the toggle is off, ChatGPTX launch behavior is unchanged.
+When the toggle is off, Swivox launch behavior is unchanged.
 
-When the toggle is on, ChatGPTX runs provider sync before launching Codex. The sync targets the current root `model_provider` from `~/.codex/config.toml`; it does not switch providers or edit `config.toml`.
+When the toggle is on, Swivox runs provider sync before launching Codex. The sync targets the current root `model_provider` from `~/.codex/config.toml`; it does not switch providers or edit `config.toml`.
 
-If sync is skipped because another sync is locked, SQLite is busy, or session files are in use, ChatGPTX writes the reason to `~/.chatgptx/launcher.log` and continues launching Codex. If sync starts writing and then cannot safely restore or finish, launch fails and the error is written to the launcher log.
+If sync is skipped because another sync is locked, SQLite is busy, or session files are in use, Swivox writes the reason to `~/.swivox/launcher.log` and continues launching Codex. If sync starts writing and then cannot safely restore or finish, launch fails and the error is written to the launcher log.
 
 ## Architecture
 
-Implement the feature inside ChatGPTX as Python code. Do not depend on the external Node.js CLI from `Dailin521/codex-provider-sync`, because ChatGPTX should not require Node 24 or a separate global package.
+Implement the feature inside Swivox as Python code. Do not depend on the external Node.js CLI from `Dailin521/codex-provider-sync`, because Swivox should not require Node 24 or a separate global package.
 
 Add three focused areas:
 
-- `codex_session_delete/settings_store.py` stores backend-readable ChatGPTX settings in `~/.chatgptx/settings.json`.
+- `codex_session_delete/settings_store.py` stores backend-readable Swivox settings in `~/.swivox/settings.json`.
 - `codex_session_delete/provider_sync.py` ports the needed provider sync behavior to Python.
 - Existing launcher and bridge code call the sync and expose settings to the injected menu.
 
@@ -31,10 +31,10 @@ The renderer menu still uses existing visual patterns, but the new setting is ba
 Store backend settings at:
 
 ```text
-~/.chatgptx/settings.json
+~/.swivox/settings.json
 ```
 
-Initial content is implicit; if the file is missing or malformed, ChatGPTX uses defaults:
+Initial content is implicit; if the file is missing or malformed, Swivox uses defaults:
 
 ```json
 {
@@ -117,7 +117,7 @@ Fatal conditions stop launch:
 Automated tests should cover:
 
 - Backend settings default to `providerSyncEnabled = false`.
-- Backend settings are saved and reloaded from `~/.chatgptx/settings.json`.
+- Backend settings are saved and reloaded from `~/.swivox/settings.json`.
 - Bridge endpoints read and write `providerSyncEnabled`.
 - Launcher calls provider sync before launching Codex only when the setting is enabled.
 - Lock-existing sync result is skipped and does not block launch.
@@ -127,9 +127,9 @@ Automated tests should cover:
 
 Manual verification should cover:
 
-1. Turn on `Provider 同步` in the ChatGPTX menu.
+1. Turn on `Provider 同步` in the Swivox menu.
 2. Close Codex.
 3. Change `model_provider` in `~/.codex/config.toml`.
-4. Launch ChatGPTX.
+4. Launch Swivox.
 5. Confirm older conversations remain visible in Codex Desktop and `/resume`.
 6. Confirm lock-existing behavior still launches Codex and writes a launcher log entry.

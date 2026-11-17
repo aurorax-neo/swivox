@@ -4,7 +4,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const root = path.resolve(import.meta.dirname, "..");
-const require = createRequire(path.join(root, "apps/chatgptx-manager/package.json"));
+const require = createRequire(path.join(root, "apps/swivox-manager/package.json"));
 // Exact Babel/esbuild versions keep the shipped AST audit digests and bundle reproducible.
 const { build } = require("esbuild");
 const result = await build({
@@ -15,7 +15,7 @@ const result = await build({
   target: "node22",
   minify: true,
   legalComments: "eof",
-  nodePaths: [path.join(root, "apps/chatgptx-manager/node_modules")],
+  nodePaths: [path.join(root, "apps/swivox-manager/node_modules")],
   write: false,
   metafile: true,
 });
@@ -27,7 +27,7 @@ for (const input of Object.keys(result.metafile.inputs)) {
 }
 let licenses = notice;
 for (const dependency of [...dependencies].sort()) {
-  const dir = path.join(root, "apps/chatgptx-manager/node_modules", dependency);
+  const dir = path.join(root, "apps/swivox-manager/node_modules", dependency);
   const pkg = JSON.parse(await readFile(path.join(dir, "package.json"), "utf8"));
   let license;
   for (const name of ["LICENSE", "LICENSE.md", "LICENSE.txt", "LICENSE-MIT.txt"]) {

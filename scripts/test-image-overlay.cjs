@@ -1,7 +1,7 @@
 const { assert, assets, check, configure, css, delta, html, near, pixel, rect, settle, shot } = require("./image-overlay-fixture.cjs");
-const native = "data-chatgptx-image-native";
-const material = "data-chatgptx-image-popup-material";
-const control = "data-chatgptx-image-control";
+const native = "data-swivox-image-native";
+const material = "data-swivox-image-popup-material";
+const control = "data-swivox-image-control";
 const zero = (work, keys) => keys.forEach(key => assert.equal(work[key], 0, key));
 const image = (id = "photo") => `<img id="${id}" src="${assets.photo}">`;
 const click = async (page, selector) => {
@@ -131,7 +131,7 @@ check("Codex home project bar retains its existing composer paint", async page =
     '<div id="body" class="_ComposerLayoutBody_test" contenteditable="true">Draft</div></div>');
   await configure(page);
   near(pixel(await shot(page), 450, 65), [40, 40, 40], "Codex project bar retains the original native appearance");
-  assert.equal(await page.locator('#actions[data-chatgptx-image-paint]').count(), 0);
+  assert.equal(await page.locator('#actions[data-swivox-image-paint]').count(), 0);
 });
 
 check("native header backing follows its top inset and live theme without seams", async page => {
@@ -172,7 +172,7 @@ check("Work home action bar shares the global wallpaper through its native trans
   assert.deepEqual(await rect(page, "#actions"), geometry);
   await click(page, "#project"); await click(page, "#plugin");
   assert.equal(await page.locator("filter").count(), 0);
-  assert.equal(await page.locator('#actions[data-chatgptx-image-paint]').count(), 0);
+  assert.equal(await page.locator('#actions[data-swivox-image-paint]').count(), 0);
   const work = await delta(page, () => page.evaluate(async () => {
     for (let i = 0; i < 12; i++) {
       document.querySelector('.top-full').style.transform = `translateY(${-i}px)`;
@@ -313,14 +313,14 @@ check("extension widgets keep their native layer above the composer", async page
     '#widget{position:fixed;left:60px;top:60px;width:80px;height:80px;background:#00ff00;z-index:9999}' +
     '#typing{position:fixed;left:160px;top:60px;width:80px;height:80px;z-index:2147483000;pointer-events:none}',
     '<div id="composer" class="_ComposerLayoutRoot_test"><input></div>' +
-    '<div id="widget" data-chatgptx-ext="whale-widget"></div>' +
-    '<canvas id="typing" data-chatgptx-ext="builtin-typing-effects" width="80" height="80"></canvas>');
+    '<div id="widget" data-swivox-ext="whale-widget"></div>' +
+    '<canvas id="typing" data-swivox-ext="builtin-typing-effects" width="80" height="80"></canvas>');
   await page.$eval("#typing", canvas => { const context = canvas.getContext("2d"); context.fillStyle = "#dc2832"; context.fillRect(0, 0, 80, 80); });
   await configure(page);
   near(pixel(await shot(page), 100, 100), [0, 255, 0]);
   near(pixel(await shot(page), 200, 100), [220, 40, 50]);
   for (const id of ["widget", "typing"]) {
-    assert.equal(await page.$eval("#" + id, node => [...node.attributes].some(attr => attr.name.startsWith("data-chatgptx-image-"))), false);
+    assert.equal(await page.$eval("#" + id, node => [...node.attributes].some(attr => attr.name.startsWith("data-swivox-image-"))), false);
   }
 });
 async function thread(page, count = 40) {
@@ -366,25 +366,25 @@ check("popup batches commit one stylesheet before paint", async page => {
   assert.equal(work.styleCommits, 1, "one commit for all popup material updates");
   assert.equal(await page.locator('[' + material + ']').count(), 24);
   near(pixel(await shot(page), 150, 90), [100, 150, 200]);
-  await page.evaluate(() => window.__chatgptxImageOverlayCleanup());
+  await page.evaluate(() => window.__swivoxImageOverlayCleanup());
   await settle(page);
-  assert.equal(await page.locator('[data-chatgptx-ext="image-overlay"]').count(), 0);
+  assert.equal(await page.locator('[data-swivox-ext="image-overlay"]').count(), 0);
 });
 
 check("stale cache is replaced and pending rules cannot resurrect retired styles", async page => {
   await thread(page, 1);
   await page.evaluate(() => {
-    window.oldOverlay = document.getElementById("chatgptx-image-overlay");
-    window.oldResource = window.__chatgptxImageOverlayResource;
+    window.oldOverlay = document.getElementById("swivox-image-overlay");
+    window.oldResource = window.__swivoxImageOverlayResource;
     window.oldResource.version = 0;
     document.getElementById("menu").style.backgroundColor = "red";
-    queueMicrotask(() => installChatGPTXImageOverlay());
+    queueMicrotask(() => installSwivoxImageOverlay());
   });
   await settle(page);
-  assert.ok(await page.evaluate(() => document.getElementById("chatgptx-image-overlay") !== window.oldOverlay &&
-    window.__chatgptxImageOverlayResource !== window.oldResource && !window.oldOverlay.isConnected));
-  assert.equal(await page.locator("#chatgptx-image-overlay").count(), 1);
-  assert.equal(await page.locator('style[data-chatgptx-ext="image-overlay"]').count(), 1);
+  assert.ok(await page.evaluate(() => document.getElementById("swivox-image-overlay") !== window.oldOverlay &&
+    window.__swivoxImageOverlayResource !== window.oldResource && !window.oldOverlay.isConnected));
+  assert.equal(await page.locator("#swivox-image-overlay").count(), 1);
+  assert.equal(await page.locator('style[data-swivox-ext="image-overlay"]').count(), 1);
   near(pixel(await shot(page), 40, 40), [220, 40, 50]);
 });
 
@@ -438,7 +438,7 @@ for (const width of [480, 900]) check("native composer/media/delete geometry " +
   await page.locator("#editor").pressSequentially(" typing");
   assert.match(await page.locator("#editor").innerText(), /typing/);
   assert.deepEqual(await css(page, "#editor", ["filter"]), ["none"]);
-  await page.evaluate(() => window.__chatgptxImageOverlayCleanup());
+  await page.evaluate(() => window.__swivoxImageOverlayCleanup());
   assert.deepEqual(await Promise.all(ids.map(id => rect(page, "#" + id))), before);
 }, { width, height: 720 });
 
@@ -448,7 +448,7 @@ for (const kind of ["menu", "listbox", "tooltip", "dialog", "roleless"])
     assert.ok(await page.$eval("#surface", (node, attr) => node.hasAttribute(attr), material));
     const actual = await shot(page);
     await page.evaluate(opacity => {
-      window.__chatgptxImageOverlayCleanup(true);
+      window.__swivoxImageOverlayCleanup(true);
       const wall = document.createElement("div"); wall.id = "reference";
       wall.style.cssText = `position:fixed;inset:0;pointer-events:none;z-index:40;background:#2850c8;opacity:${opacity}`;
       document.body.append(wall);
@@ -507,7 +507,7 @@ check("settings popup survives overlapping previews, theme changes and reparenti
     window.oldBoundary = document.getElementById("boundary"); next.append(document.getElementById("shell")); window.oldBoundary.remove();
   });
   await settle(page);
-  assert.equal(await page.evaluate(() => window.oldBoundary.hasAttribute("data-chatgptx-image-top-control")), false);
+  assert.equal(await page.evaluate(() => window.oldBoundary.hasAttribute("data-swivox-image-top-control")), false);
   assert.deepEqual(await css(page, "#surface", ["backgroundColor"]), themed);
 });
 
@@ -571,7 +571,7 @@ check("browser chrome, retained right panes and extension pages", async page => 
   await page.$eval("#pane", n => { n.inert = false; n.removeAttribute("aria-hidden"); }); await settle(page);
   near(pixel(await shot(page), 600, 150), [220, 40, 50]);
   await page.evaluate(photo => {
-    const el = document.createElement("div"); el.id = "page"; el.className = "chatgptx-page-overlay";
+    const el = document.createElement("div"); el.id = "page"; el.className = "swivox-page-overlay";
     el.innerHTML = `<img src="${photo}"><button id="page-action">Extensions</button>`; document.body.append(el);
   }, assets.photo); await settle(page);
   assert.deepEqual(await css(page, "#page", ["isolation", "zIndex"]), ["isolate", "2147483644"]);
@@ -592,7 +592,7 @@ check("browser toolbar uses transparent paint without resize work", async page =
   assert.deepEqual(await rect(page, "#chrome"), geometry);
   const rendered = await shot(page); near(pixel(rendered, 700, 40), pixel(rendered, 100, 40));
   near(pixel(rendered, 700, 150), [220, 40, 50]);
-  assert.equal(await page.locator('filter,[data-chatgptx-image-paint]').count(), 0);
+  assert.equal(await page.locator('filter,[data-swivox-image-paint]').count(), 0);
   assert.deepEqual(await css(page, "#action", ["backgroundColor", "opacity", "filter"]), ["rgb(220, 40, 50)", "1", "none"]);
   await click(page, "#action");
   assert.deepEqual(await page.evaluate(() => [...window.resizeTargets, ...window.intersectionTargets].map(n => n.id)), []);
@@ -605,7 +605,7 @@ check("browser toolbar uses transparent paint without resize work", async page =
   assert.deepEqual(await css(page, "#chrome", ["backgroundColor", "filter", "backdropFilter"]), ["rgba(0, 0, 0, 0)", "none", "none"]);
   await configure(page, { opacity: .6, fitMode: "tile" });
   const changed = await shot(page); near(pixel(changed, 700, 40), pixel(changed, 100, 40));
-  await page.evaluate(() => window.__chatgptxImageOverlayCleanup());
+  await page.evaluate(() => window.__swivoxImageOverlayCleanup());
   assert.deepEqual(await css(page, "#chrome", properties), original);
 });
 
@@ -657,7 +657,7 @@ check("streaming text and mutation discovery coalesce", async page => {
     const root = document.createElement("div"); document.getElementById("stream").append(root);
     for (let i = 0; i < 20; i++) { const row = document.createElement("div"); row.innerHTML = "<span>Text</span>"; root.append(row); }
   })); assert.equal(added.queries, 1);
-  const idle = await delta(page, () => page.evaluate(() => installChatGPTXImageOverlay()));
+  const idle = await delta(page, () => page.evaluate(() => installSwivoxImageOverlay()));
   zero(idle, ["frames", "rectReads", "styleReads", "queries", "layerWrites"]);
 });
 
@@ -709,9 +709,9 @@ check("native viewer animation and background resume", async page => {
   await click(page, "#viewer button");
   await page.$eval("#viewer", n => { n.style.display = "none"; }); await settle(page);
   near(pixel(await shot(page), 20, 40), [220, 40, 50]);
-  const resource = await page.evaluate(() => window.__chatgptxImageOverlayBlobUrl);
+  const resource = await page.evaluate(() => window.__swivoxImageOverlayBlobUrl);
   await configure(page, { opacity: .4 });
-  assert.equal(await page.evaluate(() => window.__chatgptxImageOverlayBlobUrl), resource);
+  assert.equal(await page.evaluate(() => window.__swivoxImageOverlayBlobUrl), resource);
 });
 
 check("sidebar animation, hover during scroll and edge overscroll", async page => {

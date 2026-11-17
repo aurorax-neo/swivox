@@ -17,7 +17,7 @@
     },
     {
       "name": "20-menu.js",
-      "description": "ChatGPTX 菜单、后端设置加载、插件解锁策略与版本判定",
+      "description": "Swivox 菜单、后端设置加载、插件解锁策略与版本判定",
       "lines": 556
     },
     {
@@ -87,7 +87,7 @@
     },
     {
       "name": "91-extension-api.js",
-      "description": "对外接口层 window.chatgptx：路由白名单、UI 注册、toast",
+      "description": "对外接口层 window.swivox：路由白名单、UI 注册、toast",
       "lines": 269
     },
     {

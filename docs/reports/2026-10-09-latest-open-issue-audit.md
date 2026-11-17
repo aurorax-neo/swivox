@@ -16,26 +16,26 @@
 
 | Issue | 本轮结论 | 处理方向 | 优先级 |
 | --- | --- | --- | --- |
-| [#2426](https://github.com/ChatGPTX/ChatGPTX/issues/2426) | 找到仍存在的 Windows 生命周期缺口，日志吻合，尚无实机复现 | 实际进程身份追踪、CDP 连续失败宽限、退出终态与原因日志 | P1 |
-| [#2424](https://github.com/ChatGPTX/ChatGPTX/issues/2424) | 未知内容类型会被 Chat 转换丢弃，但真实 agent payload 的协议形态尚未证明 | 先核真实脱敏 wire 样本；审 #2425 的加密内容处理，不直接按明文合并 | P1 定位 |
-| [#2423](https://github.com/ChatGPTX/ChatGPTX/issues/2423) | 作者提供签名失效证据，与 #2410 现有修复相关；版本描述冲突 | 完整重装正式 v1.7.0 两个 app 并复核签名，验证已有修复 | P1 验证 |
-| [#2421](https://github.com/ChatGPTX/ChatGPTX/issues/2421) | 压缩保护报错仍未定位，不能以旧压缩修复认定已解决 | 分清原生 Responses 压缩、Chat 摘要和上游保护能力；核 #2303 | P1 定位 |
-| [#2419](https://github.com/ChatGPTX/ChatGPTX/issues/2419) | 附图显示分享按钮误挂右侧 review 区；代码宿主 fallback 过宽 | 限定当前会话 header，缺少可靠宿主则不插；增加独立显示开关 | P2 |
-| [#2418](https://github.com/ChatGPTX/ChatGPTX/issues/2418) | 截图与代码均确认多个分组默认全部折叠，属于操作成本问题 | 默认展开模型配置，记住分组展开状态，错误分组自动展开 | P2 |
-| [#2429](https://github.com/ChatGPTX/ChatGPTX/issues/2429) | 首条消息后白块遮挡主题；具体节点未确定 | 获取遮挡层 DOM/计算样式后，修局部材质或受限重识别 | P2 定位 |
-| [#2417](https://github.com/ChatGPTX/ChatGPTX/issues/2417) | 无平台、版本和阶段日志，不能确认同 #2426 根因 | 先识别卡住的启动阶段；provider_sync 慢时评估 #2382 | P2 定位 |
-| [#2422](https://github.com/ChatGPTX/ChatGPTX/issues/2422) | 发帖者确认“纯标准协议”可绕过 adaptive 错误 | 补 Kimi-K3 网关回归与设置提示，原生厂商行为保持兼容 | P2 回归 |
-| [#2420](https://github.com/ChatGPTX/ChatGPTX/issues/2420) | Daybreak 模型门控报错，用户用 1.5.1，尚未最新版复现 | 核第三方/官方供应商和客户端模型门控，先用当前版本复测 | P2 定位 |
-| [#2427](https://github.com/ChatGPTX/ChatGPTX/issues/2427) | 当前缺少独立全局听写入口，属于新增功能 | launcher/native 热键服务接现有录音状态机；按住说话需 key-up 能力 | P3 功能 |
-| [#2414](https://github.com/ChatGPTX/ChatGPTX/issues/2414) | 已审；新增评论指向“对话宽度居中”，不能归为纯皮肤 | 收窄居中候选至当前会话内容/输入框，排除整个 pane 和布局祖先 | P1 复核 |
-| [#2413](https://github.com/ChatGPTX/ChatGPTX/issues/2413) | 已审；没有新增可定位材料 | 固定官方版本与主题，对照图片层/居中开关，定位历史记录遮挡层 | P1 取证 |
-| [#2412](https://github.com/ChatGPTX/ChatGPTX/issues/2412) | 已审；Windows 设置循环仍缺复现信息 | 收 Windows build、官方版本、完整错误及原生直启对照 | 继续取证 |
+| [#2426](https://github.com/Swivox/Swivox/issues/2426) | 找到仍存在的 Windows 生命周期缺口，日志吻合，尚无实机复现 | 实际进程身份追踪、CDP 连续失败宽限、退出终态与原因日志 | P1 |
+| [#2424](https://github.com/Swivox/Swivox/issues/2424) | 未知内容类型会被 Chat 转换丢弃，但真实 agent payload 的协议形态尚未证明 | 先核真实脱敏 wire 样本；审 #2425 的加密内容处理，不直接按明文合并 | P1 定位 |
+| [#2423](https://github.com/Swivox/Swivox/issues/2423) | 作者提供签名失效证据，与 #2410 现有修复相关；版本描述冲突 | 完整重装正式 v1.7.0 两个 app 并复核签名，验证已有修复 | P1 验证 |
+| [#2421](https://github.com/Swivox/Swivox/issues/2421) | 压缩保护报错仍未定位，不能以旧压缩修复认定已解决 | 分清原生 Responses 压缩、Chat 摘要和上游保护能力；核 #2303 | P1 定位 |
+| [#2419](https://github.com/Swivox/Swivox/issues/2419) | 附图显示分享按钮误挂右侧 review 区；代码宿主 fallback 过宽 | 限定当前会话 header，缺少可靠宿主则不插；增加独立显示开关 | P2 |
+| [#2418](https://github.com/Swivox/Swivox/issues/2418) | 截图与代码均确认多个分组默认全部折叠，属于操作成本问题 | 默认展开模型配置，记住分组展开状态，错误分组自动展开 | P2 |
+| [#2429](https://github.com/Swivox/Swivox/issues/2429) | 首条消息后白块遮挡主题；具体节点未确定 | 获取遮挡层 DOM/计算样式后，修局部材质或受限重识别 | P2 定位 |
+| [#2417](https://github.com/Swivox/Swivox/issues/2417) | 无平台、版本和阶段日志，不能确认同 #2426 根因 | 先识别卡住的启动阶段；provider_sync 慢时评估 #2382 | P2 定位 |
+| [#2422](https://github.com/Swivox/Swivox/issues/2422) | 发帖者确认“纯标准协议”可绕过 adaptive 错误 | 补 Kimi-K3 网关回归与设置提示，原生厂商行为保持兼容 | P2 回归 |
+| [#2420](https://github.com/Swivox/Swivox/issues/2420) | Daybreak 模型门控报错，用户用 1.5.1，尚未最新版复现 | 核第三方/官方供应商和客户端模型门控，先用当前版本复测 | P2 定位 |
+| [#2427](https://github.com/Swivox/Swivox/issues/2427) | 当前缺少独立全局听写入口，属于新增功能 | launcher/native 热键服务接现有录音状态机；按住说话需 key-up 能力 | P3 功能 |
+| [#2414](https://github.com/Swivox/Swivox/issues/2414) | 已审；新增评论指向“对话宽度居中”，不能归为纯皮肤 | 收窄居中候选至当前会话内容/输入框，排除整个 pane 和布局祖先 | P1 复核 |
+| [#2413](https://github.com/Swivox/Swivox/issues/2413) | 已审；没有新增可定位材料 | 固定官方版本与主题，对照图片层/居中开关，定位历史记录遮挡层 | P1 取证 |
+| [#2412](https://github.com/Swivox/Swivox/issues/2412) | 已审；Windows 设置循环仍缺复现信息 | 收 Windows build、官方版本、完整错误及原生直启对照 | 继续取证 |
 
 ## #2426：重启后 launcher 静默退出
 
-确认的代码缺口：`crates/chatgptx-core/src/launcher.rs:1139` 等待 Windows AUMID 激活返回的 PID，失败后仅记录 `packaged_process_wait_failed_nonfatal`。`:1155` 的存活循环只要一次探测失败就结束；非 macOS 的 `launcher_owned_process_alive` 在 `:2938` 恒为 false。
+确认的代码缺口：`crates/swivox-core/src/launcher.rs:1139` 等待 Windows AUMID 激活返回的 PID，失败后仅记录 `packaged_process_wait_failed_nonfatal`。`:1155` 的存活循环只要一次探测失败就结束；非 macOS 的 `launcher_owned_process_alive` 在 `:2938` 恒为 false。
 
-`crates/chatgptx-core/src/cdp.rs:8` 的同步探测超时只有 300 ms，`:47` 的判定还要求 `/json` 当前包含匹配的 Codex 页面 target。页面重载、target 暂空或慢响应可产生 false。等待返回后，`launcher.rs:203` 关闭 helper，却没有明确保存停止终态。这与“ready 后端口消失，latest-status 停在 running”的报告吻合。
+`crates/swivox-core/src/cdp.rs:8` 的同步探测超时只有 300 ms，`:47` 的判定还要求 `/json` 当前包含匹配的 Codex 页面 target。页面重载、target 暂空或慢响应可产生 false。等待返回后，`launcher.rs:203` 关闭 helper，却没有明确保存停止终态。这与“ready 后端口消失，latest-status 停在 running”的报告吻合。
 
 尚未确认：实际失败的 Win32 错误、AUMID PID 是否只是激活中转进程、退出前是否确有 CDP 短暂不可达。10/04 的 #2393 也出现过该日志，不能把“官方 26.1002 比已验证版本新”直接认定为原因。
 
@@ -56,11 +56,11 @@
 
 最小修复：只在当前会话的可靠 header/action group 安装按钮；未知布局则移除误挂节点并停止安装。新增增强设置中的显示开关，保持已发布的 `codex-session-share-button` 类名和 constants。现有 CSS 已有不收缩与 `whitespace-nowrap` 处理，不应仅修防换行样式。
 
-验证：多个 header、聊天加 review/browser/terminal pane、没有原生 Share、窄窗口、会话切换和 header 重建；关闭后无残留，恢复后只有一个正确位置的按钮。新增节点遵守 `data-chatgptx-ext` 归属规则。
+验证：多个 header、聊天加 review/browser/terminal pane、没有原生 Share、窄窗口、会话切换和 header 重建；关闭后无残留，恢复后只有一个正确位置的按钮。新增节点遵守 `data-swivox-ext` 归属规则。
 
 ## #2418：供应商配置全部折叠
 
-已查看附图：模型配置、请求设置、渠道保护、更多选项及文件预览均收起。`apps/chatgptx-manager/src/App.tsx:7753` 的 `RelayFold` 没有默认展开参数、展开状态记录或错误自动展开；`:8340` 的模型配置也沿用这一行为。`styles.css:1946` 明确隐藏所有未 open 的内容。v1.5.4 尚无这些 `RelayFold`，不是旧版同一入口被用户自行收起。
+已查看附图：模型配置、请求设置、渠道保护、更多选项及文件预览均收起。`apps/swivox-manager/src/App.tsx:7753` 的 `RelayFold` 没有默认展开参数、展开状态记录或错误自动展开；`:8340` 的模型配置也沿用这一行为。`styles.css:1946` 明确隐藏所有未 open 的内容。v1.5.4 尚无这些 `RelayFold`，不是旧版同一入口被用户自行收起。
 
 最小修复：增加以稳定 section ID 为键的 `defaultOpen`/`onToggle` 行为；模型配置初次默认展开，高级参数和凭据预览继续按需展开。展开偏好存为本机界面偏好，不混入 RelayProfile。校验错误首次出现时展开对应分组，避免只在标题显示“需要检查”而隐藏错误字段。保持字段挂载和未保存草稿。
 
@@ -68,7 +68,7 @@
 
 ## #2427：全局听写快捷键
 
-确认缺口：`DictationSettings`（`crates/chatgptx-core/src/settings.rs:437`）没有热键字段；检索当前注册代码未发现独立全局热键服务。`assets/inject/renderer-inject/93-dictation.js:450` 的网页 `keydown` 只处理录音中的 Enter 和 Escape，并不是系统级开始录音入口。现有开始/停止/回填流程位于 `:156`、`:243`、`:254`。
+确认缺口：`DictationSettings`（`crates/swivox-core/src/settings.rs:437`）没有热键字段；检索当前注册代码未发现独立全局热键服务。`assets/inject/renderer-inject/93-dictation.js:450` 的网页 `keydown` 只处理录音中的 Enter 和 Escape，并不是系统级开始录音入口。现有开始/停止/回填流程位于 `:156`、`:243`、`:254`。
 
 最小实现方向：在随 Codex 生命周期运行的 launcher/native 服务注册 opt-in 热键，避免依赖用户一直打开管理器；将开始、停止、取消命令接到现有 renderer 状态机。触发时选定并聚焦目标窗口/composer，继续绑定会话与 composerId，导航或目标变化后保留可复制文字，默认仅插入不自动发送。配置需覆盖启用、键位、暂时停用和冲突提示；关闭、退出、重启都释放注册。
 
@@ -78,21 +78,21 @@
 
 ## #2423：macOS 签名损坏
 
-作者[评论](https://github.com/ChatGPTX/ChatGPTX/issues/2423#issuecomment-6061724538)报告两个 app 未签名，崩溃为 `SIGKILL (Code Signature Invalid)` / `Taskgated Invalid Signature`。正文说 1.6.0，评论说 1.5.4，包版本与来源需要核对。没有取得实际包独立验证。
+作者[评论](https://github.com/Swivox/Swivox/issues/2423#issuecomment-6061724538)报告两个 app 未签名，崩溃为 `SIGKILL (Code Signature Invalid)` / `Taskgated Invalid Signature`。正文说 1.6.0，评论说 1.5.4，包版本与来源需要核对。没有取得实际包独立验证。
 
 已修 #2410 的 `ff517796` 覆盖旧“修复入口”改写已签名 bundle 的问题：`install/macos.rs:80`、`:121` 保留原生入口与签名资源，先预检两个 app；`release-assets.yml:213` 和 `scripts/installer/macos/package-dmg.sh:147` 要求正式签名、公证；`update/macos.rs:359` 校验并完整替换 app。v1.7.0 包含这些变更。
 
-处理：完整重新安装 [正式 v1.7.0 DMG](https://github.com/ChatGPTX/ChatGPTX/releases/tag/v1.7.0) 的两个 app，先验证现有修复。不用损坏旧包的“修复入口”修签名，也不把去除 quarantine 当作签名修复。
+处理：完整重新安装 [正式 v1.7.0 DMG](https://github.com/Swivox/Swivox/releases/tag/v1.7.0) 的两个 app，先验证现有修复。不用损坏旧包的“修复入口”修签名，也不把去除 quarantine 当作签名修复。
 
 验收资料：DMG 来源/hash、两个 app 的版本、是否用过修复入口、`codesign --verify --deep --strict`、`spctl --assess` 与崩溃报告。比较启动与修复入口操作前后签名仍有效。
 
 ## #2424：agent payload 与 encrypted_content
 
-确认的转换行为：`crates/chatgptx-core/src/protocol_proxy.rs:4125` 只识别普通文本、refusal 和图片，`:4147` 跳过未知片段；`:3530` 处理未知独立项时只在存在 content 字段的情况下转换。issue 手工构造的 encrypted_content 明文片段/独立项确实会被忽略。Responses 上游在 `:1881` 保留原请求。
+确认的转换行为：`crates/swivox-core/src/protocol_proxy.rs:4125` 只识别普通文本、refusal 和图片，`:4147` 跳过未知片段；`:3530` 处理未知独立项时只在存在 content 字段的情况下转换。issue 手工构造的 encrypted_content 明文片段/独立项确实会被忽略。Responses 上游在 `:1881` 保留原请求。
 
 但“真实 Codex 把 agent payload 以明文放在该类型”没有真实脱敏 wire 样本支持。[官方 Agents API](https://developers.openai.com/api/reference/resources/beta/subresources/agents/subresources/sessions/subresources/turns/subresources/items/methods/list)确实定义了 agent_message、create_subagent_call、send_subagent_input_call 的 encrypted_content，但说明它是加密内容，字段为 encrypted_content，不是普通 text。这也不能反向证明本 issue 所用 Codex build 必然采用相同具体封装，需要实际样本。
 
-开放 [PR #2425](https://github.com/ChatGPTX/ChatGPTX/pull/2425)直接将 encrypted_content 字符串转为 Chat 普通文本，独立项强制成为 user 消息。它不能解密真实 payload，还可能丢失结构与角色；两条手写 PINEAPPLE 测试只验证构造输入的转发，不建立真实协议语义。该 PR 没有改既有 reasoning/compaction 分支，不能笼统称其会解密所有加密推理。
+开放 [PR #2425](https://github.com/Swivox/Swivox/pull/2425)直接将 encrypted_content 字符串转为 Chat 普通文本，独立项强制成为 user 消息。它不能解密真实 payload，还可能丢失结构与角色；两条手写 PINEAPPLE 测试只验证构造输入的转发，不建立真实协议语义。该 PR 没有改既有 reasoning/compaction 分支，不能笼统称其会解密所有加密推理。
 
 最小处理：先取得真实 NEW_TASK/MESSAGE 的脱敏结构，确认类型、字段、编码和消息角色。普通明文走标准 input_text/output_text；没有已知转换契约的 opaque agent 内容遇到 Chat 上游，应给明确的不支持错误，避免静默丢弃或假装解密。支持该契约的 Responses 上游原样透传。#2425 需据此修订后再评审，不能按当前方案直接合入。
 
@@ -100,13 +100,13 @@
 
 ## #2421：压缩时 response protection unavailable
 
-三条评论均没有维护者诊断。普通用户[反馈](https://github.com/ChatGPTX/ChatGPTX/issues/2421#issuecomment-6057318481)官方登录压缩也会断连但报错不同，sub2api 才是 protection unavailable；不能据此断言同一根因。
+三条评论均没有维护者诊断。普通用户[反馈](https://github.com/Swivox/Swivox/issues/2421#issuecomment-6057318481)官方登录压缩也会断连但报错不同，sub2api 才是 protection unavailable；不能据此断言同一根因。
 
 `protocol_proxy.rs:1866` 检测 compact，仅 Chat 上游走合成摘要；Responses v2 在 `:1951` 保留 trigger 并调用 /responses；beta header 在 `:1356` 透传。`channel_protection.rs:56` 则管理排队、速率和 cooldown，源码没有生成本条报错。不要因为 protection 字面相近建议关闭本仓“渠道保护”，也不要改压缩阈值代替协议定位。
 
-开放 [PR #2303](https://github.com/ChatGPTX/ChatGPTX/pull/2303)的 safe replay/fallback 提交没有进入当前 main。它处理 native checkpoint 与本地摘要的区分、明确拒绝 trigger 后的受控降级等问题，不能承诺解决服务端保护失败。真实 failed 事件、401/403/429/5xx 或截断流都不应触发普通摘要重试。
+开放 [PR #2303](https://github.com/Swivox/Swivox/pull/2303)的 safe replay/fallback 提交没有进入当前 main。它处理 native checkpoint 与本地摘要的区分、明确拒绝 trigger 后的受控降级等问题，不能承诺解决服务端保护失败。真实 failed 事件、401/403/429/5xx 或截断流都不应触发普通摘要重试。
 
-确认的可观测性缺口：`crates/chatgptx-core/src/launcher.rs:2344` 原生 Responses 流只观察传输错误；SSE 内 response.failed 或正常 HTTP EOF 缺少成功终止事件，仍可能透传后返回成功，日志记 stream_ok。这不足以证明本条故障由它导致，但适合作为第一步诊断改进。
+确认的可观测性缺口：`crates/swivox-core/src/launcher.rs:2344` 原生 Responses 流只观察传输错误；SSE 内 response.failed 或正常 HTTP EOF 缺少成功终止事件，仍可能透传后返回成功，日志记 stream_ok。这不足以证明本条故障由它导致，但适合作为第一步诊断改进。
 
 最小处理：在原样透传旁统计 compact_v2、上游协议、终止事件、错误 code 和 request ID，不记正文或加密 payload；比较同一模型的新/旧会话在官方直连、sub2api 直连、经 relay 三条路径。区分上游保护能力、代理断流和显式不支持 trigger。只有明确 400/422 拒绝 trigger 才评估受控降级，保留历史与 opaque checkpoint。
 
@@ -114,7 +114,7 @@
 
 ## #2422：Kimi-K3 拒绝 adaptive
 
-发帖者[反馈](https://github.com/ChatGPTX/ChatGPTX/issues/2422#issuecomment-6061600813)开启“供应商配置 → 请求设置 → 纯标准协议”后解决，尚无维护者独立验证。当前 main 已有开关：`settings.rs:123` 与 `App.tsx:8867`。
+发帖者[反馈](https://github.com/Swivox/Swivox/issues/2422#issuecomment-6061600813)开启“供应商配置 → 请求设置 → 纯标准协议”后解决，尚无维护者独立验证。当前 main 已有开关：`settings.rs:123` 与 `App.tsx:8867`。
 
 `protocol_proxy.rs:6485` 在标准协议关闭时按模型名选择厂商方言，`:6493` 注入 thinking，`:6641` 对 Kimi coding 名返回 adaptive。报告者的网关拒绝这个私参，与上述绕过吻合；真实上游地址缺失，不能反推所有官方 Kimi 接口都应改成 enabled。旧 #2183 审查恰是另一端拒绝 enabled 而需要 adaptive，`c5ab8a1f` 已在 main。
 
@@ -138,7 +138,7 @@
 
 没有平台、版本、日志或评论。不能直接与 #2426 合并。
 
-当前 `crates/chatgptx-core/src/launcher.rs:529` 仍在拉起窗口前同步等待 provider sync；`apps/chatgptx-launcher/src/main.rs:491` 内还串行等待首次消息索引修复。已有开放 [PR #2382](https://github.com/ChatGPTX/ChatGPTX/pull/2382)优化历史扫描并把索引修复移到启动/注入后，但不修改重启状态机。
+当前 `crates/swivox-core/src/launcher.rs:529` 仍在拉起窗口前同步等待 provider sync；`apps/swivox-launcher/src/main.rs:491` 内还串行等待首次消息索引修复。已有开放 [PR #2382](https://github.com/Swivox/Swivox/pull/2382)优化历史扫描并把索引修复移到启动/注入后，但不修改重启状态机。
 
 先取 `latest-status` 与脱敏 `launcher.phase` 的最后阶段和耗时，区分 `restart_stopping`、`provider_sync`、`helper_listening`、`launch_codex`、`ensure_injection`。只有卡在 provider_sync 才评估 #2382；已经 ready 后 helper 消失则参考 #2426。验证需包括大量历史、关闭同步、冷启动与重启对照。
 
@@ -146,7 +146,7 @@
 
 - **#2414**：新增用户评论说明关闭“对话宽度居中”、保存并重启恢复，另有无皮肤也留白的反馈。`90-action-groups.js:499`、`:512`、`:540`、`:897` 的居中候选会扩展到整个 document；计算样式的 CSS 变量可能只是继承，不能据此识别内容容器。候选需限定当前会话滚动区/footer，排除侧栏、工具 pane 与布局祖先。加新版多 pane 和继承变量夹具，验证输入框、消息和布局宽度；尚不能确认每位报告者同根因。
 - **#2413**：没有新增官方完整版本、主题名称或遮挡节点资料。Dream Skin 引擎与图片覆盖层是不同链路；不能因症状近似 #2429 直接认定同源。继续收主题、计算样式和关闭图片层/居中的对照。
-- **#2412**：[已有维护者回复](https://github.com/ChatGPTX/ChatGPTX/issues/2412#issuecomment-6051533336)仍在等 Windows build、官方版本、完整错误及原生直启对照。`relay_config.rs:2628` 仅处理明确 elevated 且非提权的窄情形，不能扩大成所有设置循环的修复，不能为了绕过问题关闭沙盒。
+- **#2412**：[已有维护者回复](https://github.com/Swivox/Swivox/issues/2412#issuecomment-6051533336)仍在等 Windows build、官方版本、完整错误及原生直启对照。`relay_config.rs:2628` 仅处理明确 elevated 且非提权的窄情形，不能扩大成所有设置循环的修复，不能为了绕过问题关闭沙盒。
 
 ## #2429 与图片层 PR #2428
 
@@ -156,7 +156,7 @@
 
 验证：固定官方版本和主题，默认/自定义主题、居中、图片覆盖层开关矩阵；新会话首次发送、streaming、完成、切会话、深浅色，以及历史、输入框、图片、弹窗仍可见可用。
 
-开放 [PR #2428](https://github.com/ChatGPTX/ChatGPTX/pull/2428)有社区主题 footer 材质与图片层级修复，可作候选；尚未合并且 API 显示合并冲突。其 diff 没改分享 installer 与居中目标识别，不能据此认定 #2419/#2414 已修。还回退了 `0616c8b4` 的远端删除归属 guard、不可撤销提示及 DOM 删除限制，审合前必须 rebase 并保留已有修复。
+开放 [PR #2428](https://github.com/Swivox/Swivox/pull/2428)有社区主题 footer 材质与图片层级修复，可作候选；尚未合并且 API 显示合并冲突。其 diff 没改分享 installer 与居中目标识别，不能据此认定 #2419/#2414 已修。还回退了 `0616c8b4` 的远端删除归属 guard、不可撤销提示及 DOM 删除限制，审合前必须 rebase 并保留已有修复。
 
 `git diff v1.6.0..41048a2c` 表明 Windows Dream Skin renderer/CSS 和分享 installer 没变化，居中仅增加 custom layout owns-element 排除；v1.7.0 不足以作为本组故障已修证据。
 
@@ -166,4 +166,4 @@
 
 命令使用已安装 `/Users/mac/.cargo/bin/cargo`，没有安装依赖或切换工具链。现有编译 warnings 与本次报告无关。测试说明当前基线已覆盖的路径可运行，不说明上述新场景已修；Windows Store 重启、真实上游压缩和实际 GPU/DOM 时序未完成实机验收。
 
-后续实际修改 renderer 分片时，遵守现有拓展类名/constants、路由白名单、注册表生命周期和 `data-chatgptx-ext` 契约，并执行 `node scripts/assemble-renderer-inject.mjs` 重新组装产物。本轮只编辑报告，不需要重新组装。
+后续实际修改 renderer 分片时，遵守现有拓展类名/constants、路由白名单、注册表生命周期和 `data-swivox-ext` 契约，并执行 `node scripts/assemble-renderer-inject.mjs` 重新组装产物。本轮只编辑报告，不需要重新组装。

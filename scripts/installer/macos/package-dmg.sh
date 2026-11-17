@@ -7,9 +7,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 DIST="$ROOT/dist/macos"
 STAGE="$DIST/stage"
 BINARY_DIR="${BINARY_DIR:-$ROOT/target/release}"
-DMG="$DIST/ChatGPTX-${VERSION}-macos-${ARCH}.dmg"
-ICON_SOURCE="$ROOT/apps/chatgptx-gpui/icons/icon.png"
-ICON_NAME="chatgptx.icns"
+DMG="$DIST/Swivox-${VERSION}-macos-${ARCH}.dmg"
+ICON_SOURCE="$ROOT/apps/swivox-gpui/icons/icon.png"
+ICON_NAME="swivox.icns"
 ICON_ICNS="$DIST/$ICON_NAME"
 BACKGROUND_SOURCE="$ROOT/assets/installer/macos/dmg-background.svg"
 BACKGROUND_PATH="$STAGE/.background/background.png"
@@ -37,7 +37,7 @@ prepare_background() {
 }
 
 prepare_icon() {
-  local iconset="$DIST/chatgptx.iconset"
+  local iconset="$DIST/swivox.iconset"
   rm -rf "$iconset"
   mkdir -p "$iconset"
 
@@ -75,15 +75,15 @@ create_app() {
   cp "$ICON_ICNS" "$app_dir/Contents/Resources/$ICON_NAME"
   chmod +x "$app_dir/Contents/MacOS/$executable_name"
   printf 'APPL????' > "$app_dir/Contents/PkgInfo"
-  if [ "$executable_name" = "ChatGPTX" ]; then
+  if [ "$executable_name" = "Swivox" ]; then
     url_types='  <key>CFBundleURLTypes</key>
   <array>
     <dict>
       <key>CFBundleURLName</key>
-      <string>ChatGPTX Links</string>
+      <string>Swivox Links</string>
       <key>CFBundleURLSchemes</key>
       <array>
-        <string>chatgptx</string>
+        <string>swivox</string>
       </array>
     </dict>
   </array>'
@@ -107,7 +107,7 @@ create_app() {
   <string>6.0</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
-  <key>ChatGPTXUnifiedApp</key>
+  <key>SwivoxUnifiedApp</key>
   <true/>
   <key>CFBundleSignature</key>
   <string>????</string>
@@ -227,24 +227,24 @@ verify_app() {
 
 prepare_icon
 prepare_background
-create_app "ChatGPTX" "ChatGPTX" "$BINARY_DIR/chatgptx" "com.chatgptx.app" "false"
+create_app "Swivox" "Swivox" "$BINARY_DIR/swivox" "com.swivox.app" "false"
 # 旧版 1.7.x 更新器要求第二个 manager bundle。它使用独立的小型兼容壳，
 # 启动后立即退出；新版启动主 app 后会把这个壳归档到 legacy-migrations。
-create_app "ChatGPTX 管理工具" "ChatGPTXManager" "$BINARY_DIR/chatgptx-legacy-shim" "com.chatgptx.app.manager" "true"
+create_app "Swivox 管理工具" "SwivoxManager" "$BINARY_DIR/swivox-legacy-shim" "com.swivox.app.manager" "true"
 
-sign_app "$STAGE/ChatGPTX.app"
-sign_app "$STAGE/ChatGPTX 管理工具.app"
+sign_app "$STAGE/Swivox.app"
+sign_app "$STAGE/Swivox 管理工具.app"
 
-verify_app "$STAGE/ChatGPTX.app"
-verify_app "$STAGE/ChatGPTX 管理工具.app"
+verify_app "$STAGE/Swivox.app"
+verify_app "$STAGE/Swivox 管理工具.app"
 
 # Finder 隐藏兼容壳；旧更新器按精确路径读取它，不能改名或放入子目录。
-printf '%s\n' "ChatGPTX 管理工具.app" > "$STAGE/.hidden"
-chflags hidden "$STAGE/ChatGPTX 管理工具.app"
+printf '%s\n' "Swivox 管理工具.app" > "$STAGE/.hidden"
+chflags hidden "$STAGE/Swivox 管理工具.app"
 
 ln -s /Applications "$STAGE/Applications"
 
-DMG_WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/chatgptx-dmg.XXXXXX")"
+DMG_WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/swivox-dmg.XXXXXX")"
 DMG_WORK_PATH="$DMG_WORK_DIR/$(basename "$DMG")"
 DMG_CREATED=false
 MOUNT_POINT=""
@@ -326,7 +326,7 @@ trap cleanup_dmg_work_dir EXIT
 
 DMG_CREATED=false
 for attempt in 1 2 3 4 5; do
-  if hdiutil create -volname "ChatGPTX" -srcfolder "$STAGE" -ov -format UDRW "$DMG_WORK_PATH"; then
+  if hdiutil create -volname "Swivox" -srcfolder "$STAGE" -ov -format UDRW "$DMG_WORK_PATH"; then
     DMG_CREATED=true
     break
   fi
@@ -373,8 +373,8 @@ with timeout of 30 seconds
 
     tell dmgDisk
       set position of item "Applications" to {1000, 390}
-      set position of item "ChatGPTX.app" to {460, 390}
-      set visible of item "ChatGPTX 管理工具.app" to false
+      set position of item "Swivox.app" to {460, 390}
+      set visible of item "Swivox 管理工具.app" to false
     end tell
 
     close dmgWindow

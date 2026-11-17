@@ -45,9 +45,9 @@ function fixture() {
     MediaRecorder: Recorder, HTMLTextAreaElement: Textarea, Blob, AbortController, Event, DOMException,
     crypto: webcrypto, console, btoa, setInterval, clearInterval, setTimeout,
     requestAnimationFrame: fn => { frames.push(fn); },
-    registerChatGPTXExtensionSelector() {}, visibleElement: () => true, isExtensionUiNode: () => false,
-    chatgptxBackendSettingsLoaded: true, chatgptxBackendSettings: { dictation: { enabled: true } },
-    helperBase: "http://127.0.0.1:57321", showToast: message => events.push(message),
+    registerSwivoxExtensionSelector() {}, visibleElement: () => true, isExtensionUiNode: () => false,
+    swivoxBackendSettingsLoaded: true, swivoxBackendSettings: { dictation: { enabled: true } },
+    helperBase: "http://127.0.0.1:58321", showToast: message => events.push(message),
     loadOptionalCodexAppModule: async () => ({}),
     postJson: async (path, payload) => {
       if (path === "/dictation/status") return { enabled: true, configured: true, helperToken: "fake-capability" };
@@ -58,10 +58,10 @@ function fixture() {
     },
     fetch: () => { throw Error("native app CSP blocks renderer localhost fetch"); },
   });
-  vm.runInContext(`${source}\n globalThis.testApi = { state: chatgptxDictation, start: startChatGPTXDictation, stop: stopChatGPTXDictation, cancel: cancelChatGPTXDictation, retry: transcribeChatGPTXDictation, insert: chatgptxInsertDictation, finish: finishChatGPTXDictation, key: chatgptxDictationKeyHandler, encode: chatgptxDictationAudioBase64 };`, context);
+  vm.runInContext(`${source}\n globalThis.testApi = { state: swivoxDictation, start: startSwivoxDictation, stop: stopSwivoxDictation, cancel: cancelSwivoxDictation, retry: transcribeSwivoxDictation, insert: swivoxInsertDictation, finish: finishSwivoxDictation, key: swivoxDictationKeyHandler, encode: swivoxDictationAudioBase64 };`, context);
   // State-machine contracts do not depend on visual layout; DOM mounting is separately guarded.
-  context.renderChatGPTXDictation = () => {};
-  context.installChatGPTXDictation = () => {};
+  context.renderSwivoxDictation = () => {};
+  context.installSwivoxDictation = () => {};
   return {
     ...context.testApi, editor, root, footer, requests, events, frames, context,
     resolve: text => resolveResponse(text), setMedia: value => { getMedia = value; },
@@ -83,16 +83,16 @@ function fixture() {
   for (const testMode of [false, true]) {
     let installations = 0;
     const context = vm.createContext({
-      window: { __CHATGPTX_TEST_SERVICE_TIER__: testMode },
-      chatgptxBackendSettingsSeq: 3, chatgptxBackendSettingsLoaded: false,
-      chatgptxBackendSettings: { activeRelayCodexProvider: "stale" },
+      window: { __SWIVOX_TEST_SERVICE_TIER__: testMode },
+      swivoxBackendSettingsSeq: 3, swivoxBackendSettingsLoaded: false,
+      swivoxBackendSettings: { activeRelayCodexProvider: "stale" },
       postJson: async () => ({ enhancementsEnabled: true, activeRelayCodexProvider: "deepseek", dictation: { enabled: false } }),
-      installChatGPTXDictation: () => { installations += 1; throw Error("dictation UI unavailable"); },
+      installSwivoxDictation: () => { installations += 1; throw Error("dictation UI unavailable"); },
     });
     vm.runInContext(`${scanSource.slice(scanStart, scanEnd)}\n${loaderSource}`, context);
     assert.equal(await context.loadBackendSettingsState(), true, "UI installation failure must not invalidate successfully loaded provider settings");
-    assert.equal(context.chatgptxBackendSettingsLoaded, true);
-    assert.equal(context.chatgptxBackendSettings.activeRelayCodexProvider, "deepseek");
+    assert.equal(context.swivoxBackendSettingsLoaded, true);
+    assert.equal(context.swivoxBackendSettings.activeRelayCodexProvider, "deepseek");
     assert.equal(installations, testMode ? 0 : 1, "service-tier-only harness must skip uninitialized recording UI");
     if (!testMode) assert.match(context.window.__codexSessionDeleteScanFailures[0], /dictation UI unavailable/);
     context.postJson = async () => ({});
@@ -255,13 +255,13 @@ function fixture() {
   disabled.cancel();
 
   const optIn = fixture();
-  optIn.context.chatgptxBackendSettings.dictation.enabled = false;
+  optIn.context.swivoxBackendSettings.dictation.enabled = false;
   await optIn.start(optIn.footer);
   assert.equal(optIn.state.phase, "idle", "disabled settings never unlock the recording entry");
   assert.equal(optIn.requests.length, 0);
 
   const masterOff = fixture();
-  masterOff.context.chatgptxBackendSettings.enhancementsEnabled = false;
+  masterOff.context.swivoxBackendSettings.enhancementsEnabled = false;
   let masterOffMediaCalls = 0;
   masterOff.setMedia(() => { masterOffMediaCalls += 1; throw Error("disabled enhancements must not request microphone"); });
   await masterOff.start(masterOff.footer);
@@ -275,7 +275,7 @@ function fixture() {
   const masterOffPermission = fixture(); let masterOffGrant;
   masterOffPermission.setMedia(() => new Promise(resolve => { masterOffGrant = resolve; }));
   const masterOffPending = masterOffPermission.start(masterOffPermission.footer); await flush();
-  masterOffPermission.context.chatgptxBackendSettings.enhancementsEnabled = false;
+  masterOffPermission.context.swivoxBackendSettings.enhancementsEnabled = false;
   masterOffGrant({ getTracks: () => [{ stop: () => masterOffPermission.events.push("disabled-track-stop") }] });
   await masterOffPending;
   assert.ok(masterOffPermission.events.includes("disabled-track-stop"), "closing the master switch releases a late microphone grant");
@@ -285,7 +285,7 @@ function fixture() {
   const masterOffResult = fixture();
   await masterOffResult.start(masterOffResult.footer); masterOffResult.state.startedAt -= 1000;
   masterOffResult.stop("insert"); await flush();
-  masterOffResult.context.chatgptxBackendSettings.enhancementsEnabled = false;
+  masterOffResult.context.swivoxBackendSettings.enhancementsEnabled = false;
   masterOffResult.resolve("disabled result"); await flush();
   assert.equal(masterOffResult.editor.value, "existing draft", "closing the master switch suppresses an in-flight transcript insertion");
   assert.equal(masterOffResult.state.phase, "idle");
@@ -293,7 +293,7 @@ function fixture() {
   const masterOffSend = fixture();
   await masterOffSend.start(masterOffSend.footer); masterOffSend.state.startedAt -= 1000;
   masterOffSend.stop("send"); await flush(); masterOffSend.resolve("draft"); await flush();
-  masterOffSend.context.chatgptxBackendSettings.enhancementsEnabled = false;
+  masterOffSend.context.swivoxBackendSettings.enhancementsEnabled = false;
   masterOffSend.frames.shift()(); masterOffSend.frames.shift()(); await flush();
   assert.equal(masterOffSend.events.includes("send"), false, "closing the master switch cancels a scheduled send");
 
@@ -321,12 +321,12 @@ function fixture() {
 
   const clock = fixture();
   clock.state.phase = "recording"; clock.state.target = { id: "clock", href: clock.context.window.location.href };
-  clock.state.startedAt = Date.now() - 5000; clock.editor.dataset.chatgptxDictationTarget = "clock";
+  clock.state.startedAt = Date.now() - 5000; clock.editor.dataset.swivoxDictationTarget = "clock";
   const label = { textContent: "" };
   const controls = { dataset: { dictationTarget: "clock", renderKey: "recording:insert::" }, querySelector: () => label, replaceChildren: () => { throw Error("timer must not recreate controls"); } };
   clock.context.document.querySelectorAll = selector => selector.includes("data-dictation-controls") ? [controls] : selector.includes("dictation-target") ? [clock.editor] : [];
-  vm.runInContext(source.slice(source.indexOf("  function renderChatGPTXDictation()"), source.indexOf("  function createChatGPTXDictationControls()")), clock.context);
-  clock.context.renderChatGPTXDictation();
+  vm.runInContext(source.slice(source.indexOf("  function renderSwivoxDictation()"), source.indexOf("  function createSwivoxDictationControls()")), clock.context);
+  clock.context.renderSwivoxDictation();
   assert.match(label.textContent, /录音 0:0[56]/, "recording timer updates the label while preserving button identity and focus");
 
   // —— 安装入口去重：新版首页的顶部上下文栏和底部控制行都命中 footer 选择器 ——
@@ -421,12 +421,12 @@ function fixture() {
       document: documentShim, navigator: {}, MediaRecorder: function () {}, HTMLTextAreaElement: function () {},
       Blob, AbortController, Event, DOMException, crypto: webcrypto, console, btoa, setInterval, clearInterval, setTimeout,
       requestAnimationFrame: () => {},
-      registerChatGPTXExtensionSelector() {}, visibleElement: () => true, isExtensionUiNode: () => false,
-      chatgptxBackendSettingsLoaded: true, chatgptxBackendSettings: { dictation: { enabled: true } },
-      helperBase: "http://127.0.0.1:57321", showToast() {}, loadOptionalCodexAppModule: async () => ({}),
+      registerSwivoxExtensionSelector() {}, visibleElement: () => true, isExtensionUiNode: () => false,
+      swivoxBackendSettingsLoaded: true, swivoxBackendSettings: { dictation: { enabled: true } },
+      helperBase: "http://127.0.0.1:58321", showToast() {}, loadOptionalCodexAppModule: async () => ({}),
       postJson: async () => ({ enabled: true, configured: true, helperToken: "test" }),
     });
-    vm.runInContext(`${source}\n globalThis.installDictation = installChatGPTXDictation;`, context);
+    vm.runInContext(`${source}\n globalThis.installDictation = installSwivoxDictation;`, context);
     return { context, document: documentShim, nodes };
   };
 
@@ -442,7 +442,7 @@ function fixture() {
     return { root, strip, footer, editor };
   });
   const stray = home.document.createElement("div");
-  stray.dataset.chatgptxExt = "builtin-dictation"; stray.dataset.dictationControls = "true";
+  stray.dataset.swivoxExt = "builtin-dictation"; stray.dataset.dictationControls = "true";
   home.nodes.strip.append(stray);
   home.context.installDictation();
   const mounted = home.document.querySelectorAll("[data-dictation-controls]");

@@ -23,16 +23,16 @@
 
 ## 代码与维护
 
-- `crates/chatgptx-core/src/plugin_market.rs`：索引、分包下载、安装和原生协议适配。
+- `crates/swivox-core/src/plugin_market.rs`：索引、分包下载、安装和原生协议适配。
 - `assets/inject/renderer-inject/62-plugin-market-adapter.js`：原生页面请求拦截与响应合并。
-- `apps/chatgptx-manager/src/PluginMarketScreen.tsx`：管理页面。
+- `apps/swivox-manager/src/PluginMarketScreen.tsx`：管理页面。
 - `scripts/build-plugin-market-index.mjs`：从缓存仓库的已提交文件生成轻量索引。
 
 索引生成示例：
 
 ```sh
-node scripts/build-plugin-market-index.mjs /path/to/ChatGPTXPluginCache public /tmp/public-index.json
-node scripts/build-plugin-market-index.mjs /path/to/ChatGPTXFullPluginCache full /tmp/full-index.json
+node scripts/build-plugin-market-index.mjs /path/to/SwivoxPluginCache public /tmp/public-index.json
+node scripts/build-plugin-market-index.mjs /path/to/SwivoxFullPluginCache full /tmp/full-index.json
 ```
 
 将输出作为相应缓存仓库根目录的 `plugin-index.json` 提交。索引 revision 固定到插件内容所在的已有提交，发布索引不会改变包的校验值。索引生成只读取 Git 已提交内容，忽略本机未提交的文件。
@@ -40,16 +40,16 @@ node scripts/build-plugin-market-index.mjs /path/to/ChatGPTXFullPluginCache full
 ## 验证
 
 ```sh
-cargo test -p chatgptx-core plugin_market::tests --lib
+cargo test -p swivox-core plugin_market::tests --lib
 node --test assets/inject/plugin-market-adapter.test.cjs
-node --test apps/chatgptx-manager/src/plugin-market-model.test.ts
+node --test apps/swivox-manager/src/plugin-market-model.test.ts
 node scripts/assemble-renderer-inject.mjs --check
 ```
 
 显式联网测试在临时 Codex home 中安装两个样本，不修改用户的 Codex 配置，也不调用原生授权流程：
 
 ```sh
-cargo test -p chatgptx-core --test plugin_market_live -- --ignored --nocapture
+cargo test -p swivox-core --test plugin_market_live -- --ignored --nocapture
 ```
 
 2026-10-08 验证：公开和完整索引读取成功，分别安装 Google Drive 和 Life Sciences Databases；原生 `skills/list` 加载 49 个 Skills、0 个错误。原生客户端、两类消息协议、超时恢复、远程主机隔离和插件身份去重复均有行为测试。当前运行的旧版本需要重新构建管理工具和启动器后重启，才能加载新增后端和注入代码。

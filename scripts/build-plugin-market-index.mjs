@@ -12,8 +12,8 @@ if (!directory || !output || !["public", "full"].includes(source)) {
 }
 const root = path.resolve(directory);
 const repository = source === "full"
-  ? "ChatGPTX/ChatGPTXFullPluginCache"
-  : "ChatGPTX/ChatGPTXPluginCache";
+  ? "Swivox/SwivoxFullPluginCache"
+  : "Swivox/SwivoxPluginCache";
 const git = (...args) => execFileSync("git", ["-C", root, ...args], {
   encoding: "utf8", maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"],
 });

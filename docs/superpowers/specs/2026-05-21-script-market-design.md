@@ -2,13 +2,13 @@
 
 ## 目标
 
-把管理工具里的“用户脚本”页改造为“脚本市场”，基于 `https://github.com/ChatGPTX/ChatGPTXScriptMarket` 提供的静态清单完成远程脚本浏览、安装、更新和本地状态展示。第一版不引入独立后端服务，市场仓库只需要托管 JSON 清单和脚本文件。
+把管理工具里的“用户脚本”页改造为“脚本市场”，基于 `https://github.com/Swivox/SwivoxScriptMarket` 提供的静态清单完成远程脚本浏览、安装、更新和本地状态展示。第一版不引入独立后端服务，市场仓库只需要托管 JSON 清单和脚本文件。
 
 ## 市场仓库格式
 
 默认市场清单地址：
 
-`https://raw.githubusercontent.com/ChatGPTX/ChatGPTXScriptMarket/main/index.json`
+`https://raw.githubusercontent.com/Swivox/SwivoxScriptMarket/main/index.json`
 
 清单版本为 `version: 1`，结构如下：
 
@@ -24,8 +24,8 @@
       "version": "1.0.0",
       "author": "BigPizzaV3",
       "tags": ["ui", "productivity"],
-      "homepage": "https://github.com/ChatGPTX/ChatGPTXScriptMarket",
-      "script_url": "https://raw.githubusercontent.com/ChatGPTX/ChatGPTXScriptMarket/main/scripts/demo-script.js",
+      "homepage": "https://github.com/Swivox/SwivoxScriptMarket",
+      "script_url": "https://raw.githubusercontent.com/Swivox/SwivoxScriptMarket/main/scripts/demo-script.js",
       "sha256": ""
     }
   ]

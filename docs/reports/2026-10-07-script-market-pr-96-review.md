@@ -1,6 +1,6 @@
 # 脚本市场 PR 审查：#96 Codex Usage & Resets（2026-10-07）
 
-仓库：`ChatGPTX/ChatGPTXScriptMarket`
+仓库：`Swivox/SwivoxScriptMarket`
 基线：`main` @ `7c19dae`（"fix(market): 移除 codex-zhcn-translate 条目"）
 PR head：`7ba9f8e`（`codex/add-usage-reset`，作者 `small32`）
 规模：3 文件，+463 / -1（`index.json` +26/-1、`scripts/codex-usage-reset.js` +416、`tests/codex-usage-reset.test.js` +21）
@@ -34,7 +34,7 @@ PR head：`7ba9f8e`（`codex/add-usage-reset`，作者 `small32`）
 
 `destroy()` 清得比较全：`clearInterval`、`cancelAnimationFrame`、`observer.disconnect()`、四个事件监听（`pointerdown`/`keydown`/`resize`/`focus`/`visibilitychange`）、`pending` 里所有在途请求的 cancel、注入的 `root`/`panel`/`style` 三个节点，最后条件式 `delete window[KEY]`（只在 `window[KEY].destroy === destroy` 时删，避免误删后加载的实例）。开头 `window[KEY]?.destroy?.()` 保证重载先拆旧实例。
 
-**比同类脚本更规范的一点**：它调用了 `window.__chatgptxUserScripts.registerCleanup(destroy)`。这个接口在宿主里是真实存在的（`assets/inject/user-scripts-runtime.js:3`、`assets/inject/renderer-inject/91-extension-api.js:258`，契约测试见 `crates/chatgptx-core/tests/user_scripts_reload.rs`）。我逐个 grep 了市场里其余 16 个脚本，**没有一个调用 `registerCleanup`**——这条是 #96 的作者先做对的。
+**比同类脚本更规范的一点**：它调用了 `window.__swivoxUserScripts.registerCleanup(destroy)`。这个接口在宿主里是真实存在的（`assets/inject/user-scripts-runtime.js:3`、`assets/inject/renderer-inject/91-extension-api.js:258`，契约测试见 `crates/swivox-core/tests/user_scripts_reload.rs`）。我逐个 grep 了市场里其余 16 个脚本，**没有一个调用 `registerCleanup`**——这条是 #96 的作者先做对的。
 
 ---
 
@@ -60,7 +60,7 @@ PR head：`7ba9f8e`（`codex/add-usage-reset`，作者 `small32`）
 
 1. **PR 正文与产物不符**：正文写 "all 18 Node tests passed"，提交进仓库的测试文件只有 **3 个 `test()` 块**（虽然每块内多条断言）。上一轮 #88 也是同类问题（正文写 1.13.0、产物是 1.16.1）。合并前让作者更正正文，或在合并说明里注明即可。**另外**：市场仓库的 `tests/` 目录是已存在的约定（还有 `codex-daily-token-usage.test.js`、`prompt-optimize-prosemirror-writer.test.js`），投稿带测试是好事。
 
-2. **`homepage` 指向市场仓库自己**：`https://github.com/ChatGPTX/ChatGPTXScriptMarket`。这个字段在 manager 里是可点击外链（`App.tsx:7542` 的 `openExternalUrl`），指向市场自身等于没有主页。**但这不是 #96 的独创**——`codex-relay-balance`、`codex-bundled-plugin-doctor`、`prompt-optimize` 三个已有条目也是这么写的。属于既有习惯，如果在意，建议整体清理而非卡这一个 PR。
+2. **`homepage` 指向市场仓库自己**：`https://github.com/Swivox/SwivoxScriptMarket`。这个字段在 manager 里是可点击外链（`App.tsx:7542` 的 `openExternalUrl`），指向市场自身等于没有主页。**但这不是 #96 的独创**——`codex-relay-balance`、`codex-bundled-plugin-doctor`、`prompt-optimize` 三个已有条目也是这么写的。属于既有习惯，如果在意，建议整体清理而非卡这一个 PR。
 
 3. **确认态会被每 60 秒的重渲染冲掉**：`render()` 的 `signature` 里含 `fresh(creditsAt)`，而 `used.disabled` 也依赖它。列表重建时局部变量 `confirming` 归零，用户点了一次"确认使用1次"后如果恰好跨过重建，按钮会弹回"使用重置"。实际影响很小（保持可见时每 60 秒都会刷新 `creditsAt`，`fresh()` 一直为真），但若有 credit 恰好在此时过期就会触发一次重建。**顺带一提，保留重试态是显式做了的**（`transportAttempt` 存在时单独渲染"重试同一次重置"按钮并进 signature），说明作者意识到了重建问题，只是没覆盖确认态。
 
@@ -72,6 +72,6 @@ PR head：`7ba9f8e`（`codex/add-usage-reset`，作者 `small32`）
 
 **可以合。** 合并前建议让作者做两件事：改正文的 "18 tests" 说法、给 `homepage` 换成实际作者仓库（如果这是 `small32` 的作品，目前市场上没有指向作者主页的入口）。
 
-合并动作：`gh pr merge 96 --repo ChatGPTX/ChatGPTXScriptMarket --squash`，然后重算一遍全仓库 SHA 一致性、把 `updated_at` 刷成合并当天。
+合并动作：`gh pr merge 96 --repo Swivox/SwivoxScriptMarket --squash`，然后重算一遍全仓库 SHA 一致性、把 `updated_at` 刷成合并当天。
 
 **关于"要不要放行会改账号状态的脚本"，这是需要你拍板的产品决策**，代码侧我已经确认没有可指摘之处。

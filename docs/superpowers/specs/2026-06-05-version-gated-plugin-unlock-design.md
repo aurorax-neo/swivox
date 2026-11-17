@@ -4,7 +4,7 @@
 
 **Architecture:** Reuse backend Codex App version detection and expose the detected version to the injected runtime settings payload. The injection script compares the Codex App version against a fixed cutoff (`26.601.21317`) and chooses a legacy or modern plugin unlock strategy at scan time.
 
-**Tech Stack:** Rust backend settings/launcher helper routes, ChatGPTX runtime JavaScript injection, static injection tests in `chatgptx-core`, React/Tauri manager settings UI only if a status hint is added.
+**Tech Stack:** Rust backend settings/launcher helper routes, Swivox runtime JavaScript injection, static injection tests in `swivox-core`, React/Tauri manager settings UI only if a status hint is added.
 
 ---
 
@@ -68,7 +68,7 @@ Implementation options for locating the app version:
 
 1. Use the configured Codex App path from settings if present.
 2. Fall back to the same discovery path used by `load_overview`.
-3. Use `chatgptx_core::app_paths::codex_app_version(path)` to parse the version.
+3. Use `swivox_core::app_paths::codex_app_version(path)` to parse the version.
 
 The field is merged into the helper response only. `BackendSettings` does not need to persist `codexAppVersion` unless the existing route implementation requires serializing the full settings struct; in that case, use a separate response object instead of adding a serializable persisted field.
 
@@ -88,7 +88,7 @@ Expected behavior:
 
 ```js
 function codexPluginUnlockStrategy() {
-  const version = String(chatgptxBackendSettings.codexAppVersion || "").trim();
+  const version = String(swivoxBackendSettings.codexAppVersion || "").trim();
   const comparison = compareCodexVersions(version, codexPluginLegacyEntryUnlockBeforeVersion);
   if (comparison == null) return "unknown";
   return comparison < 0 ? "legacy" : "modern";
@@ -99,7 +99,7 @@ Scan behavior in the non-relay branch:
 
 ```js
 const strategy = codexPluginUnlockStrategy();
-const settings = chatgptxSettings();
+const settings = swivoxSettings();
 
 if ((strategy === "legacy" || strategy === "unknown") && settings.pluginEntryUnlock) {
   enablePluginEntry();
@@ -131,7 +131,7 @@ Add lightweight diagnostics so runtime behavior is debuggable:
 
 Avoid logging this on every scan if it becomes noisy; either log only when the strategy changes or store the last logged strategy in `window.__codexPluginUnlockStrategyLogged`.
 
-Optional UI hint in the injected ChatGPTX menu:
+Optional UI hint in the injected Swivox menu:
 
 - Legacy: `检测到旧版 Codex App，自动优先使用旧入口解锁。`
 - Modern: `检测到新版 Codex App，自动优先使用插件市场解锁。`

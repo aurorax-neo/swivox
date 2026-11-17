@@ -1,10 +1,10 @@
-// 控制开关：window.__CHATGPTX_PASTE_FIX__ = { enabled: <bool> }
-// 由 ChatGPTX 在启动时根据 settings.codexAppPasteFix 注入。
+// 控制开关：window.__SWIVOX_PASTE_FIX__ = { enabled: <bool> }
+// 由 Swivox 在启动时根据 settings.codexAppPasteFix 注入。
 // 关闭时不进入 if 体，行为与原 Codex 完全一致；开启时在 document 捕获阶段
 // 拦截 paste，若 text/plain 非空则阻止默认行为并调用 execCommand('insertText')
 // 插入纯文本，避免 Codex 把 Word 复制的内容识别为附件。
 // SENTINEL 保证多次执行（页面刷新、脚本重注入）只装一次 handler。
-if (window.__CHATGPTX_PASTE_FIX__ && window.__CHATGPTX_PASTE_FIX__.enabled === true) {
+if (window.__SWIVOX_PASTE_FIX__ && window.__SWIVOX_PASTE_FIX__.enabled === true) {
   (() => {
     const SENTINEL = '__codexPasteFixInstalled__';
     if (window[SENTINEL]) return;

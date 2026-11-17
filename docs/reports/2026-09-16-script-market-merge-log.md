@@ -9,7 +9,7 @@
 
 ---
 
-## 一、主仓库 `ChatGPTX/ChatGPTX`
+## 一、主仓库 `Swivox/Swivox`
 
 ### ✅ #2224 会话视图对齐引擎改事件驱动收敛（已合并 `82fb0924`）
 
@@ -20,7 +20,7 @@
 - 对齐改两阶段批量：先对所有目标统一写 style，再统一读几何，消除写-读-写交替。
 - 新增心跳同步 `syncBackendSettingsFromHeartbeat`（5s 一次），带 `syncBackendSettingsInFlight`
   防重入；`loadBackendSettingsState` 本身有 `seq` 守卫，不会覆盖用户正在改的设置。
-- **实测 `cargo test -p chatgptx-core --test cdp_bridge` → 157 passed / 0 failed**，
+- **实测 `cargo test -p swivox-core --test cdp_bridge` → 157 passed / 0 failed**，
   含两个新增测试。`injection_script_keeps_session_action_buttons_in_pr_style`（记忆里标注的
   既有失败）现在也通过。
 - 无悬挂引用：`conversationViewHasRoomForHtmlCenter` 删除后无残留调用者；`pollId` 保留仅用于
@@ -38,17 +38,17 @@
 
 ---
 
-## 二、脚本市场 `ChatGPTX/ChatGPTXScriptMarket`
+## 二、脚本市场 `Swivox/SwivoxScriptMarket`
 
 本轮**合并 0 个**，**关闭 4 个**（含关闭说明），在上一轮已合并 #84/#85/#90/#91 的基础上，
 该仓库现在 **0 个开放 PR**。
 
 | PR | 处理 | 关闭理由 | 关闭说明 |
 |---|---|---|---|
-| #86 | 关闭 | 17220 行 / 841 KB 打包产物不可审计；patch dispatcher `dispatchMessage`、经 bridge 读写 AGENTS/Memories，影响面在每次对话分发路径 | [#issuecomment-5701363144](https://github.com/ChatGPTX/ChatGPTXScriptMarket/pull/86#issuecomment-5701363144) |
-| #87 | 关闭 | 拦截发送动作 + 派发合成鼠标/键盘事件自动改模型选择，超出只读监控的权限模型 | [#issuecomment-5701366116](https://github.com/ChatGPTX/ChatGPTXScriptMarket/pull/87#issuecomment-5701366116) |
-| #88 | 关闭 | `isLikelyApiUrl` 把 loopback 与 `/responses` 一并纳入解析，范围过宽；描述写 1.13.0 而产物 1.16.1 | [#issuecomment-5701369266](https://github.com/ChatGPTX/ChatGPTXScriptMarket/pull/88#issuecomment-5701369266) |
-| #89 | 关闭 | 覆写 Statsig `checkGate`/`getFeatureGate`，在客户端强制打开厂商灰度关闭的入口 | [#issuecomment-5701374118](https://github.com/ChatGPTX/ChatGPTXScriptMarket/pull/89#issuecomment-5701374118) |
+| #86 | 关闭 | 17220 行 / 841 KB 打包产物不可审计；patch dispatcher `dispatchMessage`、经 bridge 读写 AGENTS/Memories，影响面在每次对话分发路径 | [#issuecomment-5701363144](https://github.com/Swivox/SwivoxScriptMarket/pull/86#issuecomment-5701363144) |
+| #87 | 关闭 | 拦截发送动作 + 派发合成鼠标/键盘事件自动改模型选择，超出只读监控的权限模型 | [#issuecomment-5701366116](https://github.com/Swivox/SwivoxScriptMarket/pull/87#issuecomment-5701366116) |
+| #88 | 关闭 | `isLikelyApiUrl` 把 loopback 与 `/responses` 一并纳入解析，范围过宽；描述写 1.13.0 而产物 1.16.1 | [#issuecomment-5701369266](https://github.com/Swivox/SwivoxScriptMarket/pull/88#issuecomment-5701369266) |
+| #89 | 关闭 | 覆写 Statsig `checkGate`/`getFeatureGate`，在客户端强制打开厂商灰度关闭的入口 | [#issuecomment-5701374118](https://github.com/Swivox/SwivoxScriptMarket/pull/89#issuecomment-5701374118) |
 
 关闭前均确认**作者未回复、无新提交**（#86 head 仍 `c835698e`、#87 `3606548c`、#88 `b23da79f`、
 #89 `816700a6`）。四个关闭说明都给了替代路径：自行在作者仓库分发；#87/#89 另建议开 issue
@@ -56,7 +56,7 @@
 
 ---
 
-## 三、主题市场 `ChatGPTX/ChatGPTX-Themes`
+## 三、主题市场 `Swivox/Swivox-Themes`
 
 ### ✅ 25 个主题投稿全部合并（`00f3b97`），25 个 PR 全部关闭并附说明
 
@@ -96,11 +96,11 @@
 
 | 仓库 | 开放 PR |
 |---|---|
-| `ChatGPTX/ChatGPTX` | **1**（#2206 Taskboard，待修那 1 个失败测试） |
-| `ChatGPTX/ChatGPTXScriptMarket` | **0** |
-| `ChatGPTX/ChatGPTX-Themes` | **0** |
+| `Swivox/Swivox` | **1**（#2206 Taskboard，待修那 1 个失败测试） |
+| `Swivox/SwivoxScriptMarket` | **0** |
+| `Swivox/Swivox-Themes` | **0** |
 
-本地 `ChatGPTX` 工作区已恢复原状（`main` @ `82fb0924`，7 个未跟踪文件原样保留，
+本地 `Swivox` 工作区已恢复原状（`main` @ `82fb0924`，7 个未跟踪文件原样保留，
 期间为切分支临时 stash 的 WIP 已 pop 回来）。
 
 ## 五、遗留项

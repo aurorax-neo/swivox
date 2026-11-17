@@ -34,15 +34,15 @@
       const filtered = originalFilter.call(this, callback, thisArg);
       if (filtered.length === this.length) return filtered;
       if (isCodexPluginBuildFlavorFilter(callback, this, filtered)) {
-        sendChatGPTXDiagnostic("plugin_build_flavor_filter_bypassed", { pluginCount: this.length });
+        sendSwivoxDiagnostic("plugin_build_flavor_filter_bypassed", { pluginCount: this.length });
         return Array.from(this);
       }
       if (isCodexPluginMarketplaceHiddenFilter(callback, this, filtered)) {
-        sendChatGPTXDiagnostic("plugin_marketplace_hidden_filter_bypassed", { marketplaceCount: this.length });
+        sendSwivoxDiagnostic("plugin_marketplace_hidden_filter_bypassed", { marketplaceCount: this.length });
         return Array.from(this);
       }
       if (isCodexPluginFeaturedFilter(callback, this, filtered)) {
-        sendChatGPTXDiagnostic("plugin_featured_filter_bypassed", { featuredCount: this.length });
+        sendSwivoxDiagnostic("plugin_featured_filter_bypassed", { featuredCount: this.length });
         return Array.from(this);
       }
       return filtered;
@@ -50,7 +50,7 @@
     patchedFilter.__codexPluginBuildFlavorPatched = codexPluginMarketplaceUnlockVersion;
     Array.prototype.filter = patchedFilter;
     window.__codexPluginBuildFlavorFilterPatch = codexPluginMarketplaceUnlockVersion;
-    sendChatGPTXDiagnostic("plugin_build_flavor_filter_patch_installed", {});
+    sendSwivoxDiagnostic("plugin_build_flavor_filter_patch_installed", {});
   }
 
   function restorePluginMarketplaceRequestParams(params, method = "") {
@@ -90,7 +90,7 @@
           }
           if (patchPluginMarketplaceObject(marketplace)) patchedCount += 1;
         });
-        sendChatGPTXDiagnostic("plugin_marketplace_response_debug", {
+        sendSwivoxDiagnostic("plugin_marketplace_response_debug", {
           marketplaces: result.marketplaces.map((marketplace) => ({
             name: marketplace?.name || "",
             path: marketplace?.path || null,
@@ -102,10 +102,10 @@
         });
       }
       if (patchedCount > 0) {
-        sendChatGPTXDiagnostic("plugin_marketplace_response_expanded", { patchedCount });
+        sendSwivoxDiagnostic("plugin_marketplace_response_expanded", { patchedCount });
       }
     } catch (error) {
-      sendChatGPTXDiagnostic("plugin_marketplace_response_patch_failed", {
+      sendSwivoxDiagnostic("plugin_marketplace_response_patch_failed", {
         errorName: error?.name || "",
         errorMessage: error?.message || String(error),
       });
@@ -156,7 +156,7 @@
   function markPluginMarketplaceRemoteCatalogUnavailable(error) {
     window.__codexPluginMarketplaceRemoteCatalogUnavailable = true;
     window.__codexPluginMarketplaceRemoteCatalogRejectedAt = Date.now();
-    sendChatGPTXDiagnostic("plugin_marketplace_remote_auth_fallback", {
+    sendSwivoxDiagnostic("plugin_marketplace_remote_auth_fallback", {
       errorMessage: pluginMarketplaceErrorText(error),
       rememberedCwdCount: Array.isArray(window.__codexPluginMarketplaceLastCwds)
         ? window.__codexPluginMarketplaceLastCwds.length
@@ -186,7 +186,7 @@
     const originalSendRequest = client.__codexPluginMarketplaceOriginalSendRequest || client.sendRequest.bind(client);
     client.__codexPluginMarketplaceOriginalSendRequest = originalSendRequest;
     client.sendRequest = async function codexPluginMarketplacePatchedSendRequest(method, params, options) {
-      const managed = chatgptxPluginNativeInterceptClient(method, params, options,
+      const managed = swivoxPluginNativeInterceptClient(method, params, options,
         (nextOptions) => originalSendRequest(method, params, nextOptions), client.hostId);
       if (managed) return await managed;
       const requestMethod = appServerModelRequestMethod(String(method || ""), params);
@@ -194,7 +194,7 @@
       const requestProfile = pluginMarketplaceRequestProfile(restoredRequestParams);
       const requestParams = patchPluginMarketplaceRequestParams(requestMethod, restoredRequestParams);
       if (requestMethod === "install-plugin") {
-        sendChatGPTXDiagnostic("plugin_install_request_debug", {
+        sendSwivoxDiagnostic("plugin_install_request_debug", {
           method: String(method || ""),
           requestMethod,
           originalMarketplacePath: params?.marketplacePath || null,
@@ -216,7 +216,7 @@
             : localPluginMarketplaceFallbackResult();
         }
         if (requestMethod === "install-plugin") {
-          sendChatGPTXDiagnostic("plugin_install_request_failed", {
+          sendSwivoxDiagnostic("plugin_install_request_failed", {
             method: String(method || ""),
             requestMethod,
             requestMarketplacePath: requestParams?.marketplacePath || null,
@@ -261,7 +261,7 @@
       }
       if (requestParams === params) return message;
       if (requestMethod === "install-plugin") {
-        sendChatGPTXDiagnostic("plugin_install_request_debug", {
+        sendSwivoxDiagnostic("plugin_install_request_debug", {
           method: message.url,
           requestMethod,
           originalMarketplacePath: params?.marketplacePath || null,
@@ -292,7 +292,7 @@
       }
       if (requestParams === message.request.params) return message;
       if (requestMethod === "install-plugin") {
-        sendChatGPTXDiagnostic("plugin_install_request_debug", {
+        sendSwivoxDiagnostic("plugin_install_request_debug", {
           method: String(message.request.method || ""),
           requestMethod,
           originalMarketplacePath: message.request.params?.marketplacePath || null,
@@ -340,7 +340,7 @@
         data.bodyJsonString = JSON.stringify(result);
         return true;
       } catch (error) {
-        sendChatGPTXDiagnostic("plugin_marketplace_fetch_response_patch_failed", {
+        sendSwivoxDiagnostic("plugin_marketplace_fetch_response_patch_failed", {
           errorName: error?.name || "",
           errorMessage: error?.message || String(error),
         });
@@ -377,8 +377,8 @@
     return true;
   }
 
-  if (window.__CHATGPTX_TEST_PLUGIN_MARKETPLACE__) {
-    window.__chatgptxPluginMarketplaceTest = {
+  if (window.__SWIVOX_TEST_PLUGIN_MARKETPLACE__) {
+    window.__swivoxPluginMarketplaceTest = {
       patchRequestParams: patchPluginMarketplaceRequestParams,
       patchRequestMessage: patchPluginMarketplaceRequestMessage,
       patchResponseData: patchPluginMarketplaceResponseData,
@@ -389,7 +389,7 @@
       isBuildFlavorFilter: isCodexPluginBuildFlavorFilter,
       isHiddenMarketplaceFilter: isCodexPluginMarketplaceHiddenFilter,
       setCodexAppVersion: (version) => {
-        chatgptxBackendSettings.codexAppVersion = String(version || "");
+        swivoxBackendSettings.codexAppVersion = String(version || "");
       },
       remoteCatalogUnavailable: pluginMarketplaceRemoteCatalogUnavailable,
       reset: () => {
@@ -416,25 +416,25 @@
   }
 
   function installPluginMarketplaceBridgePatch() {
-    ensureChatGPTXPluginNativeTransportReinjection();
+    ensureSwivoxPluginNativeTransportReinjection();
     if (window.__codexPluginMarketplaceBridgePatch === codexPluginMarketplaceUnlockVersion) return;
     if (!codexPluginMarketplacePatchEnabled()) return;
-    installChatGPTXPluginNativeTransportListener();
+    installSwivoxPluginNativeTransportListener();
     installPluginMarketplaceWindowEventPatchOnly();
     const bridge = window.electronBridge;
     if (!bridge || typeof bridge.sendMessageFromView !== "function") {
-      sendChatGPTXDiagnostic("plugin_marketplace_bridge_patch_not_found", {});
+      sendSwivoxDiagnostic("plugin_marketplace_bridge_patch_not_found", {});
       return;
     }
     if (!bridge.__codexPluginMarketplaceOriginalSendMessageFromView) {
       bridge.__codexPluginMarketplaceOriginalSendMessageFromView = bridge.sendMessageFromView.bind(bridge);
       bridge.sendMessageFromView = function codexPluginMarketplacePatchedSendMessageFromView(message) {
-        if (chatgptxPluginNativeInterceptOutgoing(message)) return Promise.resolve();
+        if (swivoxPluginNativeInterceptOutgoing(message)) return Promise.resolve();
         let nextMessage = message;
         try {
           nextMessage = patchPluginMarketplaceRequestMessage(message);
         } catch (error) {
-          sendChatGPTXDiagnostic("plugin_marketplace_bridge_request_patch_failed", {
+          sendSwivoxDiagnostic("plugin_marketplace_bridge_request_patch_failed", {
             errorName: error?.name || "",
             errorMessage: error?.message || String(error),
           });
@@ -444,7 +444,7 @@
     }
     bridge.__codexPluginMarketplaceBridgePatch = codexPluginMarketplaceUnlockVersion;
     window.__codexPluginMarketplaceBridgePatch = codexPluginMarketplaceUnlockVersion;
-    sendChatGPTXDiagnostic("plugin_marketplace_bridge_patch_installed", {});
+    sendSwivoxDiagnostic("plugin_marketplace_bridge_patch_installed", {});
   }
 
   function installPluginMarketplaceWindowEventPatchOnly() {
@@ -457,10 +457,10 @@
         try {
           const detail = event?.detail;
           if (event?.type === "codex-message-from-view" && event.__codexForwardedViaBridge
-              && chatgptxPluginNativeSuppressForwarded(detail)) return true;
+              && swivoxPluginNativeSuppressForwarded(detail)) return true;
           if (event?.type === "codex-message-from-view" && !event.__codexForwardedViaBridge
-              && chatgptxPluginNativeInterceptOutgoing(detail)) return true;
-          if (event?.type === "message" && chatgptxPluginNativeInterceptIncoming(event.data)) return true;
+              && swivoxPluginNativeInterceptOutgoing(detail)) return true;
+          if (event?.type === "message" && swivoxPluginNativeInterceptIncoming(event.data)) return true;
           if (event?.type === "codex-message-from-view" && detail?.type === "mcp-request") {
             const patched = patchPluginMarketplaceRequestMessage(detail);
             if (patched !== detail) {
@@ -470,7 +470,7 @@
           }
           if (event?.type === "message") patchPluginMarketplaceResponseData(event.data);
         } catch (error) {
-          sendChatGPTXDiagnostic("plugin_marketplace_dispatch_event_patch_failed", {
+          sendSwivoxDiagnostic("plugin_marketplace_dispatch_event_patch_failed", {
             errorName: error?.name || "",
             errorMessage: error?.message || String(error),
           });
@@ -484,7 +484,7 @@
         try {
           patchPluginMarketplaceResponseData(event?.data);
         } catch (error) {
-          sendChatGPTXDiagnostic("plugin_marketplace_response_message_patch_failed", {
+          sendSwivoxDiagnostic("plugin_marketplace_response_message_patch_failed", {
             errorName: error?.name || "",
             errorMessage: error?.message || String(error),
           });
@@ -510,14 +510,14 @@
     // 首次 miss 仍然上报,保证 telemetry 能定位原因,之后噤声;连续失败够多次就停掉这一层。
     // 这是优雅降级:插件市场解锁还有 bridge / window-event 两层补丁各自独立工作。
     if (pluginMarketplaceRequestPatchMissCount === 1) {
-      sendChatGPTXDiagnostic(event, detail);
+      sendSwivoxDiagnostic(event, detail);
     }
     if (
       pluginMarketplaceRequestPatchMissCount >= pluginMarketplaceRequestPatchMaxMisses
       && !pluginMarketplaceRequestPatchDisabled
     ) {
       pluginMarketplaceRequestPatchDisabled = true;
-      sendChatGPTXDiagnostic("plugin_marketplace_request_patch_skipped", {
+      sendSwivoxDiagnostic("plugin_marketplace_request_patch_skipped", {
         misses: pluginMarketplaceRequestPatchMissCount,
         lastEvent: event,
       });
@@ -541,7 +541,7 @@
         if (patchedCount > 0) {
           window.__codexPluginMarketplaceUnlockInstalled = codexPluginMarketplaceUnlockVersion;
           pluginMarketplaceRequestPatchMissCount = 0;
-          sendChatGPTXDiagnostic("plugin_marketplace_request_patch_installed", {
+          sendSwivoxDiagnostic("plugin_marketplace_request_patch_installed", {
             moduleCount: modules.length,
             candidateCount: candidates.length,
             patchedCount,
@@ -569,7 +569,7 @@
   }
 
   function codexPluginMarketplacePatchEnabled() {
-    return chatgptxBackendSettingsLoaded && !!chatgptxSettings().pluginMarketplaceUnlock;
+    return swivoxBackendSettingsLoaded && !!swivoxSettings().pluginMarketplaceUnlock;
   }
 
   let cachedSessionRows = [];
@@ -746,16 +746,16 @@
     };
   }
 
-  if (window.__CHATGPTX_TEST_SESSION_REF__) {
-    window.__chatgptxSessionRefTest = {
+  if (window.__SWIVOX_TEST_SESSION_REF__) {
+    window.__swivoxSessionRefTest = {
       fromRow: sessionRefFromRow,
     };
   }
 
   // 注册数据跨重注入保留；只存弱引用，不缓存会重建的 sidebar DOM。
-  const codexNativeHostClients = window.__chatgptxNativeHostClients instanceof Map
-    ? window.__chatgptxNativeHostClients
-    : (window.__chatgptxNativeHostClients = new Map());
+  const codexNativeHostClients = window.__swivoxNativeHostClients instanceof Map
+    ? window.__swivoxNativeHostClients
+    : (window.__swivoxNativeHostClients = new Map());
   const codexNativeHostClientLimit = 32;
 
   function bindNativeHostClient(hostId, client, getterBound = false) {
@@ -857,8 +857,8 @@
     }
   }
 
-  if (window.__CHATGPTX_TEST_SESSION_REF__) {
-    Object.assign(window.__chatgptxSessionRefTest, {
+  if (window.__SWIVOX_TEST_SESSION_REF__) {
+    Object.assign(window.__swivoxSessionRefTest, {
       registerNativeHostClient, deleteRemoteSession, deletePayloadHost,
     });
   }
@@ -970,7 +970,7 @@
   }
 
   function refreshThreadIdBadges() {
-    if (!chatgptxSettings().threadIdBadge) {
+    if (!swivoxSettings().threadIdBadge) {
       if (threadIdBadgeActive) {
         removeThreadIdBadges();
         threadIdBadgeActive = false;
@@ -981,7 +981,7 @@
     sessionRows().forEach(installThreadIdBadge);
   }
 
-  function chatgptxDiagnosticPayload(event, detail) {
+  function swivoxDiagnosticPayload(event, detail) {
     return {
       event,
       detail: detail || {},
@@ -993,11 +993,11 @@
     };
   }
 
-  function sendChatGPTXDiagnostic(event, detail) {
-    const payload = chatgptxDiagnosticPayload(event, detail);
-    if (window.__CHATGPTX_TEST_SERVICE_TIER__) {
-      window.__chatgptxServiceTierTestDiagnostics = window.__chatgptxServiceTierTestDiagnostics || [];
-      window.__chatgptxServiceTierTestDiagnostics.push(payload);
+  function sendSwivoxDiagnostic(event, detail) {
+    const payload = swivoxDiagnosticPayload(event, detail);
+    if (window.__SWIVOX_TEST_SERVICE_TIER__) {
+      window.__swivoxServiceTierTestDiagnostics = window.__swivoxServiceTierTestDiagnostics || [];
+      window.__swivoxServiceTierTestDiagnostics.push(payload);
       return;
     }
     if (window.__codexSessionDeleteBridge) {
@@ -1018,9 +1018,9 @@
     }).catch(() => {});
   }
 
-  sendChatGPTXDiagnostic("script_loaded", {
-    version: chatgptxVersion,
-    build: chatgptxBuild,
+  sendSwivoxDiagnostic("script_loaded", {
+    version: swivoxVersion,
+    build: swivoxBuild,
   });
 
   function locationThreadId() {
@@ -1254,7 +1254,7 @@
   function shouldBlockThreadScrollAutobottom(scroller, top) {
     const runtime = threadScrollRuntime();
     const lock = currentThreadScrollRestoreLock();
-    if (!lock || !chatgptxSettings().threadScrollRestore) return false;
+    if (!lock || !swivoxSettings().threadScrollRestore) return false;
     const guardScroller = threadScrollGuardScroller(scroller);
     if (runtime.applyingRestore || !guardScroller) return false;
     const targetTop = threadScrollTargetTop(guardScroller, lock.targetTop);
@@ -1380,13 +1380,13 @@
     }
     runtime.activeScroller = scroller;
     runtime.scrollListenerUsesWindow = nextUsesWindow;
-    if (!scroller || !chatgptxSettings().threadScrollRestore) return;
+    if (!scroller || !swivoxSettings().threadScrollRestore) return;
     const target = nextUsesWindow ? window : scroller;
     target.addEventListener("scroll", runtime.scrollListener, true);
   }
 
   function saveThreadScrollPositionNow(sessionId = threadScrollRuntime().activeSessionId, scroller = threadScrollRuntime().activeScroller) {
-    if (!chatgptxSettings().threadScrollRestore) return;
+    if (!swivoxSettings().threadScrollRestore) return;
     const runtime = threadScrollRuntime();
     const key = validThreadScrollSessionKey(sessionId);
     if (!key || !scroller) return;
@@ -1407,7 +1407,7 @@
   }
 
   function scheduleThreadScrollSave() {
-    if (!chatgptxSettings().threadScrollRestore || window.__codexThreadScrollSaveTimer) return;
+    if (!swivoxSettings().threadScrollRestore || window.__codexThreadScrollSaveTimer) return;
     window.__codexThreadScrollSaveTimer = setTimeout(() => {
       window.__codexThreadScrollSaveTimer = null;
       saveThreadScrollPositionNow();
@@ -1417,7 +1417,7 @@
   function restoreThreadScrollPosition(sessionId) {
     const runtime = threadScrollRuntime();
     const key = validThreadScrollSessionKey(sessionId);
-    if (!chatgptxSettings().threadScrollRestore || !key || runtime.activeSessionId !== key || userScrollIntentActive() || threadScrollRestoreCancelledForSession(key)) return;
+    if (!swivoxSettings().threadScrollRestore || !key || runtime.activeSessionId !== key || userScrollIntentActive() || threadScrollRestoreCancelledForSession(key)) return;
     const lock = activeThreadScrollRestoreLock(key);
     const entry = lock || readThreadScrollEntries()[key];
     if (!entry) return;
@@ -1444,7 +1444,7 @@
   function scheduleThreadScrollRestore(sessionId) {
     clearThreadScrollRestoreTimers();
     const key = validThreadScrollSessionKey(sessionId);
-    if (!chatgptxSettings().threadScrollRestore || !key || userScrollIntentActive() || threadScrollRestoreCancelledForSession(key)) return;
+    if (!swivoxSettings().threadScrollRestore || !key || userScrollIntentActive() || threadScrollRestoreCancelledForSession(key)) return;
     const entry = readThreadScrollEntries()[key];
     if (!entry) {
       clearThreadScrollRestoreLock();
@@ -1464,7 +1464,7 @@
     const currentRef = currentSessionRef();
     const nextSessionId = validThreadScrollSessionKey(currentRef.session_id);
     if (!nextSessionId) return;
-    if (!chatgptxSettings().threadScrollRestore) {
+    if (!swivoxSettings().threadScrollRestore) {
       bindThreadScrollListener(null);
       clearThreadScrollRestoreTimers();
       clearThreadScrollRestoreLock();
@@ -1503,7 +1503,7 @@
   }
 
   function captureThreadScrollNavigation(targetSessionId) {
-    if (!chatgptxSettings().threadScrollRestore) return;
+    if (!swivoxSettings().threadScrollRestore) return;
     const runtime = threadScrollRuntime();
     const targetKey = validThreadScrollSessionKey(targetSessionId);
     const sessionChanged = !!targetKey && targetKey !== runtime.activeSessionId;
@@ -1535,7 +1535,7 @@
   }
 
   function markThreadScrollUserIntent(event) {
-    if (!chatgptxSettings().threadScrollRestore || !eventTargetsActiveThreadScroller(event)) return;
+    if (!swivoxSettings().threadScrollRestore || !eventTargetsActiveThreadScroller(event)) return;
     cancelThreadScrollRestoreForUserIntent();
   }
 
@@ -1586,19 +1586,19 @@
     document.removeEventListener("click", window.__codexThreadScrollClickNavigationHandler, true);
     document.removeEventListener("keydown", window.__codexThreadScrollKeyboardHandler, true);
     const navigationHandler = (event) => {
-      if (!chatgptxSettings().threadScrollRestore) return;
+      if (!swivoxSettings().threadScrollRestore) return;
       const row = event.target?.closest?.(selectors.sidebarThread);
       if (!row) return;
       window.__codexThreadScrollHandlers?.captureNavigation?.(sessionRefFromRow(row).session_id);
     };
     const clickHandler = (event) => {
-      if (!chatgptxSettings().threadScrollRestore) return;
+      if (!swivoxSettings().threadScrollRestore) return;
       const row = event.target?.closest?.(selectors.sidebarThread);
       if (!row) return;
       window.__codexThreadScrollHandlers?.captureNavigation?.(sessionRefFromRow(row).session_id);
     };
     const keyboardHandler = (event) => {
-      if (!chatgptxSettings().threadScrollRestore) return;
+      if (!swivoxSettings().threadScrollRestore) return;
       if (event.key !== "Enter" && event.key !== " ") return;
       const row = event.target?.closest?.(selectors.sidebarThread);
       if (!row) return;
@@ -1685,11 +1685,11 @@
       }
     }
     if (!window.__codexSessionDeleteBridge) {
-      recordChatGPTXBridgeFailure();
+      recordSwivoxBridgeFailure();
       if (path === "/backend/status") {
         return await fetchBackendStatusFromHelper(path, payload);
       }
-      sendChatGPTXDiagnostic("bridge_missing_for_route", { path });
+      sendSwivoxDiagnostic("bridge_missing_for_route", { path });
       return { status: "failed", message: "桥接不可用，请重启启动器" };
     }
     function bridgeWithBackendTimeout(path, payload) {
@@ -1697,7 +1697,7 @@
       try {
         request = window.__codexSessionDeleteBridge(path, payload);
       } catch (error) {
-        recordChatGPTXBridgeFailure();
+        recordSwivoxBridgeFailure();
         return Promise.resolve({ status: "failed", message: error?.message || "未连接" });
       }
       return withBackendTimeout(request);
@@ -1706,26 +1706,26 @@
       if (path === "/backend/status") {
         const result = await bridgeWithBackendTimeout(path, payload);
         if (result?.status === "ok") {
-          recordChatGPTXBridgeSuccess();
+          recordSwivoxBridgeSuccess();
           return result;
         }
-        recordChatGPTXBridgeFailure();
+        recordSwivoxBridgeFailure();
         if (result?.timeout) {
           // 超时也要记 lastAttemptAt：15 秒内的尝试视为桥还活着，
           // 避免页面忙碌时被看门狗误判为桥已死而重复注入整份脚本（issue #2169 / #2274）。
-          recordChatGPTXBridgeAttempt();
-          sendChatGPTXDiagnostic("backend_bridge_timeout", { path });
+          recordSwivoxBridgeAttempt();
+          sendSwivoxDiagnostic("backend_bridge_timeout", { path });
         }
         const fallback = await fetchBackendStatusFromHelper(path, payload);
         if (fallback?.status === "ok") {
-          sendChatGPTXDiagnostic("backend_status_bridge_failed_http_fallback_ok", {
+          sendSwivoxDiagnostic("backend_status_bridge_failed_http_fallback_ok", {
             path,
             httpStatus: 200,
             responseStatus: fallback.status || "",
           });
           return fallback;
         }
-        sendChatGPTXDiagnostic("backend_status_bridge_and_http_failed", {
+        sendSwivoxDiagnostic("backend_status_bridge_and_http_failed", {
           path,
           errorName: "",
           errorMessage: "",
@@ -1733,11 +1733,11 @@
         return fallback;
       }
       const bridgeResult = await window.__codexSessionDeleteBridge(path, payload);
-      recordChatGPTXBridgeSuccess();
+      recordSwivoxBridgeSuccess();
       return bridgeResult;
     } catch (error) {
-      recordChatGPTXBridgeFailure();
-      sendChatGPTXDiagnostic("bridge_call_failed", {
+      recordSwivoxBridgeFailure();
+      sendSwivoxDiagnostic("bridge_call_failed", {
         path,
         errorName: error?.name || "",
         errorMessage: error?.message || String(error),
@@ -1745,14 +1745,14 @@
       if (path === "/backend/status") {
         const fallback = await fetchBackendStatusFromHelper(path, payload);
         if (fallback?.status === "ok") {
-          sendChatGPTXDiagnostic("backend_status_bridge_failed_http_fallback_ok", {
+          sendSwivoxDiagnostic("backend_status_bridge_failed_http_fallback_ok", {
             path,
             httpStatus: 200,
             responseStatus: fallback.status || "",
           });
           return fallback;
         }
-        sendChatGPTXDiagnostic("backend_status_bridge_and_http_failed", {
+        sendSwivoxDiagnostic("backend_status_bridge_and_http_failed", {
           path,
           errorName: error?.name || "",
           errorMessage: error?.message || String(error),

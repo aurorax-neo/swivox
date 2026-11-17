@@ -13,8 +13,8 @@ const source = process.env.CODEX_OVERLAY_CANDIDATE_FUNCTION
   ? execFileSync("git", ["show", process.env.CODEX_OVERLAY_BASELINE + ":assets/inject/renderer-inject.js"],
     { cwd: repo, encoding: "utf8", maxBuffer: 10 * 1024 * 1024 })
   : fs.readFileSync(path.join(repo, "assets/inject/renderer-inject.js"), "utf8");
-const install = source.match(/^  function installChatGPTXImageOverlay\([^]*?^  \}/m)[0];
-const injection = 'const chatgptxImageOverlayId="chatgptx-image-overlay";const sendChatGPTXDiagnostic=()=>{};' + install;
+const install = source.match(/^  function installSwivoxImageOverlay\([^]*?^  \}/m)[0];
+const injection = 'const swivoxImageOverlayId="swivox-image-overlay";const sendSwivoxDiagnostic=()=>{};' + install;
 const assets = {};
 let browser, started = false;
 const bitmap = async color => "data:image/png;base64," + (await sharp({
@@ -49,10 +49,10 @@ const html = (page, style, body) => page.setContent(
 async function configure(page, options = {}) {
   await page.evaluate(injection);
   const timing = await page.evaluate(async config => {
-    window.__CHATGPTX_IMAGE_OVERLAY__ = config;
+    window.__SWIVOX_IMAGE_OVERLAY__ = config;
     const start = performance.now();
-    installChatGPTXImageOverlay();
-    return { ready: await window.__chatgptxImageOverlayReady, milliseconds: performance.now() - start };
+    installSwivoxImageOverlay();
+    return { ready: await window.__swivoxImageOverlayReady, milliseconds: performance.now() - start };
   }, { enabled: true, dataUrl: assets.wall, fitMode: "stretch", opacity: .2, ...options });
   assert.ok(timing.ready, "valid overlay becomes ready");
   await settle(page);
@@ -75,7 +75,7 @@ function check(name, run, viewport = { width: 800, height: 600 }, pageOptions = 
       window.work = { queries: 0, contains: 0, composerReads: 0, markerWrites: 0, styleCommits: 0, filterNodes: 0 };
       const textContent = Object.getOwnPropertyDescriptor(Node.prototype, "textContent");
       Object.defineProperty(Node.prototype, "textContent", { ...textContent, set(value) {
-        if (this instanceof HTMLStyleElement && this.dataset.chatgptxExt === "image-overlay") window.work.styleCommits++;
+        if (this instanceof HTMLStyleElement && this.dataset.swivoxExt === "image-overlay") window.work.styleCommits++;
         textContent.set.call(this, value);
       } });
       const createElementNS = Document.prototype.createElementNS;
@@ -109,17 +109,17 @@ function check(name, run, viewport = { width: 800, height: 600 }, pageOptions = 
         disconnect() { window.intersectionTargets.clear(); super.disconnect(); }
       };
       new MutationObserver(entries => {
-        window.work.markerWrites += entries.filter(e => e.attributeName?.startsWith("data-chatgptx-image")).length;
+        window.work.markerWrites += entries.filter(e => e.attributeName?.startsWith("data-swivox-image")).length;
       }).observe(document.documentElement, { subtree: true, attributes: true });
-      window.take = () => ({ ...window.__chatgptxImageOverlayStats, ...window.work });
+      window.take = () => ({ ...window.__swivoxImageOverlayStats, ...window.work });
       window.nativeAnimate = Element.prototype.animate;
       window.nativeTransition = document.startViewTransition;
     });
     try {
       await run(page);
       assert.deepEqual(errors, []);
-      await page.evaluate(() => window.__chatgptxImageOverlayCleanup?.());
-      assert.equal(await page.locator('[data-chatgptx-ext="image-overlay"],[data-chatgptx-image-native],[data-chatgptx-image-control],[data-chatgptx-image-scope],[data-chatgptx-image-paint],[data-chatgptx-image-popup-material],[data-chatgptx-image-top-control],[data-chatgptx-image-footer-gutter]').count(), 0);
+      await page.evaluate(() => window.__swivoxImageOverlayCleanup?.());
+      assert.equal(await page.locator('[data-swivox-ext="image-overlay"],[data-swivox-image-native],[data-swivox-image-control],[data-swivox-image-scope],[data-swivox-image-paint],[data-swivox-image-popup-material],[data-swivox-image-top-control],[data-swivox-image-footer-gutter]').count(), 0);
       assert.equal(await page.evaluate(() => window.resizeTargets.size), 0);
       assert.equal(await page.evaluate(() => window.intersectionTargets.size), 0);
       assert.ok(await page.evaluate(() => Element.prototype.animate === window.nativeAnimate &&

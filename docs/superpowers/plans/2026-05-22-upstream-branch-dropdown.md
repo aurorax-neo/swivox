@@ -2,23 +2,23 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add upstream branch choices to Codex App's native start-new-chat branch dropdown so `New worktree` can start from `upstream/<base>` without a separate ChatGPTX dialog.
+**Goal:** Add upstream branch choices to Codex App's native start-new-chat branch dropdown so `New worktree` can start from `upstream/<base>` without a separate Swivox dialog.
 
-**Architecture:** Extend the existing upstream worktree backend defaults with structured upstream refs, then add a conservative renderer adapter that injects `Upstream` options into native branch menus and records the selected upstream ref for the existing native-create interception path. Keep the manual ChatGPTX dialog as fallback for now, but make the native dropdown path the primary UX.
+**Architecture:** Extend the existing upstream worktree backend defaults with structured upstream refs, then add a conservative renderer adapter that injects `Upstream` options into native branch menus and records the selected upstream ref for the existing native-create interception path. Keep the manual Swivox dialog as fallback for now, but make the native dropdown path the primary UX.
 
-**Tech Stack:** Rust `chatgptx-core`, JSON bridge routes, plain JavaScript renderer injection, `cargo test`, `node --check`.
+**Tech Stack:** Rust `swivox-core`, JSON bridge routes, plain JavaScript renderer injection, `cargo test`, `node --check`.
 
 ---
 
 ### Task 1: Backend defaults expose upstream refs
 
 **Files:**
-- Modify: `crates/chatgptx-core/src/upstream_worktree/defaults.rs`
-- Test: `crates/chatgptx-core/tests/upstream_worktree.rs`
+- Modify: `crates/swivox-core/src/upstream_worktree/defaults.rs`
+- Test: `crates/swivox-core/tests/upstream_worktree.rs`
 
 - [ ] **Step 1: Write failing test**
 
-Add this test to `crates/chatgptx-core/tests/upstream_worktree.rs`:
+Add this test to `crates/swivox-core/tests/upstream_worktree.rs`:
 
 ```rust
 #[test]
@@ -54,7 +54,7 @@ fn defaults_response_lists_preferred_upstream_ref_for_current_branch() {
 Run:
 
 ```bash
-env -u CFLAGS -u CPPFLAGS -u LDFLAGS rustup run "1.95.0" cargo test -p chatgptx-core --test upstream_worktree defaults_response_lists_preferred_upstream_ref_for_current_branch
+env -u CFLAGS -u CPPFLAGS -u LDFLAGS rustup run "1.95.0" cargo test -p swivox-core --test upstream_worktree defaults_response_lists_preferred_upstream_ref_for_current_branch
 ```
 
 Expected: fails because `upstreamRefs` is missing.
@@ -99,7 +99,7 @@ Run the same single test. Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/chatgptx-core/src/upstream_worktree/defaults.rs crates/chatgptx-core/tests/upstream_worktree.rs
+git add crates/swivox-core/src/upstream_worktree/defaults.rs crates/swivox-core/tests/upstream_worktree.rs
 git commit -m "feat(worktree): expose upstream refs in defaults"
 ```
 
@@ -107,16 +107,16 @@ git commit -m "feat(worktree): expose upstream refs in defaults"
 
 **Files:**
 - Modify: `assets/inject/renderer-inject.js`
-- Test: `crates/chatgptx-core/tests/cdp_bridge.rs`
+- Test: `crates/swivox-core/tests/cdp_bridge.rs`
 
 - [ ] **Step 1: Write failing script-marker test**
 
-Add this test to `crates/chatgptx-core/tests/cdp_bridge.rs`:
+Add this test to `crates/swivox-core/tests/cdp_bridge.rs`:
 
 ```rust
 #[test]
 fn injection_script_installs_upstream_branch_dropdown_adapter() {
-    let script = assets::injection_script(57321);
+    let script = assets::injection_script(58321);
 
     assert!(script.contains("installUpstreamBranchDropdownAdapter"));
     assert!(script.contains("data-codex-upstream-branch-option"));
@@ -130,7 +130,7 @@ fn injection_script_installs_upstream_branch_dropdown_adapter() {
 Run:
 
 ```bash
-env -u CFLAGS -u CPPFLAGS -u LDFLAGS rustup run "1.95.0" cargo test -p chatgptx-core --test cdp_bridge injection_script_installs_upstream_branch_dropdown_adapter
+env -u CFLAGS -u CPPFLAGS -u LDFLAGS rustup run "1.95.0" cargo test -p swivox-core --test cdp_bridge injection_script_installs_upstream_branch_dropdown_adapter
 ```
 
 Expected: fails because adapter names and markers are not present.
@@ -204,7 +204,7 @@ Run the single cdp bridge marker test. Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add assets/inject/renderer-inject.js crates/chatgptx-core/tests/cdp_bridge.rs
+git add assets/inject/renderer-inject.js crates/swivox-core/tests/cdp_bridge.rs
 git commit -m "feat(worktree): install upstream branch dropdown adapter"
 ```
 
@@ -212,7 +212,7 @@ git commit -m "feat(worktree): install upstream branch dropdown adapter"
 
 **Files:**
 - Modify: `assets/inject/renderer-inject.js`
-- Test: `crates/chatgptx-core/tests/cdp_bridge.rs`
+- Test: `crates/swivox-core/tests/cdp_bridge.rs`
 
 - [ ] **Step 1: Write failing marker test**
 
@@ -267,7 +267,7 @@ function renderUpstreamBranchOption(menu, repoPath, ref) {
 }
 
 async function injectUpstreamBranchOptions() {
-  if (!chatgptxSettings().upstreamWorktreeCreate) return;
+  if (!swivoxSettings().upstreamWorktreeCreate) return;
   const repoPath = currentProjectRepoPath();
   if (!repoPath) return;
   const defaults = await loadUpstreamBranchDefaults(repoPath);
@@ -306,7 +306,7 @@ Run the cdp bridge test. Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add assets/inject/renderer-inject.js crates/chatgptx-core/tests/cdp_bridge.rs
+git add assets/inject/renderer-inject.js crates/swivox-core/tests/cdp_bridge.rs
 git commit -m "feat(worktree): inject upstream branch menu options"
 ```
 
@@ -314,7 +314,7 @@ git commit -m "feat(worktree): inject upstream branch menu options"
 
 **Files:**
 - Modify: `assets/inject/renderer-inject.js`
-- Test: `crates/chatgptx-core/tests/cdp_bridge.rs`
+- Test: `crates/swivox-core/tests/cdp_bridge.rs`
 
 - [ ] **Step 1: Write failing marker test**
 
@@ -369,7 +369,7 @@ Run the cdp bridge test. Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add assets/inject/renderer-inject.js crates/chatgptx-core/tests/cdp_bridge.rs
+git add assets/inject/renderer-inject.js crates/swivox-core/tests/cdp_bridge.rs
 git commit -m "feat(worktree): route native create from upstream selection"
 ```
 
@@ -382,8 +382,8 @@ git commit -m "feat(worktree): route native create from upstream selection"
 
 ```bash
 env -u CFLAGS -u CPPFLAGS -u LDFLAGS rustup run "1.95.0" cargo fmt --check
-env -u CFLAGS -u CPPFLAGS -u LDFLAGS rustup run "1.95.0" cargo test -p chatgptx-core --test upstream_worktree
-env -u CFLAGS -u CPPFLAGS -u LDFLAGS rustup run "1.95.0" cargo test -p chatgptx-core --test cdp_bridge
+env -u CFLAGS -u CPPFLAGS -u LDFLAGS rustup run "1.95.0" cargo test -p swivox-core --test upstream_worktree
+env -u CFLAGS -u CPPFLAGS -u LDFLAGS rustup run "1.95.0" cargo test -p swivox-core --test cdp_bridge
 node --check "assets/inject/renderer-inject.js"
 ```
 
@@ -392,7 +392,7 @@ Expected: all PASS.
 - [ ] **Step 2: Run full core tests**
 
 ```bash
-env -u CFLAGS -u CPPFLAGS -u LDFLAGS rustup run "1.95.0" cargo test -p chatgptx-core
+env -u CFLAGS -u CPPFLAGS -u LDFLAGS rustup run "1.95.0" cargo test -p swivox-core
 ```
 
 Expected: PASS.
@@ -400,9 +400,9 @@ Expected: PASS.
 - [ ] **Step 3: Build and package**
 
 ```bash
-npm install --prefix "apps/chatgptx-manager"
-npm run --prefix "apps/chatgptx-manager" check
-npm run --prefix "apps/chatgptx-manager" vite:build
+npm install --prefix "apps/swivox-manager"
+npm run --prefix "apps/swivox-manager" check
+npm run --prefix "apps/swivox-manager" vite:build
 env -u CFLAGS -u CPPFLAGS -u LDFLAGS rustup run "1.95.0" cargo build --release
 bash "scripts/installer/macos/package-dmg.sh" "1.1.5-local-upstream-dropdown" "$(uname -m)"
 ```
@@ -412,14 +412,14 @@ Expected: DMG created under `dist/macos/`.
 - [ ] **Step 4: Install and sign local app**
 
 ```bash
-hdiutil attach "dist/macos/ChatGPTX-1.1.5-local-upstream-dropdown-macos-$(uname -m).dmg" -nobrowse -readonly
-ditto "/Volumes/ChatGPTX/ChatGPTX.app" "/Applications/ChatGPTX.app"
-ditto "/Volumes/ChatGPTX/ChatGPTX 管理工具.app" "/Applications/ChatGPTX 管理工具.app"
-codesign --force --deep --sign - "/Applications/ChatGPTX.app"
-codesign --force --deep --sign - "/Applications/ChatGPTX 管理工具.app"
-codesign --verify --deep --strict --verbose=2 "/Applications/ChatGPTX.app"
-codesign --verify --deep --strict --verbose=2 "/Applications/ChatGPTX 管理工具.app"
-hdiutil detach "/Volumes/ChatGPTX"
+hdiutil attach "dist/macos/Swivox-1.1.5-local-upstream-dropdown-macos-$(uname -m).dmg" -nobrowse -readonly
+ditto "/Volumes/Swivox/Swivox.app" "/Applications/Swivox.app"
+ditto "/Volumes/Swivox/Swivox 管理工具.app" "/Applications/Swivox 管理工具.app"
+codesign --force --deep --sign - "/Applications/Swivox.app"
+codesign --force --deep --sign - "/Applications/Swivox 管理工具.app"
+codesign --verify --deep --strict --verbose=2 "/Applications/Swivox.app"
+codesign --verify --deep --strict --verbose=2 "/Applications/Swivox 管理工具.app"
+hdiutil detach "/Volumes/Swivox"
 ```
 
 Expected: both apps verify.
@@ -432,8 +432,8 @@ If `npm install` created untracked files, remove only untracked generated depend
 python3 - <<'PY'
 from pathlib import Path
 import shutil
-root = Path('/Users/carson/.codex/worktrees/b4e7/ChatGPTX')
-for rel in ['apps/chatgptx-manager/node_modules', 'apps/chatgptx-manager/package-lock.json']:
+root = Path('/Users/carson/.codex/worktrees/b4e7/Swivox')
+for rel in ['apps/swivox-manager/node_modules', 'apps/swivox-manager/package-lock.json']:
     path = root / rel
     if path.is_dir():
         shutil.rmtree(path)

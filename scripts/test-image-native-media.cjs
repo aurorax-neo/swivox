@@ -56,12 +56,12 @@ async function main() {
       document.querySelector("#close").onclick = () => { window.closeClicked = true; };
     });
     await page.waitForTimeout(50);
-    assert.equal(await page.$eval("#chatgptx-image-overlay", node => getComputedStyle(node).visibility), "visible", "wallpaper remains below the actual native viewer");
+    assert.equal(await page.$eval("#swivox-image-overlay", node => getComputedStyle(node).visibility), "visible", "wallpaper remains below the actual native viewer");
     assert.ok(await page.evaluate(() => Number(getComputedStyle(document.getElementById("preview")).zIndex) >
       Number(getComputedStyle(document.getElementById("transcript")).zIndex)), "complete viewer is above thread media");
     assert.equal(await page.$eval("#viewed", node => getComputedStyle(node).zIndex), "auto", "viewer media not lifted over its controls");
     const reference = await page.evaluate(() => {
-      const style = [...document.querySelectorAll('style[data-chatgptx-ext="image-overlay"]')][0];
+      const style = [...document.querySelectorAll('style[data-swivox-ext="image-overlay"]')][0];
       return style.textContent;
     });
     assert.ok(reference.length, "ordinary page layering remains active beneath viewer");
@@ -69,14 +69,14 @@ async function main() {
     assert.ok(await page.evaluate(() => window.closeClicked), "native viewer button receives click");
     const shown = await shot(page);
     near(pixel(shown, 380, 300), [220, 40, 50], "viewer stays opaque");
-    const beforeMotion = await page.evaluate(() => ({ ...window.__chatgptxImageOverlayStats }));
+    const beforeMotion = await page.evaluate(() => ({ ...window.__swivoxImageOverlayStats }));
     await page.evaluate(async () => {
       for (let i = 0; i < 10; i++) {
         document.querySelector("#viewed").style.transform = `scale(${1 + i / 100})`;
         await new Promise(resolve => window.nativeRAF(resolve));
       }
     });
-    const afterMotion = await page.evaluate(() => ({ ...window.__chatgptxImageOverlayStats }));
+    const afterMotion = await page.evaluate(() => ({ ...window.__swivoxImageOverlayStats }));
     assert.equal(afterMotion.rectReads, beforeMotion.rectReads, "native viewer motion needs no injected layout reads");
     assert.equal(afterMotion.styleReads, beforeMotion.styleReads, "native viewer motion needs no injected style reads");
     await page.evaluate(() => {
@@ -87,7 +87,7 @@ async function main() {
     near(pixel(await shot(page), 70, 70), [220, 40, 50], "closing viewer restores opaque native thumbnail");
     await page.evaluate(() => {
       window.requestAnimationFrame = window.nativeRAF;
-      window.__chatgptxImageOverlayCleanup?.();
+      window.__swivoxImageOverlayCleanup?.();
     });
   }, { width: 700, height: 600 });
   for (const zoom of [.8, 1, 1.25]) {
@@ -113,7 +113,7 @@ async function main() {
       near(pixel(movedShot, moved.x + moved.width / 2, moved.y + moved.height / 2), [220, 40, 50], "wheel keeps image opaque");
       await page.evaluate(() => {
         window.requestAnimationFrame = window.nativeRAF;
-        window.__chatgptxImageOverlayCleanup?.();
+        window.__swivoxImageOverlayCleanup?.();
       });
     }, { width: 700, height: 600 });
   }
@@ -141,7 +141,7 @@ async function main() {
       near(pixel(image, c.x + 50, c.y + 8), [27, 35, 59], "object-fit letterbox is not excluded");
       assert.deepEqual(await page.$eval("#icon", node => ({ opacity: getComputedStyle(node).opacity, style: node.getAttribute("style"), parent: node.parentElement.id })), before);
       assert.equal(await page.locator("body img").count(), 4, "no visible media copy");
-      await page.evaluate(() => window.__chatgptxImageOverlayCleanup?.());
+      await page.evaluate(() => window.__swivoxImageOverlayCleanup?.());
     }, { width: 500, height: 320 });
   }
   for (const zoom of [.8, 1, 1.25]) {
@@ -185,7 +185,7 @@ async function main() {
         near(pixel(image, (r.x + r.width / 2) * 2, (r.y + r.height / 2) * 2),
           [220, 40, 50], `${id} is the opaque original media`);
       }
-      assert.equal(await page.locator("#chatgptx-image-overlay mask, #chatgptx-image-overlay path").count(), 0);
+      assert.equal(await page.locator("#swivox-image-overlay mask, #swivox-image-overlay path").count(), 0);
       assert.equal(await page.locator("body img").count(), 3, "no visible media copies or layout-image placeholders");
       await page.evaluate(() => {
         window.savedRAF = requestAnimationFrame;
@@ -199,14 +199,14 @@ async function main() {
         [220, 40, 50], "native image follows its actual changing layout without an independent region");
       await page.evaluate(() => {
         window.requestAnimationFrame = window.savedRAF;
-        window.__chatgptxImageOverlayCleanup?.();
+        window.__swivoxImageOverlayCleanup?.();
       });
       assert.deepEqual(await page.evaluate(() => [...document.images].map(node => ({
         src: node.src, parent: node.parentElement.id, style: node.getAttribute("style"),
       }))), before);
       assert.ok(await page.evaluate(() =>
         document.startViewTransition === window.originalTransition && Element.prototype.animate === window.originalAnimate));
-      assert.equal(await page.locator("[data-chatgptx-image-native], [data-chatgptx-image-scope], [data-chatgptx-image-control]").count(), 0);
+      assert.equal(await page.locator("[data-swivox-image-native], [data-swivox-image-scope], [data-swivox-image-control]").count(), 0);
     }, { width: 700, height: 600 }, { deviceScaleFactor: 2 });
   }
   check("ordinary-image-controls-retain-patterned-wallpaper-fits", async page => {
@@ -220,7 +220,7 @@ async function main() {
     for (const fitMode of ["fill", "fit", "stretch", "tile", "center"]) {
       for (const opacity of [.01, .2, .75, 1]) {
         await page.evaluate(({ pattern, fitMode, opacity }) => {
-          window.__chatgptxImageOverlayCleanup?.(true);
+          window.__swivoxImageOverlayCleanup?.(true);
           const fit = {
             fill: ["cover", "center center", "no-repeat"], fit: ["contain", "center center", "no-repeat"],
             stretch: ["100% 100%", "center center", "no-repeat"], tile: ["auto", "left top", "repeat"],
@@ -238,15 +238,15 @@ async function main() {
         await page.evaluate(() => document.querySelector("#reference").remove());
         await page.evaluate(injection);
         await page.evaluate(async ({ pattern, fitMode, opacity }) => {
-          window.__CHATGPTX_IMAGE_OVERLAY__ = { enabled: true, dataUrl: pattern, opacity, fitMode };
-          installChatGPTXImageOverlay();
-          await window.__chatgptxImageOverlayReady;
+          window.__SWIVOX_IMAGE_OVERLAY__ = { enabled: true, dataUrl: pattern, opacity, fitMode };
+          installSwivoxImageOverlay();
+          await window.__swivoxImageOverlayReady;
         }, { pattern, fitMode, opacity });
         await page.waitForTimeout(80);
         near(pixel(await shot(page), 76, 40), expected, `ordinary image control ${fitMode}/${opacity}`);
       }
     }
-    await page.evaluate(() => window.__chatgptxImageOverlayCleanup?.());
+    await page.evaluate(() => window.__swivoxImageOverlayCleanup?.());
     return { comparisons: 20 };
   }, { width: 700, height: 500 });
   for (const backdrop of ["none", "blur(6px)"]) check(`ordinary-popup-native-alpha-shadow-${backdrop}`, async page => {
@@ -282,7 +282,7 @@ async function main() {
     assert.ok(maxError <= 1, `popup native alpha/shadow reference error: ${maxError}`);
     assert.equal(await page.locator('filter[id*="-control-"]').count(), 0, "popup produces no SVG filters");
     assert.equal(await page.$eval("#popup", n => getComputedStyle(n).backdropFilter), "none");
-    await page.evaluate(() => window.__chatgptxImageOverlayCleanup?.());
+    await page.evaluate(() => window.__swivoxImageOverlayCleanup?.());
     return { maxError };
   }, { width: 700, height: 500 });
   check("popup-real-underlay-preserves-media-alpha-fit-rounding-and-zoom", async page => {
@@ -323,9 +323,9 @@ let maximumError = 0, maximumMediaBackdropError = 0;
       });
       await page.evaluate(injection);
       await page.evaluate(async ({ wall, opacity }) => {
-        window.__CHATGPTX_IMAGE_OVERLAY__ = { enabled: true, dataUrl: wall, opacity, fitMode: "stretch" };
-        installChatGPTXImageOverlay();
-        await window.__chatgptxImageOverlayReady;
+        window.__SWIVOX_IMAGE_OVERLAY__ = { enabled: true, dataUrl: wall, opacity, fitMode: "stretch" };
+        installSwivoxImageOverlay();
+        await window.__swivoxImageOverlayReady;
       }, { wall, opacity });
       await page.waitForTimeout(100);
       const actual = await shot(page);
@@ -355,7 +355,7 @@ let maximumError = 0, maximumMediaBackdropError = 0;
         src: node.src, parent: node.parentElement.id, style: node.getAttribute("style"),
       })), sourceState);
       assert.equal(await page.locator("img").count(), 1, "no native media display copy");
-      await page.evaluate(() => window.__chatgptxImageOverlayCleanup?.());
+      await page.evaluate(() => window.__swivoxImageOverlayCleanup?.());
     }
     return { comparisons: cases.length, maxError: maximumError, menuOverMediaMaxError: maximumMediaBackdropError };
   }, { width: 700, height: 500 });
@@ -418,7 +418,7 @@ let maximumError = 0, maximumMediaBackdropError = 0;
     assert.ok(await page.evaluate(() => window.transition.types.has("native-image-close")));
     await page.evaluate(() => window.transition.finished);
     await page.evaluate(() => {
-      window.__chatgptxImageOverlayCleanup?.();
+      window.__swivoxImageOverlayCleanup?.();
       window.requestAnimationFrame = window.nativeRAF;
       document.documentElement.classList.remove("native-preview-active");
     });
@@ -428,17 +428,17 @@ let maximumError = 0, maximumMediaBackdropError = 0;
     await page.setContent(`<style>body{background:#181818}button{display:none}</style><img width="80" height="80" src="${opaque}">
       <div id="text"></div>${Array.from({ length: 1000 }, () => "<button>Native</button>").join("")}`);
     await configure(page, wall);
-    const before = await page.evaluate(() => ({ ...window.__chatgptxImageOverlayStats }));
+    const before = await page.evaluate(() => ({ ...window.__swivoxImageOverlayStats }));
     await page.evaluate(async () => {
       for (let i = 0; i < 10; i++) {
         document.querySelector("#text").textContent = String(i);
         await new Promise(requestAnimationFrame);
       }
     });
-    const after = await page.evaluate(() => ({ ...window.__chatgptxImageOverlayStats }));
+    const after = await page.evaluate(() => ({ ...window.__swivoxImageOverlayStats }));
     assert.ok(after.rectReads - before.rectReads < 20, `hidden controls caused ${after.rectReads - before.rectReads} rect reads`);
     assert.equal(after.queries, before.queries);
-    await page.evaluate(() => window.__chatgptxImageOverlayCleanup?.());
+    await page.evaluate(() => window.__swivoxImageOverlayCleanup?.());
     return { rectReads: after.rectReads - before.rectReads, queries: after.queries - before.queries };
   }, { width: 700, height: 500 });
 }

@@ -41,7 +41,7 @@ assert.equal(unicodeFixture.split("\n")[unicodeFound.lineNumber].slice(unicodeFo
 assert.equal(condition({quotaVariable:"x;alert(1)",hostVariable:"host"}), null);
 
 for (const allowed of [false, true]) {
-  const context = {quota:true, host:"local", busy:false, window:{__chatgptxExternalApiQuotaAllowed:()=>allowed}};
+  const context = {quota:true, host:"local", busy:false, window:{__swivoxExternalApiQuotaAllowed:()=>allowed}};
   assert.equal(vm.runInNewContext(condition(found), context), false, "debugger condition never pauses");
   assert.equal(context.quota, !allowed);
   assert.equal(vm.runInNewContext("busy||quota", context), !allowed);
@@ -60,11 +60,11 @@ type.toString = () => "function Adapter(){let quota=read(Q)&&host===`local`,disa
 const root = {__reactFiber$test: {type:"div", return:{type, memoizedState:hook, return:null}}};
 const context = {
   Set, WeakMap, URL,
-  window: {__chatgptxExternalApiQuotaAllowed:()=>allowed},
+  window: {__swivoxExternalApiQuotaAllowed:()=>allowed},
   document: {querySelectorAll:()=>[root]},
 };
 vm.runInNewContext(fs.readFileSync(require.resolve("./api-quota-gate.js"), "utf8"), context);
-const refresh = context.window.__chatgptxApiQuotaGate.refreshComposers;
+const refresh = context.window.__swivoxApiQuotaGate.refreshComposers;
 assert.equal(refresh(found), 1, "already mounted composer must render after installation");
 assert.equal(calls[0].size, 0);
 assert.equal(refresh(found), 0, "polls must not keep rerendering");

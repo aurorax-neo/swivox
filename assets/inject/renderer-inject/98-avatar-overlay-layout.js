@@ -2,16 +2,16 @@
   // The native page recreates the rail and preview card during navigation, so
   // this uses stable data attributes instead of retaining DOM node references.
   (() => {
-    const styleId = "chatgptx-avatar-overlay-layout-style";
+    const styleId = "swivox-avatar-overlay-layout-style";
     const root = document.documentElement;
-    const enabledAttribute = "data-chatgptx-activity-overlay-right";
+    const enabledAttribute = "data-swivox-activity-overlay-right";
 
     function installStyle() {
       const existing = document.getElementById(styleId);
       if (existing) return;
       const style = document.createElement("style");
       style.id = styleId;
-      style.dataset.chatgptxExt = "builtin-avatar-overlay-layout";
+      style.dataset.swivoxExt = "builtin-avatar-overlay-layout";
       style.textContent = `
         /* The native rail is mounted inside an absolute nav with left-3. */
         html[${enabledAttribute}="true"] nav:has([data-thread-user-message-navigation-rail-list]) {
@@ -37,18 +37,18 @@
 
     function sync() {
       installStyle();
-      const enabled = typeof chatgptxSettings === "function"
-        && chatgptxSettings().activityOverlayRight === true;
+      const enabled = typeof swivoxSettings === "function"
+        && swivoxSettings().activityOverlayRight === true;
       root.toggleAttribute(enabledAttribute, enabled);
       root.setAttribute(enabledAttribute, String(enabled));
     }
 
     installStyle();
     sync();
-    globalThis.__CHATGPTX_ACTIVITY_OVERLAY_SYNC__ = sync;
+    globalThis.__SWIVOX_ACTIVITY_OVERLAY_SYNC__ = sync;
     let attempts = 0;
     const timer = window.setInterval(() => {
       sync();
-      if (++attempts >= 60 && chatgptxBackendSettingsLoaded) window.clearInterval(timer);
+      if (++attempts >= 60 && swivoxBackendSettingsLoaded) window.clearInterval(timer);
     }, 250);
   })();

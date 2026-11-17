@@ -4,7 +4,7 @@
    * 现象（本机实测，2026-10-12）：Codex 的原生启动画面有时会一直停住——DOM 里
    * 只剩 splash 容器（`div.flex.items-center.justify-center.relative.size-full`），
    * `#root` 的 innerText 始终为空、`<main>` 始终不出现；而注入层一切正常
-   * （`window.chatgptx` 已挂载、设置浮标在位、零异常），启动器侧
+   * （`window.swivox` 已挂载、设置浮标在位、零异常），启动器侧
    * `latest-status.json` 也一直是 `running` / `progress:100`。
    * 也就是说宿主没有任何信号能发现「页面没渲染出来」，用户只能自己按刷新。
    * 实测手动 reload 一次即恢复。
@@ -17,7 +17,7 @@
    *   - 每次加载最多刷一次，且与上次刷新间隔不足冷却时间就不再刷；
    *     写不进 sessionStorage 时宁可不刷，避免退化成刷新循环。
    */
-  const bootShellRecoveryStorageKey = "chatgptx.bootShellRecoveryAt";
+  const bootShellRecoveryStorageKey = "swivox.bootShellRecoveryAt";
   const bootShellRecoveryGraceMs = 20000;
   const bootShellRecoveryCooldownMs = 60000;
   const bootShellRecoveryPollMs = 1000;
@@ -73,9 +73,9 @@
       } catch {
         return;
       }
-      // 记一条诊断，事后能从 chatgptx.log 确认它真的触发过、卡了多久。
-      if (typeof sendChatGPTXDiagnostic === "function") {
-        sendChatGPTXDiagnostic("boot_shell_recovery_reload", {
+      // 记一条诊断，事后能从 swivox.log 确认它真的触发过、卡了多久。
+      if (typeof sendSwivoxDiagnostic === "function") {
+        sendSwivoxDiagnostic("boot_shell_recovery_reload", {
           waitedMs: Date.now() - startedAt,
         });
       }

@@ -15,7 +15,7 @@ const configure = (page, dataUrl, fitMode = "stretch", opacity = .2) =>
   configureOverlay(page, { dataUrl, fitMode, opacity });
 async function reference(page, wall, fitMode, opacity) {
   await page.evaluate(({wall,fitMode,opacity}) => {
-    window.__chatgptxImageOverlayCleanup?.(true);
+    window.__swivoxImageOverlayCleanup?.(true);
     const fit = {
       fill:["cover","center center","no-repeat"],fit:["contain","center center","no-repeat"],
       stretch:["100% 100%","center center","no-repeat"],tile:["auto","left top","repeat"],
@@ -130,7 +130,7 @@ async function main() {
       await page.$eval("#preview",node=>{node.style.display="block";});
       await page.waitForTimeout(60);
       const previewNative=await page.evaluate(()=>{
-        window.__chatgptxImageOverlayCleanup?.(true);
+        window.__swivoxImageOverlayCleanup?.(true);
         return true;
       });
       assert.ok(previewNative);
@@ -145,8 +145,8 @@ async function main() {
         assertNear(pixel(previewActual,x,y),pixel(previewRef,x,y),"native viewer over persistent upstream wallpaper");
       }
       await page.$eval("#preview",node=>{node.style.display="none";});
-      await page.evaluate(()=>window.__chatgptxImageOverlayCleanup?.());
-      assert.equal(await page.locator("#chatgptx-image-overlay").count(),0);
+      await page.evaluate(()=>window.__swivoxImageOverlayCleanup?.());
+      assert.equal(await page.locator("#swivox-image-overlay").count(),0);
       assert.deepEqual(errors,[]);
       results.push({theme,width,zoom,ordinaryPixels:ordinary,maxError,passed:true});
       await page.close();
@@ -169,7 +169,7 @@ async function main() {
           console.log(JSON.stringify({fit,opacity,differences}));
         }
         assert.equal(Buffer.compare(actual.data,baseline.data),0,`${fit}/${opacity} exact upstream pixels`);
-        await page.evaluate(()=>window.__chatgptxImageOverlayCleanup?.(true));
+        await page.evaluate(()=>window.__swivoxImageOverlayCleanup?.(true));
       }
     }
     results.push({group:"all-fits-and-strengths",comparisons:20,passed:true});
@@ -183,7 +183,7 @@ async function lifecycle(browser,wall,photo){
   const page=await browser.newPage({viewport:{width:700,height:500}});
   await page.setContent(`<style>body{margin:0;background:#181818}#host{padding:20px}img{width:80px;height:80px}</style><div id="host"></div>`);
   await configure(page,wall);
-  const resource=await page.evaluate(()=>window.__chatgptxImageOverlayBlobUrl);
+  const resource=await page.evaluate(()=>window.__swivoxImageOverlayBlobUrl);
   await page.evaluate(photo=>{
     const image=document.createElement("img");image.id="dynamic";image.src=photo;
     document.querySelector("#host").appendChild(image);
@@ -202,7 +202,7 @@ async function lifecycle(browser,wall,photo){
   await page.setViewportSize({width:1000,height:700});
   await page.waitForTimeout(80);
   await configure(page,wall,"fill",.2);
-  assert.equal(await page.evaluate(()=>window.__chatgptxImageOverlayBlobUrl),resource,"same image retains decoded blob");
+  assert.equal(await page.evaluate(()=>window.__swivoxImageOverlayBlobUrl),resource,"same image retains decoded blob");
   r=await at(page,"#dynamic");shot=await snapshot(page);
   assertNear(pixel(shot,r.x+40,r.y+40),[220,40,50],"resize retains media exclusion");
   await page.evaluate(()=>{
@@ -212,11 +212,11 @@ async function lifecycle(browser,wall,photo){
   shot=await snapshot(page);
   assertNear(pixel(shot,r.x+40,r.y+40),[27,35,59],"hidden media leaves ordinary tint");
   await page.evaluate(()=>{
-    window.__CHATGPTX_IMAGE_OVERLAY__.enabled=false;
-    installChatGPTXImageOverlay();
+    window.__SWIVOX_IMAGE_OVERLAY__.enabled=false;
+    installSwivoxImageOverlay();
   });
-  assert.equal(await page.locator("#chatgptx-image-overlay").count(),0);
-  assert.equal(await page.evaluate(()=>window.__chatgptxImageOverlayBlobUrl),"");
+  assert.equal(await page.locator("#swivox-image-overlay").count(),0);
+  assert.equal(await page.evaluate(()=>window.__swivoxImageOverlayBlobUrl),"");
   assert.equal(await page.evaluate(()=>window.testStream?.active ?? true),true);
   results.push({group:"lifecycle-and-native-animation",passed:true});
   await page.close();

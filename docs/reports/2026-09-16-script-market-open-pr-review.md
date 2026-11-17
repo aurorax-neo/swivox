@@ -1,6 +1,6 @@
 # 脚本市场开放 PR 审查（2026-09-16）
 
-仓库：`ChatGPTX/ChatGPTXScriptMarket`（`crates/chatgptx-core/src/script_market.rs:8` 里 `DEFAULT_MARKET_INDEX_URL` 指向它）
+仓库：`Swivox/SwivoxScriptMarket`（`crates/swivox-core/src/script_market.rs:8` 里 `DEFAULT_MARKET_INDEX_URL` 指向它）
 基线：`main` @ `90e8415`（"feat: update Codex Model Matrix to 1.0.0 (#52)"）
 方法：克隆仓库、逐个 fetch PR head、核对 SHA-256 与 index.json、实跑 PR 自带测试、通读新脚本源码
 
@@ -21,7 +21,7 @@
 
 ## 统一核对结果（全部通过）
 
-- **SHA-256**：8 个 PR 里 index.json 声明的每个 `sha256` 都与对应脚本文件实际哈希逐字节一致。工作区 16→17 个条目里，唯一两个"文件缺失"是我脚本按同仓库 URL 推断路径的误报——`codex-zhcn-translate` 的 `script_url` 指向 `hL091015/ChatGPTXScriptMarket` 这个 fork，文件本就不在本仓库；`Codex%20Model%20Matrix.js` 是 URL 编码，解码后存在。
+- **SHA-256**：8 个 PR 里 index.json 声明的每个 `sha256` 都与对应脚本文件实际哈希逐字节一致。工作区 16→17 个条目里，唯一两个"文件缺失"是我脚本按同仓库 URL 推断路径的误报——`codex-zhcn-translate` 的 `script_url` 指向 `hL091015/SwivoxScriptMarket` 这个 fork，文件本就不在本仓库；`Codex%20Model%20Matrix.js` 是 URL 编码，解码后存在。
 - **合并性**：8 个 PR head 全部 `merge-tree --write-tree` 干净，且都以当前 `origin/main` 为祖先。
 - **解析兼容**：`parse_market_manifest` 对 `description`/`author`/`tags`/`homepage`/`sha256` 都是 `#[serde(default)]`，只强校验 `id`/`name`/`version`/`script_url`。各 PR 新增条目全部满足。
 - **外连审计**：新脚本没有任何一个主动发起网络请求。#87、#89 零网络 API；#88 只包装 `fetch`/`XHR`/`WebSocket` 做**旁路观察**（读响应体解析 token 数），`isLikelyApiUrl` 过滤在 `deepseek`/loopback/`/responses`/`/chat/completions` 上；#86 的 `bridgeCall` 走宿主自己注入的 `window.__codexSessionDeleteBridge`，无硬编码远端。
@@ -40,7 +40,7 @@
 
 ### #85 — Codex Relay Balance 0.3.3 → 0.3.7
 
-顶栏兼容性修复：兼容新旧两版 ChatGPTX 顶栏结构，检测其他插件按钮占用区域后自动找空白位置，避免余额入口重叠；预留窗口控制按钮区域；顶栏变化/缩放/插件加载后自动重定位。无自动化测试，但 diff 只有顶栏定位逻辑，改动边界清楚。顺带把 `updated_at` 从 `2026-08-22` 更新到 `2026-08-31`——注意这个字段各 PR 各写各的，见下方"小瑕疵"。
+顶栏兼容性修复：兼容新旧两版 Swivox 顶栏结构，检测其他插件按钮占用区域后自动找空白位置，避免余额入口重叠；预留窗口控制按钮区域；顶栏变化/缩放/插件加载后自动重定位。无自动化测试，但 diff 只有顶栏定位逻辑，改动边界清楚。顺带把 `updated_at` 从 `2026-08-22` 更新到 `2026-08-31`——注意这个字段各 PR 各写各的，见下方"小瑕疵"。
 
 ### #90 — Codex Model Matrix 索引元数据修正
 
@@ -51,7 +51,7 @@
 
 也就是说 **main 当前把 1.0.0 的脚本配着 0.8.0 的元数据和一个对不上的哈希发出去**。这个 PR 把条目改成 `Codex Model Matrix / 1.0.0 / lx / github.com/Xiazhixuan119748/Codex-Model-Matrix` + 正确 SHA，并把条目从数组靠后位置挪到了第 2 位。
 
-**顺带指出的一个既有问题（不是这个 PR 引入的）**：`crates/chatgptx-core/src/script_market.rs` 的 `install_market_script_content` 并不校验 SHA，而 CHANGELOG 第 61 行记录了"移除脚本安装时的 checksum 阻断"是有意为之。所以错配的 `sha256` 目前不会阻断安装，危害是**市场上显示的版本/作者/名称与用户实际拿到的脚本不一致**，以及任何依赖哈希做完整性判断的环节失效。值得单独开个 issue 跟踪"要么恢复校验，要么把 sha256 降级成纯展示字段并在 UI 上说明"。
+**顺带指出的一个既有问题（不是这个 PR 引入的）**：`crates/swivox-core/src/script_market.rs` 的 `install_market_script_content` 并不校验 SHA，而 CHANGELOG 第 61 行记录了"移除脚本安装时的 checksum 阻断"是有意为之。所以错配的 `sha256` 目前不会阻断安装，危害是**市场上显示的版本/作者/名称与用户实际拿到的脚本不一致**，以及任何依赖哈希做完整性判断的环节失效。值得单独开个 issue 跟踪"要么恢复校验，要么把 sha256 降级成纯展示字段并在 UI 上说明"。
 
 **唯一可讨论的点**：它把 `id: codex-native-matrix-selector` 的展示名从自己的 "Codex Native Matrix Selector" 换成了第三方作者的名字。同 id 意味着老条目被覆盖。从"文件已经是人家的 1.0.0"看这是纠正而非顶替，但**确认新选择器确实替代了原来的原生选择器**这个事实判断该你来做。
 
@@ -102,7 +102,7 @@
 1. **`updated_at` 各 PR 各写各的**：#84/#87/#90/#91 保持 `2026-08-22T15:50:28Z` 不变，#85 写 `2026-08-31`，#86 写 `2026-09-04`，#89 写 `2026-09-11`，#88 写 `2026-09-15`。多 PR 并行时这个字段必然 last-write-wins，**合并后统一刷成合并当天**即可。
 2. **#88 的 PR 正文与产物版本不一致**：正文写 `1.13.0`，index.json 是 `1.16.1`。合并前请作者更新正文，或在合并说明里注明。
 3. **#90 挪动了条目位置**：把 Model Matrix 从第 15 位挪到第 2 位，改变了市场列表顺序。如果顺序对你有意义（比如按受欢迎度排练），注意这一处。
-4. **`codex-zhcn-translate` 是跨仓库引用**：`script_url` 指向 `hL091015/ChatGPTXScriptMarket` 的 fork。本仓库无法校验它的 SHA 或做变更审查——**这是市场当前的一个供应链盲点**，值得单独讨论（要么收编到本仓库，要么在 UI 上标注"第三方托管"）。
+4. **`codex-zhcn-translate` 是跨仓库引用**：`script_url` 指向 `hL091015/SwivoxScriptMarket` 的 fork。本仓库无法校验它的 SHA 或做变更审查——**这是市场当前的一个供应链盲点**，值得单独讨论（要么收编到本仓库，要么在 UI 上标注"第三方托管"）。
 
 ---
 

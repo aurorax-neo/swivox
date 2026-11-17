@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/images/readme-preview/hero.svg" alt="ChatGPTX — Unified manager for the Codex desktop app" width="100%">
+  <img src="docs/images/readme-preview/hero.svg" alt="Swivox — Native Rust + GPUI hub for the Codex desktop app" width="100%">
 </p>
 
 <p align="center">
@@ -7,89 +7,81 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/aurorax-neo/chatgptx/releases"><img alt="Release" src="https://img.shields.io/github/v/release/aurorax-neo/chatgptx?style=flat-square&amp;color=7387ff&amp;label=release"></a>
-  <a href="https://github.com/aurorax-neo/chatgptx/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/aurorax-neo/chatgptx?style=flat-square&amp;color=e8b86d"></a>
+  <a href="https://github.com/aurorax-neo/swivox/releases"><img alt="Release" src="https://img.shields.io/github/v/release/aurorax-neo/swivox?style=flat-square&amp;color=6366f1&amp;label=release"></a>
+  <a href="https://github.com/aurorax-neo/swivox/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/aurorax-neo/swivox?style=flat-square&amp;color=e8b86d"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-AGPL--3.0-838da8?style=flat-square"></a>
-  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS-838da8?style=flat-square">
-  <img alt="Stack" src="https://img.shields.io/badge/built%20with-Rust%20%2B%20Tauri-838da8?style=flat-square">
+  <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-838da8?style=flat-square">
+  <img alt="Stack" src="https://img.shields.io/badge/built%20with-Rust%20%2B%20GPUI-4cc9f0?style=flat-square">
 </p>
 
-ChatGPTX is a unified management application for the OpenAI Codex / ChatGPT desktop app. Built with Rust and Tauri, it uses the Chromium DevTools Protocol (CDP) and an embedded runtime for multi-account official login management, third-party API provider switching, protocol conversion, isolated multi-instance launching, session management, and UI enhancements without modifying the official app's `app.asar` or installation files.
+**Swivox** is a GPU-accelerated native desktop control center for the OpenAI Codex / ChatGPT desktop application, built end-to-end with **Rust + GPUI** (~50 MB resident memory, zero WebView overhead). Through CDP and a local protocol conversion proxy, Swivox provides multi-account official OAuth management, 25+ API provider presets & aggregate routing, per-model context window catalogs, isolated multi-instance launching, MCP / Skills / session management, and runtime UI enhancements—without modifying the official app's `app.asar` or installation directory. All Swivox state (`~/.swivox`) and local ports (`58319–58321`) are cleanly namespaced and isolated.
 
 ## Key Features
 
 | Area | Capabilities |
 | --- | --- |
-| **Official Accounts** | Multi-account OAuth PKCE browser sign-in, manual callback parsing, import from local `auth.json` / macOS Keychain / JSON / Token, automatic token refresh, real-time 5h / weekly / monthly quota inspection, one-click switch without re-login, and per-account third-party API provider binding |
-| **API & Aggregate Providers** | Pure API providers and aggregate providers (Failover & Model aggregation); Responses / Chat Completions conversion; model tests, model discovery, and Provider Doctor |
-| **Codex Multi-Launch** | Start isolated Codex instances for both official accounts (pure or bound to a third-party API provider) and API providers, each with its own config, sessions, and user data directory |
-| **Models & Context** | Per-model context windows (`model[1M]`), auto-compact limits, `model_catalog_json` generation, model metadata import, and per-provider MCP, Skill, and Plugin selection |
-| **Session Management** | Local session scanning, bulk deletion, Markdown export, token usage history, project moves, thread IDs, and cross-provider session sync |
-| **Enhancements & Proxy** | Usage status line (tok/s, cache hit rate, context share), dictation, paste fix, conversation width, next-step suggestions, typing effects, user script marketplace, and unified global proxy settings |
+| **Official Accounts** | Multi-account OAuth PKCE browser sign-in, manual callback parsing, import from local `auth.json` / macOS Keychain / JSON, automatic token refresh, live 5h / weekly / monthly quota checks, one-click switching, and per-account third-party API provider binding |
+| **API & Aggregate Providers** | 25 built-in provider presets, custom Responses / Chat Completions providers, Failover pools, Model aggregation, connectivity testing, and Provider Doctor diagnostics |
+| **Codex Multi-Launch** | Launch isolated Codex instances for official accounts or API providers, each with dedicated configuration, SQLite sessions, and user-data directories |
+| **Per-Model Context Catalogs** | Configure per-model context windows (`deepseek-v4-pro[1M]`), auto-compact percentages, and image policies with automatic native `model_catalog_json` generation |
+| **MCP, Skills & Sessions** | Manage & sync `config.toml` MCP servers (with Claude Desktop JSON bulk import), install GitHub Skills, browse/delete local sessions with automatic backups, and repair stale session indexes |
+| **Enhancements & Cache Cleaner** | Unlock in-client Plugin Market & custom model whitelists, cloud Whisper & offline SenseVoiceSmall dictation, Stepwise follow-up suggestions, custom image overlays, `window.swivox` user scripts, and whitelisted AI Agent cache cleanup |
 
 ## Quick Start
 
-Download the latest installer from [GitHub Releases](https://github.com/aurorax-neo/chatgptx/releases):
+Download the latest installer from [GitHub Releases](https://github.com/aurorax-neo/swivox/releases):
 
-- **Windows (x64)**: `ChatGPTX-*-windows-x64-setup.exe`
-- **macOS (Apple Silicon & Intel Universal)**: `ChatGPTX-*-macos-universal.dmg`
+- **macOS (Apple Silicon & Intel Universal)**: `Swivox-*-macos-universal.dmg`
+- **Windows (x64)**: `Swivox-*-windows-x64-setup.exe` / `Swivox-*-windows-x64.zip`
 
 1. Ensure the official Codex / ChatGPT desktop app is installed on your machine.
-2. Open **ChatGPTX**, sign in or import official accounts under **Official Accounts**, or configure API providers under **Provider Configuration**.
-3. Click **Use** on an account or provider and choose **Use only (effective on restart)** or **Use and restart Codex**.
-4. Use the top-right **Launch Codex**, **Stop Codex**, or **Restart Codex** controls for the main instance, or open **Codex Multi-Launch** to run multiple isolated instances side by side.
+2. Open **Swivox**, sign in or import official accounts under **Official accounts**, or configure API providers under **Provider configuration**.
+3. Click **Use** on any account or provider to apply immediately or apply & restart Codex.
+4. Use the topbar **Launch Codex**, **Stop Codex**, or **Restart Codex** buttons for the main instance, or open **Codex multi-launch** to run multiple isolated instances side by side.
 
-## Account and Provider Modes
+## Data Locations & Isolation
 
-| Mode | Purpose | Authentication Boundary |
-| --- | --- | --- |
-| **Official Account (Pure)** | Use an official ChatGPT / Codex account directly | Writes official OAuth tokens to `auth.json` and macOS Keychain, clearing custom model overrides |
-| **Official Account + Bound API** | Keep official account state and plugins while routing model requests to a bound third-party API provider | Writes official OAuth tokens alongside the bound provider configuration |
-| **Pure API Provider** | Use a custom Base URL and API key without an official account | Deactivates official OAuth tokens and maintains independent `config.toml` and API-key auth |
-| **Aggregate Provider** | Failover (fail over or rotate across providers) and Model aggregation (bind catalog models to specific members) | Merges or routes models across API providers and official accounts |
-
-## Data Locations
-
-- Codex config: `~/.codex/config.toml`
-- Codex auth state: `~/.codex/auth.json` (synced with macOS Keychain `"Codex Auth"`)
-- Codex local database: `~/.codex/sqlite/*.db` (falls back to `~/.codex/state_5.sqlite`)
-- ChatGPTX state and logs: `~/.chatgptx/`
-- Multi-launch instance directories: `~/.chatgptx/codex-multi/<instance-id>/`
+- Codex config & auth: `~/.codex/config.toml`, `~/.codex/auth.json` (overridable via `CODEX_HOME`)
+- Codex local databases: `~/.codex/sqlite/*.db` (falls back to `~/.codex/state_5.sqlite`)
+- **Swivox state & logs**: `~/.swivox/` (overridable via `SWIVOX_STATE_DIR`; stores `settings.json`, `official-accounts.json`, `ui-preferences.json`, `swivox.log`)
+- **Swivox user scripts**: `~/.swivox/user_scripts/` and `~/.swivox/user_scripts.json`
+- **Swivox multi-launch instances**: `~/.swivox/codex-multi/<instance-id>/`
+- **Swivox default loopback ports**: Manager guard `58319`, Launcher guard `58320`, Protocol proxy `58321` (overridable via `SWIVOX_PROTOCOL_PROXY_PORT`)
 
 ## Development
 
 ```bash
-cd apps/chatgptx-manager
-npm ci
-npm run check
-npm test
-npm run vite:build
+# Run Rust test suites
+cargo test -p swivox-backend --lib
+cargo test -p swivox-gpui
+cargo test -p swivox-launcher
+cargo test -p swivox-data --lib
 
-cd ../..
-cargo test --workspace --lib
-cargo build --release -p chatgptx-manager --bin chatgptx
+# Build release native desktop binaries
+cargo build --release -p swivox-gpui --bins
 ```
+
+If you edit shards under `assets/inject/renderer-inject/`, run `node scripts/assemble-renderer-inject.mjs` to reassemble `assets/inject/renderer-inject.js`.
 
 ## Credits & License Compliance
 
 ### 1. Credits
-- **[BigPizzaV3/CodexPlusPlus](https://github.com/BigPizzaV3/CodexPlusPlus)** (`AGPL-3.0-only`): Upstream base repository providing the core launcher architecture, provider switching, protocol conversion, model catalog generation, and Codex UI enhancements.
-- **[jlcodes99/cockpit-tools](https://github.com/jlcodes99/cockpit-tools)** (`CC-BY-NC-SA-4.0`): Reference for multi-account official OAuth PKCE sign-in, automatic token refresh, real-time quota inspection, and global network proxy design.
-- **[MeteorNOX/DeepSeek-Balance-Whale-Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget)** (Code `MIT`) & **[Yang-huai406/Codex-Whale-Public](https://github.com/Yang-huai406/Codex-Whale-Public)**: Source of the optional usage widget and character assets. See [Upstream LICENSE](assets/inject/upstream/whale-widget/LICENSE) and [PROVENANCE.md](assets/inject/upstream/whale-widget/PROVENANCE.md).
+- **[BigPizzaV3/CodexPlusPlus](https://github.com/BigPizzaV3/CodexPlusPlus)** (`AGPL-3.0-only`): Upstream base repository from which the core launcher, protocol proxy, model catalog generator, and Codex renderer injection architecture originated.
+- **[longbridge/gpui-kit](https://github.com/longbridge/gpui-kit)** & **[zed-industries/zed](https://github.com/zed-industries/zed)** (`Apache-2.0`): GPU-accelerated GPUI desktop framework and UI components.
+- **[jlcodes99/cockpit-tools](https://github.com/jlcodes99/cockpit-tools)** (`CC-BY-NC-SA-4.0`): Reference for multi-account official OAuth PKCE sign-in, token refresh, live quota inspection, and global network proxy workflows.
+- **[MeteorNOX/DeepSeek-Balance-Whale-Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget)** (Code `MIT`) & **[Yang-huai406/Codex-Whale-Public](https://github.com/Yang-huai406/Codex-Whale-Public)**: Optional usage widget and character assets. See [Upstream LICENSE](assets/inject/upstream/whale-widget/LICENSE) and [PROVENANCE.md](assets/inject/upstream/whale-widget/PROVENANCE.md).
 
 ### 2. License & Disclaimer
-- **Open-Source License**: Licensed under the [GNU Affero General Public License v3.0](LICENSE) (SPDX: `AGPL-3.0-only`). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for complete third-party attribution and provenance notices.
+- **Open-Source License**: Licensed under the [GNU Affero General Public License v3.0](LICENSE) (`AGPL-3.0-only`). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for complete third-party notices.
 - **Copyright**:
   - `Copyright (C) 2026 BigPizzaV3 and contributors` (Upstream code)
-  - `Copyright (C) 2026 aurorax-neo` (ChatGPTX derivative modifications and additions)
-- **Compliance & Disclaimer**:
-  - Redistribution of modified versions or network deployment must provide the complete corresponding source code and preserve copyright notices under AGPL-3.0. Designs referencing `cockpit-tools` (`CC-BY-NC-SA-4.0`) are for personal learning, research, and non-commercial use only.
-  - OpenAI, ChatGPT, and Codex are trademarks of OpenAI, L.L.C. This project is not affiliated with or endorsed by OpenAI.
+  - `Copyright (C) 2026 aurorax-neo` (Swivox GPUI native rewrite, multi-account architecture, and derivative additions)
+- **Disclaimer**: OpenAI, ChatGPT, and Codex are trademarks of OpenAI, L.L.C. Swivox is not affiliated with or endorsed by OpenAI.
 
 ---
 
 <p align="center">
-  <img src="docs/images/chatgptx.png" alt="ChatGPTX" width="48"><br>
-  <strong>ChatGPTX</strong><br>
-  <sub><a href="https://github.com/aurorax-neo/chatgptx">github.com/aurorax-neo/chatgptx</a> · <a href="LICENSE">AGPL-3.0-only</a> · <a href="THIRD_PARTY_NOTICES.md">Third-Party Notices</a></sub>
+  <img src="docs/images/swivox.png" alt="Swivox" width="52"><br>
+  <strong>Swivox</strong><br>
+  <sub><a href="https://github.com/aurorax-neo/swivox">github.com/aurorax-neo/swivox</a> · <a href="LICENSE">AGPL-3.0-only</a> · <a href="THIRD_PARTY_NOTICES.md">Third-Party Notices</a></sub>
 </p>

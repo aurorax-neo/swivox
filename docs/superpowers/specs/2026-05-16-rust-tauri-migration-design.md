@@ -1,13 +1,13 @@
-# ChatGPTX Rust/Tauri Migration Design
+# Swivox Rust/Tauri Migration Design
 
 ## Summary
 
-ChatGPTX will fully replace the current Python backend with Rust and add a Tauri management console. The existing Codex App enhancement model remains: ChatGPTX launches Codex with CDP flags, injects a bridge plus `renderer-inject.js`, and handles local operations such as delete, undo, export, move, settings, status, provider sync, and user scripts.
+Swivox will fully replace the current Python backend with Rust and add a Tauri management console. The existing Codex App enhancement model remains: Swivox launches Codex with CDP flags, injects a bridge plus `renderer-inject.js`, and handles local operations such as delete, undo, export, move, settings, status, provider sync, and user scripts.
 
 The final user experience has two desktop entry points:
 
-- **ChatGPTX**: a no-window silent launcher. Double-clicking it starts enhanced Codex directly.
-- **ChatGPTX 管理工具**: a visible Tauri management app for install, uninstall, update, settings, logs, diagnostics, shortcut repair, and optional manual launch.
+- **Swivox**: a no-window silent launcher. Double-clicking it starts enhanced Codex directly.
+- **Swivox 管理工具**: a visible Tauri management app for install, uninstall, update, settings, logs, diagnostics, shortcut repair, and optional manual launch.
 
 There is no separate user-facing CLI. Launch behavior belongs to the silent launcher, and management features belong to the Tauri console.
 
@@ -25,13 +25,13 @@ There is no separate user-facing CLI. Launch behavior belongs to the silent laun
 - Replacing `renderer-inject.js` with a full Tauri-native Codex UI.
 - Moving session management into the Tauri app as a standalone conversation browser.
 - Providing a separate user-facing CLI.
-- Requiring the management tool to stay open while ChatGPTX is running.
+- Requiring the management tool to stay open while Swivox is running.
 
 ## Architecture
 
 The Rust project will be organized as a workspace:
 
-- `chatgptx-core`
+- `swivox-core`
   - Codex app path resolution.
   - Loopback port selection.
   - Codex process launch and lifecycle handling.
@@ -39,21 +39,21 @@ The Rust project will be organized as a workspace:
   - Bridge request routing for injected UI calls.
   - Settings, logs, assets, status, and diagnostics primitives.
 
-- `chatgptx-data`
+- `swivox-data`
   - SQLite schema detection.
   - Local delete and undo backup.
   - Workspace move operations.
   - Markdown export.
   - Provider sync across rollout files, SQLite rows, and global state metadata.
 
-- `chatgptx-launcher`
+- `swivox-launcher`
   - No-window silent launcher binary.
   - Supports internal launch configuration such as app path, database path, backup path, debug port, and helper port.
-  - Used by the `ChatGPTX` desktop entry point.
+  - Used by the `Swivox` desktop entry point.
 
-- `chatgptx-tauri`
+- `swivox-tauri`
   - Visible management console.
-  - Tauri commands call `chatgptx-core`; no duplicated business logic.
+  - Tauri commands call `swivox-core`; no duplicated business logic.
   - Provides install, uninstall, update, settings, logs, diagnostics, shortcut repair, and optional manual launch controls.
 
 - `renderer-inject.js`
@@ -63,9 +63,9 @@ The Rust project will be organized as a workspace:
 
 ## Entry Points
 
-### ChatGPTX
+### Swivox
 
-The `ChatGPTX` desktop entry point is silent:
+The `Swivox` desktop entry point is silent:
 
 1. It starts the no-window Rust launcher.
 2. It does not show a Tauri management window.
@@ -74,17 +74,17 @@ The `ChatGPTX` desktop entry point is silent:
 5. It injects `renderer-inject.js`.
 6. It stays alive until Codex exits.
 
-### ChatGPTX 管理工具
+### Swivox 管理工具
 
 The management tool opens a Tauri window and owns management workflows:
 
-- Install and uninstall ChatGPTX entry points.
+- Install and uninstall Swivox entry points.
 - Check for updates and perform updates.
 - Edit backend settings.
 - View latest launch status.
 - Open logs and copy diagnostics.
-- Repair or recreate the silent `ChatGPTX` shortcut.
-- Optionally launch or repair a running ChatGPTX session.
+- Repair or recreate the silent `Swivox` shortcut.
+- Optionally launch or repair a running Swivox session.
 
 The management tool is not required during normal use.
 
@@ -92,7 +92,7 @@ The management tool is not required during normal use.
 
 Silent launch flow:
 
-1. User double-clicks `ChatGPTX`.
+1. User double-clicks `Swivox`.
 2. The no-window Rust launcher starts without a visible management UI.
 3. Rust chooses available loopback ports for CDP and helper/bridge runtime.
 4. If Provider Sync is enabled, Rust updates local Codex metadata before launch.
@@ -110,13 +110,13 @@ Bridge request flow:
 1. Injected UI calls the bridge from `renderer-inject.js`.
 2. CDP delivers a `Runtime.bindingCalled` event to Rust.
 3. Rust routes the request by path.
-4. `chatgptx-core` and `chatgptx-data` execute the operation.
+4. `swivox-core` and `swivox-data` execute the operation.
 5. Rust resolves or rejects the browser-side promise.
 6. The injected UI shows a toast, updates settings, refreshes status, or updates the current UI state.
 
 Management tool flow:
 
-1. User opens `ChatGPTX 管理工具`.
+1. User opens `Swivox 管理工具`.
 2. Tauri UI calls Rust commands.
 3. Commands call shared core/data modules.
 4. UI displays results for install, update, settings, logs, diagnostics, repair, and launch actions.
@@ -152,20 +152,20 @@ Management diagnostics:
 
 Windows install creates two desktop shortcuts:
 
-- `ChatGPTX.lnk`: silent launcher, no management window.
-- `ChatGPTX 管理工具.lnk`: opens the Tauri management console.
+- `Swivox.lnk`: silent launcher, no management window.
+- `Swivox 管理工具.lnk`: opens the Tauri management console.
 
 Windows packaging uses separate entry binaries so window behavior is predictable:
 
-- `chatgptx.exe`: no-window silent launcher for the `ChatGPTX` shortcut.
-- `chatgptx-manager.exe`: Tauri management console for `ChatGPTX 管理工具`.
+- `swivox.exe`: no-window silent launcher for the `Swivox` shortcut.
+- `swivox-manager.exe`: Tauri management console for `Swivox 管理工具`.
 
-Windows uninstall removes both shortcuts and the uninstall registry entry. Optional data removal deletes ChatGPTX-owned data such as logs, settings, and backups.
+Windows uninstall removes both shortcuts and the uninstall registry entry. Optional data removal deletes Swivox-owned data such as logs, settings, and backups.
 
 macOS install provides equivalent two-entry behavior with two app bundles:
 
-- `ChatGPTX.app`: silent launch wrapper.
-- `ChatGPTX 管理工具.app`: visible management console.
+- `Swivox.app`: silent launch wrapper.
+- `Swivox 管理工具.app`: visible management console.
 
 Updates are initiated from the management console. No separate command-line update entry point is provided.
 

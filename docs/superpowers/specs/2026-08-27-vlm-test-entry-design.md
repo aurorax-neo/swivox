@@ -3,7 +3,7 @@
 > 日期：2026-08-27
 > 状态：已评审（brainstorm 定稿）
 > 分支：`vlm-test-entry`（基线：`95abcf6`，上游 main 的祖先——main tip 因 #1691 在 Windows 目标编译损坏暂不可基线）
-> worktree：`ChatGPTX-VLMtest`
+> worktree：`Swivox-VLMtest`
 
 ---
 
@@ -106,7 +106,7 @@
 
 ## 8. 交付与 PR 策略
 
-- worktree `ChatGPTX-VLMtest`，分支 `vlm-test-entry`，基线 `95abcf6`（上游 main 祖先，见文首说明）；从 fork 发 PR。
+- worktree `Swivox-VLMtest`，分支 `vlm-test-entry`，基线 `95abcf6`（上游 main 祖先，见文首说明）；从 fork 发 PR。
 - **小而聚焦**：功能纯增量；对现有代码仅有等价重构（提示词/请求体构造/端点构造提取共享），不夹带任何其他改动。
 - PR 描述：强调「与真实链路同源」契约、失败分类口径与手工验收结果。
 - 本设计文档随分支提交。

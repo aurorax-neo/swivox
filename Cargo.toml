@@ -1,18 +1,18 @@
 [workspace]
 resolver = "2"
 members = [
-  "crates/chatgptx-core",
-  "crates/chatgptx-data",
-  "crates/chatgptx-backend",
-  "apps/chatgptx-launcher",
-  "apps/chatgptx-gpui",
+  "crates/swivox-core",
+  "crates/swivox-data",
+  "crates/swivox-backend",
+  "apps/swivox-launcher",
+  "apps/swivox-gpui",
 ]
 
 [workspace.package]
 version = "0.1.5"
 edition = "2024"
 license = "AGPL-3.0-only"
-repository = "https://github.com/aurorax-neo/chatgptx"
+repository = "https://github.com/aurorax-neo/swivox"
 
 [workspace.dependencies]
 aes-gcm = "0.10"

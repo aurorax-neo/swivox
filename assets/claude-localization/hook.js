@@ -25,10 +25,10 @@ const SHIM_FILE = path.join(DIR, 'page-shim.js');
 const DICTATION_FILE = path.join(DIR, 'page-dictation.js');
 
 /**
- * ChatGPTX launcher 写的听写凭据：helper 端口 + 能力令牌。
- * 路径必须与 crates/chatgptx-core/src/launcher.rs 的 DICTATION_HELPER_RECEIPT 一致。
+ * Swivox launcher 写的听写凭据：helper 端口 + 能力令牌。
+ * 路径必须与 crates/swivox-core/src/launcher.rs 的 DICTATION_HELPER_RECEIPT 一致。
  */
-const RECEIPT = path.join(os.homedir(), '.chatgptx', 'dictation-helper.json');
+const RECEIPT = path.join(os.homedir(), '.swivox', 'dictation-helper.json');
 /** 页面调用主进程的 binding 名（page-dictation.js 按同名字面量调用）。 */
 const BINDING = '__claudeCnDictationCall';
 
@@ -69,7 +69,7 @@ function safeMime(type) {
 }
 
 /**
- * 把页面传来的音频交给 ChatGPTX 的 helper 转写（本地 SenseVoice 或用户配置的 ASR）。
+ * 把页面传来的音频交给 Swivox 的 helper 转写（本地 SenseVoice 或用户配置的 ASR）。
  *
  * 走 node:http 而不是全局 fetch：主进程可能挂着系统代理，loopback 请求不该被代理接管。
  */
@@ -77,7 +77,7 @@ function transcribe(payload) {
   return new Promise((resolve, reject) => {
     const receipt = readReceipt();
     if (!receipt) {
-      reject(new Error('ChatGPTX 语音服务未运行，请先启动 ChatGPTX'));
+      reject(new Error('Swivox 语音服务未运行，请先启动 Swivox'));
       return;
     }
     let audio;
@@ -91,7 +91,7 @@ function transcribe(payload) {
       reject(new Error('录音为空'));
       return;
     }
-    const boundary = 'chatgptx-claude-' + Date.now().toString(16);
+    const boundary = 'swivox-claude-' + Date.now().toString(16);
     const head = Buffer.from(
       `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${safeFilename(payload.filename)}"\r\n` +
         `Content-Type: ${safeMime(payload.mimeType)}\r\n\r\n`,
@@ -107,7 +107,7 @@ function transcribe(payload) {
         headers: {
           'Content-Type': `multipart/form-data; boundary=${boundary}`,
           'Content-Length': body.length,
-          'X-ChatGPTX-Dictation-Token': receipt.token,
+          'X-Swivox-Dictation-Token': receipt.token,
         },
       },
       (response) => {

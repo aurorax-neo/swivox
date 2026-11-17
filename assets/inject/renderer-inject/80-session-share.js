@@ -51,9 +51,9 @@
    * 第三方提示把「删除成功（可撤销）」这类关键反馈挤掉，所以改成有界队列：超出
    * 上限时挤掉最旧的一条，而不是最关键的当前一条。
    */
-  const chatgptxToastLimit = 3;
-  const chatgptxToastLifetimeMs = 10000;
-  const chatgptxToastGapPx = 48;
+  const swivoxToastLimit = 3;
+  const swivoxToastLifetimeMs = 10000;
+  const swivoxToastGapPx = 48;
 
   /**
    * 按当前 DOM 顺序重排所有提示的纵向位置。
@@ -61,16 +61,16 @@
    * 必须在每次「新增」和「移除」之后都调用：位置只在插入那一刻算的话，一旦有
    * 人被挤掉或超时消失，剩下几条会停在自己的旧层号上，出现空档和重叠。
    */
-  function layoutChatGPTXToasts() {
+  function layoutSwivoxToasts() {
     document.querySelectorAll(".codex-delete-toast").forEach((node, index) => {
-      node.style.bottom = `${18 + index * chatgptxToastGapPx}px`;
+      node.style.bottom = `${18 + index * swivoxToastGapPx}px`;
     });
   }
 
   /** 移除一条提示并立刻重排剩下的。 */
-  function dismissChatGPTXToast(toast) {
+  function dismissSwivoxToast(toast) {
     toast.remove();
-    layoutChatGPTXToasts();
+    layoutSwivoxToasts();
   }
 
   /**
@@ -89,9 +89,9 @@
     const live = document.querySelectorAll(".codex-delete-toast");
     // 队列满时挤掉最旧的（DOM 顺序即插入顺序）。用 dismiss 而不是裸 remove，
     // 它会顺带重排剩下几条的位置。
-    if (live.length >= chatgptxToastLimit) {
-      for (let index = 0; index <= live.length - chatgptxToastLimit; index += 1) {
-        dismissChatGPTXToast(live[index]);
+    if (live.length >= swivoxToastLimit) {
+      for (let index = 0; index <= live.length - swivoxToastLimit; index += 1) {
+        dismissSwivoxToast(live[index]);
       }
     }
     const toast = document.createElement("div");
@@ -108,15 +108,15 @@
           const refreshed = await refreshRecentConversationsForHost();
           if (!refreshed) window.location.reload();
         }
-        setTimeout(() => dismissChatGPTXToast(toast), 5000);
+        setTimeout(() => dismissSwivoxToast(toast), 5000);
       });
       toast.appendChild(undo);
     }
     document.body.appendChild(toast);
     // append 之后统一重排：此时这条才进入 DOM，索引才是它真实的层号。
-    layoutChatGPTXToasts();
-    setTimeout(() => dismissChatGPTXToast(toast), chatgptxToastLifetimeMs);
-    return () => dismissChatGPTXToast(toast);
+    layoutSwivoxToasts();
+    setTimeout(() => dismissSwivoxToast(toast), swivoxToastLifetimeMs);
+    return () => dismissSwivoxToast(toast);
   }
 
   function shareBase64Url(bytes) {
@@ -127,7 +127,7 @@
 
   function shareTextFromElement(element) {
     const clone = element.cloneNode(true);
-    clone.querySelectorAll?.("button, textarea, input, select, [contenteditable='true'], .codex-delete-toast, .chatgptx-modal-overlay, .chatgptx-page-overlay, .codex-session-share-button").forEach((node) => node.remove());
+    clone.querySelectorAll?.("button, textarea, input, select, [contenteditable='true'], .codex-delete-toast, .swivox-modal-overlay, .swivox-page-overlay, .codex-session-share-button").forEach((node) => node.remove());
     return String(clone.innerText || clone.textContent || "").replace(/\u00a0/g, " ").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   }
 
@@ -166,7 +166,7 @@
       fallback.querySelectorAll?.([
         ".composer-footer", ".composer-surface-chrome", "form", "header", "nav", "aside",
         "button", "textarea", "input", "select", "[contenteditable='true']",
-        ".codex-delete-toast", ".chatgptx-modal-overlay", ".chatgptx-page-overlay",
+        ".codex-delete-toast", ".swivox-modal-overlay", ".swivox-page-overlay",
         ".codex-session-share-button",
       ].join(",")).forEach((node) => node.remove());
       content = String(fallback.innerText || fallback.textContent || "")
@@ -176,7 +176,7 @@
         .trim();
       if (content) messages.push({ role: "message", label: "会话", text: content });
     }
-    const markdown = `# ${title || "未命名会话"}\n\n- 会话 ID：\`${ref.session_id}\`\n\n${content}`.slice(0, chatgptxShareMaxCharacters);
+    const markdown = `# ${title || "未命名会话"}\n\n- 会话 ID：\`${ref.session_id}\`\n\n${content}`.slice(0, swivoxShareMaxCharacters);
     return {
       ref,
       markdown: content ? markdown : "",
@@ -235,11 +235,11 @@
       const encrypted = await encryptSessionShare(JSON.stringify(shareDocument));
       const payload = { ttl: 604800, encrypted: encrypted.encrypted };
       let result;
-      let baseUrl = chatgptxShareBaseUrl;
+      let baseUrl = swivoxShareBaseUrl;
       try {
         result = await postJson("/share/create", payload);
         if (result?.id) {
-          baseUrl = chatgptxShareBaseUrl;
+          baseUrl = swivoxShareBaseUrl;
         } else if (result?.status !== "failed") {
           throw new Error(result?.message || "创建分享失败");
         }
@@ -251,7 +251,7 @@
         try {
           response = await fetch(`${baseUrl}/api/shares`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         } catch (_) {
-          baseUrl = chatgptxShareFallbackBaseUrl;
+          baseUrl = swivoxShareFallbackBaseUrl;
           response = await fetch(`${baseUrl}/api/shares`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         }
         result = await response.json().catch(() => ({}));
@@ -288,23 +288,23 @@
     // 会话操作锚点唯一时才挂载，不能把右侧审查/浏览器的 header 当作会话栏。
     const headerSelector = 'header, [data-app-shell-header-edge-scroll], [class*="_Header_"]';
     const anchors = Array.from(document.querySelectorAll('[data-testid="app-shell-header-context-menu-surface"]'))
-      .filter((node) => visibleElement(node) && !node.closest('[data-chatgptx-ext]'));
+      .filter((node) => visibleElement(node) && !node.closest('[data-swivox-ext]'));
     if (anchors.length !== 1) return null;
     const header = anchors[0].closest(headerSelector);
     if (!(header instanceof HTMLElement) || !visibleElement(header)) return null;
     const nativeShare = Array.from(header.querySelectorAll('button[aria-label="Share"], button[aria-label="分享"], button[aria-label*="Share"], button[aria-label*="分享"]'))
-      .find((node) => visibleElement(node) && !node.closest('[data-chatgptx-ext]') && !node.classList.contains(sessionShareButtonClass) && node.closest(headerSelector) === header);
+      .find((node) => visibleElement(node) && !node.closest('[data-swivox-ext]') && !node.classList.contains(sessionShareButtonClass) && node.closest(headerSelector) === header);
     const nativeGroup = nativeShare?.closest?.(".ms-auto");
     if (nativeGroup && header.contains(nativeGroup)) return nativeGroup;
     const groups = Array.from(header.querySelectorAll(".ms-auto"))
-      .filter((node) => visibleElement(node) && !node.closest('[data-chatgptx-ext]') && node.closest(headerSelector) === header);
+      .filter((node) => visibleElement(node) && !node.closest('[data-swivox-ext]') && node.closest(headerSelector) === header);
     return groups.length === 1 ? groups[0] : null;
   }
 
   function installSessionShareButton() {
     const existing = document.querySelectorAll(`.${sessionShareButtonClass}`);
     const ref = currentSessionRef();
-    const actionGroup = chatgptxSettings().sessionShare && ref.session_id ? sessionSharePlacement() : null;
+    const actionGroup = swivoxSettings().sessionShare && ref.session_id ? sessionSharePlacement() : null;
     if (!(actionGroup instanceof HTMLElement)) {
       existing.forEach((button) => button.remove());
       return;
@@ -317,7 +317,7 @@
       button.className = `${sessionShareButtonClass} ${headerContextButtonClass}`;
       button.textContent = "分享会话";
       button.setAttribute("aria-label", "分享当前会话");
-      button.setAttribute("data-chatgptx-ext", "session-share");
+      button.setAttribute("data-swivox-ext", "session-share");
       button.dataset.codexSessionShareVersion = sessionShareButtonVersion;
       button.addEventListener("click", (event) => {
         event.preventDefault();
@@ -325,7 +325,7 @@
         void createSessionShare();
       }, true);
     }
-    button.setAttribute("data-chatgptx-ext", "session-share");
+    button.setAttribute("data-swivox-ext", "session-share");
     button.style.position = "static";
     button.style.pointerEvents = "auto";
     button.style.webkitAppRegion = "no-drag";
@@ -544,7 +544,7 @@
     releaseDeleteFocus(row, button);
     if (!ref.host_id) {
       const evidence = sessionHostEvidenceFromRow(row, ref.session_id);
-      sendChatGPTXDiagnostic("delete_session_host_unresolved", {
+      sendSwivoxDiagnostic("delete_session_host_unresolved", {
         reason: evidence.reason, hostCount: evidence.hostCount, matchingMetadata: evidence.matchingMetadata,
         nativeHostAttributePresent: !!row.getAttribute("data-app-action-sidebar-thread-host-id"),
       });

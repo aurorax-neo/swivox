@@ -7,9 +7,9 @@
 
 ## 1. 背景与目标
 
-ChatGPTX 使用第三方模型（deepseek-v4-pro 1M、Claude 200K）时，上下文窗口被锁 258K。根因见 `docs/research/01-调研结果.md`：codex 客户端二进制硬编码 272000，custom provider slug 回落默认；ChatGPTX 不生成 `model_catalog_json`，用户被迫手改 config.toml。
+Swivox 使用第三方模型（deepseek-v4-pro 1M、Claude 200K）时，上下文窗口被锁 258K。根因见 `docs/research/01-调研结果.md`：codex 客户端二进制硬编码 272000，custom provider slug 回落默认；Swivox 不生成 `model_catalog_json`，用户被迫手改 config.toml。
 
-**目标**：让 ChatGPTX 应用 profile 时自动生成 catalog + 写指针，按模型配置窗口，规避 #931 的路径转义坑与单模型副作用。
+**目标**：让 Swivox 应用 profile 时自动生成 catalog + 写指针，按模型配置窗口，规避 #931 的路径转义坑与单模型副作用。
 
 ## 2. 范围（阶段一原型）
 
@@ -101,7 +101,7 @@ complete_relay_profile_config → merge_common → preserve_unmanaged
 
 ## 6. 测试计划（主仓风格）
 
-新增 `crates/chatgptx-core/tests/relay_config.rs` 用例：
+新增 `crates/swivox-core/tests/relay_config.rs` 用例：
 - 有后缀 → 生成 catalog 文件 + config.toml 指针 + slug 剥离后缀
 - 无后缀 → 不生成（no-op）
 - 手写指针 → 不覆盖

@@ -18,7 +18,7 @@
 | #2433 | 暂停事件有界保存，跟踪当前暂停序号/归属；求值失败仍恢复自身暂停，过期、超时和失败检查断点移除/disable/关闭；捕获验证 constructor/RPC 能力 | 确认的控制流缺陷已修，用户 macOS 27 / Codex 26.924 的现场仍待复测，保持开放 |
 | #2432 | 补原生配对的 host/会话元数据；删除前后复核身份，取消成功删除后的整页 reload，采用原生导航和列表刷新；原生插件入口存在时去重 | 原用户官方版本/字段形态未知、整体 UI 反馈未等同解决，保持开放 |
 
-renderer 公开类名/constants 与拓展路由白名单保持兼容，新增节点带 data-chatgptx-ext。分享设置 codexAppSessionShare 默认 true，关闭后移除既有按钮；无可靠宿主不回退 body。
+renderer 公开类名/constants 与拓展路由白名单保持兼容，新增节点带 data-swivox-ext。分享设置 codexAppSessionShare 默认 true，关闭后移除既有按钮；无可靠宿主不回退 body。
 
 居中查找新增真实函数 DOM 夹具，涵盖嵌套 sidebar/summary、继承变量、多个 footer、多个会话、兄弟页脚、原生 composer、旧首页输入框、状态 aside、合法分享/听写拓展控件和旧目标样式恢复。没有针对未知皮肤全局清空背景或抬高 z-index。
 
@@ -26,17 +26,17 @@ renderer 公开类名/constants 与拓展路由白名单保持兼容，新增节
 
 | Issue | 当前处置 | 本轮回复 |
 | --- | --- | --- |
-| #2422 | CLOSED / completed，按作者已确认的配置方案 | [说明](https://github.com/ChatGPTX/ChatGPTX/issues/2422#issuecomment-6065389994) |
-| #2421 | OPEN，询问上游协议、失败事件、新旧会话与直连对照 | [取证](https://github.com/ChatGPTX/ChatGPTX/issues/2421#issuecomment-6065534048) |
-| #2424 | OPEN，询问真实 agent 请求结构/构造代码；说明 PR #2425 尚缺协议依据 | [取证](https://github.com/ChatGPTX/ChatGPTX/issues/2424#issuecomment-6065534655) |
-| #2423 | OPEN，请完整重装正式 v1.7.0 后核对版本、签名与启动结果 | [复测](https://github.com/ChatGPTX/ChatGPTX/issues/2423#issuecomment-6065535196) |
-| #2429 | OPEN，询问主题/官方版本/遮挡节点及覆盖层开关矩阵 | [取证](https://github.com/ChatGPTX/ChatGPTX/issues/2429#issuecomment-6065535657) |
-| #2417 | OPEN，询问最后启动阶段与耗时，区分扫描和 ready 后退出 | [取证](https://github.com/ChatGPTX/ChatGPTX/issues/2417#issuecomment-6065536214) |
-| #2420 | OPEN，询问当前版本复现、实际 model ID、供应商模式与权限 | [取证](https://github.com/ChatGPTX/ChatGPTX/issues/2420#issuecomment-6065536710) |
-| #2427 | OPEN，独立原生热键功能，询问平台与按住/切换交互要求 | [需求确认](https://github.com/ChatGPTX/ChatGPTX/issues/2427#issuecomment-6065537145) |
+| #2422 | CLOSED / completed，按作者已确认的配置方案 | [说明](https://github.com/Swivox/Swivox/issues/2422#issuecomment-6065389994) |
+| #2421 | OPEN，询问上游协议、失败事件、新旧会话与直连对照 | [取证](https://github.com/Swivox/Swivox/issues/2421#issuecomment-6065534048) |
+| #2424 | OPEN，询问真实 agent 请求结构/构造代码；说明 PR #2425 尚缺协议依据 | [取证](https://github.com/Swivox/Swivox/issues/2424#issuecomment-6065534655) |
+| #2423 | OPEN，请完整重装正式 v1.7.0 后核对版本、签名与启动结果 | [复测](https://github.com/Swivox/Swivox/issues/2423#issuecomment-6065535196) |
+| #2429 | OPEN，询问主题/官方版本/遮挡节点及覆盖层开关矩阵 | [取证](https://github.com/Swivox/Swivox/issues/2429#issuecomment-6065535657) |
+| #2417 | OPEN，询问最后启动阶段与耗时，区分扫描和 ready 后退出 | [取证](https://github.com/Swivox/Swivox/issues/2417#issuecomment-6065536214) |
+| #2420 | OPEN，询问当前版本复现、实际 model ID、供应商模式与权限 | [取证](https://github.com/Swivox/Swivox/issues/2420#issuecomment-6065536710) |
+| #2427 | OPEN，独立原生热键功能，询问平台与按住/切换交互要求 | [需求确认](https://github.com/Swivox/Swivox/issues/2427#issuecomment-6065537145) |
 | #2412 / #2413 | OPEN，上次针对性的取证问题仍未补齐 | 沿用已有跟踪，避免重复索要相同材料 |
-| #2433 | OPEN，说明捕获版本差异，询问单项开关与暂停日志对照 | [取证](https://github.com/ChatGPTX/ChatGPTX/issues/2433#issuecomment-6074006374) |
-| #2432 | OPEN，分别说明 host 守卫、页面 reload 和重复入口，询问官方版本与会话类型 | [取证](https://github.com/ChatGPTX/ChatGPTX/issues/2432#issuecomment-6074006617) |
+| #2433 | OPEN，说明捕获版本差异，询问单项开关与暂停日志对照 | [取证](https://github.com/Swivox/Swivox/issues/2433#issuecomment-6074006374) |
+| #2432 | OPEN，分别说明 host 守卫、页面 reload 和重复入口，询问官方版本与会话类型 | [取证](https://github.com/Swivox/Swivox/issues/2432#issuecomment-6074006617) |
 
 ## 验证与隔离
 

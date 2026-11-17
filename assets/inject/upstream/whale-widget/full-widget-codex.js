@@ -36,7 +36,7 @@ var dshwStarted = false
 function dshwStartOnce() {
   if (dshwStarted) return
   dshwStarted = true
-  try { dshwInit() } catch (err) { window.__chatgptxWhaleHost.fail(err) }
+  try { dshwInit() } catch (err) { window.__swivoxWhaleHost.fail(err) }
 }
 // 是否已到主聊天界面；是则启动（只启动一次，之后由 dshwInit 内部标记去重）
 var dshwLastCheck = 0
@@ -47,12 +47,12 @@ function dshwTryStart(force) {
   if (!force && now - dshwLastCheck < 200) return false
   dshwLastCheck = now
   try {
-    if (window.__chatgptxWhaleHost.active()) { dshwStartOnce(); return true }
+    if (window.__swivoxWhaleHost.active()) { dshwStartOnce(); return true }
   } catch (err) {}
   return false
 }
 try {
-  if (false) { // ChatGPTX 已由 enhancement 生命周期判断挂载时机
+  if (false) { // Swivox 已由 enhancement 生命周期判断挂载时机
     // 尚未渲染：MutationObserver 无限等待（v739 去掉原来的「5 秒死线」）。
     // 原来 500ms × 10 次就永久放弃，而 window.__dshWhaleWidget 是一次性闸门 ——
     // 慢启动机器、或页面最小化时定时器被浏览器节流，都会让"第一次没赶上"变成
@@ -79,7 +79,7 @@ try {
 function dshwInit() {
 if (window.__dshWhaleInit) return
 window.__dshWhaleInit = true
-var codexWhaleHost = window.__chatgptxWhaleHost
+var codexWhaleHost = window.__swivoxWhaleHost
 
 // ===== 音效播放（v745：Web Audio + 预解码 + 同步起播 + 可调衔接）=====
 // 目标：既要 0.3.0 那种"贴手"的响应，又不让 macOS 把音效注册进系统「正在播放」（Touch Bar 播放条 + 卡顿）。
@@ -901,7 +901,7 @@ var styleEl = document.createElement('style')
 // 一起删掉。样式一没，挂件 20 多个 dshwv-* 节点就从 position:fixed 掉回文档流堆在
 // 页面底部（页面被撑到几千像素高）。打上自己的名字后就不会被任何人认领/删除。
 styleEl.setAttribute('data-plugin', 'dsh-whale-widget')
-styleEl.textContent = css + "\nhtml input[data-chatgptx-ext=\"whale-widget\"][type=\"checkbox\"]{appearance:auto!important;-webkit-appearance:checkbox!important;display:inline-block!important;position:static!important;width:16px!important;min-width:16px!important;height:16px!important;min-height:16px!important;margin:0 7px 0 0!important;padding:0!important;opacity:1!important;visibility:visible!important;clip:auto!important;clip-path:none!important;accent-color:#203170!important;color-scheme:light!important;cursor:pointer!important}\nhtml input[data-chatgptx-ext=\"whale-widget\"][type=\"range\"]{appearance:none!important;-webkit-appearance:none!important;display:inline-block!important;min-width:0!important;height:24px!important;min-height:24px!important;padding:0!important;border:0!important;box-shadow:none!important;background:transparent!important;color-scheme:light!important;cursor:pointer!important}\nhtml input[data-chatgptx-ext=\"whale-widget\"][type=\"range\"]::-webkit-slider-runnable-track{height:6px!important;border:0!important;border-radius:4px!important;background:#cbd1e1!important}\nhtml input[data-chatgptx-ext=\"whale-widget\"][type=\"range\"]::-webkit-slider-thumb{appearance:none!important;-webkit-appearance:none!important;width:16px!important;height:16px!important;margin-top:-5px!important;border:0!important;border-radius:50%!important;background:#203170!important;box-shadow:none!important}\nhtml input[data-chatgptx-ext=\"whale-widget\"][type=\"range\"]:disabled{opacity:.4!important;cursor:default!important}\n"
+styleEl.textContent = css + "\nhtml input[data-swivox-ext=\"whale-widget\"][type=\"checkbox\"]{appearance:auto!important;-webkit-appearance:checkbox!important;display:inline-block!important;position:static!important;width:16px!important;min-width:16px!important;height:16px!important;min-height:16px!important;margin:0 7px 0 0!important;padding:0!important;opacity:1!important;visibility:visible!important;clip:auto!important;clip-path:none!important;accent-color:#203170!important;color-scheme:light!important;cursor:pointer!important}\nhtml input[data-swivox-ext=\"whale-widget\"][type=\"range\"]{appearance:none!important;-webkit-appearance:none!important;display:inline-block!important;min-width:0!important;height:24px!important;min-height:24px!important;padding:0!important;border:0!important;box-shadow:none!important;background:transparent!important;color-scheme:light!important;cursor:pointer!important}\nhtml input[data-swivox-ext=\"whale-widget\"][type=\"range\"]::-webkit-slider-runnable-track{height:6px!important;border:0!important;border-radius:4px!important;background:#cbd1e1!important}\nhtml input[data-swivox-ext=\"whale-widget\"][type=\"range\"]::-webkit-slider-thumb{appearance:none!important;-webkit-appearance:none!important;width:16px!important;height:16px!important;margin-top:-5px!important;border:0!important;border-radius:50%!important;background:#203170!important;box-shadow:none!important}\nhtml input[data-swivox-ext=\"whale-widget\"][type=\"range\"]:disabled{opacity:.4!important;cursor:default!important}\n"
 document.head.appendChild(styleEl)
 
 // ===== v743：body 挂载登记器（DOM 守护的基础设施，见下面 dshwReattachRoot）=====
@@ -3569,7 +3569,7 @@ function openApiModelPanel(modelId) {
     // 密钥
     card.appendChild(apiSec('密钥'))
     var keyRefInp = codexWhaleHost.profileSelect(isNew ? '' : m.keyRef)
-    keyRefInp.title = '复用 ChatGPTX 已保存的供应商配置，密钥只在本机后端使用'
+    keyRefInp.title = '复用 Swivox 已保存的供应商配置，密钥只在本机后端使用'
     card.appendChild(apiPanelRow('供应商配置', keyRefInp))
     var keyInp = document.createElement('input')
     keyInp.type = 'password'
@@ -3581,7 +3581,7 @@ function openApiModelPanel(modelId) {
     keyInp.style.height = '26px'
     keyInp.style.boxSizing = 'border-box'
     keyInp.style.textAlign = 'left'
-    keyInp.placeholder = '在 ChatGPTX 供应商配置中管理密钥'
+    keyInp.placeholder = '在 Swivox 供应商配置中管理密钥'
     card.appendChild(apiPanelRow('API key', keyInp))
     var keyState = document.createElement('div')
     keyState.className = 'dshwv-bubhint'
@@ -3598,7 +3598,7 @@ function openApiModelPanel(modelId) {
       })
     })
     delKey.disabled = true
-    delKey.title = '请在 ChatGPTX 供应商配置中管理密钥'
+    delKey.title = '请在 Swivox 供应商配置中管理密钥'
     var delKeyRow = apiPanelRow('', delKey)
     card.appendChild(delKeyRow)
     // Base URL（中转站/自定义需要）
@@ -14559,7 +14559,7 @@ function configSaveFailNotice(detail) {
   var safe = String(detail || '').slice(0, 120)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   dshwvToast('⚠ 设置保存失败：' + safe +
-    '<br>已自动重试一次。若持续失败，请检查 ChatGPTX 数据目录是否可写。')
+    '<br>已自动重试一次。若持续失败，请检查 Swivox 数据目录是否可写。')
 }
 function configPayload() {
   return JSON.stringify({ scale: state.scale, sound: soundOn, vol: soundVol, soundSet: soundSet, usageMode: usageMode, peakMode: peakMode, bubbleOn: bubbleOn, turnCostOn: turnCostOn, turnCostCloseMs: turnCostCloseMs, scrollGapOn: scrollGapOn, scrollGapPx: scrollGapPx, menuBtnHide: menuBtnHide, codexStatsOn: codexStatsOn })

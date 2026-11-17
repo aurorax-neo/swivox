@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add an optional default-off ChatGPTX provider sync that runs before Codex launches and keeps historical conversations visible after `model_provider` changes.
+**Goal:** Add an optional default-off Swivox provider sync that runs before Codex launches and keeps historical conversations visible after `model_provider` changes.
 
-**Architecture:** Add backend settings in `~/.chatgptx/settings.json`, expose those settings through the existing CDP bridge/menu, and implement provider sync as a focused Python module called by `launcher.launch_and_inject()` before `launch_codex_app()`. The sync module reads `~/.codex/config.toml`, backs up writable state, locks with `~/.codex/tmp/provider-sync.lock`, updates rollout first-line metadata and SQLite provider metadata, logs skippable lock/busy conditions, and only blocks launch on unsafe write/restore failures.
+**Architecture:** Add backend settings in `~/.swivox/settings.json`, expose those settings through the existing CDP bridge/menu, and implement provider sync as a focused Python module called by `launcher.launch_and_inject()` before `launch_codex_app()`. The sync module reads `~/.codex/config.toml`, backs up writable state, locks with `~/.codex/tmp/provider-sync.lock`, updates rollout first-line metadata and SQLite provider metadata, logs skippable lock/busy conditions, and only blocks launch on unsafe write/restore failures.
 
 **Tech Stack:** Python 3.11 stdlib (`json`, `sqlite3`, `shutil`, `pathlib`, `dataclasses`, `time`), existing renderer injection JavaScript, pytest.
 
@@ -12,10 +12,10 @@
 
 ## File Structure
 
-- Create `codex_session_delete/settings_store.py`: backend-readable ChatGPTX settings store with defaults and atomic writes.
+- Create `codex_session_delete/settings_store.py`: backend-readable Swivox settings store with defaults and atomic writes.
 - Create `codex_session_delete/provider_sync.py`: provider sync implementation and result model.
 - Modify `codex_session_delete/launcher.py`: load settings, expose bridge endpoints, call provider sync before launch, and log skipped/fatal sync results.
-- Modify `codex_session_delete/inject/renderer-inject.js`: add backend-backed Provider sync toggle to ChatGPTX menu.
+- Modify `codex_session_delete/inject/renderer-inject.js`: add backend-backed Provider sync toggle to Swivox menu.
 - Modify `tests/test_launcher_user_scripts.py`: bridge settings endpoint tests.
 - Modify `tests/test_launcher_cli.py`: launch pre-sync tests.
 - Create `tests/test_settings_store.py`: backend settings tests.
@@ -128,7 +128,7 @@ class SettingsStore:
 
 
 def default_settings_path() -> Path:
-    return Path.home() / ".chatgptx" / "settings.json"
+    return Path.home() / ".swivox" / "settings.json"
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
@@ -232,7 +232,7 @@ def test_provider_sync_prunes_backups_to_five(tmp_path):
     for index in range(6):
         backup = backup_root / f"2000010100000{index}"
         backup.mkdir(parents=True)
-        (backup / "metadata.json").write_text(json.dumps({"managedBy": "ChatGPTX provider sync"}), encoding="utf-8")
+        (backup / "metadata.json").write_text(json.dumps({"managedBy": "Swivox provider sync"}), encoding="utf-8")
     write_rollout(codex_home / "sessions" / "rollout-new.jsonl", provider="openai")
 
     result = run_provider_sync(codex_home)
@@ -432,7 +432,7 @@ def create_backup(home: Path, target_provider: str, changes: list[SessionChange]
     ]
     (backup_dir / "session-meta-backup.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     (backup_dir / "metadata.json").write_text(
-        json.dumps({"managedBy": "ChatGPTX provider sync", "targetProvider": target_provider}, ensure_ascii=False, indent=2),
+        json.dumps({"managedBy": "Swivox provider sync", "targetProvider": target_provider}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     return backup_dir
@@ -512,7 +512,7 @@ def prune_backups(home: Path, keep_count: int = BACKUP_KEEP_COUNT) -> None:
             metadata = json.loads((path / "metadata.json").read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
-        if metadata.get("managedBy") == "ChatGPTX provider sync":
+        if metadata.get("managedBy") == "Swivox provider sync":
             managed.append(path)
     managed.sort(key=lambda path: path.name, reverse=True)
     for path in managed[keep_count:]:
@@ -560,7 +560,7 @@ def test_launch_and_inject_runs_provider_sync_before_launch_when_enabled(monkeyp
     monkeypatch.setattr(launcher, "run_provider_sync", lambda: events.append("sync") or type("Result", (), {"status": "synced", "message": "ok"})())
     monkeypatch.setattr(launcher, "launch_codex_app", lambda *args: events.append("launch") or 1234)
 
-    launcher.launch_and_inject(None, None, tmp_path / "backups", 9229, 57321)
+    launcher.launch_and_inject(None, None, tmp_path / "backups", 9229, 58321)
 
     assert events == ["sync", "launch"]
 
@@ -574,7 +574,7 @@ def test_launch_and_inject_skips_provider_sync_when_disabled(monkeypatch, tmp_pa
     monkeypatch.setattr(launcher, "run_provider_sync", lambda: (_ for _ in ()).throw(AssertionError("sync should not run")))
     monkeypatch.setattr(launcher, "launch_codex_app", lambda *args: events.append("launch") or 1234)
 
-    launcher.launch_and_inject(None, None, tmp_path / "backups", 9229, 57321)
+    launcher.launch_and_inject(None, None, tmp_path / "backups", 9229, 58321)
 
     assert events == ["launch"]
 ```
@@ -728,7 +728,7 @@ git commit -m "Expose backend settings bridge"
 
 - [ ] **Step 1: Write failing renderer contract test**
 
-Add this test to `tests/test_renderer_script.py` near the ChatGPTX menu tests:
+Add this test to `tests/test_renderer_script.py` near the Swivox menu tests:
 
 ```python
 def test_renderer_script_has_backend_provider_sync_toggle():
@@ -754,36 +754,36 @@ Expected: FAIL with missing `Provider 同步`.
 
 - [ ] **Step 3: Add renderer backend settings functions**
 
-In `codex_session_delete/inject/renderer-inject.js`, after `function setChatGPTXSetting(...)`, add:
+In `codex_session_delete/inject/renderer-inject.js`, after `function setSwivoxSetting(...)`, add:
 
 ```javascript
-  let chatgptxBackendSettings = { providerSyncEnabled: false };
+  let swivoxBackendSettings = { providerSyncEnabled: false };
 
   async function loadBackendSettings() {
     try {
       const settings = await bridgeCall("/settings/get", {});
-      chatgptxBackendSettings = { ...chatgptxBackendSettings, ...settings };
-      refreshChatGPTXBackendToggles();
+      swivoxBackendSettings = { ...swivoxBackendSettings, ...settings };
+      refreshSwivoxBackendToggles();
     } catch (_) {
-      refreshChatGPTXBackendToggles();
+      refreshSwivoxBackendToggles();
     }
   }
 
   async function setBackendSetting(key, value) {
-    chatgptxBackendSettings = { ...chatgptxBackendSettings, [key]: value };
-    refreshChatGPTXBackendToggles();
+    swivoxBackendSettings = { ...swivoxBackendSettings, [key]: value };
+    refreshSwivoxBackendToggles();
     try {
       const settings = await bridgeCall("/settings/set", { [key]: value });
-      chatgptxBackendSettings = { ...chatgptxBackendSettings, ...settings };
+      swivoxBackendSettings = { ...swivoxBackendSettings, ...settings };
     } finally {
-      refreshChatGPTXBackendToggles();
+      refreshSwivoxBackendToggles();
     }
   }
 
-  function refreshChatGPTXBackendToggles() {
-    document.querySelectorAll(".chatgptx-toggle[data-codex-backend-setting]").forEach((button) => {
+  function refreshSwivoxBackendToggles() {
+    document.querySelectorAll(".swivox-toggle[data-codex-backend-setting]").forEach((button) => {
       const key = button.getAttribute("data-codex-backend-setting");
-      button.dataset.enabled = String(!!chatgptxBackendSettings[key]);
+      button.dataset.enabled = String(!!swivoxBackendSettings[key]);
     });
   }
 ```
@@ -793,26 +793,26 @@ In `codex_session_delete/inject/renderer-inject.js`, after `function setChatGPTX
 In the existing settings rows near `conversationTimeline`, add:
 
 ```html
-            <div class="chatgptx-row">
-              <div><div class="chatgptx-row-title">Provider 同步</div><div class="chatgptx-row-description">启动 Codex 前同步历史会话到当前 model_provider。</div></div>
-              <button type="button" class="chatgptx-toggle" data-codex-backend-setting="providerSyncEnabled"><span></span></button>
+            <div class="swivox-row">
+              <div><div class="swivox-row-title">Provider 同步</div><div class="swivox-row-description">启动 Codex 前同步历史会话到当前 model_provider。</div></div>
+              <button type="button" class="swivox-toggle" data-codex-backend-setting="providerSyncEnabled"><span></span></button>
             </div>
 ```
 
 - [ ] **Step 5: Wire click handler and initial load**
 
-In the ChatGPTX menu click handler, after existing `[data-chatgptx-setting]` handling, add:
+In the Swivox menu click handler, after existing `[data-swivox-setting]` handling, add:
 
 ```javascript
       const backendToggle = target?.closest("[data-codex-backend-setting]");
       if (backendToggle) {
         const key = backendToggle.getAttribute("data-codex-backend-setting");
-        setBackendSetting(key, !chatgptxBackendSettings[key]);
+        setBackendSetting(key, !swivoxBackendSettings[key]);
         return;
       }
 ```
 
-In `installChatGPTXMenu()`, after the menu is installed and normal toggles refresh, call:
+In `installSwivoxMenu()`, after the menu is installed and normal toggles refresh, call:
 
 ```javascript
     loadBackendSettings();
@@ -852,7 +852,7 @@ Run:
 python -m pytest -q tests/test_settings_store.py tests/test_provider_sync.py tests/test_launcher_user_scripts.py tests/test_launcher_cli.py tests/test_renderer_script.py
 ```
 
-Expected: all focused tests pass. If `tests/test_renderer_script.py` fails on the pre-existing `right: 140px` assertion, update that assertion to accept `right: var(--chatgptx-menu-right, 140px)` because the current source uses the CSS variable from commit `9ab834f`.
+Expected: all focused tests pass. If `tests/test_renderer_script.py` fails on the pre-existing `right: 140px` assertion, update that assertion to accept `right: var(--swivox-menu-right, 140px)` because the current source uses the CSS variable from commit `9ab834f`.
 
 - [ ] **Step 2: Run full test suite**
 

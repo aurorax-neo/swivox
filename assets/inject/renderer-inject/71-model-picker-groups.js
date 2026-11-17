@@ -8,7 +8,7 @@
    * 做法（不改模型数据、不接管点击）：
    *   1. 找到原生面板（挂在 popper 里、可见的 `[data-model-picker-view]`，宫格视图跳过），
    *      从行文本尾部的 `（供应商）` 解析归属；解析不到时回退去 `/codex-model-catalog`
-   *      的 `modelMetadata[slug]`（聚合目录发布的 `chatgptx_group`，或 `description`
+   *      的 `modelMetadata[slug]`（聚合目录发布的 `swivox_group`，或 `description`
    *      里的 `上游 · 供应商`）取权威归属。已知归属会在会话内累积，目录快照被整体替换
    *      也不会把默认成员那一组变成空标题。
    *   2. 在每组第一行前插一个自己的分组标题按钮，点它只折叠/展开这一组；
@@ -18,45 +18,45 @@
    *      不增删原生节点，所以不会把原生列表搞崩。
    *
    * 只在"确实有多个供应商分组"时接管；单供应商（直连供应商）时完全不动原生列表。
-   * 分组标题带 `data-chatgptx-ext`，扫描调度器会把它排除在自喂循环之外
+   * 分组标题带 `data-swivox-ext`，扫描调度器会把它排除在自喂循环之外
    * （issue #1960）。折叠状态与供应商归属存 localStorage。
    */
-  registerChatGPTXExtensionSelector('[data-chatgptx-ext="builtin-model-picker-groups"]');
+  registerSwivoxExtensionSelector('[data-swivox-ext="builtin-model-picker-groups"]');
   // 重注入时先与上一个实例交接：停掉它的轮询与观察器，但**不**让它清理 DOM 补丁。
   // 旧实例的清理会先把标题/标签拆掉、再等自己下一轮扫描重建，而它已经被 dispose，
   // 结果是"标题一闪一闪"。DOM 由下面这个新实例在同一个 list 上重建，幂等。
-  window.__chatgptxModelPickerGroupsRuntime?.dispose?.();
+  window.__swivoxModelPickerGroupsRuntime?.dispose?.();
 
   /** 折叠状态存储键，改结构要换版本号。 */
-  const chatgptxModelPickerGroupsStoreKey = "chatgptx.modelPicker.collapsedGroups.v1";
+  const swivoxModelPickerGroupsStoreKey = "swivox.modelPicker.collapsedGroups.v1";
   /** 分组标题与工具条节点上的归属标记。 */
-  const chatgptxModelPickerGroupsExtMark = "builtin-model-picker-groups";
+  const swivoxModelPickerGroupsExtMark = "builtin-model-picker-groups";
   /** 样式表节点 id。 */
-  const chatgptxModelPickerGroupsStyleId = "chatgptx-model-picker-groups-style";
+  const swivoxModelPickerGroupsStyleId = "swivox-model-picker-groups-style";
   /** 原生行上由我们添加的类名，卸载时要摘干净。 */
-  const chatgptxModelPickerItemClass = "chatgptx-model-group-item";
+  const swivoxModelPickerItemClass = "swivox-model-group-item";
   /** 行内被我们替换掉的原生标签类名（恢复时要用）。 */
-  const chatgptxModelPickerNativeLabelClass = "chatgptx-model-group-native-label";
+  const swivoxModelPickerNativeLabelClass = "swivox-model-group-native-label";
   /** 我们自己插入的模型标签类名。 */
-  const chatgptxModelPickerOwnLabelClass = "chatgptx-model-group-own-label";
+  const swivoxModelPickerOwnLabelClass = "swivox-model-group-own-label";
   /** 行上的分组标记属性。 */
-  const chatgptxModelPickerGroupAttr = "data-chatgptx-model-group";
+  const swivoxModelPickerGroupAttr = "data-swivox-model-group";
   /** 分组标题上的分组 id 属性。 */
-  const chatgptxModelPickerGroupIdAttr = "data-chatgptx-model-group-id";
+  const swivoxModelPickerGroupIdAttr = "data-swivox-model-group-id";
   /** 一行最多解析多少字符的供应商名；超长的一律当成模型名不拆。 */
-  const chatgptxModelPickerGroupNameMaxLength = 24;
+  const swivoxModelPickerGroupNameMaxLength = 24;
   /** 列表 DOM 变化后的合并重扫延迟。 */
-  const chatgptxModelPickerRescanDelayMs = 60;
+  const swivoxModelPickerRescanDelayMs = 60;
   /**
    * 菜单开着的兜底轮询间隔。
    *
    * React 在菜单里做一次重渲染就可能顺手回收我们插的标题节点，而这类删除不会产生
-   * 我们关心的 childList 变更（节点带 data-chatgptx-ext）。所以只在菜单打开期间
+   * 我们关心的 childList 变更（节点带 data-swivox-ext）。所以只在菜单打开期间
    * 以这个间隔自检一次标题是否还在，坏了就地重建；菜单关掉立刻停。
    */
-  const chatgptxModelPickerWatchIntervalMs = 250;
+  const swivoxModelPickerWatchIntervalMs = 250;
 
-  const chatgptxModelPickerGroupsState = {
+  const swivoxModelPickerGroupsState = {
     disposed: false,
     /** 已打补丁的列表根节点（WeakSet，不缓存 DOM 生命周期）。 */
     patchedLists: new WeakSet(),
@@ -83,7 +83,7 @@
     stored: false,
   };
 
-  function chatgptxModelPickerText() {
+  function swivoxModelPickerText() {
     const language = (document.documentElement?.lang || navigator.language || "").toLowerCase();
     return language.startsWith("zh")
       ? {
@@ -104,44 +104,44 @@
         };
   }
 
-  function chatgptxModelPickerStore() {
-    if (chatgptxModelPickerGroupsState.stored) return;
-    chatgptxModelPickerGroupsState.stored = true;
+  function swivoxModelPickerStore() {
+    if (swivoxModelPickerGroupsState.stored) return;
+    swivoxModelPickerGroupsState.stored = true;
     try {
-      const raw = window.localStorage?.getItem(chatgptxModelPickerGroupsStoreKey);
+      const raw = window.localStorage?.getItem(swivoxModelPickerGroupsStoreKey);
       const parsed = raw ? JSON.parse(raw) : null;
       if (Array.isArray(parsed?.collapsed)) {
-        parsed.collapsed.filter((id) => typeof id === "string").forEach((id) => chatgptxModelPickerGroupsState.collapsed.add(id));
+        parsed.collapsed.filter((id) => typeof id === "string").forEach((id) => swivoxModelPickerGroupsState.collapsed.add(id));
       }
       if (Array.isArray(parsed?.touched)) {
-        parsed.touched.filter((id) => typeof id === "string").forEach((id) => chatgptxModelPickerGroupsState.touched.add(id));
+        parsed.touched.filter((id) => typeof id === "string").forEach((id) => swivoxModelPickerGroupsState.touched.add(id));
       }
       if (typeof parsed?.defaultGroupId === "string") {
-        chatgptxModelPickerGroupsState.defaultGroupId = parsed.defaultGroupId;
+        swivoxModelPickerGroupsState.defaultGroupId = parsed.defaultGroupId;
       }
       if (parsed?.providers && typeof parsed.providers === "object") {
         for (const [key, value] of Object.entries(parsed.providers)) {
           if (typeof key === "string" && typeof value === "string" && key && value) {
-            chatgptxModelPickerGroupsState.providerNames.set(key, value);
+            swivoxModelPickerGroupsState.providerNames.set(key, value);
           }
         }
       }
     } catch {}
   }
 
-  function chatgptxModelPickerPersist() {
+  function swivoxModelPickerPersist() {
     try {
       const providers = {};
-      chatgptxModelPickerGroupsState.providerNames.forEach((value, key) => {
+      swivoxModelPickerGroupsState.providerNames.forEach((value, key) => {
         providers[key] = value;
       });
       window.localStorage?.setItem(
-        chatgptxModelPickerGroupsStoreKey,
+        swivoxModelPickerGroupsStoreKey,
         JSON.stringify({
-          collapsed: [...chatgptxModelPickerGroupsState.collapsed],
-          touched: [...chatgptxModelPickerGroupsState.touched],
+          collapsed: [...swivoxModelPickerGroupsState.collapsed],
+          touched: [...swivoxModelPickerGroupsState.touched],
           providers,
-          defaultGroupId: chatgptxModelPickerGroupsState.defaultGroupId || "",
+          defaultGroupId: swivoxModelPickerGroupsState.defaultGroupId || "",
         }),
       );
     } catch {}
@@ -151,27 +151,27 @@
    * 记一条"模型名 -> 供应商"。
    *
    * `parsed` 表示这条是从行末尾 `（供应商）` 猜出来的；权威来源（目录侧
-   * `chatgptx_group` / `description`）可以覆盖它，反过来不行。
+   * `swivox_group` / `description`）可以覆盖它，反过来不行。
    */
-  function chatgptxModelPickerRememberProvider(displayName, provider, parsed) {
-    const key = chatgptxModelPickerNormalize(displayName);
+  function swivoxModelPickerRememberProvider(displayName, provider, parsed) {
+    const key = swivoxModelPickerNormalize(displayName);
     if (!key || !provider) return;
-    const existing = chatgptxModelPickerGroupsState.providerNames.get(key);
+    const existing = swivoxModelPickerGroupsState.providerNames.get(key);
     if (existing && !existing.parsed && parsed) return;
     if (existing && existing.name === provider && existing.parsed === !!parsed) return;
-    chatgptxModelPickerGroupsState.providerNames.set(key, { name: provider, parsed: !!parsed });
-    chatgptxModelPickerGroupsState.providerDirty = true;
+    swivoxModelPickerGroupsState.providerNames.set(key, { name: provider, parsed: !!parsed });
+    swivoxModelPickerGroupsState.providerDirty = true;
   }
 
   /**
    * 需要时补一次目录快照。
    *
-   * 默认身份（`chatgptx_default_group_id` / 条目上的 `chatgptx_default`）只在
+   * 默认身份（`swivox_default_group_id` / 条目上的 `swivox_default`）只在
    * 目录快照里，而这份快照不一定已经被别的分片拉过（用户可能一直没打开过相关页面）。
    * 拿到后下一次扫描就会补上「默认」标志。单飞 + 冷却，避免菜单开着时反复打后端。
    */
-  function chatgptxModelPickerEnsureCatalog() {
-    const state = chatgptxModelPickerGroupsState;
+  function swivoxModelPickerEnsureCatalog() {
+    const state = swivoxModelPickerGroupsState;
     if (state.defaultGroupId) return;
     if (state.catalogPending) return;
     if (Date.now() < state.catalogRetryAt) return;
@@ -192,14 +192,14 @@
    * 默认成员（聚合里的"默认供应商"）是哪一个分组。
    *
    * 三个来源，按可靠性排序：
-   *   1. `/codex-model-catalog` 的 `chatgptx_default_group_id`（聚合配置里的
+   *   1. `/codex-model-catalog` 的 `swivox_default_group_id`（聚合配置里的
    *      `default_relay_id`，最权威）；
-   *   2. 目录里标了 `chatgptx_default` 的模型所属分组（老版本后端的兜底）；
+   *   2. 目录里标了 `swivox_default` 的模型所属分组（老版本后端的兜底）；
    *   3. 会话内记下来的结果 —— 目录快照会被整体替换，记下来才不会丢标志。
    */
-  function chatgptxModelPickerDefaultGroupId() {
-    const state = chatgptxModelPickerGroupsState;
-    const direct = codexModelCatalog?.chatgptx_default_group_id;
+  function swivoxModelPickerDefaultGroupId() {
+    const state = swivoxModelPickerGroupsState;
+    const direct = codexModelCatalog?.swivox_default_group_id;
     if (typeof direct === "string" && direct.trim()) {
       if (state.defaultGroupId !== direct.trim()) {
         state.defaultGroupId = direct.trim();
@@ -211,11 +211,11 @@
     if (modelMetadata && typeof modelMetadata === "object") {
       for (const entry of Object.values(modelMetadata)) {
         if (!entry || typeof entry !== "object") continue;
-        if (entry.chatgptx_default !== true) continue;
-        const groupId = typeof entry.chatgptx_group_id === "string" ? entry.chatgptx_group_id.trim() : "";
+        if (entry.swivox_default !== true) continue;
+        const groupId = typeof entry.swivox_group_id === "string" ? entry.swivox_group_id.trim() : "";
         if (!groupId) continue;
         const displayName = entry.displayName || entry.display_name || "";
-        chatgptxModelPickerRememberProvider(displayName, providerNameOf(entry), false);
+        swivoxModelPickerRememberProvider(displayName, providerNameOf(entry), false);
         if (state.defaultGroupId !== groupId) {
           state.defaultGroupId = groupId;
           state.providerDirty = true;
@@ -228,7 +228,7 @@
 
   /** 目录条目里的供应商展示名；没有分组键就退回 description 的「上游 · 供应商」。 */
   function providerNameOf(entry) {
-    const direct = typeof entry.chatgptx_group === "string" ? entry.chatgptx_group.trim() : "";
+    const direct = typeof entry.swivox_group === "string" ? entry.swivox_group.trim() : "";
     if (direct) return direct;
     const description = typeof entry.description === "string" ? entry.description : "";
     const separator = description.lastIndexOf(" · ");
@@ -242,7 +242,7 @@
    * 直接找挂在 popper 里、可见的 `[data-model-picker-view]`：菜单一关它就从 DOM 里
    * 消失，天然就是"开着/关着"的判据。同时排除宫格视图——宫格下折叠没有意义。
    */
-  function chatgptxModelPickerMenu() {
+  function swivoxModelPickerMenu() {
     const roots = document.querySelectorAll("[data-model-picker-view]");
     for (const root of roots) {
       // 实测列表视图的值是 `simple`；只排除宫格。
@@ -257,7 +257,7 @@
     return null;
   }
 
-  function chatgptxModelPickerList(menu) {
+  function swivoxModelPickerList(menu) {
     const root = menu?.matches?.("[data-model-picker-view]") ? menu : menu?.querySelector?.("[data-model-picker-view]");
     if (!root) return null;
     const list = root.querySelector('[class*="_ModelList_"]');
@@ -270,14 +270,14 @@
    * 拆 `DeepSeek-V4-Pro（DeepSeek）` 这种"展示名（供应商）"。
    * 返回 `{ name, provider }`；没有后缀或后缀不像供应商名时 `provider` 为空。
    */
-  function chatgptxModelPickerSplitLabel(text) {
+  function swivoxModelPickerSplitLabel(text) {
     const value = String(text || "").replace(/\s+/g, " ").trim();
     if (!value) return { name: "", provider: "" };
     const match = value.match(/^(.*\S)\s*[（(]([^（()）]{1,64})[)）]$/u);
     if (!match) return { name: value, provider: "" };
     const name = match[1].trim();
     const provider = match[2].trim();
-    if (!name || !provider || provider.length > chatgptxModelPickerGroupNameMaxLength) {
+    if (!name || !provider || provider.length > swivoxModelPickerGroupNameMaxLength) {
       return { name: value, provider: "" };
     }
     // 分组标题也是我们自己插的按钮，文本里可能带 `· 计数`，别把它当成模型名。
@@ -285,13 +285,13 @@
   }
 
   /** 严格归一化：只去空白 + 小写，保留 `gpt-` 前缀。 */
-  function chatgptxModelPickerNormalizeStrict(value) {
+  function swivoxModelPickerNormalizeStrict(value) {
     return String(value || "").replace(/\s+/g, "").trim().toLowerCase();
   }
 
   /** 归一化：比较时忽略大小写、`gpt-` 前缀和空白。 */
-  function chatgptxModelPickerNormalize(value) {
-    return chatgptxModelPickerNormalizeStrict(value).replace(/^gpt-/u, "");
+  function swivoxModelPickerNormalize(value) {
+    return swivoxModelPickerNormalizeStrict(value).replace(/^gpt-/u, "");
   }
 
   /**
@@ -302,12 +302,12 @@
    * 所以给每个目录条目登记它所有已知写法（去掉前缀的 displayName、slug、去掉
    * `cpx-<成员>/` 之后的裸 slug），前端才可能把"行"和"目录归属"对上。
    */
-  function chatgptxModelPickerCatalogAliases(displayName, entry, slug) {
+  function swivoxModelPickerCatalogAliases(displayName, entry, slug) {
     const aliases = new Set();
     const add = (value) => {
-      const key = chatgptxModelPickerNormalize(value);
+      const key = swivoxModelPickerNormalize(value);
       if (key) aliases.add(key);
-      const strict = chatgptxModelPickerNormalizeStrict(value);
+      const strict = swivoxModelPickerNormalizeStrict(value);
       if (strict && strict !== key) aliases.add(strict);
     };
     add(displayName);
@@ -325,11 +325,11 @@
    * 权威归属：聚合目录里每个模型的 `description` 是 `上游 · 供应商`。
    * 命中后可以拿到聚合成员的真名（而不是从展示名尾部猜出来的供应商名）。
    */
-  function chatgptxModelPickerCatalogProviderMap() {
+  function swivoxModelPickerCatalogProviderMap() {
     const modelMetadata = codexModelCatalog?.modelMetadata || codexModelCatalog?.model_metadata;
     // 会话内已记下的归属先铺一层：目录快照可能被整体替换（重连 / 重新生成），
     // 只认当前快照会让默认供应商的分组名在某一刻变空。
-    const map = new Map(chatgptxModelPickerGroupsState.providerNames);
+    const map = new Map(swivoxModelPickerGroupsState.providerNames);
     if (!modelMetadata || typeof modelMetadata !== "object") return map;
     const slugList = Array.isArray(codexModelCatalog?.models)
       ? codexModelCatalog.models.filter((slug) => typeof slug === "string" && slug)
@@ -344,14 +344,14 @@
       const displayName = entry.displayName || entry.display_name;
       if (typeof displayName !== "string" || !displayName) return;
       const provider = providerNameOf(entry);
-      const groupId = typeof entry.chatgptx_group_id === "string" ? entry.chatgptx_group_id.trim() : "";
+      const groupId = typeof entry.swivox_group_id === "string" ? entry.swivox_group_id.trim() : "";
       if (!provider || !groupId) return;
-      for (const key of chatgptxModelPickerCatalogAliases(displayName, entry, slug)) {
+      for (const key of swivoxModelPickerCatalogAliases(displayName, entry, slug)) {
         const remembered = map.get(key);
         // 权威来源可以覆盖行文本猜出来的；已经有权威值就不动。
         if (!remembered || remembered.parsed) map.set(key, { provider, groupId, parsed: false });
       }
-      chatgptxModelPickerRememberProvider(displayName, provider, false);
+      swivoxModelPickerRememberProvider(displayName, provider, false);
     };
     const bySlug = new Map(entries);
     for (const slug of slugList) registerEntry(bySlug.get(slug), slug);
@@ -367,11 +367,11 @@
    * "默认 / 推荐模型集"这类入口是同一个骨架多一个副标题 span，必须排除，
    * 否则会被当成一个没有供应商的模型。
    */
-  function chatgptxModelPickerRowIdentity(row) {
+  function swivoxModelPickerRowIdentity(row) {
     const content = row.querySelector("[data-menu-row-content]");
     if (!content) return null;
-    const native = content.querySelector(`.${chatgptxModelPickerNativeLabelClass}`);
-    const own = content.querySelector(`.${chatgptxModelPickerOwnLabelClass}`);
+    const native = content.querySelector(`.${swivoxModelPickerNativeLabelClass}`);
+    const own = content.querySelector(`.${swivoxModelPickerOwnLabelClass}`);
     const outer = content.querySelector("span.flex-1, span[class*='flex-1']");
     const inner = outer?.firstElementChild;
     // 原始标签优先；没打过补丁时就是 inner 里的第一个 span。
@@ -381,11 +381,11 @@
     // 早期版本没排除自己，补丁装完后每一行都被判成"双行入口"，于是每次扫描都
     // 判定分组只剩 0 组、重建一遍 —— 表现出来就是标题一闪一闪。
     const nativeSpans = inner
-      ? [...inner.children].filter((node) => !node.classList.contains(chatgptxModelPickerOwnLabelClass)
-        && node.getAttribute("data-chatgptx-ext") !== chatgptxModelPickerGroupsExtMark)
+      ? [...inner.children].filter((node) => !node.classList.contains(swivoxModelPickerOwnLabelClass)
+        && node.getAttribute("data-swivox-ext") !== swivoxModelPickerGroupsExtMark)
       : [];
     // 已经在补丁里的行直接认账，不再重复判定结构。
-    const patched = row.getAttribute("data-chatgptx-ext") === chatgptxModelPickerGroupsExtMark;
+    const patched = row.getAttribute("data-swivox-ext") === swivoxModelPickerGroupsExtMark;
     return {
       content,
       inner,
@@ -396,32 +396,32 @@
     };
   }
 
-  function chatgptxModelPickerRowLabel(row) {
-    return chatgptxModelPickerRowIdentity(row)?.text || "";
+  function swivoxModelPickerRowLabel(row) {
+    return swivoxModelPickerRowIdentity(row)?.text || "";
   }
 
   /**
    * 把行切成 `{ row, label, name, provider, groupId }`。
    * 已打过补丁的行直接读我们留下的标记，避免反复解析。
    */
-  function chatgptxModelPickerRows(list) {
-    const providers = chatgptxModelPickerCatalogProviderMap();
+  function swivoxModelPickerRows(list) {
+    const providers = swivoxModelPickerCatalogProviderMap();
     const rows = [];
     const items = list.querySelectorAll('[role="menuitemradio"]');
     items.forEach((row) => {
-      const identity = chatgptxModelPickerRowIdentity(row);
+      const identity = swivoxModelPickerRowIdentity(row);
       if (!identity?.groupable) return;
-      const split = chatgptxModelPickerSplitLabel(identity.text);
-      if (split.provider) chatgptxModelPickerRememberProvider(split.name, split.provider, true);
+      const split = swivoxModelPickerSplitLabel(identity.text);
+      if (split.provider) swivoxModelPickerRememberProvider(split.name, split.provider, true);
       // 分组键：只信"行上有后缀"和"目录里的权威分组 id"这两个来源。
       // 早期版本拿目录展示名去拟合行文本，别名一多就把模型分到了错的组（同一家被切成
       // 好几段），所以目录查询只用来补 **分组 id**，不用来决定显示成哪一组。
-      const known = providers.get(chatgptxModelPickerNormalizeStrict(split.name))
-        || providers.get(chatgptxModelPickerNormalize(split.name));
+      const known = providers.get(swivoxModelPickerNormalizeStrict(split.name))
+        || providers.get(swivoxModelPickerNormalize(split.name));
       const groupId = known?.groupId
-        || (split.provider ? split.provider : chatgptxModelPickerDefaultGroupId());
+        || (split.provider ? split.provider : swivoxModelPickerDefaultGroupId());
       // 显示名按行文本：有后缀就是那一家；裸名（默认成员的模型）用默认供应商的名字。
-      const provider = split.provider || known?.provider || chatgptxModelPickerDefaultProviderName();
+      const provider = split.provider || known?.provider || swivoxModelPickerDefaultProviderName();
       rows.push({ row, label: identity.text, name: split.name, provider, groupId });
     });
     return rows;
@@ -431,10 +431,10 @@
    * 无后缀模型（聚合里的默认成员）该叫什么。
    *
    * 默认成员的模型保持裸名发布，所以行上没有供应商；这里从 catalog 里挑一个
-   * 同样没有后缀的模型，读它的分组归属（`chatgptx_group` 或 `description`
+   * 同样没有后缀的模型，读它的分组归属（`swivox_group` 或 `description`
    * 里的 `上游 · 供应商`）。挑不到就返回空串，调用方用兜底文案。
    */
-  function chatgptxModelPickerDefaultProviderName() {
+  function swivoxModelPickerDefaultProviderName() {
     const modelMetadata = codexModelCatalog?.modelMetadata || codexModelCatalog?.model_metadata;
     if (!modelMetadata || typeof modelMetadata !== "object") return "";
     // 取"裸名模型里出现最多的那个分组"：聚合的默认成员可能有几百个模型，
@@ -444,8 +444,8 @@
       if (!entry || typeof entry !== "object") continue;
       const displayName = entry.displayName || entry.display_name;
       if (typeof displayName !== "string" || !displayName) continue;
-      if (chatgptxModelPickerSplitLabel(displayName).provider) continue;
-      const direct = typeof entry.chatgptx_group === "string" ? entry.chatgptx_group.trim() : "";
+      if (swivoxModelPickerSplitLabel(displayName).provider) continue;
+      const direct = typeof entry.swivox_group === "string" ? entry.swivox_group.trim() : "";
       let provider = direct;
       if (!provider) {
         const description = typeof entry.description === "string" ? entry.description : "";
@@ -454,7 +454,7 @@
       }
       if (!provider) continue;
       counts.set(provider, (counts.get(provider) || 0) + 1);
-      chatgptxModelPickerRememberProvider(displayName, provider, false);
+      swivoxModelPickerRememberProvider(displayName, provider, false);
     }
     let best = "";
     let bestCount = 0;
@@ -468,7 +468,7 @@
   }
 
   /** 连续相同分组归为一组（同成员模型在聚合目录里本来就是连续的）。 */
-  function chatgptxModelPickerGroups(rows, defaultProviderName = "") {
+  function swivoxModelPickerGroups(rows, defaultProviderName = "") {
     const groups = [];
     let current = null;
     for (const entry of rows) {
@@ -492,9 +492,9 @@
    * 分组 id 撞车保护：不同分组名共用同一个 id（或都没有 id）时补上序号，
    * 否则折叠状态会串组。
    */
-  function chatgptxModelPickerUniqueGroupIds(groups) {
+  function swivoxModelPickerUniqueGroupIds(groups) {
     const seen = new Map();
-    const defaultGroupId = chatgptxModelPickerDefaultGroupId();
+    const defaultGroupId = swivoxModelPickerDefaultGroupId();
     for (const group of groups) {
       // 默认成员的分组在 id 改写之前先认出来。同一组的行里，有的能查到权威分组 id
       // （裸名发布、行上没有后缀的模型），有的只有显示名，
@@ -513,7 +513,7 @@
     return groups;
   }
 
-  function chatgptxModelPickerFingerprint(groups) {
+  function swivoxModelPickerFingerprint(groups) {
     return groups
       .map((group) => `${group.id}:${group.entries.map((entry) => entry.label).join("|")}`)
       .join("||");
@@ -529,8 +529,8 @@
    *   - 其他情况（还没有选中模型 / 定位不到）：全部保持展开。信息完整比"整齐"重要，
    *     看不到模型比看到一长串更糟。
    */
-  function chatgptxModelPickerAutoCollapse(list, groups) {
-    const state = chatgptxModelPickerGroupsState;
+  function swivoxModelPickerAutoCollapse(list, groups) {
+    const state = swivoxModelPickerGroupsState;
     if (state.autoCollapsed) return;
     state.autoCollapsed = true;
     if (groups.length < 2) return;
@@ -538,7 +538,7 @@
     let keep = "";
     const selected = list.querySelector("[data-model-selected]");
     if (selected) {
-      const split = chatgptxModelPickerSplitLabel(chatgptxModelPickerRowLabel(selected));
+      const split = swivoxModelPickerSplitLabel(swivoxModelPickerRowLabel(selected));
       const desired = split.provider || "";
       const found = groups.find((group) => (group.name || "") === desired);
       if (found) keep = found.id;
@@ -558,133 +558,133 @@
         changed = true;
       }
     }
-    if (changed) chatgptxModelPickerPersist();
+    if (changed) swivoxModelPickerPersist();
   }
 
   /**
    * 「默认」徽标：默认身份可能晚于标题创建才知道（目录快照刷新、切分组），
    * 所以每次同步都按 isDefault 补齐或摘掉，而不是只在建标题时决定一次。
    */
-  function chatgptxModelPickerSyncDefaultBadge(header, group, text) {
-    let badge = header.querySelector(".chatgptx-model-group-default");
+  function swivoxModelPickerSyncDefaultBadge(header, group, text) {
+    let badge = header.querySelector(".swivox-model-group-default");
     if (!group.isDefault) {
       badge?.remove();
       return;
     }
     if (!badge) {
       badge = document.createElement("span");
-      badge.className = "chatgptx-model-group-default";
-      const count = header.querySelector(".chatgptx-model-group-count");
+      badge.className = "swivox-model-group-default";
+      const count = header.querySelector(".swivox-model-group-count");
       header.insertBefore(badge, count || null);
     }
     if (badge.textContent !== text.defaultBadge) badge.textContent = text.defaultBadge;
     badge.title = text.defaultTitle;
   }
 
-  function chatgptxModelPickerGroupExpanded(group) {
-    return !chatgptxModelPickerGroupsState.collapsed.has(group.id);
+  function swivoxModelPickerGroupExpanded(group) {
+    return !swivoxModelPickerGroupsState.collapsed.has(group.id);
   }
 
-  function chatgptxModelPickerSyncGroup(list, group) {
-    const text = chatgptxModelPickerText();
-    const expanded = chatgptxModelPickerGroupExpanded(group);
-    const header = list.querySelector(`[${chatgptxModelPickerGroupIdAttr}="${cssEscapeValue(group.id)}"]`);
+  function swivoxModelPickerSyncGroup(list, group) {
+    const text = swivoxModelPickerText();
+    const expanded = swivoxModelPickerGroupExpanded(group);
+    const header = list.querySelector(`[${swivoxModelPickerGroupIdAttr}="${cssEscapeValue(group.id)}"]`);
     group.entries.forEach((entry) => {
-      entry.row.setAttribute(chatgptxModelPickerGroupAttr, group.id);
-      entry.row.classList.toggle("chatgptx-model-group-collapsed", !expanded);
+      entry.row.setAttribute(swivoxModelPickerGroupAttr, group.id);
+      entry.row.classList.toggle("swivox-model-group-collapsed", !expanded);
     });
     if (header) {
       header.setAttribute("aria-expanded", expanded ? "true" : "false");
-      header.classList.toggle("chatgptx-model-group-header-collapsed", !expanded);
-      const label = header.querySelector(".chatgptx-model-group-title");
+      header.classList.toggle("swivox-model-group-header-collapsed", !expanded);
+      const label = header.querySelector(".swivox-model-group-title");
       // 标题只放名字：数量右边有徽标，标题里再来一次就是重复。
       if (label) label.textContent = group.name;
-      chatgptxModelPickerSyncDefaultBadge(header, group, text);
+      swivoxModelPickerSyncDefaultBadge(header, group, text);
       header.setAttribute("aria-label", text.groupAria(group.name, group.entries.length, expanded, group.isDefault));
     }
   }
 
   /** 自己插的标签节点；原生标签留着（隐藏），这样无障碍名称仍然完整。 */
-  function chatgptxModelPickerInstallLabel(entry) {
-    const identity = chatgptxModelPickerRowIdentity(entry.row);
+  function swivoxModelPickerInstallLabel(entry) {
+    const identity = swivoxModelPickerRowIdentity(entry.row);
     const inner = identity?.inner;
     if (!inner) return;
     // 行本身带归属标记：补丁装完后第二次扫描能直接认出这一行，不再重新解析结构。
-    entry.row.setAttribute("data-chatgptx-ext", chatgptxModelPickerGroupsExtMark);
-    const isOurs = (node) => node.classList.contains(chatgptxModelPickerOwnLabelClass)
-      || node.classList.contains(chatgptxModelPickerNativeLabelClass);
-    const native = [...inner.children].find((node) => node.classList.contains(chatgptxModelPickerNativeLabelClass))
+    entry.row.setAttribute("data-swivox-ext", swivoxModelPickerGroupsExtMark);
+    const isOurs = (node) => node.classList.contains(swivoxModelPickerOwnLabelClass)
+      || node.classList.contains(swivoxModelPickerNativeLabelClass);
+    const native = [...inner.children].find((node) => node.classList.contains(swivoxModelPickerNativeLabelClass))
       // 第一次进来时装的是原生标签（单个 span）
       || [...inner.children].find((node) => !isOurs(node));
-    if (native && !native.classList.contains(chatgptxModelPickerNativeLabelClass)) {
-      native.classList.add(chatgptxModelPickerNativeLabelClass);
-      native.setAttribute("data-chatgptx-ext", chatgptxModelPickerGroupsExtMark);
+    if (native && !native.classList.contains(swivoxModelPickerNativeLabelClass)) {
+      native.classList.add(swivoxModelPickerNativeLabelClass);
+      native.setAttribute("data-swivox-ext", swivoxModelPickerGroupsExtMark);
       // 视觉上由我们自己的标签顶上；隐藏原节点时必须同时退出无障碍树，
       // 否则读屏会把同一行念两遍。
       native.setAttribute("aria-hidden", "true");
     }
-    let own = [...inner.children].find((node) => node.classList.contains(chatgptxModelPickerOwnLabelClass));
+    let own = [...inner.children].find((node) => node.classList.contains(swivoxModelPickerOwnLabelClass));
     if (!own) {
       own = document.createElement("span");
-      own.className = `${chatgptxModelPickerOwnLabelClass} truncate whitespace-nowrap`;
-      own.setAttribute("data-chatgptx-ext", chatgptxModelPickerGroupsExtMark);
+      own.className = `${swivoxModelPickerOwnLabelClass} truncate whitespace-nowrap`;
+      own.setAttribute("data-swivox-ext", swivoxModelPickerGroupsExtMark);
       inner.insertBefore(own, native || null);
     }
     if (own.textContent !== entry.name) own.textContent = entry.name;
-    entry.row.classList.add(chatgptxModelPickerItemClass);
+    entry.row.classList.add(swivoxModelPickerItemClass);
   }
 
-  function chatgptxModelPickerRestoreLabel(row) {
+  function swivoxModelPickerRestoreLabel(row) {
     const content = row.querySelector("[data-menu-row-content]") || row;
-    content.querySelector(`.${chatgptxModelPickerOwnLabelClass}`)?.remove();
-    const native = content.querySelector(`.${chatgptxModelPickerNativeLabelClass}`);
+    content.querySelector(`.${swivoxModelPickerOwnLabelClass}`)?.remove();
+    const native = content.querySelector(`.${swivoxModelPickerNativeLabelClass}`);
     if (native) {
-      native.classList.remove(chatgptxModelPickerNativeLabelClass);
-      native.removeAttribute("data-chatgptx-ext");
+      native.classList.remove(swivoxModelPickerNativeLabelClass);
+      native.removeAttribute("data-swivox-ext");
       native.removeAttribute("aria-hidden");
     }
-    row.classList.remove(chatgptxModelPickerItemClass, "chatgptx-model-group-collapsed");
-    row.removeAttribute(chatgptxModelPickerGroupAttr);
-    if (row.getAttribute("data-chatgptx-ext") === chatgptxModelPickerGroupsExtMark) {
-      row.removeAttribute("data-chatgptx-ext");
+    row.classList.remove(swivoxModelPickerItemClass, "swivox-model-group-collapsed");
+    row.removeAttribute(swivoxModelPickerGroupAttr);
+    if (row.getAttribute("data-swivox-ext") === swivoxModelPickerGroupsExtMark) {
+      row.removeAttribute("data-swivox-ext");
     }
   }
 
-  function chatgptxModelPickerToggleGroup(list, group) {
-    const state = chatgptxModelPickerGroupsState;
-    const expanded = chatgptxModelPickerGroupExpanded(group);
+  function swivoxModelPickerToggleGroup(list, group) {
+    const state = swivoxModelPickerGroupsState;
+    const expanded = swivoxModelPickerGroupExpanded(group);
     if (expanded) state.collapsed.add(group.id);
     else state.collapsed.delete(group.id);
     state.touched.add(group.id);
-    chatgptxModelPickerPersist();
-    chatgptxModelPickerSyncGroup(list, group);
-    chatgptxModelPickerSyncToolbar(list);
+    swivoxModelPickerPersist();
+    swivoxModelPickerSyncGroup(list, group);
+    swivoxModelPickerSyncToolbar(list);
   }
 
-  function chatgptxModelPickerSetAll(list, groups, collapsed) {
-    const state = chatgptxModelPickerGroupsState;
+  function swivoxModelPickerSetAll(list, groups, collapsed) {
+    const state = swivoxModelPickerGroupsState;
     for (const group of groups) {
       if (collapsed) state.collapsed.add(group.id);
       else state.collapsed.delete(group.id);
       state.touched.add(group.id);
     }
-    chatgptxModelPickerPersist();
-    groups.forEach((group) => chatgptxModelPickerSyncGroup(list, group));
-    chatgptxModelPickerSyncToolbar(list);
+    swivoxModelPickerPersist();
+    groups.forEach((group) => swivoxModelPickerSyncGroup(list, group));
+    swivoxModelPickerSyncToolbar(list);
   }
 
-  function chatgptxModelPickerGroupHeader(list, group, groups) {
-    const text = chatgptxModelPickerText();
+  function swivoxModelPickerGroupHeader(list, group, groups) {
+    const text = swivoxModelPickerText();
     const header = document.createElement("button");
     header.type = "button";
-    header.className = "chatgptx-model-group-header";
-    header.setAttribute("data-chatgptx-ext", chatgptxModelPickerGroupsExtMark);
-    header.setAttribute(chatgptxModelPickerGroupIdAttr, group.id);
+    header.className = "swivox-model-group-header";
+    header.setAttribute("data-swivox-ext", swivoxModelPickerGroupsExtMark);
+    header.setAttribute(swivoxModelPickerGroupIdAttr, group.id);
     header.setAttribute("aria-expanded", "true");
     const chevron = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     chevron.setAttribute("viewBox", "0 0 12 12");
     chevron.setAttribute("aria-hidden", "true");
-    chevron.setAttribute("class", "chatgptx-model-group-chevron");
+    chevron.setAttribute("class", "swivox-model-group-chevron");
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     path.setAttribute("d", "M4 2.5 8 6 4 9.5");
     path.setAttribute("fill", "none");
@@ -694,24 +694,24 @@
     path.setAttribute("stroke-linejoin", "round");
     chevron.appendChild(path);
     const title = document.createElement("span");
-    title.className = "chatgptx-model-group-title";
+    title.className = "swivox-model-group-title";
     header.append(chevron, title);
     if (group.isDefault) {
       const badge = document.createElement("span");
-      badge.className = "chatgptx-model-group-default";
+      badge.className = "swivox-model-group-default";
       badge.textContent = text.defaultBadge;
       badge.title = text.defaultTitle;
       header.appendChild(badge);
     }
     const count = document.createElement("span");
-    count.className = "chatgptx-model-group-count";
+    count.className = "swivox-model-group-count";
     count.textContent = String(group.entries.length);
     header.appendChild(count);
     header.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
       const current = groups.find((item) => item.id === group.id);
-      if (current) chatgptxModelPickerToggleGroup(list, current);
+      if (current) swivoxModelPickerToggleGroup(list, current);
     });
     header.addEventListener("pointerdown", (event) => {
       // 别让指针事件冒到菜单外，否则菜单会被关掉。
@@ -725,57 +725,57 @@
     return header;
   }
 
-  function chatgptxModelPickerSyncToolbar(list) {
-    const toolbar = list.querySelector(".chatgptx-model-group-toolbar");
+  function swivoxModelPickerSyncToolbar(list) {
+    const toolbar = list.querySelector(".swivox-model-group-toolbar");
     if (!toolbar) return;
-    const groups = [...list.querySelectorAll(`[${chatgptxModelPickerGroupIdAttr}]`)]
-      .map((node) => node.getAttribute(chatgptxModelPickerGroupIdAttr));
-    const anyExpanded = groups.some((id) => !chatgptxModelPickerGroupsState.collapsed.has(id));
+    const groups = [...list.querySelectorAll(`[${swivoxModelPickerGroupIdAttr}]`)]
+      .map((node) => node.getAttribute(swivoxModelPickerGroupIdAttr));
+    const anyExpanded = groups.some((id) => !swivoxModelPickerGroupsState.collapsed.has(id));
     toolbar.querySelector("button")?.setAttribute("data-all-expanded", anyExpanded ? "true" : "false");
-    const label = toolbar.querySelector(".chatgptx-model-group-toolbar-label");
-    if (label) label.textContent = anyExpanded ? chatgptxModelPickerText().collapseAll : chatgptxModelPickerText().expandAll;
+    const label = toolbar.querySelector(".swivox-model-group-toolbar-label");
+    if (label) label.textContent = anyExpanded ? swivoxModelPickerText().collapseAll : swivoxModelPickerText().expandAll;
   }
 
-  function chatgptxModelPickerToolbar(list, groups) {
-    const text = chatgptxModelPickerText();
+  function swivoxModelPickerToolbar(list, groups) {
+    const text = swivoxModelPickerText();
     const toolbar = document.createElement("div");
-    toolbar.className = "chatgptx-model-group-toolbar";
-    toolbar.setAttribute("data-chatgptx-ext", chatgptxModelPickerGroupsExtMark);
+    toolbar.className = "swivox-model-group-toolbar";
+    toolbar.setAttribute("data-swivox-ext", swivoxModelPickerGroupsExtMark);
     const spacer = document.createElement("span");
-    spacer.className = "chatgptx-model-group-toolbar-title";
+    spacer.className = "swivox-model-group-toolbar-title";
     spacer.textContent = "";
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "chatgptx-model-group-toolbar-button";
+    button.className = "swivox-model-group-toolbar-button";
     button.setAttribute("data-all-expanded", "true");
     const label = document.createElement("span");
-    label.className = "chatgptx-model-group-toolbar-label";
+    label.className = "swivox-model-group-toolbar-label";
     label.textContent = text.collapseAll;
     button.appendChild(label);
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      chatgptxModelPickerSetAll(list, groups, button.getAttribute("data-all-expanded") === "true");
+      swivoxModelPickerSetAll(list, groups, button.getAttribute("data-all-expanded") === "true");
     });
     button.addEventListener("pointerdown", (event) => event.stopPropagation());
     toolbar.append(spacer, button);
     return toolbar;
   }
 
-  function chatgptxModelPickerRemoveOwnNodes(list) {
-    list.querySelectorAll(`[data-chatgptx-ext="${chatgptxModelPickerGroupsExtMark}"]`).forEach((node) => {
+  function swivoxModelPickerRemoveOwnNodes(list) {
+    list.querySelectorAll(`[data-swivox-ext="${swivoxModelPickerGroupsExtMark}"]`).forEach((node) => {
       if (node.closest('[role="menuitemradio"]')) return;
       node.remove();
     });
   }
 
-  function chatgptxModelPickerClear(list) {
+  function swivoxModelPickerClear(list) {
     if (!list) return;
-    chatgptxModelPickerRemoveOwnNodes(list);
-    list.querySelectorAll('[role="menuitemradio"]').forEach((row) => chatgptxModelPickerRestoreLabel(row));
-    list.removeAttribute("data-chatgptx-model-groups");
-    chatgptxModelPickerGroupsState.signature = "";
-    chatgptxModelPickerGroupsState.patchedLists.delete(list);
+    swivoxModelPickerRemoveOwnNodes(list);
+    list.querySelectorAll('[role="menuitemradio"]').forEach((row) => swivoxModelPickerRestoreLabel(row));
+    list.removeAttribute("data-swivox-model-groups");
+    swivoxModelPickerGroupsState.signature = "";
+    swivoxModelPickerGroupsState.patchedLists.delete(list);
   }
 
   /**
@@ -784,11 +784,11 @@
    * React 在菜单里做任何一次重渲染都可能顺手回收我们插进去的兄弟节点，
    * 此时指纹没变、但标题已经没了，只靠指纹判等会留下一个"点了没用"的死状态。
    */
-  function chatgptxModelPickerHeadersIntact(list, groups) {
-    const toolbar = list.querySelector(".chatgptx-model-group-toolbar");
+  function swivoxModelPickerHeadersIntact(list, groups) {
+    const toolbar = list.querySelector(".swivox-model-group-toolbar");
     if (!toolbar) return false;
     return groups.every((group) => {
-      const header = list.querySelector(`[${chatgptxModelPickerGroupIdAttr}="${cssEscapeValue(group.id)}"]`);
+      const header = list.querySelector(`[${swivoxModelPickerGroupIdAttr}="${cssEscapeValue(group.id)}"]`);
       const first = group.entries[0]?.row;
       return !!header && !!first && header.nextElementSibling === first;
     });
@@ -797,50 +797,50 @@
   /**
    * 打补丁主流程。返回是否改动了原生列表。
    */
-  function chatgptxModelPickerPatch(list) {
-    if (chatgptxModelPickerGroupsState.disposed) return false;
-    chatgptxModelPickerStore();
-    const rows = chatgptxModelPickerRows(list);
-    const groups = chatgptxModelPickerUniqueGroupIds(
-      chatgptxModelPickerGroups(rows, chatgptxModelPickerDefaultProviderName()),
+  function swivoxModelPickerPatch(list) {
+    if (swivoxModelPickerGroupsState.disposed) return false;
+    swivoxModelPickerStore();
+    const rows = swivoxModelPickerRows(list);
+    const groups = swivoxModelPickerUniqueGroupIds(
+      swivoxModelPickerGroups(rows, swivoxModelPickerDefaultProviderName()),
     );
     // 只有一个供应商时不折叠：直连供应商本来就是一组，插标题只是多一层噪音。
     if (groups.length < 2) {
-      if (chatgptxModelPickerGroupsState.patchedLists.has(list)) chatgptxModelPickerClear(list);
-      else chatgptxModelPickerRemoveOwnNodes(list);
+      if (swivoxModelPickerGroupsState.patchedLists.has(list)) swivoxModelPickerClear(list);
+      else swivoxModelPickerRemoveOwnNodes(list);
       return false;
     }
-    const signature = chatgptxModelPickerFingerprint(groups);
-    const patched = chatgptxModelPickerGroupsState.patchedLists.has(list);
+    const signature = swivoxModelPickerFingerprint(groups);
+    const patched = swivoxModelPickerGroupsState.patchedLists.has(list);
     if (
       patched
-      && signature === chatgptxModelPickerGroupsState.signature
+      && signature === swivoxModelPickerGroupsState.signature
       && list.isConnected
-      && chatgptxModelPickerHeadersIntact(list, groups)
+      && swivoxModelPickerHeadersIntact(list, groups)
     ) {
-      groups.forEach((group) => chatgptxModelPickerSyncGroup(list, group));
+      groups.forEach((group) => swivoxModelPickerSyncGroup(list, group));
       return false;
     }
-    chatgptxModelPickerGroupsState.patchedLists.add(list);
-    chatgptxModelPickerGroupsState.signature = signature;
-    list.setAttribute("data-chatgptx-model-groups", "true");
-    chatgptxModelPickerRemoveOwnNodes(list);
-    groups.forEach((group) => group.entries.forEach((entry) => chatgptxModelPickerInstallLabel(entry)));
+    swivoxModelPickerGroupsState.patchedLists.add(list);
+    swivoxModelPickerGroupsState.signature = signature;
+    list.setAttribute("data-swivox-model-groups", "true");
+    swivoxModelPickerRemoveOwnNodes(list);
+    groups.forEach((group) => group.entries.forEach((entry) => swivoxModelPickerInstallLabel(entry)));
     groups.forEach((group) => {
       const first = group.entries[0]?.row;
       if (!first?.parentElement) return;
-      first.parentElement.insertBefore(chatgptxModelPickerGroupHeader(list, group, groups), first);
+      first.parentElement.insertBefore(swivoxModelPickerGroupHeader(list, group, groups), first);
     });
-    chatgptxModelPickerAutoCollapse(list, groups);
-    groups.forEach((group) => chatgptxModelPickerSyncGroup(list, group));
+    swivoxModelPickerAutoCollapse(list, groups);
+    groups.forEach((group) => swivoxModelPickerSyncGroup(list, group));
     const anchor = groups[0]?.entries[0]?.row;
-    if (anchor?.parentElement && !list.querySelector(".chatgptx-model-group-toolbar")) {
-      anchor.parentElement.insertBefore(chatgptxModelPickerToolbar(list, groups), anchor.parentElement.firstChild);
+    if (anchor?.parentElement && !list.querySelector(".swivox-model-group-toolbar")) {
+      anchor.parentElement.insertBefore(swivoxModelPickerToolbar(list, groups), anchor.parentElement.firstChild);
     }
-    chatgptxModelPickerSyncToolbar(list);
-    if (chatgptxModelPickerGroupsState.providerDirty) {
-      chatgptxModelPickerGroupsState.providerDirty = false;
-      chatgptxModelPickerPersist();
+    swivoxModelPickerSyncToolbar(list);
+    if (swivoxModelPickerGroupsState.providerDirty) {
+      swivoxModelPickerGroupsState.providerDirty = false;
+      swivoxModelPickerPersist();
     }
     return true;
   }
@@ -851,67 +851,67 @@
     return String(value).replace(/["\\]/g, "\\$&");
   }
 
-  function chatgptxModelPickerInstallStyle() {
-    if (document.getElementById(chatgptxModelPickerGroupsStyleId)) return;
+  function swivoxModelPickerInstallStyle() {
+    if (document.getElementById(swivoxModelPickerGroupsStyleId)) return;
     const style = document.createElement("style");
-    style.id = chatgptxModelPickerGroupsStyleId;
-    style.setAttribute("data-chatgptx-ext", chatgptxModelPickerGroupsExtMark);
+    style.id = swivoxModelPickerGroupsStyleId;
+    style.setAttribute("data-swivox-ext", swivoxModelPickerGroupsExtMark);
     style.textContent = `
       /* 分组标题贴着原生行的左右内边距，视觉上属于同一列。 */
-      .chatgptx-model-group-header{display:flex;align-items:center;gap:6px;width:100%;box-sizing:border-box;margin:2px 0 0;padding:4px 8px;border:0;border-radius:8px;background:none;color:var(--color-token-text-secondary,rgba(205,205,215,.8));font:inherit;font-size:11px;line-height:16px;font-weight:600;letter-spacing:.02em;text-align:left;cursor:pointer;user-select:none;appearance:none}
-      .chatgptx-model-group-header:hover{background:var(--color-token-bg-secondary,rgba(255,255,255,.04));color:var(--color-token-text-primary,#dfdfdf)}
-      .chatgptx-model-group-header:focus-visible{outline:1px solid color-mix(in srgb,var(--color-token-text-primary,#dfdfdf) 35%,transparent);outline-offset:1px}
-      .chatgptx-model-group-chevron{flex:0 0 auto;width:12px;height:12px;opacity:.75;transform:rotate(90deg);transition:transform .15s ease}
-      .chatgptx-model-group-header-collapsed .chatgptx-model-group-chevron{transform:rotate(0deg)}
-      .chatgptx-model-group-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      .chatgptx-model-group-count{flex:0 0 auto;margin-left:auto;padding:0 6px;border-radius:999px;background:var(--color-token-bg-secondary,rgba(255,255,255,.06));color:var(--color-token-text-secondary,rgba(205,205,215,.75));font-size:10px;font-weight:500;font-variant-numeric:tabular-nums}
+      .swivox-model-group-header{display:flex;align-items:center;gap:6px;width:100%;box-sizing:border-box;margin:2px 0 0;padding:4px 8px;border:0;border-radius:8px;background:none;color:var(--color-token-text-secondary,rgba(205,205,215,.8));font:inherit;font-size:11px;line-height:16px;font-weight:600;letter-spacing:.02em;text-align:left;cursor:pointer;user-select:none;appearance:none}
+      .swivox-model-group-header:hover{background:var(--color-token-bg-secondary,rgba(255,255,255,.04));color:var(--color-token-text-primary,#dfdfdf)}
+      .swivox-model-group-header:focus-visible{outline:1px solid color-mix(in srgb,var(--color-token-text-primary,#dfdfdf) 35%,transparent);outline-offset:1px}
+      .swivox-model-group-chevron{flex:0 0 auto;width:12px;height:12px;opacity:.75;transform:rotate(90deg);transition:transform .15s ease}
+      .swivox-model-group-header-collapsed .swivox-model-group-chevron{transform:rotate(0deg)}
+      .swivox-model-group-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .swivox-model-group-count{flex:0 0 auto;margin-left:auto;padding:0 6px;border-radius:999px;background:var(--color-token-bg-secondary,rgba(255,255,255,.06));color:var(--color-token-text-secondary,rgba(205,205,215,.75));font-size:10px;font-weight:500;font-variant-numeric:tabular-nums}
       /* 「默认」标志：默认成员的模型是裸名发布的，跟"另一家没起名的成员"看名字分不出来。
          用主题强调色描边小标签，比再加一句解释文字省地方。 */
-      .chatgptx-model-group-default{flex:0 0 auto;padding:0 5px;border:1px solid color-mix(in srgb,var(--color-token-text-primary,#dfdfdf) 26%,transparent);border-radius:999px;color:var(--color-token-text-primary,#dfdfdf);font-size:10px;line-height:14px;font-weight:500;letter-spacing:.02em}
-      .chatgptx-model-group-default + .chatgptx-model-group-count{margin-left:4px}
-      .chatgptx-model-group-toolbar{display:flex;align-items:center;gap:8px;box-sizing:border-box;padding:2px 8px 4px}
-      .chatgptx-model-group-toolbar-button{margin-left:auto;border:0;border-radius:6px;background:none;padding:2px 6px;color:var(--color-token-text-secondary,rgba(205,205,215,.8));font:inherit;font-size:11px;cursor:pointer;appearance:none}
-      .chatgptx-model-group-toolbar-button:hover{background:var(--color-token-bg-secondary,rgba(255,255,255,.04));color:var(--color-token-text-primary,#dfdfdf)}
+      .swivox-model-group-default{flex:0 0 auto;padding:0 5px;border:1px solid color-mix(in srgb,var(--color-token-text-primary,#dfdfdf) 26%,transparent);border-radius:999px;color:var(--color-token-text-primary,#dfdfdf);font-size:10px;line-height:14px;font-weight:500;letter-spacing:.02em}
+      .swivox-model-group-default + .swivox-model-group-count{margin-left:4px}
+      .swivox-model-group-toolbar{display:flex;align-items:center;gap:8px;box-sizing:border-box;padding:2px 8px 4px}
+      .swivox-model-group-toolbar-button{margin-left:auto;border:0;border-radius:6px;background:none;padding:2px 6px;color:var(--color-token-text-secondary,rgba(205,205,215,.8));font:inherit;font-size:11px;cursor:pointer;appearance:none}
+      .swivox-model-group-toolbar-button:hover{background:var(--color-token-bg-secondary,rgba(255,255,255,.04));color:var(--color-token-text-primary,#dfdfdf)}
       /* 折叠：只隐藏行，不移动行，React 的 child 对账不受影响。 */
-      [role="menuitemradio"].chatgptx-model-group-collapsed{display:none!important}
-      .${chatgptxModelPickerNativeLabelClass}{display:none!important}
-      .${chatgptxModelPickerOwnLabelClass}{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      [role="menuitemradio"].swivox-model-group-collapsed{display:none!important}
+      .${swivoxModelPickerNativeLabelClass}{display:none!important}
+      .${swivoxModelPickerOwnLabelClass}{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     `;
     document.head?.appendChild(style);
   }
 
-  function chatgptxModelPickerNeedsRescan(records) {
+  function swivoxModelPickerNeedsRescan(records) {
     const changed = records.some((record) => {
       const nodes = [...record.addedNodes, ...record.removedNodes];
-      return nodes.some((node) => node.nodeType === 1 && !node.closest?.(`[data-chatgptx-ext="${chatgptxModelPickerGroupsExtMark}"]`));
+      return nodes.some((node) => node.nodeType === 1 && !node.closest?.(`[data-swivox-ext="${swivoxModelPickerGroupsExtMark}"]`));
     });
     if (!changed) return false;
-    const list = chatgptxModelPickerList(chatgptxModelPickerMenu());
+    const list = swivoxModelPickerList(swivoxModelPickerMenu());
     if (!list) return false;
-    const rows = chatgptxModelPickerRows(list);
-    const groups = chatgptxModelPickerUniqueGroupIds(
-      chatgptxModelPickerGroups(rows, chatgptxModelPickerDefaultProviderName()),
+    const rows = swivoxModelPickerRows(list);
+    const groups = swivoxModelPickerUniqueGroupIds(
+      swivoxModelPickerGroups(rows, swivoxModelPickerDefaultProviderName()),
     );
-    if (groups.length < 2) return chatgptxModelPickerGroupsState.patchedLists.has(list);
-    return chatgptxModelPickerFingerprint(groups) !== chatgptxModelPickerGroupsState.signature;
+    if (groups.length < 2) return swivoxModelPickerGroupsState.patchedLists.has(list);
+    return swivoxModelPickerFingerprint(groups) !== swivoxModelPickerGroupsState.signature;
   }
 
-  function chatgptxModelPickerScheduleRescan() {
-    clearTimeout(chatgptxModelPickerGroupsState.rescanTimer);
-    chatgptxModelPickerGroupsState.rescanTimer = setTimeout(() => {
-      chatgptxModelPickerGroupsState.rescanTimer = 0;
-      chatgptxModelPickerScan();
-    }, chatgptxModelPickerRescanDelayMs);
+  function swivoxModelPickerScheduleRescan() {
+    clearTimeout(swivoxModelPickerGroupsState.rescanTimer);
+    swivoxModelPickerGroupsState.rescanTimer = setTimeout(() => {
+      swivoxModelPickerGroupsState.rescanTimer = 0;
+      swivoxModelPickerScan();
+    }, swivoxModelPickerRescanDelayMs);
   }
 
-  function chatgptxModelPickerObserveList(list) {
-    const state = chatgptxModelPickerGroupsState;
+  function swivoxModelPickerObserveList(list) {
+    const state = swivoxModelPickerGroupsState;
     if (state.activeList === list) return;
     state.activeList = list;
     state.observer?.disconnect();
     state.observer = new MutationObserver((records) => {
-      if (!chatgptxModelPickerNeedsRescan(records)) return;
-      chatgptxModelPickerScheduleRescan();
+      if (!swivoxModelPickerNeedsRescan(records)) return;
+      swivoxModelPickerScheduleRescan();
     });
     state.observer.observe(list, { childList: true, subtree: true });
   }
@@ -922,14 +922,14 @@
    * 为什么还要轮询：React 复用行节点时不会产生 childList 变更，只靠 MutationObserver
    * 会漏掉"标签变了"这种情况。600ms 一次、且只在菜单开着时跑，开销可以忽略。
    */
-  function chatgptxModelPickerScan() {
-    const state = chatgptxModelPickerGroupsState;
+  function swivoxModelPickerScan() {
+    const state = swivoxModelPickerGroupsState;
     if (state.disposed) return;
-    const menu = chatgptxModelPickerMenu();
-    const list = chatgptxModelPickerList(menu);
+    const menu = swivoxModelPickerMenu();
+    const list = swivoxModelPickerList(menu);
     if (!list) {
       if (state.activeList) {
-        chatgptxModelPickerClear(state.activeList);
+        swivoxModelPickerClear(state.activeList);
         state.activeList = null;
         state.observer?.disconnect();
         state.observer = null;
@@ -937,55 +937,55 @@
       }
       return;
     }
-    chatgptxModelPickerEnsureCatalog();
-    chatgptxModelPickerObserveList(list);
+    swivoxModelPickerEnsureCatalog();
+    swivoxModelPickerObserveList(list);
     // 列表被隐藏（用户在推理强度子面板里）时不动结构，只让轮询继续跑；
     // 回到列表立即是分组后的样子。
-    if (list.getClientRects().length === 0 && chatgptxModelPickerGroupsState.patchedLists.has(list)) return;
-    chatgptxModelPickerPatch(list);
+    if (list.getClientRects().length === 0 && swivoxModelPickerGroupsState.patchedLists.has(list)) return;
+    swivoxModelPickerPatch(list);
   }
 
-  function chatgptxModelPickerSchedule(delay) {
-    const state = chatgptxModelPickerGroupsState;
+  function swivoxModelPickerSchedule(delay) {
+    const state = swivoxModelPickerGroupsState;
     if (state.disposed) return;
     clearTimeout(state.timer);
     state.timer = setTimeout(() => {
-      chatgptxModelPickerScan();
-      chatgptxModelPickerSchedule(chatgptxModelPickerWatchIntervalMs);
+      swivoxModelPickerScan();
+      swivoxModelPickerSchedule(swivoxModelPickerWatchIntervalMs);
     }, delay);
   }
 
-  chatgptxModelPickerInstallStyle();
-  chatgptxModelPickerSchedule(300);
-  window.__chatgptxModelPickerGroupsRuntime = {
+  swivoxModelPickerInstallStyle();
+  swivoxModelPickerSchedule(300);
+  window.__swivoxModelPickerGroupsRuntime = {
     version: 1,
-    sync: () => chatgptxModelPickerSchedule(0),
-    scan: () => chatgptxModelPickerScan(),
+    sync: () => swivoxModelPickerSchedule(0),
+    scan: () => swivoxModelPickerScan(),
     /** 测试与调试用：不打开菜单也能验证分组解析。 */
-    splitLabel: (text) => chatgptxModelPickerSplitLabel(text),
+    splitLabel: (text) => swivoxModelPickerSplitLabel(text),
     /** 测试与调试用：内部状态快照。 */
     state: () => ({
-      signature: chatgptxModelPickerGroupsState.signature,
-      hasActiveList: !!chatgptxModelPickerGroupsState.activeList,
-      autoCollapsed: chatgptxModelPickerGroupsState.autoCollapsed,
-      collapsed: [...chatgptxModelPickerGroupsState.collapsed],
-      touched: [...chatgptxModelPickerGroupsState.touched],
-      disposed: chatgptxModelPickerGroupsState.disposed,
+      signature: swivoxModelPickerGroupsState.signature,
+      hasActiveList: !!swivoxModelPickerGroupsState.activeList,
+      autoCollapsed: swivoxModelPickerGroupsState.autoCollapsed,
+      collapsed: [...swivoxModelPickerGroupsState.collapsed],
+      touched: [...swivoxModelPickerGroupsState.touched],
+      disposed: swivoxModelPickerGroupsState.disposed,
     }),
     /** 测试与调试用：默认身份解析结果（徽标取决于它）。 */
     defaultGroup: () => ({
-      id: chatgptxModelPickerGroupsState.defaultGroupId,
-      resolved: chatgptxModelPickerDefaultGroupId(),
+      id: swivoxModelPickerGroupsState.defaultGroupId,
+      resolved: swivoxModelPickerDefaultGroupId(),
       catalogStatus: codexModelCatalog?.status || "",
       catalogModels: codexModelCatalog?.models?.length || 0,
-      catalogDefaultId: codexModelCatalog?.chatgptx_default_group_id ?? null,
+      catalogDefaultId: codexModelCatalog?.swivox_default_group_id ?? null,
       metaEntries: codexModelCatalog?.modelMetadata ? Object.keys(codexModelCatalog.modelMetadata).length : 0,
       loaderVisible: typeof loadCodexModelCatalog === "function",
     }),
     /** 测试与调试用：看某一行被解析成了什么。 */
     describeRow: (row) => {
-      const identity = chatgptxModelPickerRowIdentity(row);
-      const rows = chatgptxModelPickerRows(row.parentElement || row);
+      const identity = swivoxModelPickerRowIdentity(row);
+      const rows = swivoxModelPickerRows(row.parentElement || row);
       const entry = rows.find((item) => item.row === row);
       return {
         identity: identity
@@ -996,14 +996,14 @@
       };
     },
     groupsFor: (container = document) => {
-      const list = chatgptxModelPickerList(container.querySelector?.('[data-model-picker-view]') ? container : chatgptxModelPickerMenu() || container);
+      const list = swivoxModelPickerList(container.querySelector?.('[data-model-picker-view]') ? container : swivoxModelPickerMenu() || container);
       if (!list) return [];
-      return chatgptxModelPickerUniqueGroupIds(
-        chatgptxModelPickerGroups(chatgptxModelPickerRows(list), chatgptxModelPickerDefaultProviderName()),
+      return swivoxModelPickerUniqueGroupIds(
+        swivoxModelPickerGroups(swivoxModelPickerRows(list), swivoxModelPickerDefaultProviderName()),
       ).map((group) => ({ id: group.id, name: group.name, count: group.entries.length, isDefault: !!group.isDefault, entryGroupIds: [...new Set(group.entries.map((entry) => entry.groupId))].slice(0, 2) }));
     },
     dispose() {
-      const state = chatgptxModelPickerGroupsState;
+      const state = swivoxModelPickerGroupsState;
       state.disposed = true;
       clearTimeout(state.timer);
       clearTimeout(state.rescanTimer);
@@ -1016,9 +1016,9 @@
       // 先摘后建只会闪一下；真要彻底还原（例如关闭该功能）走 releaseDom()。
     },
     releaseDom() {
-      const state = chatgptxModelPickerGroupsState;
-      if (state.activeList) chatgptxModelPickerClear(state.activeList);
+      const state = swivoxModelPickerGroupsState;
+      if (state.activeList) swivoxModelPickerClear(state.activeList);
       state.activeList = null;
-      document.getElementById(chatgptxModelPickerGroupsStyleId)?.remove();
+      document.getElementById(swivoxModelPickerGroupsStyleId)?.remove();
     },
   };

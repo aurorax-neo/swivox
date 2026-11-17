@@ -12,9 +12,9 @@ const clientPatch = native.slice(native.indexOf("  function patchPluginMarketpla
 const transportPatch = native.slice(native.indexOf("  function installPluginMarketplaceBridgePatch("), native.indexOf("  const pluginMarketplaceRequestPatchMaxMisses"));
 const prototypePatch = model.slice(model.indexOf("    function installCodexAppServerClientPrototypePatch("), model.indexOf("  const appServerModelRequestPatchMaxMisses"));
 const flush = async () => { await new Promise((resolve) => setImmediate(resolve)); await new Promise((resolve) => setImmediate(resolve)); };
-const sentinel = (source = "public") => `/fixture/.tmp/chatgptx-plugin-market/virtual-${source}/.agents/plugins/marketplace.json`;
-const managedSummary = { name: "sample", id: "sample@chatgptx-plugin-market-123456789abc", chatgptxIndexId: "original-id", installed: false };
-const catalog = () => ({ marketplaces: [{ name: "chatgptx-index-public", path: sentinel(), plugins: [{ ...managedSummary }] }], marketplaceLoadErrors: [], featuredPluginIds: [] });
+const sentinel = (source = "public") => `/fixture/.tmp/swivox-plugin-market/virtual-${source}/.agents/plugins/marketplace.json`;
+const managedSummary = { name: "sample", id: "sample@swivox-plugin-market-123456789abc", swivoxIndexId: "original-id", installed: false };
+const catalog = () => ({ marketplaces: [{ name: "swivox-index-public", path: sentinel(), plugins: [{ ...managedSummary }] }], marketplaceLoadErrors: [], featuredPluginIds: [] });
 const official = () => ({ marketplaces: [{ name: "openai-bundled", path: "/fixture/bundled.json", plugins: [{ name: "system", id: "system@openai-bundled" }] }], marketplaceLoadErrors: [], featuredPluginIds: ["system@openai-bundled"] });
 const installResult = () => ({ appsNeedingAuth: [], authPolicy: "ON_USE" });
 
@@ -36,13 +36,13 @@ function fixture(handler, { enabled = true } = {}) {
   class NativeClient { constructor(hostId = "local") { this.hostId = hostId; this.calls = []; } async sendRequest(method, params) { this.calls.push({ method, params }); return official(); } }
   const context = vm.createContext({
     window, MessageEvent, Error, console, Date,
-    chatgptxIsWindowsPlatform: false, codexAppServerModelRequestPatchVersion: "11", codexPluginMarketplaceUnlockVersion: "17",
-    chatgptxBackendSettingsLoaded: true,
+    swivoxIsWindowsPlatform: false, codexAppServerModelRequestPatchVersion: "11", codexPluginMarketplaceUnlockVersion: "17",
+    swivoxBackendSettingsLoaded: true,
     setTimeout: (callback, delay) => { const id = ++timerId; timers.set(id, { callback, delay }); return id; },
     clearTimeout: (id) => timers.delete(id),
     codexPluginMarketplacePatchEnabled: () => enabled,
     clearPluginMarketplaceQueryCache: () => {}, showToast: (message) => toasts.push(message),
-    sendChatGPTXDiagnostic: () => {},
+    sendSwivoxDiagnostic: () => {},
     restorePluginMarketplaceRequestParams: (params) => params,
     pluginMarketplaceRequestProfile: () => ({ remoteOnly: false }),
     patchPluginMarketplaceRequestParams: (_, params) => params,
@@ -52,9 +52,9 @@ function fixture(handler, { enabled = true } = {}) {
     pluginMarketplaceRemoteAuthError: (error) => /chatgpt authentication required for remote plugin catalog.*api key auth is not supported/i.test(error?.message || error?.error?.message || String(error)),
     markPluginMarketplaceRemoteCatalogUnavailable: () => {},
     remoteOnlyPluginMarketplaceFallbackResult: () => ({ marketplaces: [] }), localPluginMarketplaceFallbackResult: () => ({ marketplaces: [] }),
-    chatgptxModelUnlockEnabled: () => false, codexRemoteSessionProviderPatchEnabled: () => false,
+    swivoxModelUnlockEnabled: () => false, codexRemoteSessionProviderPatchEnabled: () => false,
     registerNativeHostClient: () => {},
-    chatgptxSettings: () => ({ serviceTierControls: false }),
+    swivoxSettings: () => ({ serviceTierControls: false }),
     codexRemoteSessionProviderRequestMethod: () => false, codexRemoteSessionProviderOverrideEnabled: () => false,
     applyCodexRemoteSessionProviderOverride: (_, params) => params, applyCodexServiceTierRequestOnly: (_, params) => params,
     refreshCodexThreadModelBeforeTurn: async () => null,
@@ -70,8 +70,8 @@ function fixture(handler, { enabled = true } = {}) {
     },
   });
   vm.runInContext(`${methodFunction}\n${adapter}\n${clientPatch}\n${transportPatch}\n${prototypePatch}\nglobalThis.api = {
-    intercept: chatgptxPluginNativeInterceptClient, operation: chatgptxPluginNativeOperation,
-    outgoing: chatgptxPluginNativeInterceptOutgoing, incoming: chatgptxPluginNativeInterceptIncoming,
+    intercept: swivoxPluginNativeInterceptClient, operation: swivoxPluginNativeOperation,
+    outgoing: swivoxPluginNativeInterceptOutgoing, incoming: swivoxPluginNativeInterceptIncoming,
     patchClient: patchPluginMarketplaceRequestClient, patchBridge: installPluginMarketplaceBridgePatch,
     patchPrototype: installCodexAppServerClientPrototypePatch, normalize: appServerModelRequestMethod,
   };`, context);
@@ -92,7 +92,7 @@ test("原生 client 列表保留系统插件，托管详情/安装不调用原�
   assert.equal(list.marketplaces[0].plugins[0].name, "system");
   const params = { marketplacePath: sentinel(), pluginName: "sample" };
   const read = await client.sendRequest("plugin/read", params);
-  assert.equal(read.plugin.summary.chatgptxIndexId, "original-id");
+  assert.equal(read.plugin.summary.swivoxIndexId, "original-id");
   const installed = await client.sendRequest("plugin/install", params);
   assert.equal(installed.authPolicy, "ON_USE");
   assert.equal(client.calls.length, 1, "managed read/install never enter native sendRequest");
@@ -120,7 +120,7 @@ test("public可见、full权限错误不清空原生列表；非鉴权原生错�
 test("原生远程鉴权错误允许索引兜底，远程专用市场不混入本机索引", async () => {
   const f = fixture();
   const result = await f.api.intercept("plugin/list", {}, {}, async () => { throw new Error("chatgpt authentication required for remote plugin catalog; api key auth is not supported"); }, "local");
-  assert.equal(result.marketplaces[0].name, "chatgptx-index-public");
+  assert.equal(result.marketplaces[0].name, "swivox-index-public");
   assert.equal(f.api.intercept("plugin/list", { marketplaceKinds: ["shared-with-me"] }, {}, async () => official(), "local"), null);
 });
 
@@ -139,7 +139,7 @@ test("legacy fetch列表 envelope 与 MCP托管read/install响应保持真实原
   await flush();
   const readResponse = f.delivered.find((event) => event.data?.message?.id === 7).data;
   assert.equal(readResponse.hostId, "local");
-  assert.equal(readResponse.message.result.plugin.summary.chatgptxIndexId, "original-id");
+  assert.equal(readResponse.message.result.plugin.summary.swivoxIndexId, "original-id");
   await f.window.electronBridge.sendMessageFromView({ type: "mcp-request", hostId: "local", request: { id: 8, method: "plugin/install", params } });
   await flush();
   assert.equal(f.delivered.find((event) => event.data?.message?.id === 8).data.message.result.authPolicy, "ON_USE");
@@ -194,7 +194,7 @@ test("远程host列表不混入本机市场，托管read/install明确拒绝且�
 test("原生已注册的托管 hashmarket 与virtual组同id只显示一次，官方同名插件仍保留", async () => {
   const f = fixture();
   const base = official();
-  base.marketplaces.push({ name: "chatgptx-plugin-market-123456789abc", path: "/fixture/installed/marketplace.json", plugins: [{ ...managedSummary, installed: true }] });
+  base.marketplaces.push({ name: "swivox-plugin-market-123456789abc", path: "/fixture/installed/marketplace.json", plugins: [{ ...managedSummary, installed: true }] });
   base.marketplaces[0].plugins.push({ name: "sample", id: "sample@openai-bundled" });
   const result = await f.api.intercept("plugin/list", {}, {}, async () => base, "local");
   const summaries = result.marketplaces.flatMap((market) => market.plugins);
@@ -219,7 +219,7 @@ test("安装状态连续通信失败后停止等待，仍不重发安装", async
 
 test("捕获原型 client 以及嵌套send-cli请求也接管；多层适配不重复取索引", async () => {
   const f = fixture();
-  f.window.__chatgptxAppServerClientClass = f.context.NativeClient;
+  f.window.__swivoxAppServerClientClass = f.context.NativeClient;
   assert.equal(f.api.patchPrototype(), true);
   const client = new f.context.NativeClient();
   f.api.patchClient(client);
@@ -228,7 +228,7 @@ test("捕获原型 client 以及嵌套send-cli请求也接管；多层适配不�
   assert.equal(f.calls.filter((call) => call.payload.method === "list-plugins").length, 1);
   assert.equal(client.calls.length, 1);
   const read = await client.sendRequest("send-cli-request-for-host", { hostId: "local", method: "plugin/read", params: { marketplacePath: sentinel(), pluginName: "sample" } });
-  assert.equal(read.plugin.summary.chatgptxIndexId, "original-id");
+  assert.equal(read.plugin.summary.swivoxIndexId, "original-id");
   assert.equal(client.calls.length, 1);
   assert.equal(f.api.normalize("send-cli-request-for-host", { method: "plugin/installed", params: {} }), "installed-plugins");
 });

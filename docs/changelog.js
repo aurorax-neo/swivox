@@ -1,4 +1,4 @@
-const changelogRepository = "ChatGPTX/ChatGPTX";
+const changelogRepository = "Swivox/Swivox";
 
 const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g, (character) => ({
   "&": "&amp;",
@@ -66,7 +66,7 @@ const releaseId = (release, index) => {
   return `release-${tag || index + 1}`;
 };
 
-const releaseTitle = (release) => release.name || release.tag_name || "ChatGPTX release";
+const releaseTitle = (release) => release.name || release.tag_name || "Swivox release";
 
 const renderRelease = (release, index) => {
   const tag = escapeHtml(release.tag_name || release.name || `release-${index + 1}`);

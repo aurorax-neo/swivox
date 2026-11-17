@@ -10,7 +10,7 @@ The repository already has `.github/workflows/release-assets.yml`. That workflow
 
 The project build entry points are:
 
-- `apps/chatgptx-manager/package.json`
+- `apps/swivox-manager/package.json`
   - `npm run check` runs TypeScript checking.
   - `npm run vite:build` builds the frontend.
   - `npm run build` locally builds launcher and Tauri manager, but CI can use more explicit steps to stage artifacts.
@@ -19,7 +19,7 @@ The project build entry points are:
   - `cargo build --release` builds Windows binaries on Windows.
   - `cargo build --release --target <mac target>` builds macOS binaries on macOS.
 - Existing installer scripts:
-  - Windows: `scripts/installer/windows/ChatGPTX.nsi`
+  - Windows: `scripts/installer/windows/Swivox.nsi`
   - macOS: `scripts/installer/macos/package-dmg.sh`
 
 ## Workflow
@@ -49,18 +49,18 @@ Steps:
 2. Set up Node 22.
 3. Set up Rust stable.
 4. Install NSIS with Chocolatey.
-5. Install frontend dependencies in `apps/chatgptx-manager` using `npm install --package-lock=false`.
-6. Run `npm run check` in `apps/chatgptx-manager`.
+5. Install frontend dependencies in `apps/swivox-manager` using `npm install --package-lock=false`.
+6. Run `npm run check` in `apps/swivox-manager`.
 7. Run `cargo test --workspace` from the repository root.
-8. Run `npm run vite:build` in `apps/chatgptx-manager`.
+8. Run `npm run vite:build` in `apps/swivox-manager`.
 9. Run `cargo build --release` from the repository root.
 10. Stage Windows binaries into `dist/windows/app`:
-    - `target/release/chatgptx.exe`
-    - `target/release/chatgptx-manager.exe`
-11. Build the NSIS installer using `scripts/installer/windows/ChatGPTX.nsi`.
+    - `target/release/swivox.exe`
+    - `target/release/swivox-manager.exe`
+11. Build the NSIS installer using `scripts/installer/windows/Swivox.nsi`.
 12. Upload two artifacts:
-    - `chatgptx-windows-binaries`
-    - `chatgptx-windows-installer`
+    - `swivox-windows-binaries`
+    - `swivox-windows-installer`
 
 The Windows job verifies TypeScript and Rust tests before uploading artifacts.
 
@@ -82,13 +82,13 @@ Steps for each matrix entry:
 1. Checkout the repository.
 2. Set up Node 22.
 3. Set up Rust stable with the matrix target.
-4. Install frontend dependencies in `apps/chatgptx-manager` using `npm install --package-lock=false`.
-5. Run `npm run vite:build` in `apps/chatgptx-manager`.
+4. Install frontend dependencies in `apps/swivox-manager` using `npm install --package-lock=false`.
+5. Run `npm run vite:build` in `apps/swivox-manager`.
 6. Run `cargo build --release --target <target>` from the repository root.
 7. Build the DMG using `scripts/installer/macos/package-dmg.sh`, passing the package version and architecture.
 8. Upload the generated DMG as an artifact named for the architecture:
-   - `chatgptx-macos-x64-dmg`
-   - `chatgptx-macos-arm64-dmg`
+   - `swivox-macos-x64-dmg`
+   - `swivox-macos-arm64-dmg`
 
 The macOS job focuses on producing downloadable DMGs. Rust unit tests remain covered by the Windows job to keep PR runtime reasonable while still validating the workspace.
 
@@ -110,7 +110,7 @@ After implementation:
 
 1. Validate the workflow file is present at `.github/workflows/pr-build.yml`.
 2. Run a local repository build command that matches the existing project build path:
-   - `npm --prefix /e/Desktop/ChatGPTX/apps/chatgptx-manager run build`
+   - `npm --prefix /e/Desktop/Swivox/apps/swivox-manager run build`
 3. Push the workflow to GitHub and verify a PR or manual run uploads Windows and macOS artifacts.
 
 Local execution cannot fully prove GitHub-hosted macOS runner behavior, so the first GitHub Actions run is the final integration verification.

@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a ChatGPTX enhancement that creates new Git worktrees from a fresh remote tracking ref such as `upstream/main` instead of stale local `HEAD`.
+**Goal:** Add a Swivox enhancement that creates new Git worktrees from a fresh remote tracking ref such as `upstream/main` instead of stale local `HEAD`.
 
-**Architecture:** Add a focused Rust `upstream_worktree` module in `chatgptx-core`, expose it through existing bridge routes, wire the launcher runtime to those routes, then add a guarded renderer menu workflow. The backend uses argument-array Git commands and an explicit fetch refspec so the created worktree is equivalent to `git worktree add -b <branch> <path> upstream/<base>` with a freshly updated `upstream/<base>` ref.
+**Architecture:** Add a focused Rust `upstream_worktree` module in `swivox-core`, expose it through existing bridge routes, wire the launcher runtime to those routes, then add a guarded renderer menu workflow. The backend uses argument-array Git commands and an explicit fetch refspec so the created worktree is equivalent to `git worktree add -b <branch> <path> upstream/<base>` with a freshly updated `upstream/<base>` ref.
 
 **Tech Stack:** Rust 2024, `std::process::Command`, existing `serde_json` bridge routing, existing injected `assets/inject/renderer-inject.js`, Cargo tests, `node --check` for renderer syntax validation.
 
@@ -12,12 +12,12 @@
 
 ## File Structure
 
-- Create `crates/chatgptx-core/src/upstream_worktree.rs`: Git validation, defaults, worktree creation, JSON response shaping.
-- Modify `crates/chatgptx-core/src/lib.rs`: export the new module.
-- Create `crates/chatgptx-core/tests/upstream_worktree.rs`: integration-style tests using temporary Git repositories.
-- Modify `crates/chatgptx-core/src/routes.rs`: add bridge trait methods and route dispatch for upstream worktree endpoints.
-- Modify `apps/chatgptx-launcher/src/main.rs`: implement the new bridge runtime methods for the launcher runtime.
-- Modify `crates/chatgptx-core/tests/bridge_routes.rs`: cover all new routes and fake runtime behavior.
+- Create `crates/swivox-core/src/upstream_worktree.rs`: Git validation, defaults, worktree creation, JSON response shaping.
+- Modify `crates/swivox-core/src/lib.rs`: export the new module.
+- Create `crates/swivox-core/tests/upstream_worktree.rs`: integration-style tests using temporary Git repositories.
+- Modify `crates/swivox-core/src/routes.rs`: add bridge trait methods and route dispatch for upstream worktree endpoints.
+- Modify `apps/swivox-launcher/src/main.rs`: implement the new bridge runtime methods for the launcher runtime.
+- Modify `crates/swivox-core/tests/bridge_routes.rs`: cover all new routes and fake runtime behavior.
 - Modify `assets/inject/renderer-inject.js`: add setting, menu row, modal, backend calls, and guarded native adapter stub.
 - Modify `README.md` and `README_EN.md`: document the user-facing enhancement after tests pass.
 
@@ -28,16 +28,16 @@ The backend and bridge work is independent from the renderer work. Implement tas
 ### Task 1: Add upstream worktree core API and validation
 
 **Files:**
-- Create: `crates/chatgptx-core/src/upstream_worktree.rs`
-- Modify: `crates/chatgptx-core/src/lib.rs`
-- Test: `crates/chatgptx-core/tests/upstream_worktree.rs`
+- Create: `crates/swivox-core/src/upstream_worktree.rs`
+- Modify: `crates/swivox-core/src/lib.rs`
+- Test: `crates/swivox-core/tests/upstream_worktree.rs`
 
 - [ ] **Step 1: Write failing validation tests**
 
-Create `crates/chatgptx-core/tests/upstream_worktree.rs` with this initial content:
+Create `crates/swivox-core/tests/upstream_worktree.rs` with this initial content:
 
 ```rust
-use chatgptx_core::upstream_worktree::{
+use swivox_core::upstream_worktree::{
     UpstreamWorktreeCode, default_remote_name, source_ref, validate_branch_name,
 };
 
@@ -76,14 +76,14 @@ fn default_remote_prefers_upstream_then_origin_then_first_remote() {
 Run:
 
 ```bash
-cargo test -p chatgptx-core --test upstream_worktree
+cargo test -p swivox-core --test upstream_worktree
 ```
 
-Expected: FAIL because `chatgptx_core::upstream_worktree` does not exist.
+Expected: FAIL because `swivox_core::upstream_worktree` does not exist.
 
 - [ ] **Step 3: Export the module**
 
-Add this line to `crates/chatgptx-core/src/lib.rs` near the other `pub mod` declarations:
+Add this line to `crates/swivox-core/src/lib.rs` near the other `pub mod` declarations:
 
 ```rust
 pub mod upstream_worktree;
@@ -91,7 +91,7 @@ pub mod upstream_worktree;
 
 - [ ] **Step 4: Implement core types and validation**
 
-Create `crates/chatgptx-core/src/upstream_worktree.rs` with:
+Create `crates/swivox-core/src/upstream_worktree.rs` with:
 
 ```rust
 use std::ffi::OsString;
@@ -287,7 +287,7 @@ fn git_in_repo(repo: &Path, args: &[&str]) -> Result<GitOutput, std::io::Error> 
 Run:
 
 ```bash
-cargo test -p chatgptx-core --test upstream_worktree branch_validation source_ref default_remote
+cargo test -p swivox-core --test upstream_worktree branch_validation source_ref default_remote
 ```
 
 Expected: PASS for the four tests in this task.
@@ -297,7 +297,7 @@ Expected: PASS for the four tests in this task.
 Run:
 
 ```bash
-git add "crates/chatgptx-core/src/lib.rs" "crates/chatgptx-core/src/upstream_worktree.rs" "crates/chatgptx-core/tests/upstream_worktree.rs"
+git add "crates/swivox-core/src/lib.rs" "crates/swivox-core/src/upstream_worktree.rs" "crates/swivox-core/tests/upstream_worktree.rs"
 git commit -m "feat(worktree): add upstream worktree validation core"
 ```
 
@@ -306,12 +306,12 @@ git commit -m "feat(worktree): add upstream worktree validation core"
 ### Task 2: Add Git defaults and upstream worktree creation
 
 **Files:**
-- Modify: `crates/chatgptx-core/src/upstream_worktree.rs`
-- Modify: `crates/chatgptx-core/tests/upstream_worktree.rs`
+- Modify: `crates/swivox-core/src/upstream_worktree.rs`
+- Modify: `crates/swivox-core/tests/upstream_worktree.rs`
 
 - [ ] **Step 1: Add failing Git integration tests**
 
-Append this code to `crates/chatgptx-core/tests/upstream_worktree.rs`:
+Append this code to `crates/swivox-core/tests/upstream_worktree.rs`:
 
 ```rust
 use std::path::Path;
@@ -319,7 +319,7 @@ use std::process::Command;
 
 use serde_json::json;
 
-use chatgptx_core::upstream_worktree::{
+use swivox_core::upstream_worktree::{
     create_response, defaults_response, status_response,
 };
 
@@ -465,14 +465,14 @@ fn create_response_does_not_create_worktree_when_fetch_fails() {
 Run:
 
 ```bash
-cargo test -p chatgptx-core --test upstream_worktree
+cargo test -p swivox-core --test upstream_worktree
 ```
 
 Expected: FAIL because `status_response`, `defaults_response`, and `create_response` are not implemented.
 
 - [ ] **Step 3: Implement Git discovery and response helpers**
 
-Append these functions to `crates/chatgptx-core/src/upstream_worktree.rs`:
+Append these functions to `crates/swivox-core/src/upstream_worktree.rs`:
 
 ```rust
 fn git_available() -> bool {
@@ -568,7 +568,7 @@ fn defaults_for_repo(repo_path: &Path) -> UpstreamWorktreeResult<Value> {
 
 - [ ] **Step 4: Implement create flow**
 
-Append these functions to `crates/chatgptx-core/src/upstream_worktree.rs`:
+Append these functions to `crates/swivox-core/src/upstream_worktree.rs`:
 
 ```rust
 fn normalize_worktree_path(repo_root: &Path, path: &Path) -> PathBuf {
@@ -709,7 +709,7 @@ fn create_worktree(payload: &Value) -> UpstreamWorktreeResult<Value> {
 Run:
 
 ```bash
-cargo test -p chatgptx-core --test upstream_worktree
+cargo test -p swivox-core --test upstream_worktree
 ```
 
 Expected: PASS for all upstream worktree tests.
@@ -719,7 +719,7 @@ Expected: PASS for all upstream worktree tests.
 Run:
 
 ```bash
-git add "crates/chatgptx-core/src/upstream_worktree.rs" "crates/chatgptx-core/tests/upstream_worktree.rs"
+git add "crates/swivox-core/src/upstream_worktree.rs" "crates/swivox-core/tests/upstream_worktree.rs"
 git commit -m "feat(worktree): create worktrees from upstream refs"
 ```
 
@@ -728,13 +728,13 @@ git commit -m "feat(worktree): create worktrees from upstream refs"
 ### Task 3: Expose upstream worktree bridge routes
 
 **Files:**
-- Modify: `crates/chatgptx-core/src/routes.rs`
-- Modify: `apps/chatgptx-launcher/src/main.rs`
-- Modify: `crates/chatgptx-core/tests/bridge_routes.rs`
+- Modify: `crates/swivox-core/src/routes.rs`
+- Modify: `apps/swivox-launcher/src/main.rs`
+- Modify: `crates/swivox-core/tests/bridge_routes.rs`
 
 - [ ] **Step 1: Write failing bridge route expectations**
 
-In `crates/chatgptx-core/tests/bridge_routes.rs`, add these route cases to `bridge_routes_cover_all_current_paths()` after the Zed remote cases:
+In `crates/swivox-core/tests/bridge_routes.rs`, add these route cases to `bridge_routes_cover_all_current_paths()` after the Zed remote cases:
 
 ```rust
         ("/upstream-worktree/status", json!({})),
@@ -849,14 +849,14 @@ Add these methods to the `impl BridgeRuntimeService for FakeRuntime` block:
 Run:
 
 ```bash
-cargo test -p chatgptx-core --test bridge_routes upstream_worktree_routes_are_dispatched_to_runtime
+cargo test -p swivox-core --test bridge_routes upstream_worktree_routes_are_dispatched_to_runtime
 ```
 
 Expected: FAIL because the trait and dispatch routes do not exist.
 
 - [ ] **Step 3: Add bridge trait methods and route dispatch**
 
-In `crates/chatgptx-core/src/routes.rs`, add these methods to `BridgeRuntimeService` after the Zed methods:
+In `crates/swivox-core/src/routes.rs`, add these methods to `BridgeRuntimeService` after the Zed methods:
 
 ```rust
     async fn upstream_worktree_status(&self) -> anyhow::Result<Value>;
@@ -892,19 +892,19 @@ In `impl BridgeRuntimeService for CoreRuntimeService`, add:
 
 - [ ] **Step 4: Wire launcher runtime methods**
 
-In `apps/chatgptx-launcher/src/main.rs`, add these methods to the `impl BridgeRuntimeService for LauncherRuntimeService` block after `open_zed_remote`:
+In `apps/swivox-launcher/src/main.rs`, add these methods to the `impl BridgeRuntimeService for LauncherRuntimeService` block after `open_zed_remote`:
 
 ```rust
     async fn upstream_worktree_status(&self) -> anyhow::Result<Value> {
-        Ok(chatgptx_core::upstream_worktree::status_response())
+        Ok(swivox_core::upstream_worktree::status_response())
     }
 
     async fn upstream_worktree_defaults(&self, payload: Value) -> anyhow::Result<Value> {
-        Ok(chatgptx_core::upstream_worktree::defaults_response(&payload))
+        Ok(swivox_core::upstream_worktree::defaults_response(&payload))
     }
 
     async fn upstream_worktree_create(&self, payload: Value) -> anyhow::Result<Value> {
-        Ok(chatgptx_core::upstream_worktree::create_response(&payload))
+        Ok(swivox_core::upstream_worktree::create_response(&payload))
     }
 ```
 
@@ -913,7 +913,7 @@ In `apps/chatgptx-launcher/src/main.rs`, add these methods to the `impl BridgeRu
 Run:
 
 ```bash
-cargo test -p chatgptx-core --test bridge_routes
+cargo test -p swivox-core --test bridge_routes
 ```
 
 Expected: PASS.
@@ -923,7 +923,7 @@ Expected: PASS.
 Run:
 
 ```bash
-cargo test -p chatgptx-core
+cargo test -p swivox-core
 ```
 
 Expected: PASS.
@@ -933,13 +933,13 @@ Expected: PASS.
 Run:
 
 ```bash
-git add "crates/chatgptx-core/src/routes.rs" "apps/chatgptx-launcher/src/main.rs" "crates/chatgptx-core/tests/bridge_routes.rs"
+git add "crates/swivox-core/src/routes.rs" "apps/swivox-launcher/src/main.rs" "crates/swivox-core/tests/bridge_routes.rs"
 git commit -m "feat(worktree): expose upstream worktree bridge routes"
 ```
 
 ---
 
-### Task 4: Add ChatGPTX menu workflow
+### Task 4: Add Swivox menu workflow
 
 **Files:**
 - Modify: `assets/inject/renderer-inject.js`
@@ -952,15 +952,15 @@ In `assets/inject/renderer-inject.js`, add this constant near the other top-leve
   const upstreamWorktreeDialogClass = "codex-upstream-worktree-dialog";
 ```
 
-Update `defaultChatGPTXSettings()` so the returned object includes `upstreamWorktreeCreate: true`:
+Update `defaultSwivoxSettings()` so the returned object includes `upstreamWorktreeCreate: true`:
 
 ```javascript
-  function defaultChatGPTXSettings() {
+  function defaultSwivoxSettings() {
     return { pluginEntryUnlock: true, forcePluginInstall: true, modelWhitelistUnlock: true, sessionDelete: true, markdownExport: true, projectMove: true, conversationTimeline: true, conversationView: false, conversationViewMaxWidth: conversationViewDefaultWidth, threadScrollRestore: true, zedRemoteOpen: true, upstreamWorktreeCreate: true, nativeMenuPlacement: true };
   }
 ```
 
-Update the disabled-enhancements return object in `chatgptxSettings()` so it includes:
+Update the disabled-enhancements return object in `swivoxSettings()` so it includes:
 
 ```javascript
         upstreamWorktreeCreate: false,
@@ -968,14 +968,14 @@ Update the disabled-enhancements return object in `chatgptxSettings()` so it inc
 
 - [ ] **Step 2: Add menu row and action button**
 
-In the home panel HTML in `openChatGPTXModal()`, insert this row immediately after the `Zed Remote open` row:
+In the home panel HTML in `openSwivoxModal()`, insert this row immediately after the `Zed Remote open` row:
 
 ```html
-            <div class="chatgptx-row">
-              <div><div class="chatgptx-row-title">Upstream worktree</div><div class="chatgptx-row-description">Create a Git worktree from a fresh upstream branch, equivalent to git worktree add -b branch path upstream/base.</div></div>
-              <div class="chatgptx-worktree-actions">
-                <button type="button" class="chatgptx-action-button" data-codex-upstream-worktree-open="true">创建</button>
-                <button type="button" class="chatgptx-toggle" data-chatgptx-setting="upstreamWorktreeCreate"><span></span></button>
+            <div class="swivox-row">
+              <div><div class="swivox-row-title">Upstream worktree</div><div class="swivox-row-description">Create a Git worktree from a fresh upstream branch, equivalent to git worktree add -b branch path upstream/base.</div></div>
+              <div class="swivox-worktree-actions">
+                <button type="button" class="swivox-action-button" data-codex-upstream-worktree-open="true">创建</button>
+                <button type="button" class="swivox-toggle" data-swivox-setting="upstreamWorktreeCreate"><span></span></button>
               </div>
             </div>
 ```
@@ -1050,12 +1050,12 @@ Add these functions near `showToast()` and `escapeHtml()`:
       <div class="codex-delete-confirm-content" role="dialog" aria-modal="true" aria-label="Create upstream worktree">
         <div class="codex-delete-confirm-title">Create from upstream</div>
         <div class="codex-delete-confirm-message">等价于 git worktree add -b branch path upstream/base。创建前会先 fetch 远端分支。</div>
-        <label class="chatgptx-form-field">仓库路径<input data-codex-upstream-worktree-field="repoPath" type="text" placeholder="/path/to/repo"></label>
-        <label class="chatgptx-form-field">新分支名<input data-codex-upstream-worktree-field="branchName" type="text" placeholder="feature/my-task"></label>
-        <label class="chatgptx-form-field">Worktree 路径<input data-codex-upstream-worktree-field="worktreePath" type="text" placeholder="/path/to/worktrees/my-task"></label>
-        <label class="chatgptx-form-field">Remote<input data-codex-upstream-worktree-field="remote" type="text" value="upstream"></label>
-        <label class="chatgptx-form-field">Base branch<input data-codex-upstream-worktree-field="baseBranch" type="text" value="main"></label>
-        <div class="chatgptx-form-message" data-codex-upstream-worktree-message>填写仓库路径后会自动读取 remote 和当前分支。</div>
+        <label class="swivox-form-field">仓库路径<input data-codex-upstream-worktree-field="repoPath" type="text" placeholder="/path/to/repo"></label>
+        <label class="swivox-form-field">新分支名<input data-codex-upstream-worktree-field="branchName" type="text" placeholder="feature/my-task"></label>
+        <label class="swivox-form-field">Worktree 路径<input data-codex-upstream-worktree-field="worktreePath" type="text" placeholder="/path/to/worktrees/my-task"></label>
+        <label class="swivox-form-field">Remote<input data-codex-upstream-worktree-field="remote" type="text" value="upstream"></label>
+        <label class="swivox-form-field">Base branch<input data-codex-upstream-worktree-field="baseBranch" type="text" value="main"></label>
+        <div class="swivox-form-message" data-codex-upstream-worktree-message>填写仓库路径后会自动读取 remote 和当前分支。</div>
         <div class="codex-delete-confirm-actions">
           <button type="button" data-codex-upstream-worktree-cancel="true">取消</button>
           <button type="button" data-codex-upstream-worktree-defaults="true">读取默认值</button>
@@ -1085,11 +1085,11 @@ Add these functions near `showToast()` and `escapeHtml()`:
 
 - [ ] **Step 4: Wire click handling**
 
-In the `overlay.addEventListener("click", ...)` handler inside `openChatGPTXModal()`, add this block before the generic `[data-chatgptx-setting]` toggle block:
+In the `overlay.addEventListener("click", ...)` handler inside `openSwivoxModal()`, add this block before the generic `[data-swivox-setting]` toggle block:
 
 ```javascript
       if (target?.closest("[data-codex-upstream-worktree-open]")) {
-        if (!chatgptxSettings().upstreamWorktreeCreate) {
+        if (!swivoxSettings().upstreamWorktreeCreate) {
           showToast("Upstream worktree enhancement is disabled", null);
           return;
         }
@@ -1103,12 +1103,12 @@ In the `overlay.addEventListener("click", ...)` handler inside `openChatGPTXModa
 In `installStyle()`, add these CSS rules inside `style.textContent`:
 
 ```css
-      .chatgptx-worktree-actions {
+      .swivox-worktree-actions {
         display: inline-flex;
         align-items: center;
         gap: 8px;
       }
-      .chatgptx-form-field {
+      .swivox-form-field {
         display: grid;
         gap: 4px;
         margin-top: 10px;
@@ -1116,7 +1116,7 @@ In `installStyle()`, add these CSS rules inside `style.textContent`:
         font: 12px system-ui, sans-serif;
         text-align: left;
       }
-      .chatgptx-form-field input {
+      .swivox-form-field input {
         width: min(520px, 72vw);
         border: 1px solid rgba(255,255,255,.18);
         border-radius: 8px;
@@ -1125,16 +1125,16 @@ In `installStyle()`, add these CSS rules inside `style.textContent`:
         padding: 8px 10px;
         font: 13px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       }
-      .chatgptx-form-message {
+      .swivox-form-message {
         min-height: 18px;
         margin-top: 10px;
         color: #a1a1aa;
         font: 12px system-ui, sans-serif;
         text-align: left;
       }
-      .chatgptx-form-message[data-status="ok"] { color: #34d399; }
-      .chatgptx-form-message[data-status="failed"] { color: #f87171; }
-      .chatgptx-form-message[data-status="loading"] { color: #fbbf24; }
+      .swivox-form-message[data-status="ok"] { color: #34d399; }
+      .swivox-form-message[data-status="failed"] { color: #f87171; }
+      .swivox-form-message[data-status="loading"] { color: #fbbf24; }
 ```
 
 - [ ] **Step 6: Validate renderer syntax**
@@ -1189,12 +1189,12 @@ Add these functions near the upstream worktree modal helpers:
   }
 
   async function handleUpstreamWorktreeNativeCreate(event) {
-    if (!chatgptxSettings().upstreamWorktreeCreate) return false;
+    if (!swivoxSettings().upstreamWorktreeCreate) return false;
     const trigger = event.target?.closest?.("[data-codex-worktree-create], [data-worktree-create]");
     if (!trigger) return false;
     const payload = upstreamWorktreeNativePayloadFromElement(trigger);
     if (!payload) {
-      showToast("无法安全识别 Codex 原生 worktree 表单，请使用 ChatGPTX 菜单创建。", null);
+      showToast("无法安全识别 Codex 原生 worktree 表单，请使用 Swivox 菜单创建。", null);
       return false;
     }
     event.preventDefault();
@@ -1267,13 +1267,13 @@ Add this FAQ section near the Git/Zed or enhancement FAQ sections:
 ```markdown
 ### Upstream worktree 和 Codex 原生创建有什么区别
 
-ChatGPTX 的 Upstream worktree 功能等价于先更新远端分支，再执行：
+Swivox 的 Upstream worktree 功能等价于先更新远端分支，再执行：
 
 ```bash
 git worktree add -b <new-branch> <worktree-path> upstream/<base-branch>
 ```
 
-这样新 worktree 从最新的远端跟踪分支开始，而不是从当前会话所在的本地 HEAD 开始。如果 ChatGPTX 无法安全识别当前 Codex 版本的原生 worktree 创建表单，请从 ChatGPTX 菜单中手动填写仓库路径、分支名、worktree 路径、remote 和 base branch。
+这样新 worktree 从最新的远端跟踪分支开始，而不是从当前会话所在的本地 HEAD 开始。如果 Swivox 无法安全识别当前 Codex 版本的原生 worktree 创建表单，请从 Swivox 菜单中手动填写仓库路径、分支名、worktree 路径、remote 和 base branch。
 ```
 
 - [ ] **Step 2: Update English README feature bullet**
@@ -1289,13 +1289,13 @@ Add this FAQ section near the enhancement FAQ sections:
 ```markdown
 ### How is Upstream worktree different from Codex native creation?
 
-ChatGPTX updates the remote branch first, then creates the worktree as if you ran:
+Swivox updates the remote branch first, then creates the worktree as if you ran:
 
 ```bash
 git worktree add -b <new-branch> <worktree-path> upstream/<base-branch>
 ```
 
-The new worktree starts from the fresh remote tracking branch instead of the local HEAD used by the current session. If ChatGPTX cannot safely recognize the current Codex version's native worktree form, use the ChatGPTX menu entry and enter the repository path, branch name, worktree path, remote, and base branch manually.
+The new worktree starts from the fresh remote tracking branch instead of the local HEAD used by the current session. If Swivox cannot safely recognize the current Codex version's native worktree form, use the Swivox menu entry and enter the repository path, branch name, worktree path, remote, and base branch manually.
 ```
 
 - [ ] **Step 3: Run deterministic validation**
@@ -1304,9 +1304,9 @@ Run:
 
 ```bash
 cargo fmt --check
-cargo test -p chatgptx-core --test upstream_worktree
-cargo test -p chatgptx-core --test bridge_routes
-cargo test -p chatgptx-core
+cargo test -p swivox-core --test upstream_worktree
+cargo test -p swivox-core --test bridge_routes
+cargo test -p swivox-core
 node --check "assets/inject/renderer-inject.js"
 ```
 
@@ -1316,7 +1316,7 @@ Expected:
 cargo fmt --check: PASS
 upstream_worktree tests: PASS
 bridge_routes tests: PASS
-chatgptx-core tests: PASS
+swivox-core tests: PASS
 node --check: PASS
 ```
 
@@ -1344,7 +1344,7 @@ git -C "$TMPDIR/seed" commit -m "remote update"
 git -C "$TMPDIR/seed" push upstream main
 ```
 
-Then launch ChatGPTX from the built app or development launcher, open the ChatGPTX menu, create:
+Then launch Swivox from the built app or development launcher, open the Swivox menu, create:
 
 ```text
 Repository path: $TMPDIR/repo

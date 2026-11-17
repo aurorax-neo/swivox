@@ -15,7 +15,7 @@
   }
 
   function refreshConversationView() {
-    if (!chatgptxSettings().conversationView) {
+    if (!swivoxSettings().conversationView) {
       cleanupConversationView();
       return;
     }
@@ -24,15 +24,15 @@
   }
 
 
-  const officialUsageWindowMarker = "data-chatgptx-official-usage-window";
+  const officialUsageWindowMarker = "data-swivox-official-usage-window";
   // 重新注入会替换局部配置；已有 Query 钩子必须通过同一个运行时读取新策略。
-  const officialUsageRuntime = window.__chatgptxOfficialUsageRuntime ||= {
+  const officialUsageRuntime = window.__swivoxOfficialUsageRuntime ||= {
     rawPayloads: new WeakMap(),
     rewriteDepth: 0,
   };
   officialUsageRuntime.pendingPublications ||= new WeakMap();
   officialUsageRuntime.rewrite = rewriteTrackedOfficialUsagePayload;
-  window.__chatgptxOfficialUsageWindowCleanup?.();
+  window.__swivoxOfficialUsageWindowCleanup?.();
 
   function isOfficialLowQuotaSidebarCard(node) {
     if (node?.nodeType !== Node.ELEMENT_NODE || node.getAttribute("role") !== "status") return false;
@@ -155,7 +155,7 @@
     if (officialUsageWindowActive) syncOfficialUsageWindowMode(officialUsagePolicyKey());
   }
 
-  window.__chatgptxOfficialUsageWindowCleanup = () => {
+  window.__swivoxOfficialUsageWindowCleanup = () => {
     officialUsageWindowActive = false;
     officialUsageWindowHidden = false;
     document.removeEventListener("DOMContentLoaded", startOfficialUsageWindowsAfterReady);
@@ -190,17 +190,17 @@
     installCodexServiceTierDispatcherPatch();
     installCodexAppServerClientPrototypePatch();
     installCodexRemoteSessionRecoveryListener();
-    if (window.__chatgptxRemoteSessionRecoveryDispatcher) {
+    if (window.__swivoxRemoteSessionRecoveryDispatcher) {
       installCodexRemoteSessionDispatcherSubscription(
-        window.__chatgptxRemoteSessionRecoveryDispatcher,
+        window.__swivoxRemoteSessionRecoveryDispatcher,
         "existing-renderer"
       );
     }
-    installChatGPTXNavigationEntries();
+    installSwivoxNavigationEntries();
     // 拓展注册的图标栏入口与内置入口走同一条刷新路径：rail 渲染晚于注入，
     // 所以要每轮扫描都补一次（内部靠 id 幂等，不会重复插入）。
-    refreshChatGPTXRailNavigation();
-    installChatGPTXPageNavigationCloseHandler();
+    refreshSwivoxRailNavigation();
+    installSwivoxPageNavigationCloseHandler();
     scheduleBackendHeartbeat();
     installDeleteButtonEventDelegation();
     updateThreadScrollHandlers();
@@ -214,7 +214,7 @@
 
   function officialUsagePolicy() {
     // 新一代设置尚未返回时沿用最后一次真实配置，避免重新注入短暂恢复额度锁。
-    if (!chatgptxBackendSettingsLoaded && officialUsageRuntime.lastPolicy) return officialUsageRuntime.lastPolicy;
+    if (!swivoxBackendSettingsLoaded && officialUsageRuntime.lastPolicy) return officialUsageRuntime.lastPolicy;
     const profile = codexRemoteSessionActiveProfile();
     const official = String(profile?.relayMode || "") === "official";
     const hasApi = Boolean((profile?.apiKey && String(profile.apiKey).trim()) || (profile?.baseUrl && String(profile.baseUrl).trim()));
@@ -224,7 +224,7 @@
       hideAlerts: mixed,
       unlockSend: mixed,
     };
-    if (chatgptxBackendSettingsLoaded) officialUsageRuntime.lastPolicy = policy;
+    if (swivoxBackendSettingsLoaded) officialUsageRuntime.lastPolicy = policy;
     return policy;
   }
 
@@ -387,9 +387,9 @@
     const query = listed.find((item) => typeof Object.getPrototypeOf(item)?.setData === "function");
     if (!query) return;
     const proto = Object.getPrototypeOf(query);
-    if (typeof proto.setData !== "function" || proto.setData.__chatgptxUsagePublication) return;
+    if (typeof proto.setData !== "function" || proto.setData.__swivoxUsagePublication) return;
     const original = proto.setData;
-    function chatgptxPublishUsageData(data, ...rest) {
+    function swivoxPublishUsageData(data, ...rest) {
       if (!isMainRateLimitQueryKey(this?.queryKey)) return original.call(this, data, ...rest);
       const raw = officialUsageRuntime.rawPayloads.get(data) || data;
       const next = officialUsageRuntime.rewrite(data);
@@ -413,16 +413,16 @@
         else officialUsageRuntime.pendingPublications.delete(this);
       }
     }
-    chatgptxPublishUsageData.__chatgptxUsagePublication = true;
-    proto.setData = chatgptxPublishUsageData;
+    swivoxPublishUsageData.__swivoxUsagePublication = true;
+    proto.setData = swivoxPublishUsageData;
   }
 
   function patchOfficialUsageQueryClient(client) {
     if (!client || typeof client.setQueryData !== "function") return;
     patchOfficialUsageQueryPublication(client);
-    if (client.__chatgptxUsageRewrite) return;
+    if (client.__swivoxUsageRewrite) return;
     const original = client.setQueryData;
-    client.setQueryData = function chatgptxSetUsageQueryData(queryKey, updater, ...rest) {
+    client.setQueryData = function swivoxSetUsageQueryData(queryKey, updater, ...rest) {
       if (!isMainRateLimitQueryKey(queryKey)) {
         return original.call(this, queryKey, updater, ...rest);
       }
@@ -454,7 +454,7 @@
         client.setQueryData(query.queryKey, next);
       });
     }
-    client.__chatgptxUsageRewrite = true;
+    client.__swivoxUsageRewrite = true;
   }
 
   function rewriteCachedOfficialUsage(client) {
@@ -506,9 +506,9 @@
     } else {
       return;
     }
-    const recoveredHomeReads = window.__chatgptxComposerReadiness?.tick(client, officialUsagePolicy().unlockSend) || 0;
+    const recoveredHomeReads = window.__swivoxComposerReadiness?.tick(client, officialUsagePolicy().unlockSend) || 0;
     if (recoveredHomeReads > 0) {
-      sendChatGPTXDiagnostic("composer_home_read_retried", { count: recoveredHomeReads });
+      sendSwivoxDiagnostic("composer_home_read_retried", { count: recoveredHomeReads });
     }
     if (key === officialUsagePolicyApplied) {
       if (key !== "off") rewriteCachedOfficialUsage(client);
@@ -529,14 +529,14 @@
     if (previous) invalidateMainRateLimitQueries(client);
   }
 
-  if (window.__CHATGPTX_TEST_RATE_LIMIT_UNLOCK__) {
-    window.__chatgptxRateLimitUnlockTest = {
+  if (window.__SWIVOX_TEST_RATE_LIMIT_UNLOCK__) {
+    window.__swivoxRateLimitUnlockTest = {
       setBackendSettings: (settings) => {
-        chatgptxBackendSettings = { ...chatgptxBackendSettings, ...settings };
-        chatgptxBackendSettingsLoaded = true;
+        swivoxBackendSettings = { ...swivoxBackendSettings, ...settings };
+        swivoxBackendSettingsLoaded = true;
       },
       setHideAlerts: (hidden) => {
-        window.__CHATGPTX_HIDE_OFFICIAL_USAGE_ALERT__ = hidden === true;
+        window.__SWIVOX_HIDE_OFFICIAL_USAGE_ALERT__ = hidden === true;
       },
       install: () => syncOfficialUsagePolicy(),
       policyKey: () => officialUsagePolicyKey(),
@@ -564,7 +564,7 @@
 
   function looksLikeSessionActionMenu(menu) {
     if (!(menu instanceof HTMLElement) || menu.hidden) return false;
-    if (menu.matches(`.${moreMenuClass}, .${chatgptxMenuFloatingClass}, #${chatgptxMenuId}`)) return false;
+    if (menu.matches(`.${moreMenuClass}, .${swivoxMenuFloatingClass}, #${swivoxMenuId}`)) return false;
     const text = normalizedElementText(menu);
     const hasRename = /(?:重命名|rename)/i.test(text);
     const hasOtherSessionAction = /(?:置顶|取消置顶|pin|unpin|归档|archive|删除|delete|移动|move)/i.test(text);
@@ -578,7 +578,7 @@
     const testid = candidate.getAttribute("data-testid") || "";
     // Codex 26.1007 changed the visible label from the bare "重命名"/
     // "Rename" to a longer localized label. Match the native semantic
-    // affordance while excluding ChatGPTX's own auto-rename entry.
+    // affordance while excluding Swivox's own auto-rename entry.
     if (/自动重命名当前会话|auto.?rename current session/i.test(`${text} ${label}`)) return false;
     return /重命名|rename/i.test(`${text} ${label} ${testid}`);
   }
@@ -845,7 +845,7 @@
     item.setAttribute("data-codex-session-copy-menu", "true");
     item.dataset.codexSessionCopyVersion = sessionCopyMenuItemVersion;
     item.__codexSessionCopyRow = row;
-    item.innerHTML = `<div class="flex w-full items-center gap-1.5"><span class="inline-flex h-5 w-5 shrink-0 items-center justify-center opacity-75 group-focus:opacity-100 group-hover:opacity-100">${sessionCopyMenuItemIcon()}</span><span class="flex-1 min-w-0 truncate">原地复制会话 - ChatGPTX</span></div>`;
+    item.innerHTML = `<div class="flex w-full items-center gap-1.5"><span class="inline-flex h-5 w-5 shrink-0 items-center justify-center opacity-75 group-focus:opacity-100 group-hover:opacity-100">${sessionCopyMenuItemIcon()}</span><span class="flex-1 min-w-0 truncate">原地复制会话 - Swivox</span></div>`;
     item.addEventListener("pointerup", activateSessionCopyMenuItem, true);
     item.addEventListener("click", activateSessionCopyMenuItem, true);
     item.addEventListener("keydown", activateSessionCopyMenuItem, true);
@@ -855,7 +855,7 @@
   function refreshSessionCopyMenuItems(scope = document) {
     sessionCopyMenuScopes(scope).forEach((menu) => {
       if (!(menu instanceof HTMLElement) || isExtensionUiNode(menu)) return;
-      if (menu.matches(`.${moreMenuClass}, .${chatgptxMenuFloatingClass}, #${chatgptxMenuId}`)) {
+      if (menu.matches(`.${moreMenuClass}, .${swivoxMenuFloatingClass}, #${swivoxMenuId}`)) {
         menu.querySelectorAll(`.${sessionCopyMenuItemClass}`).forEach((item) => item.remove());
         return;
       }
@@ -878,7 +878,7 @@
   function scanDeferred() {
     if (codexPluginMarketplacePatchEnabled()) {
       const pluginUnlockStrategy = codexPluginUnlockStrategy();
-      const settings = chatgptxSettings();
+      const settings = swivoxSettings();
       logCodexPluginUnlockStrategy(pluginUnlockStrategy);
       if ((pluginUnlockStrategy === "modern" || pluginUnlockStrategy === "unknown") && settings.pluginMarketplaceUnlock) {
         const marketplaceRequestPatchStrategy = codexPluginMarketplaceRequestPatchStrategy();
@@ -894,7 +894,7 @@
         }
       }
     }
-    if (typeof syncChatGPTXWhaleWidget === "function") runScanStep(syncChatGPTXWhaleWidget);
+    if (typeof syncSwivoxWhaleWidget === "function") runScanStep(syncSwivoxWhaleWidget);
     refreshThreadIdBadges();
     sessionRows().forEach(tryAttachButton);
     updateDeleteButtonOffsets();

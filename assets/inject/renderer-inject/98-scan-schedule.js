@@ -1,4 +1,4 @@
-  window.__chatgptxScanScheduleCleanup?.();
+  window.__swivoxScanScheduleCleanup?.();
   clearTimeout(window.__codexSessionDeleteScanTimer);
   cancelAnimationFrame(window.__codexSessionDeleteDeferredRaf);
   window.__codexSessionDeleteScanTimer = null;
@@ -7,18 +7,18 @@
   window.__codexSessionDeleteDeferredPending = false;
 
   /**
-   * 这个节点是不是 ChatGPTX 自己（或拓展）的 UI。
+   * 这个节点是不是 Swivox 自己（或拓展）的 UI。
    *
-   * 内置选择器写在这里；拓展通过注册中心登记的选择器走 isChatGPTXExtensionNode，
+   * 内置选择器写在这里；拓展通过注册中心登记的选择器走 isSwivoxExtensionNode，
    * 那边已把选择器合并成一个串并在 Set 变化时重建缓存，所以这里每次调用只多一次
    * closest()，不会因为拓展数量增长而线性变慢。
    */
   function isExtensionUiNode(node) {
     if (!node?.closest) return false;
-    if (node.closest(`[data-chatgptx-ext], .codex-delete-toast, .codex-delete-confirm-overlay, .chatgptx-modal-overlay, .${chatgptxPageClass}, #${chatgptxSidebarNavId}, #${chatgptxRailNavId}, #${chatgptxRailExtensionsId}, #${chatgptxRailSponsorId}, #${chatgptxRailNavId} > button, #${chatgptxRailExtensionsId} > button, #${chatgptxRailSponsorId} > button, .${codexServiceTierBadgeClass}, .${sessionShareButtonClass}, .codex-zed-remote-button, .codex-zed-remote-toast, .${sessionCopyMenuItemClass}, #chatgptx-menu, #${capacityAutoRetryChipId}`)) {
+    if (node.closest(`[data-swivox-ext], .codex-delete-toast, .codex-delete-confirm-overlay, .swivox-modal-overlay, .${swivoxPageClass}, #${swivoxSidebarNavId}, #${swivoxRailNavId}, #${swivoxRailExtensionsId}, #${swivoxRailSponsorId}, #${swivoxRailNavId} > button, #${swivoxRailExtensionsId} > button, #${swivoxRailSponsorId} > button, .${codexServiceTierBadgeClass}, .${sessionShareButtonClass}, .codex-zed-remote-button, .codex-zed-remote-toast, .${sessionCopyMenuItemClass}, #swivox-menu, #${capacityAutoRetryChipId}`)) {
       return true;
     }
-    return isChatGPTXExtensionNode(node);
+    return isSwivoxExtensionNode(node);
   }
 
   function scanRelevantSelector() {
@@ -127,7 +127,7 @@
     } else if (window.__codexSessionDeleteDeferredPending) scheduleDeferredScan();
   };
   document.addEventListener("visibilitychange", onScanVisibilityChange);
-  window.__chatgptxScanScheduleCleanup = () => {
+  window.__swivoxScanScheduleCleanup = () => {
     document.removeEventListener("visibilitychange", onScanVisibilityChange);
     clearTimeout(window.__codexSessionDeleteScanTimer);
     cancelAnimationFrame(window.__codexSessionDeleteDeferredRaf);
@@ -140,7 +140,7 @@
    *
    * 注入永远早于 Codex 把左侧面板渲染出来：注入那一刻 readyState 已是 complete，
    * 但 aside.app-shell-left-panel 还不存在（实测 anyNav: 0），所以首次 scan 里的
-   * installChatGPTXSidebarNavigation 必然走 `if (!navigation) return`。
+   * installSwivoxSidebarNavigation 必然走 `if (!navigation) return`。
    *
    * 之后全靠 MutationObserver 观察到侧边栏挂载再补一次，实测要 2.6~3.1 秒。
    * 但那把入口的出现押在了单次 DOM 变更上——那次变更若被 shouldScheduleScan
@@ -150,19 +150,19 @@
    * 不留常驻定时器，也不影响 observer 那条正常路径。
    */
   function scheduleSidebarNavStartupRetry() {
-    clearInterval(window.__chatgptxSidebarNavRetryTimer);
+    clearInterval(window.__swivoxSidebarNavRetryTimer);
     let attempts = 0;
-    window.__chatgptxSidebarNavRetryTimer = setInterval(() => {
+    window.__swivoxSidebarNavRetryTimer = setInterval(() => {
       attempts += 1;
-      const installed = document.getElementById(chatgptxSidebarNavId)
-        || document.getElementById(chatgptxRailNavId);
+      const installed = document.getElementById(swivoxSidebarNavId)
+        || document.getElementById(swivoxRailNavId);
       if (installed || attempts > 20) {
-        clearInterval(window.__chatgptxSidebarNavRetryTimer);
-        window.__chatgptxSidebarNavRetryTimer = null;
+        clearInterval(window.__swivoxSidebarNavRetryTimer);
+        window.__swivoxSidebarNavRetryTimer = null;
         return;
       }
       try {
-        installChatGPTXNavigationEntries();
+        installSwivoxNavigationEntries();
       } catch {}
     }, 300);
   }
@@ -171,4 +171,4 @@
   scan();
   syncOfficialUsagePolicy();
   scheduleSidebarNavStartupRetry();
-  window.removeEventListener("resize", window.__chatgptxResizeHandler);
+  window.removeEventListener("resize", window.__swivoxResizeHandler);

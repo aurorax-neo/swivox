@@ -1,21 +1,21 @@
 (() => {
   // The launcher targets the Codex app page, but keep a renderer-side guard
   // so this bundle cannot create UI in embedded browser documents.
-  const chatgptxIsNodeTestHarness = typeof process === "object" && !!process.versions?.node;
-  if (!chatgptxIsNodeTestHarness && (window.top !== window || window.self !== window || !window.electronBridge || !/^app:\/\/\-\//i.test(window.location.href))) return;
-  const chatgptxIsWindowsPlatform = /\bWindows\b/i.test(navigator.userAgent || "");
+  const swivoxIsNodeTestHarness = typeof process === "object" && !!process.versions?.node;
+  if (!swivoxIsNodeTestHarness && (window.top !== window || window.self !== window || !window.electronBridge || !/^app:\/\/\-\//i.test(window.location.href))) return;
+  const swivoxIsWindowsPlatform = /\bWindows\b/i.test(navigator.userAgent || "");
 
-  function installChatGPTXForceChineseLocale() {
-    const config = window.__CHATGPTX_FORCE_CHINESE_LOCALE__;
+  function installSwivoxForceChineseLocale() {
+    const config = window.__SWIVOX_FORCE_CHINESE_LOCALE__;
     if (!config) return;
     const enabled = config.enabled === true;
     const locale = typeof config.locale === "string" && config.locale ? config.locale : "zh-CN";
     const installationKey = `2:${enabled ? "on" : "off"}:${locale}`;
-    if (window.__chatgptxForceChineseLocaleInstalled === installationKey) return;
-    window.__chatgptxForceChineseLocaleInstalled = installationKey;
+    if (window.__swivoxForceChineseLocaleInstalled === installationKey) return;
+    window.__swivoxForceChineseLocaleInstalled = installationKey;
     const languages = [locale, "zh", "en-US", "en"];
-    const managedLocaleStorageKey = "chatgptx.forceChineseLocale.managed.v1";
-    const localeReloadStorageKey = "chatgptx.forceChineseLocale.reload.v1";
+    const managedLocaleStorageKey = "swivox.forceChineseLocale.managed.v1";
+    const localeReloadStorageKey = "swivox.forceChineseLocale.reload.v1";
 
     const readManagedLocale = () => {
       try {
@@ -149,14 +149,14 @@
         dynamicConfig.value = nextValue;
       } catch {
       }
-      if (typeof dynamicConfig.get === "function" && !dynamicConfig.__chatgptxForceChineseLocaleGetPatched) {
+      if (typeof dynamicConfig.get === "function" && !dynamicConfig.__swivoxForceChineseLocaleGetPatched) {
         const originalGet = dynamicConfig.get.bind(dynamicConfig);
         dynamicConfig.get = (key, fallback) => {
           if (key === "enable_i18n") return true;
           if (key === "locale_source") return "SYSTEM";
           return originalGet(key, fallback);
         };
-        dynamicConfig.__chatgptxForceChineseLocaleGetPatched = true;
+        dynamicConfig.__swivoxForceChineseLocaleGetPatched = true;
       }
       return dynamicConfig;
     };
@@ -190,44 +190,44 @@
         layer.value = nextValue;
       } catch {
       }
-      if (typeof layer.get === "function" && !layer.__chatgptxForceChineseLocaleLayerPatched) {
+      if (typeof layer.get === "function" && !layer.__swivoxForceChineseLocaleLayerPatched) {
         const originalGet = layer.get.bind(layer);
         layer.get = (key, fallback) => {
           if (key === "enable_i18n") return true;
           if (key === "locale_source") return "SYSTEM";
           return originalGet(key, fallback);
         };
-        layer.__chatgptxForceChineseLocaleLayerPatched = true;
+        layer.__swivoxForceChineseLocaleLayerPatched = true;
       }
       return layer;
     };
 
     const patchStatsigClient = (client) => {
       if (!client || typeof client !== "object") return;
-      if (typeof client.getLayer === "function" && !client.__chatgptxForceChineseLocaleLayerChannelPatched) {
+      if (typeof client.getLayer === "function" && !client.__swivoxForceChineseLocaleLayerChannelPatched) {
         const originalGetLayer = client.getLayer.bind(client);
         client.getLayer = (name, options) => {
           const result = originalGetLayer(name, options);
           return name === "72216192" ? patchI18nLayer(result) : result;
         };
-        client.__chatgptxForceChineseLocaleLayerChannelPatched = true;
+        client.__swivoxForceChineseLocaleLayerChannelPatched = true;
       }
-      if (typeof client._getLayerImpl === "function" && !client.__chatgptxForceChineseLocaleLayerImplPatched) {
+      if (typeof client._getLayerImpl === "function" && !client.__swivoxForceChineseLocaleLayerImplPatched) {
         const originalGetLayerImpl = client._getLayerImpl.bind(client);
         client._getLayerImpl = function (name, ...rest) {
           const result = originalGetLayerImpl(name, ...rest);
           return name === "72216192" ? patchI18nLayer(result) : result;
         };
-        client.__chatgptxForceChineseLocaleLayerImplPatched = true;
+        client.__swivoxForceChineseLocaleLayerImplPatched = true;
       }
       if (typeof client.getDynamicConfig !== "function") return;
-      if (!client.__chatgptxForceChineseLocalePatched) {
+      if (!client.__swivoxForceChineseLocalePatched) {
         const originalGetDynamicConfig = client.getDynamicConfig.bind(client);
         client.getDynamicConfig = (name, options) => {
           const result = originalGetDynamicConfig(name, options);
           return name === "72216192" ? patchI18nConfig(result) : result;
         };
-        client.__chatgptxForceChineseLocalePatched = true;
+        client.__swivoxForceChineseLocalePatched = true;
       }
       try {
         patchI18nConfig(client.getDynamicConfig("72216192", { disableExposureLog: true }));
@@ -242,8 +242,8 @@
     };
 
     const patchStatsigRoot = (root) => {
-      if (!root || typeof root !== "object" || root.__chatgptxForceChineseLocaleRootPatched) return;
-      root.__chatgptxForceChineseLocaleRootPatched = true;
+      if (!root || typeof root !== "object" || root.__swivoxForceChineseLocaleRootPatched) return;
+      root.__swivoxForceChineseLocaleRootPatched = true;
       ["firstInstance", "instance"].forEach((key) => {
         let current;
         try {
@@ -303,7 +303,7 @@
     }, 50);
   }
 
-  const helperBase = window.__CODEX_SESSION_DELETE_HELPER__ || "http://127.0.0.1:57321";
+  const helperBase = window.__CODEX_SESSION_DELETE_HELPER__ || "http://127.0.0.1:58321";
   const buttonClass = "codex-delete-button";
   const exportButtonClass = "codex-export-button";
   const actionButtonClass = "codex-session-action-button";
@@ -315,9 +315,9 @@
   const conversationViewMinWidth = 320;
   const conversationViewMaxAllowedWidth = 4000;
   const conversationViewDefaultWidth = 900;
-  const conversationViewLegacyWidthKey = "chatgptx.threadCenter.maxWidth";
+  const conversationViewLegacyWidthKey = "swivox.threadCenter.maxWidth";
   // 模型容量错误自动重试的次数上下限。放在 prelude 是因为默认设置
-  // （10-style.js 的 defaultChatGPTXSettings）和运行逻辑（81-capacity-auto-retry.js）
+  // （10-style.js 的 defaultSwivoxSettings）和运行逻辑（81-capacity-auto-retry.js）
   // 都要用，而后者的 const 在 IIFE 里初始化得更晚。
   const capacityAutoRetryDefaultMaxAttempts = 15;
   const capacityAutoRetryMaxAttemptsCeiling = 200;
@@ -333,9 +333,9 @@
   const sessionCopyMenuActivationTimeoutMs = 12000;
   const sessionShareButtonClass = "codex-session-share-button";
   const sessionShareButtonVersion = "1";
-  const chatgptxShareBaseUrl = "https://share.codexpp.cc";
-  const chatgptxShareFallbackBaseUrl = "https://codexpp-share.pages.dev";
-  const chatgptxShareMaxCharacters = 900000;
+  const swivoxShareBaseUrl = "https://share.codexpp.cc";
+  const swivoxShareFallbackBaseUrl = "https://codexpp-share.pages.dev";
+  const swivoxShareMaxCharacters = 900000;
   const sessionAutoRenameTimeoutMs = 20000;
   const zedRemoteToastClass = "codex-zed-remote-toast";
   const upstreamWorktreeDialogClass = "codex-upstream-worktree-dialog";
@@ -344,26 +344,26 @@
   // 改 10-style.js 里的任何 CSS 都要把它 +1：installStyle 靠这个版本号判断
   // 页面里已有的 <style> 是否过期，不升的话新样式在旧标签存在时会被直接跳过。
   const codexDeleteStyleVersion = "32";
-  const chatgptxMenuId = "chatgptx-menu";
-  const chatgptxMenuFloatingClass = "chatgptx-menu-floating";
-  const chatgptxSidebarNavId = "chatgptx-sidebar-nav";
-  const chatgptxPageClass = "chatgptx-page-overlay";
+  const swivoxMenuId = "swivox-menu";
+  const swivoxMenuFloatingClass = "swivox-menu-floating";
+  const swivoxSidebarNavId = "swivox-sidebar-nav";
+  const swivoxPageClass = "swivox-page-overlay";
   // 新版 Codex 在最左侧多出一条导航图标栏（navigation rail）。
-  // 三个入口分别挂进去：ChatGPTX 主页、「拓展」（原用户脚本）和「推荐内容」。
+  // 三个入口分别挂进去：Swivox 主页、「拓展」（原用户脚本）和「推荐内容」。
   // 三者各自是一个独立页面，不再作为弹窗里的二级 tab。
-  const chatgptxRailNavId = "chatgptx-rail-nav";
-  const chatgptxRailExtensionsId = "chatgptx-rail-extensions";
-  const chatgptxRailSponsorId = "chatgptx-rail-sponsor";
-  const chatgptxRailPluginMarketId = "chatgptx-rail-plugin-market";
-  const chatgptxSidebarPluginMarketId = "chatgptx-sidebar-plugin-market";
-  const chatgptxPluginMarketTab = "plugin-market";
-  const chatgptxRailSelector = "nav[data-app-navigation-rail]";
-  const chatgptxRailDestinationSelector = "[data-sidebar-destination]";
-  const chatgptxExtensionsTab = "extensions";
-  const chatgptxSponsorTab = "sponsor";
+  const swivoxRailNavId = "swivox-rail-nav";
+  const swivoxRailExtensionsId = "swivox-rail-extensions";
+  const swivoxRailSponsorId = "swivox-rail-sponsor";
+  const swivoxRailPluginMarketId = "swivox-rail-plugin-market";
+  const swivoxSidebarPluginMarketId = "swivox-sidebar-plugin-market";
+  const swivoxPluginMarketTab = "plugin-market";
+  const swivoxRailSelector = "nav[data-app-navigation-rail]";
+  const swivoxRailDestinationSelector = "[data-sidebar-destination]";
+  const swivoxExtensionsTab = "extensions";
+  const swivoxSponsorTab = "sponsor";
   // Codex 的界面缩放是给内层布局节点设 CSS zoom，不是改 documentElement。
   // 我们的 overlay 挂在 body 下、落在那棵缩放子树之外，只能自己读这个变量跟随。
-  const chatgptxWindowZoomVar = "--codex-window-zoom";
+  const swivoxWindowZoomVar = "--codex-window-zoom";
   const codexDeleteVersion = "7";
   const codexExportVersion = "1";
   const codexActionGroupVersion = "6";
@@ -375,10 +375,10 @@
   const codexThreadServiceTierVersion = "1";
   const codexServiceTierBadgeClass = "codex-service-tier-badge";
   const codexServiceTierBadgeVersion = "3";
-  let chatgptxVersion = window.__CHATGPTX_VERSION__ || "unknown";
-  const chatgptxBuild = window.__CHATGPTX_BUILD__ || "unknown";
+  let swivoxVersion = window.__SWIVOX_VERSION__ || "unknown";
+  const swivoxBuild = window.__SWIVOX_BUILD__ || "unknown";
   let lastSessionActionTrigger = null;
-  const chatgptxSettingsKey = "chatgptxSettings";
+  const swivoxSettingsKey = "swivoxSettings";
   const codexThreadScrollKey = "codexThreadScroll";
   const codexThreadServiceTierKey = "codexThreadServiceTierOverrides";
   const codexThreadServiceTierMaxEntries = 120;
@@ -398,7 +398,7 @@
   const codexThreadScrollRouteHooksVersion = "dispatcher:2";
   const codexThreadScrollListenerVersion = "4";
   const codexThreadScrollUserIntentVersion = "dispatcher:2";
-  const chatgptxImageOverlayId = "chatgptx-image-overlay";
+  const swivoxImageOverlayId = "swivox-image-overlay";
   clearTimeout(window.__codexThreadScrollSaveTimer);
   window.__codexThreadScrollSaveTimer = null;
   (window.__codexThreadScrollRestoreTimers || []).forEach((timer) => clearTimeout(timer));
@@ -407,10 +407,10 @@
   window.__codexThreadScrollSyncTimers = [];
   window.__codexThreadScrollRestoreRevision = (window.__codexThreadScrollRestoreRevision || 0) + 1;
 
-  function installChatGPTXImageOverlay() {
-    const config = window.__CHATGPTX_IMAGE_OVERLAY__ || {};
+  function installSwivoxImageOverlay() {
+    const config = window.__SWIVOX_IMAGE_OVERLAY__ || {};
     const source = typeof config.dataUrl === "string" ? config.dataUrl : "";
-    const cached = window.__chatgptxImageOverlayResource;
+    const cached = window.__swivoxImageOverlayResource;
     const configuredOpacity = Number(config.opacity);
     const opacity = Number.isFinite(configuredOpacity)
       ? Math.min(1, Math.max(0.01, configuredOpacity)) : 0.35;
@@ -418,14 +418,14 @@
       ? config.fitMode : "fit";
     const reuse = !!(config.enabled && source && cached?.version === 29 && cached.ready && cached.source === source);
     if (reuse && cached.opacity === opacity && cached.fitMode === fitMode &&
-      document.getElementById(chatgptxImageOverlayId)?.getAttribute("data-chatgptx-ext") === "image-overlay") return;
-    window.__chatgptxImageOverlayGeometryCleanup?.();
-    window.__chatgptxImageOverlayGeometryCleanup = null;
-    window.__chatgptxImageOverlayCleanup?.(reuse);
-    window.__chatgptxImageOverlayCleanup = null;
-    document.getElementById(chatgptxImageOverlayId)?.remove();
+      document.getElementById(swivoxImageOverlayId)?.getAttribute("data-swivox-ext") === "image-overlay") return;
+    window.__swivoxImageOverlayGeometryCleanup?.();
+    window.__swivoxImageOverlayGeometryCleanup = null;
+    window.__swivoxImageOverlayCleanup?.(reuse);
+    window.__swivoxImageOverlayCleanup = null;
+    document.getElementById(swivoxImageOverlayId)?.remove();
     const root = document.documentElement;
-    window.__chatgptxImageOverlayReady = Promise.resolve(false);
+    window.__swivoxImageOverlayReady = Promise.resolve(false);
     if (!config.enabled || !source || !root) return;
 
     const fitStyles = {
@@ -449,7 +449,7 @@
     const browserSelector = `[data-browser-sidebar-webview], ${toolbarSelector}`;
     const sidebarSelector = "aside.app-shell-left-panel, [data-app-action-sidebar-scroll], nav[data-app-navigation-rail]";
     const sidebarRowSelector = "[data-app-action-sidebar-thread-row], [data-app-action-sidebar-project-row]";
-    const pageSelector = ".chatgptx-page-overlay";
+    const pageSelector = ".swivox-page-overlay";
     const timelineSelector = "[data-app-action-timeline-scroll], .thread-scroll-container";
     const reviewHeaderSelector = '[class~="group/turn-diff-header"]';
     const rightPanelSelector = '[data-app-shell-focus-area="right-panel"]';
@@ -463,28 +463,28 @@
     const composerOverlaySelector = "[data-composer-overlay-floating-ui]";
     const diffPreviewSelector = '[data-testid="diff-preview-scroll"]';
     const controlSelector = 'button, [role="button"], input, textarea, select, a';
-    const mediaAttribute = "data-chatgptx-image-native";
-    const scopeAttribute = "data-chatgptx-image-scope";
-    const containmentAttribute = "data-chatgptx-image-contain";
-    const browserPortalAttribute = "data-chatgptx-image-browser-portal";
-    const popupMaterialAttribute = "data-chatgptx-image-popup-material";
-    const popupBoundaryAttribute = "data-chatgptx-image-popup-boundary";
-    const controlAttribute = "data-chatgptx-image-control";
-    const paintAttribute = "data-chatgptx-image-paint";
-    const topControlAttribute = "data-chatgptx-image-top-control";
-    const footerAttribute = "data-chatgptx-image-footer-gutter";
+    const mediaAttribute = "data-swivox-image-native";
+    const scopeAttribute = "data-swivox-image-scope";
+    const containmentAttribute = "data-swivox-image-contain";
+    const browserPortalAttribute = "data-swivox-image-browser-portal";
+    const popupMaterialAttribute = "data-swivox-image-popup-material";
+    const popupBoundaryAttribute = "data-swivox-image-popup-boundary";
+    const controlAttribute = "data-swivox-image-control";
+    const paintAttribute = "data-swivox-image-paint";
+    const topControlAttribute = "data-swivox-image-top-control";
+    const footerAttribute = "data-swivox-image-footer-gutter";
     const footerSelector = "[data-thread-scroll-footer]";
     const topControlSelector = [
       '[role="menu"]', '[role="listbox"]', '[role="dialog"]', '[role="tooltip"]',
       "[data-radix-popper-content-wrapper]", '[data-slot="popover-content"]', "[popover]", composerOverlaySelector,
     ].join(", ");
     // Extensions keep their own layers; their full-page shell is the one wallpaper surface.
-    const owned = node => !!node?.closest?.('[data-chatgptx-ext]') && !node.matches(pageSelector);
+    const owned = node => !!node?.closest?.('[data-swivox-ext]') && !node.matches(pageSelector);
     const wallpaperLayer = 1000;
     const overlay = document.createElement("div");
-    overlay.id = chatgptxImageOverlayId;
+    overlay.id = swivoxImageOverlayId;
     overlay.setAttribute("aria-hidden", "true");
-    overlay.setAttribute("data-chatgptx-ext", "image-overlay");
+    overlay.setAttribute("data-swivox-ext", "image-overlay");
     Object.assign(overlay.style, {
       position: "fixed", inset: "0", width: "100vw", height: "100vh",
       opacity: String(opacity), pointerEvents: "none", zIndex: String(wallpaperLayer),
@@ -493,7 +493,7 @@
       transition: "none", animation: "none",
     });
     const style = document.createElement("style");
-    style.setAttribute("data-chatgptx-ext", "image-overlay");
+    style.setAttribute("data-swivox-ext", "image-overlay");
     const nativeRules = `
       [${scopeAttribute}] { isolation:auto!important;z-index:auto!important;will-change:auto!important; }
       [${browserPortalAttribute}] { z-index:${wallpaperLayer + 1}!important; }
@@ -532,7 +532,7 @@
       for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, String(value));
       return node;
     };
-    const svg = svgNode("svg", { width: 0, height: 0, "aria-hidden": "true", "data-chatgptx-ext": "image-overlay" });
+    const svg = svgNode("svg", { width: 0, height: 0, "aria-hidden": "true", "data-swivox-ext": "image-overlay" });
     Object.assign(svg.style, { position: "fixed", width: "0", height: "0", pointerEvents: "none" });
     const defs = svgNode("defs");
     svg.appendChild(defs);
@@ -561,8 +561,8 @@
     let geometryDirty = true;
     const originalAttributes = new Map();
     const stats = { frames: 0, rectReads: 0, styleReads: 0, queries: 0, maskWrites: 0, layerWrites: 0 };
-    window.__chatgptxImageOverlayStats = stats;
-    window.__chatgptxImageOverlayReady = new Promise(resolve => { finishReady = resolve; });
+    window.__swivoxImageOverlayStats = stats;
+    window.__swivoxImageOverlayReady = new Promise(resolve => { finishReady = resolve; });
     const mark = (node, name, value) => {
       let attributes = originalAttributes.get(node);
       if (!attributes) originalAttributes.set(node, attributes = new Map());
@@ -1349,7 +1349,7 @@
         .map((item, index) => backdropInput(item, box, sx, sy, index));
       const key = [box.x, box.y, box.width, box.height, sx, sy, innerWidth, innerHeight,
         record.nativeBackdrop, ...inputs.map(input => input.key)].join("|");
-      const id = `${chatgptxImageOverlayId}-backdrop-${record.id}`;
+      const id = `${swivoxImageOverlayId}-backdrop-${record.id}`;
       if (!record.backdrop) {
         record.backdrop = svgNode("filter", { id, filterUnits: "userSpaceOnUse", "color-interpolation-filters": "sRGB" });
         defs.appendChild(record.backdrop);
@@ -1405,7 +1405,7 @@
         return;
       }
       record.key = key;
-      const id = `${chatgptxImageOverlayId}-control-${record.id}`;
+      const id = `${swivoxImageOverlayId}-control-${record.id}`;
       if (!record.filter) {
         record.filter = svgNode("filter", { id, filterUnits: "userSpaceOnUse", "color-interpolation-filters": "sRGB" });
         defs.appendChild(record.filter);
@@ -1623,7 +1623,7 @@
       [document, "transitionend", onControlMotionEnd, true],
       [document, "animationend", onControlMotionEnd, true],
     ];
-    window.__chatgptxImageOverlayCleanup = (keepResource = false) => {
+    window.__swivoxImageOverlayCleanup = (keepResource = false) => {
       if (disposed) return;
       disposed = true;
       if (raf) cancelAnimationFrame(raf);
@@ -1644,8 +1644,8 @@
       if (!keepResource && resource) {
         if (resource.blobUrl) URL.revokeObjectURL(resource.blobUrl);
         if (resource.tileInputUrl) URL.revokeObjectURL(resource.tileInputUrl);
-        if (window.__chatgptxImageOverlayResource === resource) window.__chatgptxImageOverlayResource = null;
-        if (window.__chatgptxImageOverlayBlobUrl === resource.blobUrl) window.__chatgptxImageOverlayBlobUrl = "";
+        if (window.__swivoxImageOverlayResource === resource) window.__swivoxImageOverlayResource = null;
+        if (window.__swivoxImageOverlayBlobUrl === resource.blobUrl) window.__swivoxImageOverlayBlobUrl = "";
       }
     };
     const install = () => {
@@ -1668,7 +1668,7 @@
         target.addEventListener(event, handler, { capture, passive: true });
       render();
       finishReady(true);
-      sendChatGPTXDiagnostic("image_overlay_installed", { opacity, fitMode, sourceKind: source.startsWith("data:") ? "data-uri" : "unknown" });
+      sendSwivoxDiagnostic("image_overlay_installed", { opacity, fitMode, sourceKind: source.startsWith("data:") ? "data-uri" : "unknown" });
     };
     if (resource) install();
     else {
@@ -1681,41 +1681,41 @@
         blobUrl = URL.createObjectURL(new Blob([bytes], { type: data[1] }));
       }
       resource = { version: 29, source, blobUrl, imageSource: blobUrl || source };
-      window.__chatgptxImageOverlayResource = resource;
-      window.__chatgptxImageOverlayBlobUrl = blobUrl;
+      window.__swivoxImageOverlayResource = resource;
+      window.__swivoxImageOverlayBlobUrl = blobUrl;
       image.onload = install;
-      image.onerror = () => { if (!disposed) window.__chatgptxImageOverlayCleanup?.(); };
+      image.onerror = () => { if (!disposed) window.__swivoxImageOverlayCleanup?.(); };
       image.src = resource.imageSource;
     }
   }
 
-  function scheduleChatGPTXImageOverlay() {
-    window.__chatgptxImageOverlayReadyCleanup?.();
-    window.__chatgptxImageOverlayReadyCleanup = null;
+  function scheduleSwivoxImageOverlay() {
+    window.__swivoxImageOverlayReadyCleanup?.();
+    window.__swivoxImageOverlayReadyCleanup = null;
     if (document.readyState === "loading") {
       const onReady = () => {
-        window.__chatgptxImageOverlayReadyCleanup = null;
-        installChatGPTXImageOverlay();
+        window.__swivoxImageOverlayReadyCleanup = null;
+        installSwivoxImageOverlay();
       };
       document.addEventListener("DOMContentLoaded", onReady, { once: true });
-      window.__chatgptxImageOverlayReadyCleanup = () =>
+      window.__swivoxImageOverlayReadyCleanup = () =>
         document.removeEventListener("DOMContentLoaded", onReady);
       return;
     }
-    installChatGPTXImageOverlay();
+    installSwivoxImageOverlay();
   }
 
-  scheduleChatGPTXImageOverlay();
+  scheduleSwivoxImageOverlay();
   window.__codexThreadScrollSyncRevision = (window.__codexThreadScrollSyncRevision || 0) + 1;
-  ["__chatgptxHtmlCenteredThreadWidth", "__chatgptxViewportCenteredThreadWidth", "__chatgptxBoundedThreadCenter"].forEach((key) => {
+  ["__swivoxHtmlCenteredThreadWidth", "__swivoxViewportCenteredThreadWidth", "__swivoxBoundedThreadCenter"].forEach((key) => {
     try {
       window[key]?.cleanup?.();
     } catch (_) {}
   });
   try {
-    window.__chatgptxConversationViewCleanup?.();
+    window.__swivoxConversationViewCleanup?.();
   } catch (_) {}
-  window.__chatgptxConversationViewCleanup = null;
+  window.__swivoxConversationViewCleanup = null;
   const selectors = {
     sidebarThread: "[data-app-action-sidebar-thread-id]",
     threadTitle: "[data-thread-title]",

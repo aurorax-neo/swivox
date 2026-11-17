@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ChatGPTX — Make Codex nicer to use</title>
-<meta name="description" content="ChatGPTX is a unified manager for the Codex desktop app: providers and models, per-model context windows, session management, interface enhancements, extensions and desktop pets.">
+<title>Swivox — Make Codex nicer to use</title>
+<meta name="description" content="Swivox is a unified manager for the Codex desktop app: providers and models, per-model context windows, session management, interface enhancements, extensions and desktop pets.">
 <link rel="icon" type="image/png" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,7 +16,7 @@
 <header class="site-nav" id="siteNav">
   <div class="nav-inner">
     <a class="brand" href="#top" data-nav>
-      <img src="assets/logo.png" alt="ChatGPTX logo" class="brand-logo">
+      <img src="assets/logo.png" alt="Swivox logo" class="brand-logo">
       <span class="brand-name">ChatGPT<b>X</b></span>
     </a>
     <nav class="nav-links">
@@ -28,11 +28,11 @@
     </nav>
     <div class="nav-actions">
       <span class="nav-version mono" data-site-version>v0.1.0</span>
-      <a class="btn btn-ghost btn-sm" href="https://github.com/aurorax-neo/chatgptx" target="_blank" rel="noopener">
+      <a class="btn btn-ghost btn-sm" href="https://github.com/aurorax-neo/swivox" target="_blank" rel="noopener">
         <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
         GitHub
       </a>
-      <a class="btn btn-primary btn-sm magnetic" href="https://github.com/aurorax-neo/chatgptx/releases" target="_blank" rel="noopener">
+      <a class="btn btn-primary btn-sm magnetic" href="https://github.com/aurorax-neo/swivox/releases" target="_blank" rel="noopener">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Download
       </a>
@@ -57,11 +57,11 @@
     </h1>
     <p class="hero-sub reveal">Manage multiple official accounts, API providers, and models in one place.<br>No <span class="mono">app.asar</span> patches, nothing written into install dirs.</p>
     <div class="hero-cta reveal">
-      <a class="btn btn-primary btn-lg magnetic" href="https://github.com/aurorax-neo/chatgptx/releases" target="_blank" rel="noopener">
+      <a class="btn btn-primary btn-lg magnetic" href="https://github.com/aurorax-neo/swivox/releases" target="_blank" rel="noopener">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Download <span data-site-version>v0.1.0</span>
       </a>
-      <a class="btn btn-ghost btn-lg magnetic" href="https://github.com/aurorax-neo/chatgptx" target="_blank" rel="noopener">
+      <a class="btn btn-ghost btn-lg magnetic" href="https://github.com/aurorax-neo/swivox" target="_blank" rel="noopener">
         <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
         GitHub
       </a>
@@ -84,12 +84,12 @@
   <div class="section-head">
     <p class="eyebrow">LIVE DEMO · TYPING EFFECTS</p>
     <h2>Every keystroke <em>answers back</em></h2>
-    <p class="section-sub">Not a video — the real particle engine shipped in ChatGPTX, running on your screen right now. Type something.</p>
+    <p class="section-sub">Not a video — the real particle engine shipped in Swivox, running on your screen right now. Type something.</p>
   </div>
   <div class="composer tilt" id="composer">
     <div class="composer-bar">
       <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
-      <span class="composer-title mono">Codex composer · chatgptx</span>
+      <span class="composer-title mono">Codex composer · swivox</span>
     </div>
     <div class="composer-input" id="composerInput" contenteditable="true" spellcheck="false" data-placeholder="Work with Codex, say something…"></div>
     <div class="composer-foot">
@@ -117,7 +117,7 @@
     <article class="fcard tilt">
       <span class="fcard-no mono">02</span>
       <h3>Every model, its own space</h3>
-      <p>Set context windows and compaction thresholds per model. ChatGPTX generates a dedicated <span class="mono">model_catalog_json</span> so Codex reads each model's window. Import model metadata; pick MCP, skills and plugins per provider.</p>
+      <p>Set context windows and compaction thresholds per model. Swivox generates a dedicated <span class="mono">model_catalog_json</span> so Codex reads each model's window. Import model metadata; pick MCP, skills and plugins per provider.</p>
     </article>
     <article class="fcard tilt">
       <span class="fcard-no mono">03</span>
@@ -194,7 +194,7 @@
   <div class="section-head">
     <p class="eyebrow">PER-MODEL CONTEXT</p>
     <h2>One suffix, <em>a million tokens</em></h2>
-    <p class="section-sub">Write a window suffix in the model list and ChatGPTX generates a dedicated <span class="mono">model_catalog_json</span> so Codex uses the right window per model. Models without a suffix keep provider-level settings.</p>
+    <p class="section-sub">Write a window suffix in the model list and Swivox generates a dedicated <span class="mono">model_catalog_json</span> so Codex uses the right window per model. Models without a suffix keep provider-level settings.</p>
   </div>
   <div class="context-cols">
     <div class="term tilt" id="term">
@@ -207,7 +207,7 @@ deepseek-v4-pro<span class="t-hl">[1M]</span>
 claude-opus-5.5<span class="t-hl">[200K]</span>
 your-model<span class="t-hl">[128000]</span>
 
-<span class="t-cm"># ChatGPTX generates model_catalog_json</span>
+<span class="t-cm"># Swivox generates model_catalog_json</span>
 <span class="t-cm"># codex reads each model's own window ↓</span></code></pre>
       <div class="term-out mono" id="termOut"><span class="t-ok">✓ catalog injected</span> <span class="t-dim">config.toml · model_catalog_json</span></div>
     </div>
@@ -236,7 +236,7 @@ your-model<span class="t-hl">[128000]</span>
   <div class="section-head">
     <p class="eyebrow">GETTING STARTED</p>
     <h2>Three steps, <em>done</em></h2>
-    <p class="section-sub">ChatGPTX works alongside the official Codex / ChatGPT desktop app — install that first.</p>
+    <p class="section-sub">Swivox works alongside the official Codex / ChatGPT desktop app — install that first.</p>
   </div>
   <div class="steps-track">
     <article class="step tilt">
@@ -247,7 +247,7 @@ your-model<span class="t-hl">[128000]</span>
     <span class="step-arrow" aria-hidden="true">→</span>
     <article class="step tilt">
       <span class="step-no mono">02</span>
-      <h3>Open ChatGPTX and configure</h3>
+      <h3>Open Swivox and configure</h3>
       <p>Double-click always opens the manager: confirm the official app path, pick a provider mode, toggle enhancements, save. API keys stay on your machine.</p>
     </article>
     <span class="step-arrow" aria-hidden="true">→</span>
@@ -278,8 +278,8 @@ your-model<span class="t-hl">[128000]</span>
   </div>
   <div class="faq-list">
     <details class="faq-item">
-      <summary>Why is there no ChatGPTX menu after launch?<span class="faq-x" aria-hidden="true"></span></summary>
-      <div class="faq-a"><p>Make sure you launched the official app from the <b>ChatGPTX</b> manager with the "Launch" button. Check the app path, launch status and diagnostic logs in the manager's Maintenance and About pages.</p></div>
+      <summary>Why is there no Swivox menu after launch?<span class="faq-x" aria-hidden="true"></span></summary>
+      <div class="faq-a"><p>Make sure you launched the official app from the <b>Swivox</b> manager with the "Launch" button. Check the app path, launch status and diagnostic logs in the manager's Maintenance and About pages.</p></div>
     </details>
     <details class="faq-item">
       <summary>Why do requests fail after switching providers?<span class="faq-x" aria-hidden="true"></span></summary>
@@ -287,7 +287,7 @@ your-model<span class="t-hl">[128000]</span>
     </details>
     <details class="faq-item">
       <summary>Can enhancements be disabled? Will they survive official app updates?<span class="faq-x" aria-hidden="true"></span></summary>
-      <div class="faq-a"><p>Yes — individually or via the master switch. ChatGPTX depends on the official app's page structure, CDP and local data formats, so some features may need follow-up adaptations after official updates. Back up before changing provider settings or session data.</p></div>
+      <div class="faq-a"><p>Yes — individually or via the master switch. Swivox depends on the official app's page structure, CDP and local data formats, so some features may need follow-up adaptations after official updates. Back up before changing provider settings or session data.</p></div>
     </details>
     <details class="faq-item">
       <summary>Where are config, sessions and logs stored?<span class="faq-x" aria-hidden="true"></span></summary>
@@ -300,13 +300,13 @@ your-model<span class="t-hl">[128000]</span>
   <div class="section-head">
     <p class="eyebrow">COMMUNITY &amp; SUPPORT</p>
     <h2>Built <em>together</em></h2>
-    <p class="section-sub">Open an issue with your OS, ChatGPTX version, repro steps and redacted logs. Extensions and tips are always welcome.</p>
+    <p class="section-sub">Open an issue with your OS, Swivox version, repro steps and redacted logs. Extensions and tips are always welcome.</p>
   </div>
   <div class="comm-grid">
-    <a class="comm-card tilt" href="https://github.com/aurorax-neo/chatgptx/issues" target="_blank" rel="noopener">
+    <a class="comm-card tilt" href="https://github.com/aurorax-neo/swivox/issues" target="_blank" rel="noopener">
       <b>GitHub Issues</b><span>Bugs &amp; feature requests</span><i>↗</i>
     </a>
-    <a class="comm-card tilt" href="https://github.com/aurorax-neo/chatgptx/releases" target="_blank" rel="noopener">
+    <a class="comm-card tilt" href="https://github.com/aurorax-neo/swivox/releases" target="_blank" rel="noopener">
       <b>GitHub Releases</b><span>Latest installers &amp; builds</span><i>↗</i>
     </a>
   </div>
@@ -322,20 +322,20 @@ your-model<span class="t-hl">[128000]</span>
     <h2>Your Codex, <em>managed in one place</em></h2>
     <p class="cta-sub">Free &amp; open source · AGPL-3.0 · Windows and macOS<br>Your config and sessions never leave your machine.</p>
     <div class="dl-cards">
-      <a class="dl-card tilt" href="https://github.com/aurorax-neo/chatgptx/releases" target="_blank" rel="noopener">
+      <a class="dl-card tilt" href="https://github.com/aurorax-neo/swivox/releases" target="_blank" rel="noopener">
         <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
         <b>Windows · x64</b>
         <span class="mono">*-windows-x64-setup.exe</span>
         <i>Download →</i>
       </a>
-      <a class="dl-card tilt" href="https://github.com/aurorax-neo/chatgptx/releases" target="_blank" rel="noopener">
+      <a class="dl-card tilt" href="https://github.com/aurorax-neo/swivox/releases" target="_blank" rel="noopener">
         <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><path d="M17.05 12.54c-.03-2.89 2.36-4.27 2.47-4.34-1.35-1.97-3.44-2.24-4.18-2.27-1.78-.18-3.47 1.05-4.37 1.05-.9 0-2.29-1.02-3.77-1-1.94.03-3.72 1.13-4.72 2.86-2.01 3.49-.51 8.66 1.45 11.5.96 1.39 2.1 2.95 3.6 2.89 1.45-.06 2-.93 3.75-.93s2.25.93 3.78.9c1.56-.03 2.55-1.41 3.5-2.81 1.1-1.61 1.55-3.17 1.58-3.25-.04-.02-3.03-1.16-3.09-4.6ZM14.22 4.02c.8-.97 1.34-2.31 1.19-3.65-1.15.05-2.55.77-3.38 1.74-.74.86-1.39 2.23-1.22 3.55 1.29.1 2.6-.65 3.41-1.64Z"/></svg>
         <b>macOS · Universal</b>
         <span class="mono">*-macos-universal.dmg</span>
         <i>Download →</i>
       </a>
     </div>
-    <p class="cta-note">Works with the official Codex / ChatGPT desktop app. Open ChatGPTX, configure a provider, and hit "Launch" in the manager.</p>
+    <p class="cta-note">Works with the official Codex / ChatGPT desktop app. Open Swivox, configure a provider, and hit "Launch" in the manager.</p>
   </div>
 </section>
 
@@ -344,19 +344,19 @@ your-model<span class="t-hl">[128000]</span>
     <div class="footer-brand">
       <img src="assets/logo.png" alt="" class="brand-logo">
       <div>
-        <b>ChatGPTX</b>
+        <b>Swivox</b>
         <p>Unified manager for the Codex desktop app.<br>AGPL-3.0-only · Rust + Tauri</p>
       </div>
     </div>
     <nav class="footer-links">
-      <a href="https://github.com/aurorax-neo/chatgptx" target="_blank" rel="noopener">GitHub</a>
-      <a href="https://github.com/aurorax-neo/chatgptx/releases" target="_blank" rel="noopener">Releases</a>
-      <a href="https://github.com/aurorax-neo/chatgptx/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
-      <a href="https://github.com/aurorax-neo/chatgptx/issues" target="_blank" rel="noopener">Issues</a>
+      <a href="https://github.com/aurorax-neo/swivox" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/aurorax-neo/swivox/releases" target="_blank" rel="noopener">Releases</a>
+      <a href="https://github.com/aurorax-neo/swivox/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
+      <a href="https://github.com/aurorax-neo/swivox/issues" target="_blank" rel="noopener">Issues</a>
       <a href="index.html" hreflang="zh-CN" lang="zh-CN">中文</a>
     </nav>
   </div>
-  <p class="footer-fine">ChatGPTX is a community open-source project, not affiliated with OpenAI. Screenshots are of the real interface; desktop-pet character credits live in the repository.</p>
+  <p class="footer-fine">Swivox is a community open-source project, not affiliated with OpenAI. Screenshots are of the real interface; desktop-pet character credits live in the repository.</p>
 </footer>
 
 <canvas id="fx" aria-hidden="true"></canvas>

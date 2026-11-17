@@ -1,7 +1,7 @@
-# ChatGPTX 最新 100 条 issue 审计
+# Swivox 最新 100 条 issue 审计
 
 - 日期：2026-10-03
-- 仓库：`/Users/mac/Desktop/ChatGPTX`
+- 仓库：`/Users/mac/Desktop/Swivox`
 - 基线：`main` @ `2329b653`（审计开始于 `89615978`，期间 `c509c06d` #2313、`2329b653` 两笔已落 main）
 - 范围：`gh issue list --limit 100 --state all`，即 **#2217 ~ #2379**，共 100 条
 - 与上一轮的关系：上一轮报告 `docs/reports/2026-10-02-issue-audit-and-fix-plan.md` 覆盖 116 条，其中包括本批 100 条里的 70 条。**本报告只审这 70 条的增量状态变化 + 尚未覆盖的 30 条**，不重复上一轮已确认的结论。
@@ -54,7 +54,7 @@
 const patchStatsigClient = (client) => {
   if (!client || typeof client !== "object") return;
   if (typeof client.getDynamicConfig !== "function") return;
-  if (!client.__chatgptxForceChineseLocalePatched) {
+  if (!client.__swivoxForceChineseLocalePatched) {
     const originalGetDynamicConfig = client.getDynamicConfig.bind(client);
     client.getDynamicConfig = (name, options) => {
       const result = originalGetDynamicConfig(name, options);
@@ -63,7 +63,7 @@ const patchStatsigClient = (client) => {
 
 `patchI18nConfig`（`:268-289`）改写的是 `dynamicConfig.value.enable_i18n` 与 `dynamicConfig.get`。全仓 grep `useLayer` / `_getLayerImpl` / `getLayer` / `NoValues` 在 `assets/` 与 `crates/` 下**零命中**，即注入层只包了 `getDynamicConfig`，Layer 通道完全没有补丁 —— 与 issue 描述一致。
 
-值得警惕的是：`crates/chatgptx-core/tests/force_chinese_locale_settings.rs:84` 把 `script.contains("72216192")` 固化成断言，**这条断言锁的正是「补 DynamicConfig」这个错误接口**。改接口时必须同步改测试，否则会被自己的测试挡住。
+值得警惕的是：`crates/swivox-core/tests/force_chinese_locale_settings.rs:84` 把 `script.contains("72216192")` 固化成断言，**这条断言锁的正是「补 DynamicConfig」这个错误接口**。改接口时必须同步改测试，否则会被自己的测试挡住。
 
 另一条独立通道其实是真的在工作：`syncOfficialLocaleSetting()`（`00-prelude.js:199-240`）走 `vscode://codex/get-setting|set-setting` 把 `localeOverride` 写进官方设置并 `window.location.reload()`。所以「强制中文」目前实际靠的是**官方 localeOverride + navigator.language 伪装**，Statsig 那条路是冗余的 —— 这也解释了 issue 证据 1 的现象：探针看到 `layerValue.enable_i18n = true`（用户脚本自己补的）但界面仍英文。
 
@@ -71,23 +71,23 @@ const patchStatsigClient = (client) => {
 
 #### (b) 用户脚本注入竞态 —— **成立，且比 issue 描述的更早**
 
-`assets/inject/user-scripts-bootstrap.js`（全文 15 行，由 `crates/chatgptx-core/src/user_scripts.rs:12` 用 `include_str!` 引入）：
+`assets/inject/user-scripts-bootstrap.js`（全文 15 行，由 `crates/swivox-core/src/user_scripts.rs:12` 用 `include_str!` 引入）：
 
 ```js
 const load = () => {
     window.__codexSessionDeleteBridge("/user-scripts/load", {}).then((result) => {
-      if (result?.status === "failed") console.warn("[ChatGPTX] user scripts:", result.message);
-    }).catch((error) => console.warn("[ChatGPTX] user scripts:", error));
+      if (result?.status === "failed") console.warn("[Swivox] user scripts:", result.message);
+    }).catch((error) => console.warn("[Swivox] user scripts:", error));
   };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", load, { once: true });
   else load();
 ```
 
-服务端侧 `crates/chatgptx-core/src/routes.rs:194` → `runtime.load_user_scripts()` → `user_scripts.rs:23-35` → **`crate::bridge::evaluate_script(websocket, bundle)`**。
+服务端侧 `crates/swivox-core/src/routes.rs:194` → `runtime.load_user_scripts()` → `user_scripts.rs:23-35` → **`crate::bridge::evaluate_script(websocket, bundle)`**。
 
 所以链路上有**三道**延迟：① `DOMContentLoaded`（不是 document-start）；② 一次 IPC 加一次磁盘扫描；③ 再走 CDP `Runtime.evaluate`。落在应用首读 Layer 之后是必然的。
 
-**关键对照**：注入层自身的宿主脚本走的就是 document-start —— `crates/chatgptx-core/src/bridge.rs:486-495` 用 `Page.addScriptToEvaluateOnNewDocument` 注册 `build_bridge_script`，`:506-521` 对 `new_document_scripts` 逐条同时做 `addScriptToEvaluateOnNewDocument` + `Runtime.evaluate`。**同步通道在 `bridge.rs` 里已经存在，只是内置 force-locale 补丁没走它。**
+**关键对照**：注入层自身的宿主脚本走的就是 document-start —— `crates/swivox-core/src/bridge.rs:486-495` 用 `Page.addScriptToEvaluateOnNewDocument` 注册 `build_bridge_script`，`:506-521` 对 `new_document_scripts` 逐条同时做 `addScriptToEvaluateOnNewDocument` + `Runtime.evaluate`。**同步通道在 `bridge.rs` 里已经存在，只是内置 force-locale 补丁没走它。**
 
 **修法**：内置 force-locale/Layer 补丁改走 `add_script_to_new_documents`（`bridge.rs:262` 现成函数）；用户脚本的异步读盘通道保留给热重载，但首次注入不应走它。
 
@@ -108,7 +108,7 @@ if !is_windows || can_bind(requested) || is_existing_cdp(requested) {
 
 - 这个值随后只被**传参**使用：`:628` `launch_codex(...)`、`:636` `ensure_injection(...)`、`:646` `start_bridge_watchdog(...)`，全程没有任何地方重新读进程命令行里的 `--remote-debugging-port`。
 
-全仓 grep `remote-debugging-port` 只在两处出现：`launcher.rs:2672`（**拼启动参数**用）与 `watcher.rs:776`（仅 macOS 存活判定用，不回流）。所以「Windows 上 Codex 自重启换了端口，ChatGPTX 仍只认启动时那个」在代码上进得去 —— 62801 正是 `find_available()` 在 9229 被占时另选的端口。
+全仓 grep `remote-debugging-port` 只在两处出现：`launcher.rs:2672`（**拼启动参数**用）与 `watcher.rs:776`（仅 macOS 存活判定用，不回流）。所以「Windows 上 Codex 自重启换了端口，Swivox 仍只认启动时那个」在代码上进得去 —— 62801 正是 `find_available()` 在 9229 被占时另选的端口。
 
 **需要更正的一处**：issue 说「12 次重试全部 10061」。main 上是 `launcher.rs:278-294`：
 
@@ -132,8 +132,8 @@ for attempt in 1..=120 {
 上一轮报告担心的「只改产物、会被 assemble 抹掉」**已经不存在**：该提交直接改的是分片，`assets/inject/renderer-inject/20-menu.js:99-107` 现为
 
 ```js
-const codexAppModuleFailures = window.__chatgptxAppModuleFailures || (window.__chatgptxAppModuleFailures = new Map());
-const codexAppAssetUrlLookups = window.__chatgptxAssetUrlLookups || (window.__chatgptxAssetUrlLookups = new Map());
+const codexAppModuleFailures = window.__swivoxAppModuleFailures || (window.__swivoxAppModuleFailures = new Map());
+const codexAppAssetUrlLookups = window.__swivoxAssetUrlLookups || (window.__swivoxAssetUrlLookups = new Map());
 ```
 
 `document.visibilityState === "hidden"` 早返回在 `bridge.rs:149`，位置正确（在 `:144` 的 bridge/health 存在性检查之后）。退避常量 `launcher.rs:33`：`BRIDGE_REINJECT_BACKOFF_RESET_AFTER_SECS = 60`。
@@ -142,7 +142,7 @@ const codexAppAssetUrlLookups = window.__chatgptxAssetUrlLookups || (window.__ch
 
 ### 2.2 `#2339` —— DreamSkin 主题包 `skinApiVersion` 门限停在 1.5.12（P2）
 
-`crates/chatgptx-core/src/dream_skin_package.rs:920-924`：
+`crates/swivox-core/src/dream_skin_package.rs:920-924`：
 
 ```rust
 if compare_semver(&manifest.min_client_version, "1.5.12").is_gt() {
@@ -155,18 +155,18 @@ if compare_semver(&manifest.min_client_version, "1.5.12").is_gt() {
 
 常量硬编码，未参数化；`Cargo.toml:11` 当前 `version = "1.5.0"`。`：908` 另有一道 `skin_api_version != 1` 的整数门。issue 里描述的现象（客户端停在 1.5.12、装不了声明 1.5.18 的主题包）与代码现状逐字吻合。
 
-**修法（二选一，建议前者）**：给市场清单侧加 `minClientVersion` 过滤，避免用户点完安装才知道不兼容；对齐上游 1.5.18 是更大的动作，需要同步 `assets/inject/upstream/dream-skin/` 整套资源与 `crates/chatgptx-core/tests/upstream_theme_assets.rs` 的 sha256 锁定。
+**修法（二选一，建议前者）**：给市场清单侧加 `minClientVersion` 过滤，避免用户点完安装才知道不兼容；对齐上游 1.5.18 是更大的动作，需要同步 `assets/inject/upstream/dream-skin/` 整套资源与 `crates/swivox-core/tests/upstream_theme_assets.rs` 的 sha256 锁定。
 
 ### 2.3 `#2376` —— 每次安装/更新都无条件往桌面堆图标（P2，Feature）
 
-`scripts/installer/windows/ChatGPTX.nsi:82-83`：
+`scripts/installer/windows/Swivox.nsi:82-83`：
 
 ```nsis
-CreateShortcut "$DESKTOP\ChatGPTX.lnk" "$INSTDIR\chatgptx.exe" "" "$INSTDIR\chatgptx.exe"
-CreateShortcut "$DESKTOP\ChatGPTX 管理工具.lnk" "$INSTDIR\chatgptx-manager.exe" "" "$INSTDIR\chatgptx-manager.exe"
+CreateShortcut "$DESKTOP\Swivox.lnk" "$INSTDIR\swivox.exe" "" "$INSTDIR\swivox.exe"
+CreateShortcut "$DESKTOP\Swivox 管理工具.lnk" "$INSTDIR\swivox-manager.exe" "" "$INSTDIR\swivox-manager.exe"
 ```
 
-同一条路径在 `crates/chatgptx-core/src/install/windows.rs:69-88` 也有一份（`install_shortcuts` → 两次 `create_entrypoint_shortcut`），**两边都是无条件创建**：没有开关，没有「桌面原本没有就不加」的检测。
+同一条路径在 `crates/swivox-core/src/install/windows.rs:69-88` 也有一份（`install_shortcuts` → 两次 `create_entrypoint_shortcut`），**两边都是无条件创建**：没有开关，没有「桌面原本没有就不加」的检测。
 
 **修法**（按用户给的三选一，建议第 2 条）：`IfFileExists` 判断目标 `.lnk` 是否已存在 —— 只在首次安装时创建，覆盖升级时若用户删过就不再补。注意 NSIS 段与 Rust `install_shortcuts` 要同步改，否则管理器触发的「安装/修复」路径会把图标加回来。
 
@@ -182,7 +182,7 @@ CreateShortcut "$DESKTOP\ChatGPTX 管理工具.lnk" "$INSTDIR\chatgptx-manager.e
 |---|---|---|---|
 | **#2284** | 已支持，是 #2281 的原始 feature request | `assets/gpt6-sol-luna-model-metadata-compat.json` 已含 `gpt-6-sol` / `gpt-6-luna` 两条 slug（档位 low→max，Sol 另有 `ultra`，`context_window` 272000 / `max_context_window` 872000）；`model_suffix.rs:201` 声明常量、`:314` 挂进 `COMPATIBILITY_METADATA_SOURCES`；落地提交 `7e19e069`（2026-09-23） | 已在 #2281 补全并随 v1.4.0+ 生效，无需新代码。若你的模型列表里仍看不到，贴一份 `model_list` 原文。 |
 | **#2355** | 已支持，由 `ea82bc74`（PR #2366，2026-10-02）覆盖 | `App.tsx:8620-8627` `DndContext` + `SortableContext items={modelWindowRows.map(...)}`，拖拽手柄 `.relay-model-drag`（`:8662-8671`），落盘 `handleModelRowsDragEnd`（`:8000-8015`）→ `reorderModelWindowRows`（`model-windows.ts:48-66`）→ `serializeModelWindowRows` 写回 `modelList` | 已在 v1.6 前的 main 上支持，请升级后复测；作用域是**模型行**（供应商列表另有 `App.tsx:7271-7288` 的一套）。 |
-| **#2221** | already-fixed，`82fb0924`（2026-09-17） | 引擎实际在 `90-action-groups.js`（不是 95 分片）：调度器 `:959-971` 改为 rAF 收敛帧、删掉旧的 350ms `setInterval` 轮询；清理 `:973-988` `cancelAnimationFrame` + `mo.disconnect()` + `ro.disconnect()`；关闭开关传播走 `40-backend-settings.js:23-38` 的 5 秒心跳比对 | 已修复并随 v1.4.0 发布。若仍占 CPU，请给 `chatgptxSettings().conversationView` 的读回值与心跳日志。 |
+| **#2221** | already-fixed，`82fb0924`（2026-09-17） | 引擎实际在 `90-action-groups.js`（不是 95 分片）：调度器 `:959-971` 改为 rAF 收敛帧、删掉旧的 350ms `setInterval` 轮询；清理 `:973-988` `cancelAnimationFrame` + `mo.disconnect()` + `ro.disconnect()`；关闭开关传播走 `40-backend-settings.js:23-38` 的 5 秒心跳比对 | 已修复并随 v1.4.0 发布。若仍占 CPU，请给 `swivoxSettings().conversationView` 的读回值与心跳日志。 |
 | **#2263** | already-fixed，`0fd58cc3` + `994706f5`（2026-09-21） | `protocol_proxy.rs:4156-4177` `tool_search` 透传为 chat 的 function 工具；`:4153` namespace 变体；`:4038-4056` `CodexCustomToolKind::ToolSearch` 登记；`:3201-3224` 入向往还原；`:5089-5236` 出向经 `is_tool_search_proxy`（`:195`）分流；`:4700` `collect_tool_search_output_namespaces` | 已修复且回归测试齐备（`tests/protocol_proxy.rs:4766` 起 9 个用例）。若仍复现，重点查 `mcp_servers` 是否被 `relay_config.rs` 的表头处理二次打散。 |
 
 ---
@@ -203,7 +203,7 @@ CreateShortcut "$DESKTOP\ChatGPTX 管理工具.lnk" "$INSTDIR\chatgptx-manager.e
 | #2295 | COMPLETED | 官方 5 小时额度耗尽，发帖人自行确认并接受 | B | 非本仓缺陷 |
 | #2298 | COMPLETED | 发帖人自答「等待十几分钟后正常启动」后自关 | B | 「等十几分钟才起来」本身像冷启动缺陷（对照 #2244），但无代码证据 |
 | #2306 | COMPLETED | AUMID 硬编码失效，v1.4.0 双防线修复（`2b4d8d68` + `6c11bf7f`），已发布 | A | 维护者自查自关；留下一条**未验证的差异**（显式 `--app-path` 可启、Manager 不可启），已请用户复测未见回报 |
-| #2321 | COMPLETED | 用户指出「别用 chatgptx 主题皮肤」，发帖人确认可用 | B | 皮肤/主题交互，有绕过办法 |
+| #2321 | COMPLETED | 用户指出「别用 swivox 主题皮肤」，发帖人确认可用 | B | 皮肤/主题交互，有绕过办法 |
 | #2322 | COMPLETED | v1.4.0 仍卡，彻底卸载重装后正常，判为升级遗留状态 | **C** | **见 §4.2** |
 | #2323 | COMPLETED | 同 #2332 根因，`8baffa91`，已随 v1.5.0 发布 | A | 重复报告 |
 | #2324 | COMPLETED | 同上（英文版） | A | 重复报告 |
@@ -237,9 +237,9 @@ CreateShortcut "$DESKTOP\ChatGPTX 管理工具.lnk" "$INSTDIR\chatgptx-manager.e
 
 三条依据：
 
-1. **修复确实存在且根因分析扎实。** 提交 `8610d2f3`（2026-10-02 16:43:09 +0800），改 `scripts/installer/windows/ChatGPTX.nsi`，新增 `WaitForProcessExit` 宏：taskkill 后 500ms×20 轮轮询、过进程再补 500ms 锁释放缓冲，然后才 `File`/`Delete`；卸载段 `Delete` 静默失败改为弹窗提示。与上一轮报告 §4.4 的根因（`nsExec::ExecToLog 'taskkill /F'` 后零等待即覆盖写，镜像文件锁释放是异步的）完全吻合。
+1. **修复确实存在且根因分析扎实。** 提交 `8610d2f3`（2026-10-02 16:43:09 +0800），改 `scripts/installer/windows/Swivox.nsi`，新增 `WaitForProcessExit` 宏：taskkill 后 500ms×20 轮轮询、过进程再补 500ms 锁释放缓冲，然后才 `File`/`Delete`；卸载段 `Delete` 静默失败改为弹窗提示。与上一轮报告 §4.4 的根因（`nsExec::ExecToLog 'taskkill /F'` 后零等待即覆盖写，镜像文件锁释放是异步的）完全吻合。
 
-2. **修复不在任何已发布的版本里。** `git merge-base --is-ancestor 8610d2f3 v1.5.0` → 否。v1.5.0 发布于 2026-10-01T15:00:58Z，早于该提交约 25 小时。**当前所有正式版（含最新的 v1.5.0）仍然带这个安装器竞态** —— 用户从任何已发布版本升级/重装 Windows 包，理论上仍会撞到同一个「无法写入 chatgptx-manager.exe」。
+2. **修复不在任何已发布的版本里。** `git merge-base --is-ancestor 8610d2f3 v1.5.0` → 否。v1.5.0 发布于 2026-10-01T15:00:58Z，早于该提交约 25 小时。**当前所有正式版（含最新的 v1.5.0）仍然带这个安装器竞态** —— 用户从任何已发布版本升级/重装 Windows 包，理论上仍会撞到同一个「无法写入 swivox-manager.exe」。
 
 3. **关单时 issue 上没有任何验证证据。** `#2362` 的 comments 数组长度为 0：没有维护者说明、没有请报障人复测。它是被 PR #2368 的合并消息自动关掉的（合并时刻 2026-10-02T08:43:10Z 与 `closedAt` 08:43:11Z 只差 1 秒）。报障人 `zwyk6` 从头到尾没有回过一句「好了」。
 
@@ -289,8 +289,8 @@ CreateShortcut "$DESKTOP\ChatGPTX 管理工具.lnk" "$INSTDIR\chatgptx-manager.e
 
 | issue | 要问什么 |
 |---|---|
-| **#2246** | `failed to launch Codex executable C:\Program Files\WindowsApps\OpenAI.Codex_26.915.4065.0_x64__...\app\Codex.exe`（ChatGPTX 1.2.12）。要 `chatgptx.log` 全文 + 当前 ChatGPTX 版本 —— 1.2.12 早于 AUMID 激活改造（`2a41afb` / `2b4d8d68`），**很可能只是版本太老**，先让用户升级到最新再复测，不必先动代码 |
-| **#2254** | 0x80270254，与 #2306 同根因（AUMID 硬编码失效），但用户是 1.3.0、且 `settings_path` 落在 `C:\Users\ASUS\.chatgptx\settings.json`（异常路径，疑似用旧版/绿色版）。要「显式 `--app-path` 能否启动」的对照结果（同 #2306 的未验证差异） |
+| **#2246** | `failed to launch Codex executable C:\Program Files\WindowsApps\OpenAI.Codex_26.915.4065.0_x64__...\app\Codex.exe`（Swivox 1.2.12）。要 `swivox.log` 全文 + 当前 Swivox 版本 —— 1.2.12 早于 AUMID 激活改造（`2a41afb` / `2b4d8d68`），**很可能只是版本太老**，先让用户升级到最新再复测，不必先动代码 |
+| **#2254** | 0x80270254，与 #2306 同根因（AUMID 硬编码失效），但用户是 1.3.0、且 `settings_path` 落在 `C:\Users\ASUS\.swivox\settings.json`（异常路径，疑似用旧版/绿色版）。要「显式 `--app-path` 能否启动」的对照结果（同 #2306 的未验证差异） |
 | **#2377** | 启动问题，正文 33KB 主要是 bridge 心跳日志（每 5 秒 `backend/status` + `settings/get`，全部 `resolve_ok`，**看不出异常**）。关键线索是用户自述「开了 VPN 时启动失败，关掉代理后成功」—— 需确认 `launcher.rs` 的 AUMID 激活或 `watcher` 探测是否在 `HTTPS_PROXY` 环境下走网络路径。**建议先要 `latest-status.json` 与图 2 的错误串**；另注意 `c509c06d`（#2313，2026-10-03 落 main）重写了启动/重启生命周期，很可能已覆盖，应先让用户升级复测 |
 | **#2253** | 见 §6.3 |
 
@@ -342,7 +342,7 @@ for (key, value) in user_override {
 
 **但圆圈是 Codex 客户端按它自己读到的窗口渲染的**，本仓只能通过 `config.toml` + `model_catalog_json` 间接影响。「显示不正确」的三个候选成因（按可复现性排序）：
 
-1. **命中外部 catalog 降级路径**：外部 `model_catalog_json` 指针存在且未被认作 ChatGPTX 托管时走 `apply_external_catalog_fallback`（`relay_config.rs:2339-2362`），退化成**全模型共用一个顶层 `model_context_window`** —— 这正是「圆圈显示不对」的稳定表现形态，也是三个候选里唯一能可靠复现的；
+1. **命中外部 catalog 降级路径**：外部 `model_catalog_json` 指针存在且未被认作 Swivox 托管时走 `apply_external_catalog_fallback`（`relay_config.rs:2339-2362`），退化成**全模型共用一个顶层 `model_context_window`** —— 这正是「圆圈显示不对」的稳定表现形态，也是三个候选里唯一能可靠复现的；
 2. 该模型未进 `model_list`（只在窗口 map 里有 key）→ 不生成 catalog 条目；
 3. 圆圈口径含输出上限，与配置值不是同一量。
 
@@ -403,7 +403,7 @@ for (key, value) in user_override {
 
 - 注入层任何改动必须走完 **assemble + npm test + `--check`** 三步（AGENTS.md 已有约定）；
 - **`10-style.js` 的改动要先 `codexDeleteStyleVersion` +1**，否则 `installStyle` 因版本号相同静默不重建；
-- 改 `assets/inject/upstream/dream-skin/` 任何字节都要同步改 `crates/chatgptx-core/tests/upstream_theme_assets.rs` 的 sha256 锁定，否则测试会红；
+- 改 `assets/inject/upstream/dream-skin/` 任何字节都要同步改 `crates/swivox-core/tests/upstream_theme_assets.rs` 的 sha256 锁定，否则测试会红；
 - **不要在 `codex-models.json` 基座上逐个加 `max`**（§6.1）。
 
 ---
@@ -428,7 +428,7 @@ for (key, value) in user_override {
 | `be62bc16` | #2329 #2339 #2376 | ① 强制中文：补丁从 `getDynamicConfig` 扩到 `getLayer` / `_getLayerImpl`，并往 layer 的 `__value` 写入 `enable_i18n` / `locale_source`；② DreamSkin 版本门限由硬编码 `1.5.12` 改为跟随 crate 自身版本；③ 桌面快捷方式改为「目标不存在才创建」，NSIS 段与 `install/windows.rs` 同步 |
 | `b6e992b3` | #2302 | 上下文大小输入框展开 K/M 单位：`1M` → `1000000`，不再被 `replace(/[^\d]/g,"")` 静默剥成 `1`（该 bug 会让 `model_context_window` 变成 1，Codex 反复重跑任务） |
 
-验证：`cargo check -p chatgptx-core` 通过；`dream_skin_package` 7 passed、`force_chinese_locale_settings` 5 passed、`cdp_bridge` 161 passed；`npm test` 338 passed / 1 skipped；`assemble-renderer-inject --check` 一致。
+验证：`cargo check -p swivox-core` 通过；`dream_skin_package` 7 passed、`force_chinese_locale_settings` 5 passed、`cdp_bridge` 161 passed；`npm test` 338 passed / 1 skipped；`assemble-renderer-inject --check` 一致。
 
 **新发现（本轮首次报出）**：#2302 是此前 116 条审计里完全没有的缺陷——`parse_optional_positive_u64` 只拒 0，`1` 一路合法写进 config，属静默数据损坏。
 

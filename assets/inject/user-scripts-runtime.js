@@ -1,5 +1,5 @@
 (() => {
-  const runtime = window.__chatgptxUserScripts ||= { scripts: {} };
+  const runtime = window.__swivoxUserScripts ||= { scripts: {} };
   runtime.registerCleanup = (cleanup) => {
     const script = runtime.scripts[runtime.currentKey];
     if (!script || typeof cleanup !== "function") throw new Error("Register cleanup during script initialization");
@@ -7,8 +7,8 @@
   };
   runtime.prepareReload = () => {
     const refreshPage = () => {
-      if (!window.__chatgptxUserScriptsBootstrap) {
-        throw new Error("请先重启 ChatGPTX，以启用旧脚本的安全重载支持。");
+      if (!window.__swivoxUserScriptsBootstrap) {
+        throw new Error("请先重启 Swivox，以启用旧脚本的安全重载支持。");
       }
       // 旧脚本没有完整的清理协议，交给浏览器释放整个页面的资源。
       if (!runtime.refreshPending) {

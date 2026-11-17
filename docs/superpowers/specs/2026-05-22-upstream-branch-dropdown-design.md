@@ -2,7 +2,7 @@
 
 ## Goal
 
-Make upstream-based worktree creation feel native in Codex App by adding `upstream/*` choices to the start-new-chat branch dropdown instead of exposing a separate ChatGPTX worktree dialog.
+Make upstream-based worktree creation feel native in Codex App by adding `upstream/*` choices to the start-new-chat branch dropdown instead of exposing a separate Swivox worktree dialog.
 
 ## User Experience
 
@@ -11,13 +11,13 @@ On the start-new-chat screen, the bottom controls already separate two decisions
 - `New worktree` decides that the next chat should run in a new worktree.
 - The branch dropdown decides which branch or ref the worktree should start from.
 
-ChatGPTX should extend the branch dropdown with an `Upstream` group. For a repository on `main`, the user should be able to pick `upstream/main` from the same branch menu shown in the screenshot. After that, the existing `New worktree` flow should create the worktree from the selected upstream tracking ref.
+Swivox should extend the branch dropdown with an `Upstream` group. For a repository on `main`, the user should be able to pick `upstream/main` from the same branch menu shown in the screenshot. After that, the existing `New worktree` flow should create the worktree from the selected upstream tracking ref.
 
-The user should not need to open a ChatGPTX modal or manually enter repo path, branch name, worktree path, remote, or base branch.
+The user should not need to open a Swivox modal or manually enter repo path, branch name, worktree path, remote, or base branch.
 
 ## Design
 
-ChatGPTX keeps the existing backend bridge and upstream worktree creation core, then adds a renderer-side adapter for the native branch selector.
+Swivox keeps the existing backend bridge and upstream worktree creation core, then adds a renderer-side adapter for the native branch selector.
 
 The adapter has three responsibilities:
 
@@ -60,13 +60,13 @@ The renderer adapter should be conservative:
 - It does not block the native flow unless a complete upstream selection and create payload are available.
 - If Codex DOM changes and the adapter cannot safely detect the native menu, it should leave Codex behavior unchanged.
 
-Selecting an upstream item should visibly update the branch dropdown label to `upstream/main` when possible. If Codex re-renders and overwrites that label, the selected state still remains in ChatGPTX runtime until the user changes project/branch or the page reloads.
+Selecting an upstream item should visibly update the branch dropdown label to `upstream/main` when possible. If Codex re-renders and overwrites that label, the selected state still remains in Swivox runtime until the user changes project/branch or the page reloads.
 
 ## Error Handling
 
 If `upstream` is missing, show no injected upstream option or show a disabled explanatory option. Creating from an upstream selection should fail with the existing backend error message if fetch or worktree creation fails.
 
-If ChatGPTX cannot derive the native new-branch/worktree payload, it should not create a worktree and should show a short toast explaining that the current Codex version's native worktree form could not be recognized.
+If Swivox cannot derive the native new-branch/worktree payload, it should not create a worktree and should show a short toast explaining that the current Codex version's native worktree form could not be recognized.
 
 ## Tests
 
@@ -78,12 +78,12 @@ Add tests at the script level first:
 
 Run these checks:
 
-- `cargo test -p chatgptx-core --test upstream_worktree`
-- `cargo test -p chatgptx-core --test cdp_bridge`
-- `cargo test -p chatgptx-core --test bridge_routes`
+- `cargo test -p swivox-core --test upstream_worktree`
+- `cargo test -p swivox-core --test cdp_bridge`
+- `cargo test -p swivox-core --test bridge_routes`
 - `node --check assets/inject/renderer-inject.js`
-- `cargo test -p chatgptx-core`
+- `cargo test -p swivox-core`
 
 ## Out of Scope
 
-This change will not patch Codex App's bundled source, will not require users to type worktree paths manually, and will not replace the full native branch picker implementation. It only injects remote branch choices and routes upstream selections through the ChatGPTX bridge.
+This change will not patch Codex App's bundled source, will not require users to type worktree paths manually, and will not replace the full native branch picker implementation. It only injects remote branch choices and routes upstream selections through the Swivox bridge.

@@ -2,7 +2,7 @@
 
 final result: passed
 
-按用户附件 `codex-clipboard-da4d79f0-be0f-4579-9953-3f37112108de.png` 完整移除管理器内容区顶部的 C++ / ChatGPTX 品牌条。删除其 JSX、专用样式、更新圆点与未使用的图标导入；外壳改为单行网格，移除40px预留高度，并同步内容区高度公式。
+按用户附件 `codex-clipboard-da4d79f0-be0f-4579-9953-3f37112108de.png` 完整移除管理器内容区顶部的 C++ / Swivox 品牌条。删除其 JSX、专用样式、更新圆点与未使用的图标导入；外壳改为单行网格，移除40px预留高度，并同步内容区高度公式。
 
 - 隔离预览证据：`/Users/mac/.codex/visualizations/2026/10/08/01a11b0a-e04d-7f31-bee4-672ad6ef5da1/manager-no-brand-header/preview.jpg`。
 - 页面中品牌栏节点数量为0；单一网格行占满视口，图标栏、导航栏、工作区的top均为0。
@@ -30,7 +30,7 @@ final result: passed
 - 缩放共同外壳时同步内部两个子壳宽度，保持图标栏宽度，剩余宽度用于会话栏；已接管壳不会因为瞬时几何变化重新拆组。没有通过overflow裁剪掩盖溢出。
 - 旧v1位置记录向grouped sidebar兼容迁移，聊天栏记录优先，rail-only也可恢复；保留原storage键，仅沿用既有交互保存点写回。
 - 浏览器已验证共同/独立外壳拖动、连续缩放、节点重建、重置和关闭；关闭后恢复原生314px占位，相关inline样式完整释放。控制台未发现error/warn。
-- `cargo test -p chatgptx-core --test custom_layout_runtime`的两个包装测试均通过，覆盖布局运行时、物理求解、设置与增强集成；新增回归包含背景外壳、连续缩放、子壳替换、旧记录迁移、取消和恢复。组装产物与分片一致，`git diff --check`通过。
+- `cargo test -p swivox-core --test custom_layout_runtime`的两个包装测试均通过，覆盖布局运行时、物理求解、设置与增强集成；新增回归包含背景外壳、连续缩放、子壳替换、旧记录迁移、取消和恢复。组装产物与分片一致，`git diff --check`通过。
 
 没有剩余P0/P1/P2发现。验证为隔离复现，未操作正在运行的Codex；应用内生效需重新构建启动器。
 
@@ -42,7 +42,7 @@ final result: passed
 
 final result: passed
 
-本轮仅调整管理器 Agent 切换栏中的品牌图标。参考为用户附件 `codex-clipboard-01e4f3f8-598d-4a24-99cb-1196b2505530.png`：箭头指向原 Codex 彩色方底图标。最终替换为 ChatGPT 使用的 OpenAI 标志，与既有 Grok 使用同源单色 SVG。来源及 MIT 许可已写入 `apps/chatgptx-manager/src/assets/agents/LICENSE.txt`。
+本轮仅调整管理器 Agent 切换栏中的品牌图标。参考为用户附件 `codex-clipboard-01e4f3f8-598d-4a24-99cb-1196b2505530.png`：箭头指向原 Codex 彩色方底图标。最终替换为 ChatGPT 使用的 OpenAI 标志，与既有 Grok 使用同源单色 SVG。来源及 MIT 许可已写入 `apps/swivox-manager/src/assets/agents/LICENSE.txt`。
 
 - 实现证据：`/Users/mac/.codex/visualizations/2026/10/08/01a11b0a-e04d-7f31-bee4-672ad6ef5da1/manager-brand-icons/dark.jpg`、`light.jpg`；图标区域组合为 `icons-preview.jpg`。
 - 字体与布局：工具名称、导航及文字样式保持既有行为；两枚图标均为28 × 28px，44px按钮与原有间距保留。
@@ -56,7 +56,7 @@ final result: passed
 
 ## 既有页面检查记录
 
-# ChatGPTX 拓展与推荐页原生样式核对
+# Swivox 拓展与推荐页原生样式核对
 
 final result: passed
 
@@ -66,7 +66,7 @@ final result: passed
 
 - 视觉参考：`/var/folders/0s/y8fsqjhd20d_twbcc2j7mj040000gn/T/codex-clipboard-4e01003c-8d57-48c9-b3d5-ef2e26577871.png`，3440 × 1968 px，按密度 2 归一，再裁出 1663 × 936 的应用内容区。
 - 原拓展与推荐页：用户附件 `codex-clipboard-334422ac-181e-4b75-9ede-13ddc70d5b0d.png`、`codex-clipboard-0f2f0bc7-6e5e-45e5-b27b-383466a77817.png`。
-- 证据目录：`/Users/mac/.codex/visualizations/2026/10/08/01a11b0a-e04d-7f31-bee4-672ad6ef5da1/chatgptx-discovery/`。
+- 证据目录：`/Users/mac/.codex/visualizations/2026/10/08/01a11b0a-e04d-7f31-bee4-672ad6ef5da1/swivox-discovery/`。
 - 最终拓展截图：`extensions-hires.png` / `extensions-dark.jpg`；推荐页：`sponsor-hires.png` / `sponsor-dark.jpg`。CSS 视口均为 1663 × 936，原截图 3326 × 1872，密度 2；JPEG 按密度归一到 CSS 尺寸。
 - 明亮主题：`extensions-light-hires.png`、`sponsor-light-hires.png`。窄窗口：`extensions-narrow-light.jpg`、`sponsor-narrow-light.jpg`，360 × 800。
 - 整体比较：`extensions-comparison.jpg`；文字、图标与列表局部：`extensions-detail-comparison.jpg`、`sponsor-comparison.jpg`。
@@ -91,7 +91,7 @@ final result: passed
 
 预览已核对搜索与空结果、详情、返回、市场/已安装筛选、刷新、模拟安装/卸载、键盘启停和筛选焦点；控制台未发现 error / warn。广告原始 URL 与图片保留，五个 Logo 加载成功。
 
-`cargo test -p chatgptx-core --test custom_layout_runtime custom_layout_renderer_integration_preserves_existing_enhancements` 通过，包含真实渲染函数的数据筛选、转义、独立按钮、搜索 DOM 和广告字段回归。`--test ads` 的7项测试与 `--test cdp_bridge injection_script_menu_` 的2项测试通过。分片组装与产物一致，`git diff --check` 通过。
+`cargo test -p swivox-core --test custom_layout_runtime custom_layout_renderer_integration_preserves_existing_enhancements` 通过，包含真实渲染函数的数据筛选、转义、独立按钮、搜索 DOM 和广告字段回归。`--test ads` 的7项测试与 `--test cdp_bridge injection_script_menu_` 的2项测试通过。分片组装与产物一致，`git diff --check` 通过。
 
 没有剩余 P0 / P1 / P2 发现。完整应用内的效果需在重新构建启动器后核对；本轮未更新正在运行的应用。
 
@@ -99,19 +99,19 @@ final result: passed
 
 ## 既有设置页及导航检查记录
 
-# ChatGPTX 设置页样式核对
+# Swivox 设置页样式核对
 
 final result: passed
 
 ## 范围与证据
 
-本次对齐 Codex 原生设置页的视觉样式，保留 ChatGPTX 自身的设置内容与数据契约。
+本次对齐 Codex 原生设置页的视觉样式，保留 Swivox 自身的设置内容与数据契约。
 实现预览直接执行仓库中的页面模板、样式、开关刷新和下拉控制函数；后端使用固定数据，不写实际配置。
 当前运行中的 Codex 原生窗口未做自动核对，也未更新已安装的启动器。
 
 - 页面参考：`/var/folders/0s/y8fsqjhd20d_twbcc2j7mj040000gn/T/codex-clipboard-bc36411c-4466-4ab4-be61-63f5b26ea3e3.png`。
 - 下拉参考：`/var/folders/0s/y8fsqjhd20d_twbcc2j7mj040000gn/T/codex-clipboard-05baab45-883e-4c00-b7fc-4c40035abaa6.png`。
-- 证据目录：`/Users/mac/.codex/visualizations/2026/10/08/01a11b0a-e04d-7f31-bee4-672ad6ef5da1/chatgptx-settings/`。
+- 证据目录：`/Users/mac/.codex/visualizations/2026/10/08/01a11b0a-e04d-7f31-bee4-672ad6ef5da1/swivox-settings/`。
 - 页面实现：`dark-desktop.jpg`，1344 × 936 CSS px，截图密度 1。
 - 整体与局部比较：`comparison.jpg`、`comparison-detail.jpg`。参考 3440 × 1968 px 按密度 2 归一到 1720 × 984，再裁出 1344 × 936 的内容区；不比较外层窗口与原生设置导航。
 - 下拉实现：`dropdown-dark.jpg`，1280 × 720 CSS px；局部 `dropdown-detail.jpg`，354 × 180 px。
@@ -131,7 +131,7 @@ final result: passed
 - 布局：页面顶部留白、48px 分组间距、16px 卡片圆角、细分隔线、32 × 20px 开关；下拉触发器 28px 高，菜单 220px 宽。1.2 倍缩放时菜单右边缘与按钮的差值为 0。
 - 颜色：使用宿主语义令牌和按明暗主题区分的回落值；设置表面、控件、选中状态和焦点有清晰层级。
 - 资产：保留既有状态点；新增箭头及勾选采用仓库已安装的 Lucide ChevronDown / Check 图标路径，没有新增栅格资产。
-- 文案：保留原有 ChatGPTX 设置、四个打字特效选项、说明、链接和 Windows 条件项。原生文件打开应用图标与文案属于另一项设置，不复制到打字特效菜单。
+- 文案：保留原有 Swivox 设置、四个打字特效选项、说明、链接和 Windows 条件项。原生文件打开应用图标与文案属于另一项设置，不复制到打字特效菜单。
 
 ## 交互与回归
 
@@ -140,8 +140,8 @@ final result: passed
 - 下拉点击选择仍经原 select 的冒泡 change 保存；重复选择不额外保存，禁用时不能更改。
 - 已核对方向键、Home、Enter、Escape、Tab、点击外部关闭、焦点返回及增强关闭后的禁用状态。
 - 浏览器检查未发现 error / warn；1.2 倍缩放及 360 × 800 窗口内的菜单边界正常。
-- `cargo test -p chatgptx-core --test custom_layout_runtime custom_layout_renderer_integration_preserves_existing_enhancements` 通过，包含新增开关与下拉回归测试。
-- `cargo test -p chatgptx-core --test cdp_bridge injection_script_menu_` 的两项测试通过。
+- `cargo test -p swivox-core --test custom_layout_runtime custom_layout_renderer_integration_preserves_existing_enhancements` 通过，包含新增开关与下拉回归测试。
+- `cargo test -p swivox-core --test cdp_bridge injection_script_menu_` 的两项测试通过。
 - 分片与组装产物一致，`git diff --check` 通过。
 
 无未解决的 P0 / P1 / P2 问题。预览中的主题值来自参考与固定宿主令牌；运行中的应用集成效果需在重新构建启动器后核对。
@@ -152,7 +152,7 @@ final result: passed
 
 # 管理器导航与标题视觉检查
 
-当前最终行为：应用标题横跨整个窗口，单行纯色 ChatGPTX，高度 40px。最左栏上方切换 Agent，下方为推荐、缓存清理、关于、设置及语言/主题按钮。通用页面占满整个右侧，Agent 工作区显示对应导航。页面始终直接切换，没有页面过渡，也没有过渡模式选择项。
+当前最终行为：应用标题横跨整个窗口，单行纯色 Swivox，高度 40px。最左栏上方切换 Agent，下方为推荐、缓存清理、关于、设置及语言/主题按钮。通用页面占满整个右侧，Agent 工作区显示对应导航。页面始终直接切换，没有页面过渡，也没有过渡模式选择项。
 
 ## 参考与最终证据
 
@@ -166,7 +166,7 @@ final result: passed
 
 将修改前设置截图与最终截图放在同一比较输入中，视口、主题、页面和数据相同。页面切换效果行已移除，后续卡片自然上移；应用标题、导航、现有设置排版和按钮样式保持一致，没有出现空行或错位。
 
-- 字体与文字：ChatGPTX 为纯色主题前景，副标题已移除。页面与设置沿用原有字体、字号及层级。
+- 字体与文字：Swivox 为纯色主题前景，副标题已移除。页面与设置沿用原有字体、字号及层级。
 - 布局与间距：顶部 40px；最左栏 64px。Agent 工作区为 64px / 232px / 内容，窄窗导航收至 68px；通用页为 64px / 内容，没有中间空列。
 - 色彩：深浅主题保持可读，通用入口选中状态与键盘焦点可区分；标题没有彩虹或光晕。
 - 图像：Codex / Grok 使用随应用打包的真实品牌 SVG；来源和许可位于 assets/agents/LICENSE.txt，图标不依赖运行时网络加载。

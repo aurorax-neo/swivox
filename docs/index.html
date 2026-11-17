@@ -6,25 +6,25 @@
     <meta name="theme-color" content="#15171c">
     <meta
       name="description"
-      content="ChatGPTX 是面向 OpenAI Codex / ChatGPT 桌面应用的开源启动器与管理工具，统一管理供应商与模型，提供会话管理、社区拓展、语音输入与界面个性化。"
+      content="Swivox 是面向 OpenAI Codex / ChatGPT 桌面应用的开源启动器与管理工具，统一管理供应商与模型，提供会话管理、社区拓展、语音输入与界面个性化。"
     >
     <meta property="og:type" content="website">
-    <meta property="og:title" content="ChatGPTX - 让 Codex 更顺手">
+    <meta property="og:title" content="Swivox - 让 Codex 更顺手">
     <meta
       property="og:description"
-      content="给 Codex 桌面应用加一点 ++。供应商与模型、工作流增强、拓展与个性化，适用于 Windows 与 macOS。"
+      content="原生 Rust + GPUI 构建的 Codex 多账号、供应商路由、多开与工作流增强中心，支持 macOS、Windows 与 Linux。"
     >
     <meta
       property="og:image"
-      content="https://codexpp.cc/images/chatgptx.png"
+      content="https://aurorax-neo.github.io/swivox/images/swivox.png"
     >
-    <meta property="og:url" content="https://codexpp.cc/">
-    <title>ChatGPTX - Codex 桌面增强与管理工具</title>
-    <link rel="icon" type="image/png" href="images/chatgptx.png">
+    <meta property="og:url" content="https://aurorax-neo.github.io/swivox/">
+    <title>Swivox - Codex 桌面增强与管理工具</title>
+    <link rel="icon" type="image/png" href="images/swivox.png">
     <script>
       document.documentElement.classList.add("js");
       try {
-        const savedLanguage = localStorage.getItem("chatgptx-language");
+        const savedLanguage = localStorage.getItem("swivox-language");
         const initialLanguage = savedLanguage || (navigator.language.startsWith("zh") ? "zh" : "en");
         document.documentElement.lang = initialLanguage === "zh" ? "zh-CN" : "en";
         document.documentElement.dataset.language = initialLanguage;
@@ -40,9 +40,9 @@
 
     <header class="site-header" data-header>
       <div class="nav-shell">
-        <a class="brand" href="#top" aria-label="ChatGPTX 首页">
-          <img src="images/chatgptx.png" alt="" width="34" height="34">
-          <span>ChatGPTX</span>
+        <a class="brand" href="#top" aria-label="Swivox 首页">
+          <img src="images/swivox.png" alt="" width="34" height="34">
+          <span>Swivox</span>
         </a>
 
         <button
@@ -64,7 +64,7 @@
           <a href="#downloads">下载</a>
           <a href="changelog.html">更新日志</a>
           <a href="#faq">常见问题</a>
-          <a href="https://github.com/ChatGPTX/ChatGPTX" target="_blank" rel="noreferrer">
+          <a href="https://github.com/Swivox/Swivox" target="_blank" rel="noreferrer">
             GitHub <span aria-hidden="true">↗</span>
           </a>
           <div class="language-switch" role="group" aria-label="语言选择">
@@ -82,10 +82,10 @@
         <div class="hero-inner">
           <div class="hero-copy" data-reveal>
             <div class="hero-product">
-              <img src="images/chatgptx.png" alt="ChatGPTX 图标" width="72" height="72">
+              <img src="images/swivox.png" alt="Swivox 图标" width="72" height="72">
               <span>开源 · Windows / macOS</span>
             </div>
-            <h1 id="hero-title">ChatGPTX</h1>
+            <h1 id="hero-title">Swivox</h1>
             <p class="hero-lead">让 Codex 更顺手。</p>
             <p class="hero-summary">
               给 Codex 桌面应用加一点「++」。统一管理供应商与模型，让会话更好用，也让工作区更像你。
@@ -97,7 +97,7 @@
               </a>
               <a
                 class="button button-ghost"
-                href="https://github.com/ChatGPTX/ChatGPTX"
+                href="https://github.com/Swivox/Swivox"
                 target="_blank"
                 rel="noreferrer"
               >
@@ -106,7 +106,7 @@
             </div>
             <div class="hero-meta" aria-label="项目状态">
               <span>最新版 <strong data-version>GitHub 最新发布</strong></span>
-              <a href="https://github.com/ChatGPTX/ChatGPTX/stargazers" target="_blank" rel="noreferrer"><strong data-stars>查看</strong> GitHub Stars</a>
+              <a href="https://github.com/Swivox/Swivox/stargazers" target="_blank" rel="noreferrer"><strong data-stars>查看</strong> GitHub Stars</a>
               <span>AGPL-3.0</span>
             </div>
           </div>
@@ -144,7 +144,7 @@
             <p class="eyebrow">一个管理工具，覆盖完整工作流</p>
             <h2 id="capabilities-title">从模型配置到日常体验</h2>
             <p>
-              ChatGPTX 通过 CDP 与本地辅助服务提供供应商切换、协议转换、会话管理和界面增强，每项增强都可以按需开关。
+              Swivox 通过 CDP 与本地辅助服务提供供应商切换、协议转换、会话管理和界面增强，每项增强都可以按需开关。
             </p>
           </div>
 
@@ -236,7 +236,7 @@
       <section class="showcase" id="showcase" aria-labelledby="showcase-title">
         <div class="section-shell">
           <div class="section-heading section-heading-light" data-reveal>
-            <p class="eyebrow">ChatGPTX 管理工具真实界面</p>
+            <p class="eyebrow">Swivox 管理工具真实界面</p>
             <h2 id="showcase-title">把常用增强放到手边</h2>
             <p>在管理工具中集中配置，在 Codex 内直接使用。模型列表、会话操作、输入行为和阅读布局，都可以按自己的习惯开关。</p>
           </div>
@@ -244,13 +244,13 @@
           <figure class="showcase-main" data-reveal>
             <img
               src="images/readme-preview/manager-enhancements.png"
-              alt="ChatGPTX 管理工具：集中管理模型、会话、输入体验和挂件设置"
+              alt="Swivox 管理工具：集中管理模型、会话、输入体验和挂件设置"
               width="2360"
               height="1640"
               loading="lazy"
             >
             <figcaption>
-              <strong>ChatGPTX 管理工具</strong>
+              <strong>Swivox 管理工具</strong>
               <span>从供应商配置到界面增强，一个管理工具就够了</span>
             </figcaption>
           </figure>
@@ -272,7 +272,7 @@
             <figure data-reveal>
               <img
                 src="images/readme-preview/extension-market.png"
-                alt="ChatGPTX 拓展市场：浏览社区脚本和工作流工具"
+                alt="Swivox 拓展市场：浏览社区脚本和工作流工具"
                 width="3440"
                 height="1968"
                 loading="lazy"
@@ -310,8 +310,8 @@
             </figure>
           </div>
           <p class="section-note" data-reveal>
-            <span>这里的「拓展」是 ChatGPTX 用户脚本，与 Codex 官方插件市场是两个入口。社区脚本的服务配置和使用要求以各自说明为准。</span>
-            <a href="https://github.com/ChatGPTX/ChatGPTX/blob/main/docs/user-script-reload.md" target="_blank" rel="noreferrer">用户脚本开发说明 ↗</a>
+            <span>这里的「拓展」是 Swivox 用户脚本，与 Codex 官方插件市场是两个入口。社区脚本的服务配置和使用要求以各自说明为准。</span>
+            <a href="https://github.com/Swivox/Swivox/blob/main/docs/user-script-reload.md" target="_blank" rel="noreferrer">用户脚本开发说明 ↗</a>
           </p>
 
           <div class="showcase-personal">
@@ -344,7 +344,7 @@
           </div>
           <p class="section-note" data-reveal>
             <span>挂件与桌宠截图来自开发版本，正式发布后的开启方式与统计口径以版本说明为准。</span>
-            <a href="https://github.com/ChatGPTX/ChatGPTX/blob/main/docs/whale-widget.md" target="_blank" rel="noreferrer">用量挂件说明 ↗</a>
+            <a href="https://github.com/Swivox/Swivox/blob/main/docs/whale-widget.md" target="_blank" rel="noreferrer">用量挂件说明 ↗</a>
             <span>原始功能、鲸鱼角色及内置素材来自</span>
             <a href="https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget" target="_blank" rel="noreferrer">MeteorNOX/DeepSeek-Balance-Whale-Widget</a>。
           </p>
@@ -377,7 +377,7 @@
               <span class="step-number">3</span>
               <div>
                 <h3>启动</h3>
-                <p>以后从 ChatGPTX 入口启动，已保存的配置会自动加载。依赖注入脚本的设置通常需要保存后重启。</p>
+                <p>以后从 Swivox 入口启动，已保存的配置会自动加载。依赖注入脚本的设置通常需要保存后重启。</p>
               </div>
             </li>
           </ol>
@@ -437,7 +437,7 @@ another-model[128000]</code></pre>
       <section class="downloads" id="downloads" aria-labelledby="downloads-title">
         <div class="section-shell downloads-shell">
           <div class="section-heading" data-reveal>
-            <p class="eyebrow">下载 ChatGPTX</p>
+            <p class="eyebrow">下载 Swivox</p>
             <h2 id="downloads-title">选择你的平台</h2>
             <p>
               当前稳定版 <strong data-version>GitHub 最新发布</strong>。安装包由 GitHub Actions 从公开源码自动构建。
@@ -480,12 +480,12 @@ another-model[128000]</code></pre>
               <div class="download-copy">
                 <p class="download-kicker">Windows 10 / 11 · x64</p>
                 <h3>Windows 安装程序</h3>
-                <p>包含 ChatGPTX 启动器和管理工具，并创建桌面与开始菜单入口。</p>
+                <p>包含 Swivox 启动器和管理工具，并创建桌面与开始菜单入口。</p>
                 <span class="asset-meta" data-asset-meta="windows">EXE · 正在读取文件信息</span>
               </div>
               <a
                 class="button button-dark download-button"
-                href="https://github.com/ChatGPTX/ChatGPTX/releases/latest"
+                href="https://github.com/Swivox/Swivox/releases/latest"
                 data-download="windows"
               >
                 下载安装程序 <span aria-hidden="true">↓</span>
@@ -509,7 +509,7 @@ another-model[128000]</code></pre>
               </div>
               <a
                 class="button button-dark download-button"
-                href="https://github.com/ChatGPTX/ChatGPTX/releases/latest"
+                href="https://github.com/Swivox/Swivox/releases/latest"
                 data-download="macos"
               >
                 下载 macOS 通用版 <span aria-hidden="true">↓</span>
@@ -518,10 +518,10 @@ another-model[128000]</code></pre>
           </div>
 
           <div class="download-links" data-reveal>
-            <a href="https://github.com/ChatGPTX/ChatGPTX/releases/latest" target="_blank" rel="noreferrer">
+            <a href="https://github.com/Swivox/Swivox/releases/latest" target="_blank" rel="noreferrer">
               查看 Release Notes <span aria-hidden="true">↗</span>
             </a>
-            <a href="https://github.com/ChatGPTX/ChatGPTX/releases" target="_blank" rel="noreferrer">
+            <a href="https://github.com/Swivox/Swivox/releases" target="_blank" rel="noreferrer">
               历史版本 <span aria-hidden="true">↗</span>
             </a>
           </div>
@@ -541,7 +541,7 @@ another-model[128000]</code></pre>
             </article>
             <article data-reveal>
               <h3>密钥留在本机</h3>
-              <p>供应商密钥保存在本地配置边界中，不上传到 ChatGPTX 项目或广告服务。</p>
+              <p>供应商密钥保存在本地配置边界中，不上传到 Swivox 项目或广告服务。</p>
             </article>
             <article data-reveal>
               <h3>功能可以关闭</h3>
@@ -563,20 +563,20 @@ another-model[128000]</code></pre>
           </div>
           <div class="faq-list" data-reveal>
             <details>
-              <summary>ChatGPTX 是 OpenAI 官方产品吗？</summary>
-              <p>不是。ChatGPTX 是社区维护的开源外部启动器与管理工具，面向 OpenAI Codex / ChatGPT 桌面应用使用。</p>
+              <summary>Swivox 是 OpenAI 官方产品吗？</summary>
+              <p>不是。Swivox 是社区维护的开源外部启动器与管理工具，面向 OpenAI Codex / ChatGPT 桌面应用使用。</p>
             </details>
             <details>
               <summary>安装后为什么有两个入口？</summary>
-              <p>“ChatGPTX”用于日常静默启动并加载配置；“ChatGPTX 管理工具”用于管理供应商、增强、脚本、更新和诊断。</p>
+              <p>“Swivox”用于日常静默启动并加载配置；“Swivox 管理工具”用于管理供应商、增强、脚本、更新和诊断。</p>
             </details>
             <details>
               <summary>不使用第三方 API 可以吗？</summary>
-              <p>可以。选择官方登录模式即可只使用 ChatGPT / Codex 官方账号，ChatGPTX 也能仅作为启动和增强管理工具。</p>
+              <p>可以。选择官方登录模式即可只使用 ChatGPT / Codex 官方账号，Swivox 也能仅作为启动和增强管理工具。</p>
             </details>
             <details>
-              <summary>启动后，为什么没有 ChatGPTX 菜单？</summary>
-              <p>确认从 ChatGPTX 入口启动。在管理工具的「安装维护」与「关于」页面检查应用路径、启动状态和诊断日志。</p>
+              <summary>启动后，为什么没有 Swivox 菜单？</summary>
+              <p>确认从 Swivox 入口启动。在管理工具的「安装维护」与「关于」页面检查应用路径、启动状态和诊断日志。</p>
             </details>
             <details>
               <summary>切换供应商后，请求为什么失败？</summary>
@@ -584,7 +584,7 @@ another-model[128000]</code></pre>
             </details>
             <details>
               <summary>增强功能可以关闭吗？官方应用更新后还能用吗？</summary>
-              <p>可以分别关闭，也可以关闭增强总开关。ChatGPTX 依赖官方应用的页面结构、CDP 和本地数据格式；官方更新后，部分功能可能需要跟随适配。修改供应商配置或会话数据前，请保留备份。</p>
+              <p>可以分别关闭，也可以关闭增强总开关。Swivox 依赖官方应用的页面结构、CDP 和本地数据格式；官方更新后，部分功能可能需要跟随适配。修改供应商配置或会话数据前，请保留备份。</p>
             </details>
           </div>
         </div>
@@ -595,12 +595,12 @@ another-model[128000]</code></pre>
           <div class="section-heading" data-reveal>
             <p class="eyebrow">交流与支持</p>
             <h2 id="community-title">一起把「++」做得更好</h2>
-            <p>欢迎反馈问题、分享拓展、主题和使用经验。提交 Issue 时，请附上系统、ChatGPTX 版本、复现步骤与已脱敏的日志。</p>
+            <p>欢迎反馈问题、分享拓展、主题和使用经验。提交 Issue 时，请附上系统、Swivox 版本、复现步骤与已脱敏的日志。</p>
           </div>
           <div class="community-links" data-reveal>
-            <a href="https://github.com/ChatGPTX/ChatGPTX/issues" target="_blank" rel="noreferrer">GitHub Issues ↗</a>
+            <a href="https://github.com/Swivox/Swivox/issues" target="_blank" rel="noreferrer">GitHub Issues ↗</a>
             <a href="https://qm.qq.com/q/5h3pxpxg7S" target="_blank" rel="noreferrer">QQ 交流 4 群 · 1127858981 ↗</a>
-            <a href="https://t.me/ChatGPTX" target="_blank" rel="noreferrer">Telegram ↗</a>
+            <a href="https://t.me/Swivox" target="_blank" rel="noreferrer">Telegram ↗</a>
             <a href="https://linux.do" target="_blank" rel="noreferrer">LINUX DO ↗</a>
           </div>
           <div class="sponsors" aria-labelledby="sponsors-title">
@@ -626,14 +626,14 @@ another-model[128000]</code></pre>
 
       <section class="closing" aria-labelledby="closing-title">
         <div class="closing-inner" data-reveal>
-          <img src="images/chatgptx.png" alt="" width="68" height="68">
+          <img src="images/swivox.png" alt="" width="68" height="68">
           <h2 id="closing-title">给 Codex 桌面应用加一点「++」</h2>
           <p>从供应商配置到界面增强，先从管理工具开始。</p>
           <div class="closing-actions">
-            <a class="button button-primary" href="#downloads">下载 ChatGPTX</a>
+            <a class="button button-primary" href="#downloads">下载 Swivox</a>
             <a
               class="button button-light"
-              href="https://github.com/ChatGPTX/ChatGPTX/issues"
+              href="https://github.com/Swivox/Swivox/issues"
               target="_blank"
               rel="noreferrer"
             >
@@ -648,22 +648,22 @@ another-model[128000]</code></pre>
       <div class="footer-shell">
         <div>
           <a class="brand footer-brand" href="#top">
-            <img src="images/chatgptx.png" alt="" width="30" height="30">
-            <span>ChatGPTX</span>
+            <img src="images/swivox.png" alt="" width="30" height="30">
+            <span>Swivox</span>
           </a>
           <p>社区维护的 Codex 桌面增强与管理工具。</p>
         </div>
         <div class="footer-links">
-          <a href="https://github.com/ChatGPTX/ChatGPTX" target="_blank" rel="noreferrer">GitHub</a>
-          <a href="https://github.com/ChatGPTX/ChatGPTX/releases" target="_blank" rel="noreferrer">Releases</a>
+          <a href="https://github.com/Swivox/Swivox" target="_blank" rel="noreferrer">GitHub</a>
+          <a href="https://github.com/Swivox/Swivox/releases" target="_blank" rel="noreferrer">Releases</a>
           <a href="changelog.html">更新日志</a>
-          <a href="https://github.com/ChatGPTX/ChatGPTX/issues" target="_blank" rel="noreferrer">Issues</a>
-          <a href="https://t.me/ChatGPTX" target="_blank" rel="noreferrer">Telegram</a>
+          <a href="https://github.com/Swivox/Swivox/issues" target="_blank" rel="noreferrer">Issues</a>
+          <a href="https://t.me/Swivox" target="_blank" rel="noreferrer">Telegram</a>
           <a href="#community">交流与支持</a>
         </div>
       </div>
       <div class="footer-bottom">
-        <span>© <span data-year>2026</span> ChatGPTX Contributors</span>
+        <span>© <span data-year>2026</span> Swivox Contributors</span>
         <span>AGPL-3.0-only</span>
       </div>
     </footer>

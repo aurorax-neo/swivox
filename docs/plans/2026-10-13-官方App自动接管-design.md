@@ -1,10 +1,10 @@
 # 官方 App 自动接管设计方案
 
 日期：2026-10-13
-范围：`crates/chatgptx-core/src/{launcher,watcher,ports,status,auto_takeover}.rs`、`apps/chatgptx-launcher/src/main.rs`、`apps/chatgptx-manager/src-tauri/src/{lib,commands,auto_takeover}.rs`、`apps/chatgptx-manager/src/App.tsx`
+范围：`crates/swivox-core/src/{launcher,watcher,ports,status,auto_takeover}.rs`、`apps/swivox-launcher/src/main.rs`、`apps/swivox-manager/src-tauri/src/{lib,commands,auto_takeover}.rs`、`apps/swivox-manager/src/App.tsx`
 状态：设计稿 v2，未实施（待确认）
 
-**一句话**：用户自己双击 / Dock / `open -a` 启动官方 App 时，ChatGPTX 自动把它接管过来——已在运行且没带调试端口的，先优雅退出再带调试参数重开，然后照常 CDP 注入，效果与「从管理工具点启动」完全一致。
+**一句话**：用户自己双击 / Dock / `open -a` 启动官方 App 时，Swivox 自动把它接管过来——已在运行且没带调试端口的，先优雅退出再带调试参数重开，然后照常 CDP 注入，效果与「从管理工具点启动」完全一致。
 
 > 依据：本设计经两轮独立对抗性审查（`work/review-auto-takeover-code.md`、`work/review-auto-takeover-design.md`）修订，两份调研见 `work/research-auto-takeover-macos.md`、`work/research-auto-takeover-settings.md`。v2 修正了 v1 的 4 处硬伤：会话归属无法自证、有任务在跑的闸门无执行路径、多开判据不存在、SIGTERM 目标 PID 无来源。
 
@@ -16,15 +16,15 @@
 
 | 阶段 | 位置 | 说明 |
 | --- | --- | --- |
-| 入口 | `apps/chatgptx-launcher/src/main.rs:277` `start()` | 只有「管理工具点启动」与「恢复已有实例」两条路；**阻塞到 launch+inject 全部完成才返回** |
+| 入口 | `apps/swivox-launcher/src/main.rs:277` `start()` | 只有「管理工具点启动」与「恢复已有实例」两条路；**阻塞到 launch+inject 全部完成才返回** |
 | 会话线程 | `main.rs:479` `run_embedded_session` → `main.rs:575` `launcher_session` | 专用线程 + `LocalSet`，会话内取 `launcher_guard_port()` |
-| 主链路 | `crates/chatgptx-core/src/launcher.rs:566-791` `launch_and_inject_with_hooks` | 端口选择 → helper → provider sync → 协议代理 → 拉起 App → 注入 → watchdog → `ready` |
+| 主链路 | `crates/swivox-core/src/launcher.rs:566-791` `launch_and_inject_with_hooks` | 端口选择 → helper → provider sync → 协议代理 → 拉起 App → 注入 → watchdog → `ready` |
 | macOS 拉起 | `launcher.rs:1107-1147` | `app_dir` 是 `.app` 且非多开时走 `select_macos_debug_launch_action` + `build_macos_open_command`（`launcher.rs:3717`） |
 | 已在跑但无 CDP | `launcher.rs:3754-3762` 真值表 → `RestartRunningApp` → `quit_macos_app_and_wait`（`launcher.rs:3785`） | **「退出后带参重开」的逻辑已经写好** |
 | 注入 | `launcher.rs:3106` `retry_injection`（20×500ms）／`LaunchHooks::ensure_injection` 默认实现（`launcher.rs:323`，120×1s） | 实测冷启动注入窗口 2522/3080/3394 ms |
 | 常驻守护 | `launcher.rs:1230` watchdog（5s tick，断链重注入，退避 10s→300s，`launcher.rs:28-33`） | 接管成功后一直有效 |
 
-**关键**：`chatgptx-launcher` 是**被当库链接进管理器进程**的（`commands.rs:1541`、`:2305`、`:2322`），会话与 `RuntimeState` 都在管理器进程内存里（`main.rs:215-247`）；它的公开 API 目前只有 `set_navigation_handler` / `start` / `resume_if_running` / `stop` / `shutdown`。**没有「本进程是否已有会话、是否 ready」的查询**——这是 v1 设计踩坑的地方（见 §3.6）。
+**关键**：`swivox-launcher` 是**被当库链接进管理器进程**的（`commands.rs:1541`、`:2305`、`:2322`），会话与 `RuntimeState` 都在管理器进程内存里（`main.rs:215-247`）；它的公开 API 目前只有 `set_navigation_handler` / `start` / `resume_if_running` / `stop` / `shutdown`。**没有「本进程是否已有会话、是否 ready」的查询**——这是 v1 设计踩坑的地方（见 §3.6）。
 
 ### 1.2 官方 App 的事实（本机实测）
 
@@ -32,7 +32,7 @@
 - 官方 CLI：`/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex`，bundle id **`com.openai.codex.cli`**（`codex-package.json` version `0.162.0-alpha.17.2`）；App 运行期会拉起 `codex … app-server`。
 - `open -a X --args ...` 对**已在运行**的 X **不传参**（实测：不新起进程、参数丢弃、只激活窗口；`-n` 才新起实例，`-W` 阻塞到 App 退出）。
   → **无法给运行中的实例补调试端口，必须先退出再带参启动**——这正是既有真值表的做法。
-- 多开实例：由管理器用 `--chatgptx-multi-worker <options>` 启动自身进程（`commands.rs:1178-1191`），带 `--user-data-dir=~/Library/Application Support/ChatGPTX/multi/<slug>`，**Args 里没有任何实例标识**；清单在 `~/.chatgptx/codex-multi/<slug>/worker-options.json`。
+- 多开实例：由管理器用 `--swivox-multi-worker <options>` 启动自身进程（`commands.rs:1178-1191`），带 `--user-data-dir=~/Library/Application Support/Swivox/multi/<slug>`，**Args 里没有任何实例标识**；清单在 `~/.swivox/codex-multi/<slug>/worker-options.json`。
 
 ### 1.3 五个既有缺陷（全部实测/代码取证）
 
@@ -41,8 +41,8 @@
 | D1 | macOS 退出预算 `MACOS_DEBUG_TAKEOVER_WAIT_MS = 5000`（`launcher.rs:86`）可能太紧，但**因果未证实** | 25 次 `macos_existing_app_without_cdp_restart_requested`：17 次成功（752–3422 ms，均值 1813.0）、7 次失败（5175/5240/5260/5265/5275/5290/5293 ms）、1 次无终态 | 失败后 App 处于「在跑但无 CDP」，无退避机制就会重试风暴。**注意**：7 次全部落在 5s 窗口外，只能说明「5s 内没退」，不能区分「快退了」与「quit 根本没被受理」——加预算前必须先能读出原因（见 D3 修法） |
 | D2 | `find_codex_processes()` 在 macOS 把 codex-cli 当官方 App | `watcher.rs:1261-1267` 的「点子标识符」规则放行 `com.openai.codex.cli`；实测 PID 17014 被匹配。**Windows 侧有对应排除**（`watcher.rs:117-135` 要求 `app\` 且非 `app\resources\`，回归测试 `tests/watcher.rs:207-219`），macOS 侧完全没有 | 不能拿它判「App 是否在跑」；`provider_sync.rs:976-990` 的闸门与 `runtime_health.rs:45` 也受污染 |
 | D3 | 退出路径两处静默失败 | ① `run_macos_cleanup_command`（`launcher.rs:3765-3781`）`let _ = …status().await.with_context(...)?` 丢弃 osascript 退出码，stdout/stderr 都是 null；② `is_macos_app_running`（`launcher.rs:3815-3841`）把「osascript 失败」与「未运行」压成同一个 `false` | ②比①更危险：`quit_macos_app_and_wait`（`launcher.rs:3789`）**第一次查询失败就认为 App 已退出** → 直接 `open -W -a`（对已在运行的 App 不传参）→ 注入必然失败 |
-| D4 | `open -W` 被 SIGKILL 造成「假退出」 | `terminate_codex`（`launcher.rs:1360-1388`）对 `ExternalWaitCommand` 先 `child.kill()`（tokio = SIGKILL，杀的是 `open -W` 进程，不是 App）；而 `wait_for_codex_exit`（`launcher.rs:1292-1296`）正是靠 `child.wait()` 判 App 是否退出。本机存在孤儿 `open -W`（PPID=1） | 会话收尾会 `shutdown_helper`，而 App 还开着 → `config.toml` 里写死的 `57321` 失联 |
-| D5 | 管理器退出后官方 App 进入不可用状态 | 托盘退出 → `chatgptx_launcher::shutdown()`（`lib.rs:243-261`）→ 会话收尾关 helper；`launcher.rs` 自身注释承认「helper 一关，写死 57321 的 config 就没对端」 | **既有问题**，自动接管会把它从偶发变成常见；管理器重启时必须先走 `resume_if_running`（`main.rs:292-299`，只在端点可用时恢复），不要无条件 quit 重启 |
+| D4 | `open -W` 被 SIGKILL 造成「假退出」 | `terminate_codex`（`launcher.rs:1360-1388`）对 `ExternalWaitCommand` 先 `child.kill()`（tokio = SIGKILL，杀的是 `open -W` 进程，不是 App）；而 `wait_for_codex_exit`（`launcher.rs:1292-1296`）正是靠 `child.wait()` 判 App 是否退出。本机存在孤儿 `open -W`（PPID=1） | 会话收尾会 `shutdown_helper`，而 App 还开着 → `config.toml` 里写死的 `58321` 失联 |
+| D5 | 管理器退出后官方 App 进入不可用状态 | 托盘退出 → `swivox_launcher::shutdown()`（`lib.rs:243-261`）→ 会话收尾关 helper；`launcher.rs` 自身注释承认「helper 一关，写死 58321 的 config 就没对端」 | **既有问题**，自动接管会把它从偶发变成常见；管理器重启时必须先走 `resume_if_running`（`main.rs:292-299`，只在端点可用时恢复），不要无条件 quit 重启 |
 
 D2/D3/D4/D5 都需要独立修复；D1 的修法与它们绑定（先能读出原因，再决定预算）。
 
@@ -52,7 +52,7 @@ D2/D3/D4/D5 都需要独立修复；D1 的修法与它们绑定（先能读出�
 
 **目标**
 
-1. 官方 App 由用户自己启动时（Dock / Spotlight / `open -a`），ChatGPTX 在数秒内自动接管，不必再从管理工具点启动。
+1. 官方 App 由用户自己启动时（Dock / Spotlight / `open -a`），Swivox 在数秒内自动接管，不必再从管理工具点启动。
 2. 接管在跑且无调试端口的实例时，允许**自动重启**它（已确认的产品决策），全程状态可见。
 3. 接管后与既有链路完全一致（CDP 注入、协议代理、供应商同步、watchdog、`latest-status.json`）。
 4. 默认关闭（opt-in）；任何异常都不产生重启循环；用户能随时关闭、跳过本次、立即接管。
@@ -61,7 +61,7 @@ D2/D3/D4/D5 都需要独立修复；D1 的修法与它们绑定（先能读出�
 
 - 不接管终端里的官方 CLI（TUI 无渲染层，注入只能是配置级；另立需求）。
 - 不引入 `objc2` / NSWorkspace 原生依赖，不写 `~/Library/LaunchAgents`（下一期）。
-- 不改 `window.chatgptx` 拓展接口层、不新增对外路由、不改 Codex App 内注入面板。
+- 不改 `window.swivox` 拓展接口层、不新增对外路由、不改 Codex App 内注入面板。
 - ~~本期只做 macOS~~ **已补 Windows**（见 §3.13，2026-10-13 真机实测后落地）。
 
 ---
@@ -72,12 +72,12 @@ D2/D3/D4/D5 都需要独立修复；D1 的修法与它们绑定（先能读出�
 
 候选：管理器内轮询 / launchd LaunchAgent / NSWorkspace 通知。选第一个：零新依赖（macOS 目标下 core crate 目前没有任何原生 crate）、能直接复用 `LaunchOptions`/`LaunchHooks`/`StatusStore`、有现成先例（`lib.rs:522-540` 的 300ms 轮询线程）。
 
-代价：**只有管理器活着才生效**。macOS 没有开机启动实现（`watcher::install_watcher` 非 Windows 直接 bail，`watcher.rs:529-532`），所以诚实表述是「**开启后，仅在 ChatGPTX 正在运行时生效**」，并配合登录项引导（§3.9）。
+代价：**只有管理器活着才生效**。macOS 没有开机启动实现（`watcher::install_watcher` 非 Windows 直接 bail，`watcher.rs:529-532`），所以诚实表述是「**开启后，仅在 Swivox 正在运行时生效**」，并配合登录项引导（§3.9）。
 
 ### 3.2 架构
 
 ```
-管理器进程 (ChatGPTX.app)
+管理器进程 (Swivox.app)
 ├── Tauri/UI 线程 ── 开关、状态行、立即接管/本次不接管
 ├── 接管守护线程 (auto_takeover_supervisor)          ← 新增
 │     ├── 探针循环（只做判据，绝不阻塞在启动上）
@@ -91,7 +91,7 @@ D2/D3/D4/D5 都需要独立修复；D1 的修法与它们绑定（先能读出�
 
 1. **串行化必须复用 `try_acquire_launch_guard()`**（`commands.rs:1705` 的 `LAUNCH_IN_PROGRESS`）。v1 说「共用 `launcher_guard_port()` 天然串行」是错的：那个锁由会话线程在**同一进程内**持有，既不可见也不能偷看，而且管理器点启动根本不走它。
 2. **探针绝不阻塞**：`start()` 会阻塞到注入完成（冷启动可达 80–110 s，见 `status.rs` 注释）。探针线程只判据，触发交给独立线程；宽限期必须在调用 `start()` **之前**打点。
-3. **会话归属必须查内存态**：新增 `chatgptx_launcher::session_snapshot()`（§3.6），不从锁或端口反推。
+3. **会话归属必须查内存态**：新增 `swivox_launcher::session_snapshot()`（§3.6），不从锁或端口反推。
 
 ### 3.3 状态机与判据（纯逻辑，可跨平台单测）
 
@@ -189,7 +189,7 @@ v1 的错误：把闸门描述成「接管前通过 CDP 判断有没有任务在
 
 ### 3.6 会话归属：给 launcher 加只读快照 API
 
-新增到 `apps/chatgptx-launcher/src/main.rs`：
+新增到 `apps/swivox-launcher/src/main.rs`：
 
 ```rust
 pub struct SessionSnapshot {
@@ -232,14 +232,14 @@ pub async fn quit_macos_app_with_budget(
 
 ### 3.8 多开实例判据
 
-多开 = 管理器用 `--chatgptx-multi-worker` 启动自身进程（`commands.rs:1178-1191`），带 `--user-data-dir=.../ChatGPTX/multi/<slug>`，清单在 `~/.chatgptx/codex-multi/<slug>/worker-options.json`。官方 App 的 Args 里**没有**任何实例标识，v1 说的「跳过带 `-p` 的实例」不存在。
+多开 = 管理器用 `--swivox-multi-worker` 启动自身进程（`commands.rs:1178-1191`），带 `--user-data-dir=.../Swivox/multi/<slug>`，清单在 `~/.swivox/codex-multi/<slug>/worker-options.json`。官方 App 的 Args 里**没有**任何实例标识，v1 说的「跳过带 `-p` 的实例」不存在。
 
 - 判据：**多开 worker 进程存活**（读 `codex-multi/*/worker-options.json` 里的 `debug_port` + `find_codex_processes_for_debug_port(那个端口)`，或直接复用 `list_codex_multi_instances_blocking`，`commands.rs:1273+`）→ `Skip("multi_instance")`。
 - 必要性：`osascript quit` 按**应用名**发事件，会把用户正在用的多开实例一起退出。**这是最容易漏掉的破坏性路径**。
 
 ### 3.9 守护线程实现与生命周期
 
-新增 `apps/chatgptx-manager/src-tauri/src/auto_takeover.rs`：
+新增 `apps/swivox-manager/src-tauri/src/auto_takeover.rs`：
 
 ```rust
 pub struct AutoTakeoverState {
@@ -262,7 +262,7 @@ pub fn state() -> AutoTakeoverState;
 ```
 
 - 线程模型：专用 `std::thread` + `AtomicBool` 停止位，并遵守既有的 `SHUTDOWN_STARTED` / `APP_EXITING`（`lib.rs:13-21`）；探针用 `blocking` 系统调用即可，**不需要 tokio**（`is_macos_app_running` 是 async，本设计已不依赖它）。
-- 「本次不接管」的**语义边界**（v1 含糊）：`pause_until_next_instance` 记 `InstanceKey = (pid, lstart)`，落盘到 `~/.chatgptx/auto-takeover-skip.json`；默认持续到**该实例结束**（不是管理器重启即失效）。三入口语义必须分开：`set_enabled(false)`（关功能）/ `pause_until_next_instance()`（跳过本次实例）/ `stop_supervisor()`（仅退出）。
+- 「本次不接管」的**语义边界**（v1 含糊）：`pause_until_next_instance` 记 `InstanceKey = (pid, lstart)`，落盘到 `~/.swivox/auto-takeover-skip.json`；默认持续到**该实例结束**（不是管理器重启即失效）。三入口语义必须分开：`set_enabled(false)`（关功能）/ `pause_until_next_instance()`（跳过本次实例）/ `stop_supervisor()`（仅退出）。
 - **开关落点**：保存钩子不在 `lib.rs`，而是 `commands.rs:2835 save_settings` 的 `Ok(())` 分支（`commands.rs:2881-2888` 已有「保存后同步运行态」的先例）；管理器启动兜底走 `lib.rs:99` 的 `resume_existing_codex_background`。
 - **首次 tick 立即执行**（不要等 2 s），且首次 tick **不做宽限期检查**（宽限期只对「我们自己刚启动的实例」有意义）。
 - **App 路径变更重绑定**：探针每 tick 重解析 `app_dir`（`resolve_codex_app_dir_with_saved`）；路径变化时重置状态机并记 `takeover.app_path_changed`。
@@ -294,14 +294,14 @@ pause_auto_takeover_for_instance() -> CommandResult<AutoTakeoverPayload>
 
 注册到 `lib.rs:102-239` 的 `generate_handler!`（漏注册没有测试兜底——全仓 `generate_handler` 只出现一次，建议顺手加一条「命令名集合」断言）。
 
-**UI 落点：维护页**（`MaintenanceScreen`，`App.tsx:7489`），与「开机打开 ChatGPTX」并列新增卡：
+**UI 落点：维护页**（`MaintenanceScreen`，`App.tsx:7489`），与「开机打开 Swivox」并列新增卡：
 
 - 标题 `自动接管官方 App`（**新 key**，不复用死键 `t("自动接管")`）；
 - 状态行：`未开启 / 监听中 / 正在接管 / 已接管（增强未开启）/ 已暂停（原因）/ 已降级（原因）`；
 - 明细行：实际调试端口、最后接管时间、上次跳过原因、1 小时内重启次数；
 - 开关用维护页既有 `check-row`（`App.tsx:7530-7533`），不用 `FeatureToggle`；
 - 两个按钮：`立即接管` / `本次不接管`；
-- 未检测到登录项时提示「仅在 ChatGPTX 运行时生效」，并并列展示「开机打开 ChatGPTX」卡与一键跳转（`open "x-apple.systempreferences:com.apple.LoginItems-Settings.extension"`）。
+- 未检测到登录项时提示「仅在 Swivox 运行时生效」，并并列展示「开机打开 Swivox」卡与一键跳转（`open "x-apple.systempreferences:com.apple.LoginItems-Settings.extension"`）。
 
 **为什么不放增强页**：`enhancement-settings.test.ts:193` 断言 `EnhanceScreen` **恰好 3 个 tabpanel**，`:99` 要求其中每个 `FeatureToggle` 的 `disabled` 必须是 `!masterEnabled`；且「接管」与「增强」正交。放维护页同时避开两条硬契约。
 
@@ -331,7 +331,7 @@ pause_auto_takeover_for_instance() -> CommandResult<AutoTakeoverPayload>
 | 场景 | 结果 |
 | --- | --- |
 | 用户自己双击（裸启动，无调试端口） | `cdp_ready=false`、`other_instance=false` → **`takeover`** ✅ |
-| ChatGPTX 带参启动后（有调试端口） | `cdp_ready=true` → **`wait(already_attached)`** ✅ |
+| Swivox 带参启动后（有调试端口） | `cdp_ready=true` → **`wait(already_attached)`** ✅ |
 | App 未运行 | `NotRunning` → **`wait(app_not_running)`** ✅ |
 
 无 GUI 环境下的判据验证工具：`cargo run --example takeover_probe -- <app_dir> [port]`
@@ -364,8 +364,8 @@ pause_auto_takeover_for_instance() -> CommandResult<AutoTakeoverPayload>
 > v1 的顺序是错的：SIGTERM 的目标 PID 只能来自第 3 步的新判据，所以「判据」必须排在「退出路径」之前。
 
 **第 1 步：判据与状态机（纯逻辑，跨平台单测）**
-- 新增 `crates/chatgptx-core/src/auto_takeover.rs`：`TakeoverInputs` / `TakeoverDecision` / `decide()` / `SessionSnapshot`（core 侧视图）/ `InstanceKey` / 退避与滑动窗口。
-- 测试：`crates/chatgptx-core/tests/auto_takeover.rs`。必测：宽限期内不动作；宽限期打点在 `start()` 前；`cdp_ready` 不动作；未开启不动作；非 macOS 恒 `Skip`；多开实例 `Skip`；`Unknown` 探测 `Skip`；`running_degraded` → `Degraded` 且不重启；`StartupBusy` → `Wait`；暂停实例 `Wait`；滑动 1 小时闸门；唤醒后 30 s 宽限；端口漂移不触发第二次接管。
+- 新增 `crates/swivox-core/src/auto_takeover.rs`：`TakeoverInputs` / `TakeoverDecision` / `decide()` / `SessionSnapshot`（core 侧视图）/ `InstanceKey` / 退避与滑动窗口。
+- 测试：`crates/swivox-core/tests/auto_takeover.rs`。必测：宽限期内不动作；宽限期打点在 `start()` 前；`cdp_ready` 不动作；未开启不动作；非 macOS 恒 `Skip`；多开实例 `Skip`；`Unknown` 探测 `Skip`；`running_degraded` → `Degraded` 且不重启；`StartupBusy` → `Wait`；暂停实例 `Wait`；滑动 1 小时闸门；唤醒后 30 s 宽限；端口漂移不触发第二次接管。
 
 **第 2 步：进程判据与平台收紧（D2）**
 - `watcher.rs`：新增 `pub fn find_macos_codex_desktop_main_processes() -> Vec<DesktopProcess>`（含 `pid/lstart/exe/bundle_id`），判据对齐 Windows 的思路（排除 `Contents/Resources/` 下的可执行文件），而不是只拉黑 `com.openai.codex.cli` 字符串。
@@ -380,9 +380,9 @@ pause_auto_takeover_for_instance() -> CommandResult<AutoTakeoverPayload>
 - 注意：`FORCE_QUIT` 默认关，等 V1 结论。
 
 **第 4 步：会话快照 API + 守护线程**
-- `chatgptx-launcher`：加 `SessionSnapshot` 与 `session_snapshot()`（§3.6）。
+- `swivox-launcher`：加 `SessionSnapshot` 与 `session_snapshot()`（§3.6）。
 - `LaunchOptions` 新增字段会破坏 **31 处穷尽结构体字面量**（`tests/launcher.rs` 26 处、`tests/bridge_routes.rs:1111`、`commands.rs:1535/2305/2322`、`main.rs:2293`）——这一步要显式列出并批量补 `..LaunchOptions::default()`。**或者干脆不加字段**：把「自动接管」上下文放在调用点而不是 `LaunchOptions`（推荐，零破坏）。
-- `apps/chatgptx-manager/src-tauri/src/auto_takeover.rs`：探针线程 + 触发线程 + `LAUNCH_IN_PROGRESS` 复用 + 跳过态落盘 + 状态快照。
+- `apps/swivox-manager/src-tauri/src/auto_takeover.rs`：探针线程 + 触发线程 + `LAUNCH_IN_PROGRESS` 复用 + 跳过态落盘 + 状态快照。
 
 **第 5 步：设置、命令与前端**
 - 按 §3.11 的 checklist 改 `settings.rs`、`commands.rs`（3 命令 + `save_settings` 钩子）、`lib.rs`（注册 + 启动兜底）、`App.tsx`、`i18n-en.ts`。
@@ -390,8 +390,8 @@ pause_auto_takeover_for_instance() -> CommandResult<AutoTakeoverPayload>
 
 **第 6 步：文档 + 构建启动（硬性要求）**
 - `README.md:123-164`、`README_EN.md:42-53`/`:88-99`、`CHANGELOG.md:3-25`、`docs/release/v<下一版本>-notes.md`。
-- `npm run vite:build` → `cargo build --release -p chatgptx-manager` → 装入 `dist/local-build-*/ChatGPTX.app` → `codesign --force --deep --sign -` → `open`，确认进程与 `manager.start` 日志正常。
-- 端到端实测（需用户在场）：关掉 ChatGPTX → 双击官方 App → 观察全流程与耗时；再验「本次不接管」与失败路径。
+- `npm run vite:build` → `cargo build --release -p swivox-manager` → 装入 `dist/local-build-*/Swivox.app` → `codesign --force --deep --sign -` → `open`，确认进程与 `manager.start` 日志正常。
+- 端到端实测（需用户在场）：关掉 Swivox → 双击官方 App → 观察全流程与耗时；再验「本次不接管」与失败路径。
 
 ---
 
@@ -407,8 +407,8 @@ pause_auto_takeover_for_instance() -> CommandResult<AutoTakeoverPayload>
 | A6 | 退出失败 | 15 s 未退出 → `takeover.quit_timeout` + `Degraded` + 可读原因；滑动 1 小时内 `takeover.restart_requested` ≤6，第 7 次被拒且状态为 `Degraded` |
 | A7 | 有任务在跑（`defer` 策略） | 跑一个 ≥60 s 的生成任务 → 双击无端口 App → 30 s 内无 `takeover.restart_requested`，状态行显示等待原因 |
 | A8 | 点「本次不接管」 | 同一 `InstanceKey=(pid,lstart)` 生命周期内不再尝试（管理器重启后仍生效）；用户重启 App（新 lstart）后恢复 |
-| A9 | 管理器未运行 | 不发生接管；`takeover.*` 事件为零（诚实表述：本功能仅在 ChatGPTX 运行时生效） |
-| A9b | 开关开启但无登录项 | 维护页状态行显示「仅在 ChatGPTX 运行时生效」+ 一键跳转登录项设置；跳转返回后 ≤5 s 状态刷新 |
+| A9 | 管理器未运行 | 不发生接管；`takeover.*` 事件为零（诚实表述：本功能仅在 Swivox 运行时生效） |
+| A9b | 开关开启但无登录项 | 维护页状态行显示「仅在 Swivox 运行时生效」+ 一键跳转登录项设置；跳转返回后 ≤5 s 状态刷新 |
 | A10 | 管理器重启（App 仍带我们的端口在跑、helper 已死） | **不立即 quit 重启**：先 `resume_if_running`（`lib.rs:99` 的启动兜底 → `commands.rs` `resume_existing_codex_background`），失败则提示；断言无 `takeover.restart_requested` |
 | A11 | 存在多开实例 | 跳过并记 `Skip("multi_instance")`；多开实例不被 quit |
 | A12 | 9229 被第三方占用 | 实际端口取自动换位后的值；不产生第二次接管 |

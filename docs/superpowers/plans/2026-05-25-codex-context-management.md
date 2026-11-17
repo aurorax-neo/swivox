@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development`（推荐）或 `superpowers:executing-plans` 按任务执行。每一步使用 checkbox（`- [ ]`）跟踪。
 
-**Goal:** 为 ChatGPTX 供应商配置添加 Codex-only 的 MCP、skills、plugins 上下文管理，并支持供应商级上下文勾选、上下文大小和压缩上下文大小。
+**Goal:** 为 Swivox 供应商配置添加 Codex-only 的 MCP、skills、plugins 上下文管理，并支持供应商级上下文勾选、上下文大小和压缩上下文大小。
 
 **Architecture:** 核心层负责 TOML 结构化解析、过滤、合并和校验；Tauri 命令层负责把核心能力暴露给前端并维持 settings 保存流程；前端在供应商配置页展示公共上下文库和每个供应商的选择。切换供应商时只把当前供应商勾选的公共上下文项合并进 live `~/.codex/config.toml`。
 
@@ -12,21 +12,21 @@
 
 ## 文件结构
 
-- 修改 `crates/chatgptx-core/src/settings.rs`
+- 修改 `crates/swivox-core/src/settings.rs`
   - 为 `RelayProfile` 增加 `context_selection`、`context_window`、`auto_compact_limit`，全部带默认值。
-- 修改 `crates/chatgptx-core/src/relay_config.rs`
+- 修改 `crates/swivox-core/src/relay_config.rs`
   - 增加 Codex 上下文 TOML 解析、upsert、delete、filter、上下文 token 字段写入。
   - 增加带上下文选择的完整文件切换函数。
-- 修改 `crates/chatgptx-core/tests/relay_config.rs`
+- 修改 `crates/swivox-core/tests/relay_config.rs`
   - 覆盖公共上下文解析、增删改、过滤、切换写入和数字校验。
-- 修改 `apps/chatgptx-manager/src-tauri/src/commands.rs`
+- 修改 `apps/swivox-manager/src-tauri/src/commands.rs`
   - 增加上下文管理命令和命令层测试。
   - 切换供应商时传入供应商上下文选择和上下文 token 字段。
-- 修改 `apps/chatgptx-manager/src-tauri/src/lib.rs`
+- 修改 `apps/swivox-manager/src-tauri/src/lib.rs`
   - 注册新增 Tauri commands。
-- 修改 `apps/chatgptx-manager/src/App.tsx`
+- 修改 `apps/swivox-manager/src/App.tsx`
   - 增加 TS 类型、默认值、normalize 兼容逻辑、供应商上下文 UI 和新增供应商默认全选逻辑。
-- 修改 `apps/chatgptx-manager/src/styles.css`
+- 修改 `apps/swivox-manager/src/styles.css`
   - 增加上下文管理区布局和行样式。
 
 ---
@@ -34,13 +34,13 @@
 ### Task 1: 设置模型字段
 
 **Files:**
-- Modify: `crates/chatgptx-core/src/settings.rs`
-- Test: `crates/chatgptx-core/src/settings.rs`
-- Modify: `apps/chatgptx-manager/src/App.tsx`
+- Modify: `crates/swivox-core/src/settings.rs`
+- Test: `crates/swivox-core/src/settings.rs`
+- Modify: `apps/swivox-manager/src/App.tsx`
 
 - [ ] **Step 1: 写 Rust 设置默认值失败测试**
 
-在 `crates/chatgptx-core/src/settings.rs` 的 `#[cfg(test)] mod tests` 中增加：
+在 `crates/swivox-core/src/settings.rs` 的 `#[cfg(test)] mod tests` 中增加：
 
 ```rust
 #[test]
@@ -84,7 +84,7 @@ fn relay_profile_context_fields_deserialize_from_camel_case() {
 Run:
 
 ```powershell
-cargo test -p chatgptx-core settings::tests::relay_profile_context
+cargo test -p swivox-core settings::tests::relay_profile_context
 ```
 
 Expected: 编译失败，提示 `context_selection`、`context_window` 或 `auto_compact_limit` 字段不存在。
@@ -127,7 +127,7 @@ auto_compact_limit: String::new(),
 
 - [ ] **Step 4: 更新前端类型和默认值**
 
-在 `apps/chatgptx-manager/src/App.tsx` 增加：
+在 `apps/swivox-manager/src/App.tsx` 增加：
 
 ```ts
 type RelayContextSelection = {
@@ -188,7 +188,7 @@ function normalizeContextSelection(selection?: Partial<RelayContextSelection>): 
 Run:
 
 ```powershell
-cargo test -p chatgptx-core settings::tests::relay_profile_context
+cargo test -p swivox-core settings::tests::relay_profile_context
 npm run check
 ```
 
@@ -197,7 +197,7 @@ Expected: Rust 测试通过，TypeScript 无错误。
 - [ ] **Step 6: 提交**
 
 ```powershell
-git add crates/chatgptx-core/src/settings.rs apps/chatgptx-manager/src/App.tsx
+git add crates/swivox-core/src/settings.rs apps/swivox-manager/src/App.tsx
 git commit -m "feat: add relay context selection settings"
 ```
 
@@ -206,19 +206,19 @@ git commit -m "feat: add relay context selection settings"
 ### Task 2: 核心 TOML 上下文库操作
 
 **Files:**
-- Modify: `crates/chatgptx-core/src/relay_config.rs`
-- Test: `crates/chatgptx-core/tests/relay_config.rs`
+- Modify: `crates/swivox-core/src/relay_config.rs`
+- Test: `crates/swivox-core/tests/relay_config.rs`
 
 - [ ] **Step 1: 写失败测试**
 
-在 `crates/chatgptx-core/tests/relay_config.rs` imports 增加：
+在 `crates/swivox-core/tests/relay_config.rs` imports 增加：
 
 ```rust
-use chatgptx_core::relay_config::{
+use swivox_core::relay_config::{
     delete_context_entry_from_common_config, filter_common_config_for_selection,
     list_context_entries_from_common_config, upsert_context_entry_in_common_config,
 };
-use chatgptx_core::settings::RelayContextSelection;
+use swivox_core::settings::RelayContextSelection;
 ```
 
 增加测试：
@@ -311,7 +311,7 @@ path = "plugin.js"
 Run:
 
 ```powershell
-cargo test -p chatgptx-core --test relay_config lists_codex_context_entries_from_common_config
+cargo test -p swivox-core --test relay_config lists_codex_context_entries_from_common_config
 ```
 
 Expected: 编译失败，提示新增函数和类型未定义。
@@ -496,9 +496,9 @@ If `DocumentMut::from(table.clone())` does not compile with the crate version, i
 Run:
 
 ```powershell
-cargo test -p chatgptx-core --test relay_config lists_codex_context_entries_from_common_config
-cargo test -p chatgptx-core --test relay_config upserts_and_deletes_context_entry_in_common_config
-cargo test -p chatgptx-core --test relay_config filters_common_config_for_supplier_selection
+cargo test -p swivox-core --test relay_config lists_codex_context_entries_from_common_config
+cargo test -p swivox-core --test relay_config upserts_and_deletes_context_entry_in_common_config
+cargo test -p swivox-core --test relay_config filters_common_config_for_supplier_selection
 ```
 
 Expected: 三个测试通过。
@@ -506,7 +506,7 @@ Expected: 三个测试通过。
 - [ ] **Step 7: 提交**
 
 ```powershell
-git add crates/chatgptx-core/src/relay_config.rs crates/chatgptx-core/tests/relay_config.rs
+git add crates/swivox-core/src/relay_config.rs crates/swivox-core/tests/relay_config.rs
 git commit -m "feat: manage codex context toml entries"
 ```
 
@@ -515,12 +515,12 @@ git commit -m "feat: manage codex context toml entries"
 ### Task 3: 切换时应用供应商选择和上下文 token 字段
 
 **Files:**
-- Modify: `crates/chatgptx-core/src/relay_config.rs`
-- Test: `crates/chatgptx-core/tests/relay_config.rs`
+- Modify: `crates/swivox-core/src/relay_config.rs`
+- Test: `crates/swivox-core/tests/relay_config.rs`
 
 - [ ] **Step 1: 写失败测试**
 
-在 `crates/chatgptx-core/tests/relay_config.rs` 增加：
+在 `crates/swivox-core/tests/relay_config.rs` 增加：
 
 ```rust
 #[test]
@@ -532,11 +532,11 @@ fn apply_relay_files_with_context_selection_writes_only_selected_context() {
         plugins: vec!["local".to_string()],
     };
 
-    chatgptx_core::relay_config::apply_relay_files_to_home_with_context(
+    swivox_core::relay_config::apply_relay_files_to_home_with_context(
         temp.path(),
-        r#"model_provider = "ChatGPTX"
-[model_providers.ChatGPTX]
-name = "ChatGPTX"
+        r#"model_provider = "Swivox"
+[model_providers.Swivox]
+name = "Swivox"
 wire_api = "responses"
 requires_openai_auth = true
 base_url = "https://relay.example/v1"
@@ -575,9 +575,9 @@ fn apply_relay_files_with_context_rejects_invalid_context_token_values() {
     let temp = tempfile::tempdir().unwrap();
     let selection = RelayContextSelection::default();
 
-    let error = chatgptx_core::relay_config::apply_relay_files_to_home_with_context(
+    let error = swivox_core::relay_config::apply_relay_files_to_home_with_context(
         temp.path(),
-        r#"model_provider = "ChatGPTX""#,
+        r#"model_provider = "Swivox""#,
         r#"{"OPENAI_API_KEY":"sk-new"}"#,
         "",
         &selection,
@@ -595,7 +595,7 @@ fn apply_relay_files_with_context_rejects_invalid_context_token_values() {
 Run:
 
 ```powershell
-cargo test -p chatgptx-core --test relay_config apply_relay_files_with_context
+cargo test -p swivox-core --test relay_config apply_relay_files_with_context
 ```
 
 Expected: 编译失败，提示 `apply_relay_files_to_home_with_context` 不存在。
@@ -662,7 +662,7 @@ pub fn apply_relay_files_to_home_with_context(
 Run:
 
 ```powershell
-cargo test -p chatgptx-core --test relay_config apply_relay_files_with_context
+cargo test -p swivox-core --test relay_config apply_relay_files_with_context
 ```
 
 Expected: 两个新测试通过。
@@ -670,7 +670,7 @@ Expected: 两个新测试通过。
 - [ ] **Step 6: 提交**
 
 ```powershell
-git add crates/chatgptx-core/src/relay_config.rs crates/chatgptx-core/tests/relay_config.rs
+git add crates/swivox-core/src/relay_config.rs crates/swivox-core/tests/relay_config.rs
 git commit -m "feat: apply supplier context during relay switch"
 ```
 
@@ -679,9 +679,9 @@ git commit -m "feat: apply supplier context during relay switch"
 ### Task 4: Tauri 命令层接线
 
 **Files:**
-- Modify: `apps/chatgptx-manager/src-tauri/src/commands.rs`
-- Modify: `apps/chatgptx-manager/src-tauri/src/lib.rs`
-- Test: `apps/chatgptx-manager/src-tauri/src/commands.rs`
+- Modify: `apps/swivox-manager/src-tauri/src/commands.rs`
+- Modify: `apps/swivox-manager/src-tauri/src/lib.rs`
+- Test: `apps/swivox-manager/src-tauri/src/commands.rs`
 
 - [ ] **Step 1: 写失败测试**
 
@@ -729,7 +729,7 @@ fn context_entry_commands_update_settings_payload() {
 Run:
 
 ```powershell
-cargo test -p chatgptx-manager context_entry_commands_update_settings_payload
+cargo test -p swivox-manager context_entry_commands_update_settings_payload
 ```
 
 Expected: 编译失败，提示 request/payload/commands 未定义。
@@ -743,7 +743,7 @@ Expected: 编译失败，提示 request/payload/commands 未定义。
 #[serde(rename_all = "camelCase")]
 pub struct ContextEntriesPayload {
     pub settings: BackendSettings,
-    pub entries: chatgptx_core::relay_config::CodexContextEntries,
+    pub entries: swivox_core::relay_config::CodexContextEntries,
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -777,7 +777,7 @@ pub struct ContextDeleteRequest {
 ```rust
 #[tauri::command]
 pub fn list_context_entries(request: ContextSettingsRequest) -> CommandResult<ContextEntriesPayload> {
-    match chatgptx_core::relay_config::list_context_entries_from_common_config(
+    match swivox_core::relay_config::list_context_entries_from_common_config(
         &request.settings.relay_common_config_contents,
     ) {
         Ok(entries) => ok(
@@ -791,7 +791,7 @@ pub fn list_context_entries(request: ContextSettingsRequest) -> CommandResult<Co
             &format!("读取上下文列表失败：{error}"),
             ContextEntriesPayload {
                 settings: request.settings,
-                entries: chatgptx_core::relay_config::CodexContextEntries {
+                entries: swivox_core::relay_config::CodexContextEntries {
                     mcp_servers: Vec::new(),
                     skills: Vec::new(),
                     plugins: Vec::new(),
@@ -804,7 +804,7 @@ pub fn list_context_entries(request: ContextSettingsRequest) -> CommandResult<Co
 #[tauri::command]
 pub fn upsert_context_entry(request: ContextEntryRequest) -> CommandResult<ContextEntriesPayload> {
     let mut settings = request.settings;
-    match chatgptx_core::relay_config::upsert_context_entry_in_common_config(
+    match swivox_core::relay_config::upsert_context_entry_in_common_config(
         &settings.relay_common_config_contents,
         &request.kind,
         &request.id,
@@ -818,7 +818,7 @@ pub fn upsert_context_entry(request: ContextEntryRequest) -> CommandResult<Conte
             &format!("保存上下文失败：{error}"),
             ContextEntriesPayload {
                 settings,
-                entries: chatgptx_core::relay_config::CodexContextEntries {
+                entries: swivox_core::relay_config::CodexContextEntries {
                     mcp_servers: Vec::new(),
                     skills: Vec::new(),
                     plugins: Vec::new(),
@@ -831,7 +831,7 @@ pub fn upsert_context_entry(request: ContextEntryRequest) -> CommandResult<Conte
 #[tauri::command]
 pub fn delete_context_entry(request: ContextDeleteRequest) -> CommandResult<ContextEntriesPayload> {
     let mut settings = request.settings;
-    match chatgptx_core::relay_config::delete_context_entry_from_common_config(
+    match swivox_core::relay_config::delete_context_entry_from_common_config(
         &settings.relay_common_config_contents,
         &request.kind,
         &request.id,
@@ -844,7 +844,7 @@ pub fn delete_context_entry(request: ContextDeleteRequest) -> CommandResult<Cont
             &format!("删除上下文失败：{error}"),
             ContextEntriesPayload {
                 settings,
-                entries: chatgptx_core::relay_config::CodexContextEntries {
+                entries: swivox_core::relay_config::CodexContextEntries {
                     mcp_servers: Vec::new(),
                     skills: Vec::new(),
                     plugins: Vec::new(),
@@ -860,7 +860,7 @@ pub fn delete_context_entry(request: ContextDeleteRequest) -> CommandResult<Cont
 在 `apply_relay_injection` 和 `apply_pure_api_injection` 的完整文件分支中，把：
 
 ```rust
-chatgptx_core::relay_config::apply_relay_files_to_home_with_common(
+swivox_core::relay_config::apply_relay_files_to_home_with_common(
     &home,
     &relay.config_contents,
     &relay.auth_contents,
@@ -871,7 +871,7 @@ chatgptx_core::relay_config::apply_relay_files_to_home_with_common(
 替换为：
 
 ```rust
-chatgptx_core::relay_config::apply_relay_files_to_home_with_context(
+swivox_core::relay_config::apply_relay_files_to_home_with_context(
     &home,
     &relay.config_contents,
     &relay.auth_contents,
@@ -884,7 +884,7 @@ chatgptx_core::relay_config::apply_relay_files_to_home_with_context(
 
 - [ ] **Step 6: 注册 commands**
 
-在 `apps/chatgptx-manager/src-tauri/src/lib.rs` 的 `generate_handler!` 中加入：
+在 `apps/swivox-manager/src-tauri/src/lib.rs` 的 `generate_handler!` 中加入：
 
 ```rust
 commands::list_context_entries,
@@ -897,8 +897,8 @@ commands::delete_context_entry,
 Run:
 
 ```powershell
-cargo test -p chatgptx-manager context_entry_commands_update_settings_payload
-cargo test -p chatgptx-manager
+cargo test -p swivox-manager context_entry_commands_update_settings_payload
+cargo test -p swivox-manager
 ```
 
 Expected: 命令测试和 manager 测试通过。
@@ -906,7 +906,7 @@ Expected: 命令测试和 manager 测试通过。
 - [ ] **Step 8: 提交**
 
 ```powershell
-git add apps/chatgptx-manager/src-tauri/src/commands.rs apps/chatgptx-manager/src-tauri/src/lib.rs
+git add apps/swivox-manager/src-tauri/src/commands.rs apps/swivox-manager/src-tauri/src/lib.rs
 git commit -m "feat: expose codex context management commands"
 ```
 
@@ -915,8 +915,8 @@ git commit -m "feat: expose codex context management commands"
 ### Task 5: 前端上下文管理 UI
 
 **Files:**
-- Modify: `apps/chatgptx-manager/src/App.tsx`
-- Modify: `apps/chatgptx-manager/src/styles.css`
+- Modify: `apps/swivox-manager/src/App.tsx`
+- Modify: `apps/swivox-manager/src/styles.css`
 
 - [ ] **Step 1: 增加前端类型**
 
@@ -1284,7 +1284,7 @@ Expected: TypeScript 无错误。
 - [ ] **Step 10: 提交**
 
 ```powershell
-git add apps/chatgptx-manager/src/App.tsx apps/chatgptx-manager/src/styles.css
+git add apps/swivox-manager/src/App.tsx apps/swivox-manager/src/styles.css
 git commit -m "feat: add supplier context management UI"
 ```
 
@@ -1293,7 +1293,7 @@ git commit -m "feat: add supplier context management UI"
 ### Task 6: 前端改用后端上下文命令
 
 **Files:**
-- Modify: `apps/chatgptx-manager/src/App.tsx`
+- Modify: `apps/swivox-manager/src/App.tsx`
 
 - [ ] **Step 1: 增加 actions**
 
@@ -1373,7 +1373,7 @@ Expected: TypeScript 无错误。
 - [ ] **Step 5: 提交**
 
 ```powershell
-git add apps/chatgptx-manager/src/App.tsx
+git add apps/swivox-manager/src/App.tsx
 git commit -m "feat: wire context UI to tauri commands"
 ```
 
@@ -1399,7 +1399,7 @@ Expected: exit code 0。若失败，运行 `cargo fmt`，然后重新运行 `car
 Run:
 
 ```powershell
-cargo test -p chatgptx-core
+cargo test -p swivox-core
 ```
 
 Expected: 所有 core 测试通过。
@@ -1409,7 +1409,7 @@ Expected: 所有 core 测试通过。
 Run:
 
 ```powershell
-cargo test -p chatgptx-manager
+cargo test -p swivox-manager
 ```
 
 Expected: 所有 manager 测试通过。
@@ -1422,7 +1422,7 @@ Run:
 npm run check
 ```
 
-Working directory: `apps/chatgptx-manager`
+Working directory: `apps/swivox-manager`
 
 Expected: `tsc --noEmit` 通过。
 
@@ -1431,13 +1431,13 @@ Expected: `tsc --noEmit` 通过。
 Run:
 
 ```powershell
-Get-Process | Where-Object { $_.ProcessName -in @('chatgptx','chatgptx-manager') } | Select-Object ProcessName,Id,Path
+Get-Process | Where-Object { $_.ProcessName -in @('swivox','swivox-manager') } | Select-Object ProcessName,Id,Path
 ```
 
 Expected: 无输出。如果有输出，运行：
 
 ```powershell
-Get-Process | Where-Object { $_.ProcessName -in @('chatgptx','chatgptx-manager') } | Stop-Process -Force
+Get-Process | Where-Object { $_.ProcessName -in @('swivox','swivox-manager') } | Stop-Process -Force
 ```
 
 - [ ] **Step 6: Release 构建**
@@ -1448,12 +1448,12 @@ Run:
 npm run build
 ```
 
-Working directory: `apps/chatgptx-manager`
+Working directory: `apps/swivox-manager`
 
 Expected: 构建成功，并输出：
 
 ```text
-Built application at: E:\Desktop\ChatGPTX\target\release\chatgptx-manager.exe
+Built application at: E:\Desktop\Swivox\target\release\swivox-manager.exe
 ```
 
 - [ ] **Step 7: 最终状态检查**
@@ -1471,7 +1471,7 @@ Expected: 只剩用户已有未提交改动或本次已知改动；不要回滚�
 如果前面任务因为工作树已有改动无法按任务提交，本步骤只提交本功能相关文件：
 
 ```powershell
-git add crates/chatgptx-core/src/settings.rs crates/chatgptx-core/src/relay_config.rs crates/chatgptx-core/tests/relay_config.rs apps/chatgptx-manager/src-tauri/src/commands.rs apps/chatgptx-manager/src-tauri/src/lib.rs apps/chatgptx-manager/src/App.tsx apps/chatgptx-manager/src/styles.css
+git add crates/swivox-core/src/settings.rs crates/swivox-core/src/relay_config.rs crates/swivox-core/tests/relay_config.rs apps/swivox-manager/src-tauri/src/commands.rs apps/swivox-manager/src-tauri/src/lib.rs apps/swivox-manager/src/App.tsx apps/swivox-manager/src/styles.css
 git commit -m "feat: add codex context management"
 ```
 

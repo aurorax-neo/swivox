@@ -1,7 +1,7 @@
 # 拓展 API 现状梳理与设计方案
 
 日期：2026-09-30
-范围：`crates/chatgptx-core/src/user_scripts.rs`、`bridge.rs`、`routes.rs`、`assets/inject/user-scripts-*.js`
+范围：`crates/swivox-core/src/user_scripts.rs`、`bridge.rs`、`routes.rs`、`assets/inject/user-scripts-*.js`
 状态：设计稿，未实施
 
 ---
@@ -10,7 +10,7 @@
 
 ### 1.1 拓展是怎么被执行的
 
-拓展（用户脚本）不是配置项，也不是被 Codex 主动加载的插件，**是文件系统里的 `.js` 文件，由 ChatGPTX 拼成一个大字符串，通过 CDP 注入到 Codex 渲染进程主世界里执行**。
+拓展（用户脚本）不是配置项，也不是被 Codex 主动加载的插件，**是文件系统里的 `.js` 文件，由 Swivox 拼成一个大字符串，通过 CDP 注入到 Codex 渲染进程主世界里执行**。
 
 完整链路：
 
@@ -25,7 +25,7 @@
 目录来源（三个入口各自实现，逻辑重复）：
 
 - 内置：`current_exe().parent()/user_scripts`
-- 用户：`~/.config/ChatGPTX/user_scripts`（Windows 为 `%APPDATA%\ChatGPTX`）
+- 用户：`~/.config/Swivox/user_scripts`（Windows 为 `%APPDATA%\Swivox`）
 - 配置：同目录 `user_scripts.json`
 
 ### 1.2 脚本运行环境
@@ -34,9 +34,9 @@
 
 ```js
 (() => {
-  if (!chatgptxIsNodeTestHarness && (子框架 || 无 electronBridge || 非 app://- 协议)) return;  // 环境守卫
-  window.__chatgptxUserScripts.scripts[key] = { key, name, source, status: "loading", error: "" };
-  window.__chatgptxUserScripts.currentKey = key;
+  if (!swivoxIsNodeTestHarness && (子框架 || 无 electronBridge || 非 app://- 协议)) return;  // 环境守卫
+  window.__swivoxUserScripts.scripts[key] = { key, name, source, status: "loading", error: "" };
+  window.__swivoxUserScripts.currentKey = key;
   try { /* 用户脚本源码原样插入 */ status = "loaded" }
   catch (e) { status = "failed"; error = e.stack }
   finally { currentKey = null }
@@ -70,7 +70,7 @@ main: handle_bridge_request(ctx, path, payload) → routes.rs:157 的 match
 
 **已知缺陷**：桥接重注入时会把所有 pending 的 resolver 用 `{status:"failed", message:"桥接已重新连接"}` 结掉（`bridge.rs:104`）。这是刻意设计，防止 Promise 永久 pending，但也意味着**长任务会被桥接重连打断**。
 
-#### (b) `window.__chatgptxUserScripts.registerCleanup(fn)`
+#### (b) `window.__swivoxUserScripts.registerCleanup(fn)`
 
 定义在 `assets/inject/user-scripts-runtime.js`。热重载时的清理协议：
 
@@ -151,7 +151,7 @@ script_url, requirements[], limitations[], icon
 用户脚本
    │  只认这层
    ▼
-window.chatgptx  ←── 新增的适配层（runtime script 里实现）
+window.swivox  ←── 新增的适配层（runtime script 里实现）
    │  内部转译
    ▼
 window.__codexSessionDeleteBridge  ←── 现有桥接，保持不变
@@ -167,7 +167,7 @@ routes.rs 路由表  ←── 加版本前缀与新路由，旧路由保留
 ### 3.2 命名空间形状
 
 ```js
-window.chatgptx = {
+window.swivox = {
   version: "1.0.0",          // 适配层版本
   apiVersion: 1,             // API 契约版本，脚本据此分支
   bridgeVersion: 3,          // 桥接能力位，用于探测
@@ -189,7 +189,7 @@ window.chatgptx = {
 }
 ```
 
-`chatgptx.call()` 做的事：
+`swivox.call()` 做的事：
 
 1. 查本地路由白名单（编译进适配层），未声明 → 直接 reject，**不发请求**
 2. 校验 payload 是不是可序列化对象（避免脚本传函数/DOM 节点把桥接搞崩）
@@ -202,12 +202,12 @@ window.chatgptx = {
 脚本文件头部加一段可选注释块（保持 `.js` 单一文件，不引入额外 manifest 文件）：
 
 ```js
-// ==ChatGPTX==
+// ==Swivox==
 // id: conversation-canvas
 // name: 会话画布
 // apiVersion: 1
 // capabilities: [session.read, diagnostics.log]
-// ==/ChatGPTX==
+// ==/Swivox==
 ```
 
 解析放在 Rust 侧 `scan_script_files` 阶段（正则扫前 N 行），结果进 inventory。规则：
@@ -247,7 +247,7 @@ window.chatgptx = {
 脚本可据此分支：
 
 ```js
-if (window.chatgptx.apiVersion < 1) { /* 提示用户升级 ChatGPTX */ }
+if (window.swivox.apiVersion < 1) { /* 提示用户升级 Swivox */ }
 ```
 
 Rust 侧改路由时的约定（写进 AGENTS.md）：
@@ -259,20 +259,20 @@ Rust 侧改路由时的约定（写进 AGENTS.md）：
 
 **(a) 异步错误上报**
 
-`wrap_script` 现在只 catch 同步段。补：适配层提供 `chatgptx.ready()`，脚本在异步初始化完成后调用；同时 runtime 注册全局兜底：
+`wrap_script` 现在只 catch 同步段。补：适配层提供 `swivox.ready()`，脚本在异步初始化完成后调用；同时 runtime 注册全局兜底：
 
 ```js
 window.addEventListener("unhandledrejection", (e) => {
-  const key = window.__chatgptxUserScripts.currentKey;  // 仅在初始化窗口内归属
+  const key = window.__swivoxUserScripts.currentKey;  // 仅在初始化窗口内归属
   if (key) markFailed(key, e.reason);
 });
 ```
 
-注意：只在 `currentKey` 非空（即脚本正在初始化）时归属，否则会把页面自身的 rejection 算到脚本头上。异步阶段的错误由脚本自己 `chatgptx.fail(err)` 上报。
+注意：只在 `currentKey` 非空（即脚本正在初始化）时归属，否则会把页面自身的 rejection 算到脚本头上。异步阶段的错误由脚本自己 `swivox.fail(err)` 上报。
 
 **(b) 调用超时**
 
-`chatgptx.call` 默认 30s 超时，脚本可覆盖。超时只 reject，不取消服务端任务（桥接协议没有 cancel 通道，加 cancel 要动 Rust 侧，留到 apiVersion 2）。
+`swivox.call` 默认 30s 超时，脚本可覆盖。超时只 reject，不取消服务端任务（桥接协议没有 cancel 通道，加 cancel 要动 Rust 侧，留到 apiVersion 2）。
 
 **(c) 清理契约可观测**
 
@@ -280,7 +280,7 @@ window.addEventListener("unhandledrejection", (e) => {
 
 ### 3.6 类型定义与文档
 
-新增 `types/chatgptx-extensions.d.ts`，随仓库分发，作者 `/// <reference types="..." />` 即可获得补全。内容从 `capabilities.json` 的路由表生成，保证与实现同步。
+新增 `types/swivox-extensions.d.ts`，随仓库分发，作者 `/// <reference types="..." />` 即可获得补全。内容从 `capabilities.json` 的路由表生成，保证与实现同步。
 
 文档新增 `docs/extension-api.md`，包含：快速上手模板、完整 API 参考、capability 表、热重载契约、迁移指南。
 
@@ -292,10 +292,10 @@ window.addEventListener("unhandledrejection", (e) => {
 
 **Step 1 — 适配层与版本号（无破坏）**
 - 新增 `assets/inject/extension-api/adapter.js`，作为 `RUNTIME_SCRIPT` 的一部分下发
-- 挂 `window.chatgptx`，实现 `call` / `log` / `onCleanup` / `fail`
+- 挂 `window.swivox`，实现 `call` / `log` / `onCleanup` / `fail`
 - `/user-scripts/list` 返回 `api` 字段
 - **旧全局名保持不变**，旧脚本零影响
-- 测试：`crates/chatgptx-core/tests/extension_api.rs`，沿用 `user_scripts_reload.rs` 的 Node `vm` harness 风格
+- 测试：`crates/swivox-core/tests/extension_api.rs`，沿用 `user_scripts_reload.rs` 的 Node `vm` harness 风格
 
 **Step 2 — capability 声明与白名单**
 - Rust 解析头部注释块，进 inventory

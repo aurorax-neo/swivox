@@ -8,7 +8,7 @@
 
 ## 一、已合并（11 个）
 
-### 主仓库 `ChatGPTX/ChatGPTX`（10 个）
+### 主仓库 `Swivox/Swivox`（10 个）
 
 | PR | 类型 | commit | 验证 |
 |---|---|---|---|
@@ -23,7 +23,7 @@
 | #2288 | fix（mcp_servers 写盘补齐） | `7daabac` | node_repl_flattened_profile 1、relay_* 全过 |
 | #2239 | fix（微信 CLI 校验） | `55cfb41` | manager 72+21、launcher 12 passed |
 
-### 脚本市场 `ChatGPTXScriptMarket`（1 个）
+### 脚本市场 `SwivoxScriptMarket`（1 个）
 
 | PR | 类型 | commit | 说明 |
 |---|---|---|---|
@@ -68,8 +68,8 @@
 **阻塞点是它自带测试的隔离缺陷**：
 
 ```
-cargo test -p chatgptx-data --lib                        # 默认并行：每次 1~3 个失败
-cargo test -p chatgptx-data --lib -- --test-threads=1   # 单线程：75 passed, 0 failed
+cargo test -p swivox-data --lib                        # 默认并行：每次 1~3 个失败
+cargo test -p swivox-data --lib -- --test-threads=1   # 单线程：75 passed, 0 failed
 ```
 
 并行连续 5 次失败数 `2/3/3/2/1`，**失败集合每次不同**，错误为
@@ -77,7 +77,7 @@ cargo test -p chatgptx-data --lib -- --test-threads=1   # 单线程：75 passed,
 对应 `session_index_repair.rs:537` 的 `lock.try_lock_exclusive()`。
 
 失败集合随机 + 单线程全过 → 测试之间争用独占锁，非逻辑错误。该模块（`session_index_repair.rs`
-/ `session_index_scan.rs`）与 51 个测试均为本 PR 新增；同期 main 的 `chatgptx-data --lib`
+/ `session_index_scan.rs`）与 51 个测试均为本 PR 新增；同期 main 的 `swivox-data --lib`
 并行 3 次均 25 passed / 0 failed，故确认由本 PR 引入。
 
 **CI 抓不到**：该 PR 的检查只有三个构建任务（Windows artifacts / macOS DMG x64 / arm64），不跑
@@ -103,9 +103,9 @@ cargo test -p chatgptx-data --lib -- --test-threads=1   # 单线程：75 passed,
 
 | 仓库 | 开放 PR |
 |---|---|
-| `ChatGPTX/ChatGPTX` | **2**（#2262 待修测试、#2206 待决策） |
-| `ChatGPTX/ChatGPTXScriptMarket` | **0** |
-| `ChatGPTX/ChatGPTX-Themes` | **0** |
+| `Swivox/Swivox` | **2**（#2262 待修测试、#2206 待决策） |
+| `Swivox/SwivoxScriptMarket` | **0** |
+| `Swivox/Swivox-Themes` | **0** |
 
 ## 六、遗留项
 
@@ -116,5 +116,5 @@ cargo test -p chatgptx-data --lib -- --test-threads=1   # 单线程：75 passed,
 4. 脚本市场 `index.json` 的 `updated_at` 现为 `2026-09-23T02:43:09Z`（#92 写入）。
 5. #2239 的 macOS DMG (x64) 在旧 run（35416145150）有过一次 FAILURE，本次未重跑 CI；
    用本地解析后的树验证后直推，若那条失败是环境抖动可忽略。
-6. 合并期间发现用户在本地 `ChatGPTX` 工作区有一次未完成的 merge
+6. 合并期间发现用户在本地 `Swivox` 工作区有一次未完成的 merge
    （detached HEAD at `pr/2283`，`MERGE_HEAD=cd78c756`）。**未触碰**，审查全部在独立 clone 中进行。

@@ -20,7 +20,7 @@
 ### Task 1: Lock Auxiliary Panel Coverage With a Failing Regression Test
 
 **Files:**
-- Modify: `apps/chatgptx-manager/src/dream-skin.test.ts`
+- Modify: `apps/swivox-manager/src/dream-skin.test.ts`
 
 **Interfaces:**
 - Consumes: existing Windows renderer and stylesheet files as UTF-8 text.
@@ -53,7 +53,7 @@ it("extends the Windows wallpaper treatment to right and bottom dock panels", as
 
 - [ ] **Step 2: Run the focused test and verify RED**
 
-Run from `apps/chatgptx-manager` with the bundled Node 24 executable:
+Run from `apps/swivox-manager` with the bundled Node 24 executable:
 
 ```powershell
 & 'C:\Users\it.szos_shaoheng.xu\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' --test --test-name-pattern "right and bottom dock panels" src/dream-skin.test.ts
@@ -64,7 +64,7 @@ Expected: FAIL because the auxiliary marker names are absent from the renderer a
 - [ ] **Step 3: Commit the failing test**
 
 ```powershell
-git add apps/chatgptx-manager/src/dream-skin.test.ts
+git add apps/swivox-manager/src/dream-skin.test.ts
 git commit -m "test: cover Dream Skin auxiliary panels"
 ```
 
@@ -186,8 +186,8 @@ Expected: both commands exit 0.
 ### Task 4: Refresh Bundled Asset Revision and Hashes
 
 **Files:**
-- Modify: `crates/chatgptx-core/src/assets.rs`
-- Modify: `crates/chatgptx-core/tests/upstream_theme_assets.rs`
+- Modify: `crates/swivox-core/src/assets.rs`
+- Modify: `crates/swivox-core/tests/upstream_theme_assets.rs`
 
 **Interfaces:**
 - Consumes: final Windows renderer and CSS bytes.
@@ -217,7 +217,7 @@ Expected: both commands exit 0. The focused Rust asset test may require GitHub A
 - [ ] **Step 4: Commit the implementation**
 
 ```powershell
-git add assets/inject/upstream/dream-skin/windows/renderer-inject.js assets/inject/upstream/dream-skin/windows/dream-skin.css crates/chatgptx-core/src/assets.rs crates/chatgptx-core/tests/upstream_theme_assets.rs
+git add assets/inject/upstream/dream-skin/windows/renderer-inject.js assets/inject/upstream/dream-skin/windows/dream-skin.css crates/swivox-core/src/assets.rs crates/swivox-core/tests/upstream_theme_assets.rs
 git commit -m "fix: extend Dream Skin across docked panels"
 ```
 

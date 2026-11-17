@@ -14,7 +14,7 @@
    *
    *   本分片补上的就是这一段：横幅还在、原生又不再自动重试时，替用户点按钮。
    *   节奏默认与手动点击一致——上一轮失败后立刻重试（0 秒间隔，内部有 1 秒地板值
-   *   防热循环），间隔和次数上限都可以在 ChatGPTX 设置里改。
+   *   防热循环），间隔和次数上限都可以在 Swivox 设置里改。
    *
    *   原生那 4 档阶梯（10/30/120/300 秒）不是我们复刻的对象，也不等待：倒计时显示
    *   「10 秒后重试」时本功能同样在下一秒就把按钮点掉，等于把原生那 4 次也压成 0 秒。
@@ -33,7 +33,7 @@
    *      倒计时变体是 localConversation.serverOverloaded.retryCountdown
    *      （{seconds} 秒后重试 / Retry in {seconds}s）。
    */
-  const capacityAutoRetryChipId = "chatgptx-capacity-auto-retry";
+  const capacityAutoRetryChipId = "swivox-capacity-auto-retry";
   const capacityAutoRetryIdlePollMs = 2000;
   const capacityAutoRetryWaitingPollMs = 1000;
   const capacityAutoRetryAbsenceTicksBeforeReset = 3;
@@ -56,7 +56,7 @@
 
   function capacityAutoRetrySettings() {
     try {
-      return chatgptxSettings() || {};
+      return swivoxSettings() || {};
     } catch {
       return {};
     }
@@ -88,13 +88,13 @@
 
   function setCapacityAutoRetryMaxAttempts(value) {
     const next = normalizeCapacityAutoRetryMaxAttempts(value);
-    setChatGPTXSetting("capacityAutoRetryMaxAttempts", next);
+    setSwivoxSetting("capacityAutoRetryMaxAttempts", next);
     return next;
   }
 
   function setCapacityAutoRetryIntervalSeconds(value) {
     const next = normalizeCapacityAutoRetryIntervalSeconds(value);
-    setChatGPTXSetting("capacityAutoRetryIntervalSeconds", next);
+    setSwivoxSetting("capacityAutoRetryIntervalSeconds", next);
     return next;
   }
 
@@ -146,7 +146,7 @@
     chip = document.createElement("div");
     chip.id = capacityAutoRetryChipId;
     // 归属标记：扫描调度器据此忽略我们自己插入的节点，避免自喂扫描循环（issue #1960）。
-    chip.setAttribute("data-chatgptx-ext", "capacity-auto-retry");
+    chip.setAttribute("data-swivox-ext", "capacity-auto-retry");
     chip.setAttribute("role", "status");
     chip.style.cssText = [
       "position:fixed",
@@ -167,15 +167,15 @@
       "user-select:none",
     ].join(";");
     const text = document.createElement("span");
-    text.setAttribute("data-chatgptx-capacity-retry-text", "true");
+    text.setAttribute("data-swivox-capacity-retry-text", "true");
     const resume = document.createElement("button");
     resume.type = "button";
-    resume.setAttribute("data-chatgptx-capacity-retry-resume", "true");
+    resume.setAttribute("data-swivox-capacity-retry-resume", "true");
     resume.textContent = "继续";
     resume.style.cssText = "display:none;cursor:pointer;color:inherit;background:transparent;border:0;font:inherit;text-decoration:underline;padding:0";
     const stop = document.createElement("button");
     stop.type = "button";
-    stop.setAttribute("data-chatgptx-capacity-retry-stop", "true");
+    stop.setAttribute("data-swivox-capacity-retry-stop", "true");
     stop.textContent = "停止";
     stop.style.cssText = "display:none;cursor:pointer;color:inherit;background:transparent;border:0;font:inherit;text-decoration:underline;padding:0";
     resume.addEventListener("click", () => {
@@ -209,9 +209,9 @@
       chip.style.display = "none";
       return;
     }
-    const text = chip.querySelector("[data-chatgptx-capacity-retry-text]");
-    const resume = chip.querySelector("[data-chatgptx-capacity-retry-resume]");
-    const stop = chip.querySelector("[data-chatgptx-capacity-retry-stop]");
+    const text = chip.querySelector("[data-swivox-capacity-retry-text]");
+    const resume = chip.querySelector("[data-swivox-capacity-retry-resume]");
+    const stop = chip.querySelector("[data-swivox-capacity-retry-stop]");
     // 取不到子节点说明浮标被 Codex 的重渲染搬走了；这种情况下宁可只更新容器，
     // 也不要抛错中断整条重试链（注入层任何未捕获异常都会记进 scan 失败列表）。
     if (!text || !resume || !stop) {
@@ -327,7 +327,7 @@
    *
    * 幂等：开启时确保有一个定时器在跑，关闭时清干净（含浮标），可以随时重复调用。
    */
-  function syncChatGPTXCapacityAutoRetry() {
+  function syncSwivoxCapacityAutoRetry() {
     if (!capacityAutoRetryEnabled()) {
       clearTimeout(capacityAutoRetryState.timer);
       capacityAutoRetryState.timer = null;
@@ -341,13 +341,13 @@
   }
 
   // 诊断/联调入口：出问题时可在控制台直接看状态或强制走一轮。
-  window.__chatgptxCapacityAutoRetry = {
+  window.__swivoxCapacityAutoRetry = {
     state: capacityAutoRetryState,
     tick: capacityAutoRetryTick,
-    sync: syncChatGPTXCapacityAutoRetry,
+    sync: syncSwivoxCapacityAutoRetry,
     find: findCapacityAutoRetryBanner,
     intervalSeconds: capacityAutoRetryIntervalSeconds,
     maxAttempts: capacityAutoRetryMaxAttempts,
   };
 
-  syncChatGPTXCapacityAutoRetry();
+  syncSwivoxCapacityAutoRetry();

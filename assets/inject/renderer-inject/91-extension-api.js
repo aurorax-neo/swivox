@@ -1,34 +1,34 @@
   /**
-   * 对外接口层：window.chatgptx
+   * 对外接口层：window.swivox
    *
-   * 第三方用户脚本不认识 ChatGPTX 内部的闭包函数，只能通过这个对象调用能力。
+   * 第三方用户脚本不认识 Swivox 内部的闭包函数，只能通过这个对象调用能力。
    * 设计要点：
    *
-   *   1. 只挂一个全局名。之前 42 个 window.__chatgptx* 里绝大多数是补丁哨兵，
+   *   1. 只挂一个全局名。之前 42 个 window.__swivox* 里绝大多数是补丁哨兵，
    *      对外没有价值；新能力统一收进这里，避免命名空间继续发散。
    *   2. 注册表持久、DOM 瞬态。每个 register* 只把数据写进注册中心，渲染由消费方
    *      负责。第三方不需要关心宿主何时重建（overlay 重开、会话行重建）。
-   *   3. 失败隔离。第三方回调一律经 runChatGPTXExtensionCallback 包一层，抛错
-   *      记进该脚本的状态通道，不会让 ChatGPTX 自己的 UI 白屏。
+   *   3. 失败隔离。第三方回调一律经 runSwivoxExtensionCallback 包一层，抛错
+   *      记进该脚本的状态通道，不会让 Swivox 自己的 UI 白屏。
    *
    * 这个分片必须在 renderer-inject 内部的所有 UI 消费方之前执行，因为它只做定义、
    * 不读 DOM；实际挂载发生在 99-tail 之前，那时所有依赖函数都已可用。
    */
-  const chatgptxExtensionApiVersion = 1;
-  const chatgptxExtensionAdapterVersion = "1.0.0";
+  const swivoxExtensionApiVersion = 1;
+  const swivoxExtensionAdapterVersion = "1.0.0";
 
   /** 类名与属性契约。一旦发布不再更名，新增用新名字。 */
-  const chatgptxExtensionConstants = {
-    pageClass: chatgptxPageClass,
-    pageNavAttribute: "data-chatgptx-page-nav",
-    railSelector: chatgptxRailSelector,
-    railDestinationSelector: chatgptxRailDestinationSelector,
+  const swivoxExtensionConstants = {
+    pageClass: swivoxPageClass,
+    pageNavAttribute: "data-swivox-page-nav",
+    railSelector: swivoxRailSelector,
+    railDestinationSelector: swivoxRailDestinationSelector,
     actionGroupClass,
     moreMenuClass,
     toastClass: "codex-delete-toast",
     // 拓展自己插入的节点必须带这个属性，值是该脚本的 key。
     // 扫描调度靠它把拓展的写入排除在自喂循环之外（issue #1960）。
-    extensionAttribute: "data-chatgptx-ext",
+    extensionAttribute: "data-swivox-ext",
   };
 
   /**
@@ -37,7 +37,7 @@
    * 刻意做成白名单而不是黑名单：新增路由时默认不可用，需要显式决定是否开放，
    * 避免内部路由（例如 `/settings/set`、`/manager/open-transient`）被顺手暴露出去。
    */
-  const chatgptxExtensionRoutes = new Set([
+  const swivoxExtensionRoutes = new Set([
     "/diagnostics/log",
     "/session/export",
     "/thread-usage-history",
@@ -47,7 +47,7 @@
   ]);
 
   /** 单次调用的默认超时，略短于桥接自身的 26s，让拓展先拿到可读的错误。 */
-  const chatgptxExtensionCallTimeoutMs = 26000;
+  const swivoxExtensionCallTimeoutMs = 26000;
 
   /**
    * 调用后端。
@@ -56,15 +56,15 @@
    * 会话删除）、没有超时、错误风格不统一（路由层返回 {status:"failed"}，浮层面板
    * 返回 {error}）。这里统一成 Promise reject，让拓展用 try/catch。
    */
-  function chatgptxExtensionCall(route, payload = {}, options = {}) {
-    if (typeof route !== "string" || !chatgptxExtensionRoutes.has(route)) {
+  function swivoxExtensionCall(route, payload = {}, options = {}) {
+    if (typeof route !== "string" || !swivoxExtensionRoutes.has(route)) {
       return Promise.reject(new Error(`未开放的路由：${route}`));
     }
     const bridge = window.__codexSessionDeleteBridge;
     if (typeof bridge !== "function") {
       return Promise.reject(new Error("Codex 页面尚未连接，请稍后重试"));
     }
-    const timeout = Number.isFinite(options.timeout) ? Number(options.timeout) : chatgptxExtensionCallTimeoutMs;
+    const timeout = Number.isFinite(options.timeout) ? Number(options.timeout) : swivoxExtensionCallTimeoutMs;
     // 桥接协议没有 cancel 通道，超时只能放弃等待，服务端任务仍会跑完。
     const request = bridge(route, payload);
     return new Promise((resolve, reject) => {
@@ -94,27 +94,27 @@
    * 丢失归属，出问题时无法定位到是哪个脚本，扫描调度也认不出它的节点。
    * 这里保留 options.scriptKey 作为显式覆盖，默认回退到 currentKey。
    */
-  function chatgptxCurrentExtensionScriptKey(options) {
-    return options?.scriptKey || window.__chatgptxUserScripts?.currentKey || "";
+  function swivoxCurrentExtensionScriptKey(options) {
+    return options?.scriptKey || window.__swivoxUserScripts?.currentKey || "";
   }
 
   /** 注册一个带 order 的拓展项，统一处理 id 前缀与失败上报。 */
-  function chatgptxRegisterExtensionItem(kind, registry, definition, options = {}) {
-    const scriptKey = chatgptxCurrentExtensionScriptKey(options);
-    const id = `${scriptKey}:${kind}:${options.id || chatgptxExtensionIdSeed()}`;
-    const dispose = registerChatGPTXExtension(kind, registry, id, definition, scriptKey);
+  function swivoxRegisterExtensionItem(kind, registry, definition, options = {}) {
+    const scriptKey = swivoxCurrentExtensionScriptKey(options);
+    const id = `${scriptKey}:${kind}:${options.id || swivoxExtensionIdSeed()}`;
+    const dispose = registerSwivoxExtension(kind, registry, id, definition, scriptKey);
     // 注册后立刻让所有入口重画一次，否则用户要等下一次 scan 才看得到新项。
-    chatgptxRefreshExtensionHosts();
+    swivoxRefreshExtensionHosts();
     return () => {
       dispose();
-      chatgptxRefreshExtensionHosts();
+      swivoxRefreshExtensionHosts();
     };
   }
 
-  let chatgptxExtensionIdCounter = 0;
-  function chatgptxExtensionIdSeed() {
-    chatgptxExtensionIdCounter += 1;
-    return `item-${chatgptxExtensionIdCounter}`;
+  let swivoxExtensionIdCounter = 0;
+  function swivoxExtensionIdSeed() {
+    swivoxExtensionIdCounter += 1;
+    return `item-${swivoxExtensionIdCounter}`;
   }
 
   /**
@@ -123,12 +123,12 @@
    * 每个消息都可能有消费方尚未初始化（例如浮层面板按需注入、overlay 未打开），
    * 所以逐项 try/catch，任何一个不存在或抛错都不影响其余。
    */
-  function chatgptxRefreshExtensionHosts() {
+  function swivoxRefreshExtensionHosts() {
     for (const refresh of [
-      refreshChatGPTXPageNav,
-      refreshChatGPTXRailNavigation,
+      refreshSwivoxPageNav,
+      refreshSwivoxRailNavigation,
       refreshExtensionSessionRows,
-      refreshChatGPTXExtensionMenu,
+      refreshSwivoxExtensionMenu,
     ]) {
       try {
         refresh?.();
@@ -140,16 +140,16 @@
    * 已打开的菜单里补上／摘掉拓展项。
    *
    * 菜单是打开时一次性构建的 innerHTML，注册发生在它打开之后时不会自动出现。
-   * 这里只处理「已打开」这一种情况：整块替换掉带 data-chatgptx-ext-menu 的容器。
+   * 这里只处理「已打开」这一种情况：整块替换掉带 data-swivox-ext-menu 的容器。
    * 菜单没打开时什么都不做——下次打开自然会带上。
    */
-  function refreshChatGPTXExtensionMenu() {
-    const overlay = document.querySelector(".chatgptx-modal-overlay, .chatgptx-page-overlay");
+  function refreshSwivoxExtensionMenu() {
+    const overlay = document.querySelector(".swivox-modal-overlay, .swivox-page-overlay");
     if (!overlay) return;
-    const panel = overlay.querySelector('[data-chatgptx-panel="home"]');
+    const panel = overlay.querySelector('[data-swivox-panel="home"]');
     if (!panel) return;
-    panel.querySelector("[data-chatgptx-ext-menu]")?.remove();
-    const markup = renderChatGPTXExtensionMenuRows();
+    panel.querySelector("[data-swivox-ext-menu]")?.remove();
+    const markup = renderSwivoxExtensionMenuRows();
     if (markup) panel.insertAdjacentHTML("beforeend", markup);
   }
 
@@ -169,65 +169,65 @@
    * 拆成函数而不是直接字面量，是为了让 99-tail 之前的挂载点能按顺序装配：
    * 依赖的函数都已在同一闭包里，此处只做引用。
    */
-  function buildChatGPTXExtensionApi() {
+  function buildSwivoxExtensionApi() {
     return {
-      version: chatgptxExtensionAdapterVersion,
-      apiVersion: chatgptxExtensionApiVersion,
-      constants: chatgptxExtensionConstants,
+      version: swivoxExtensionAdapterVersion,
+      apiVersion: swivoxExtensionApiVersion,
+      constants: swivoxExtensionConstants,
       // 用 getter 而不是快照：脚本初始化结束后再读也能拿到自己的 key。
       get script() {
-        return { key: chatgptxCurrentExtensionScriptKey() };
+        return { key: swivoxCurrentExtensionScriptKey() };
       },
 
       /** 显示提示。type: info | success | warn | error */
       toast(message, options) {
-        return runChatGPTXExtensionCallback(
-          chatgptxCurrentExtensionScriptKey(),
+        return runSwivoxExtensionCallback(
+          swivoxCurrentExtensionScriptKey(),
           "toast",
           () => showToast(String(message ?? ""), options || {}),
         );
       },
 
       /** 调用后端白名单路由，失败时 reject。 */
-      call: chatgptxExtensionCall,
+      call: swivoxExtensionCall,
 
       /** 在会话行「更多操作」里加一项。 */
       registerRowAction(definition, options = {}) {
-        return chatgptxRegisterExtensionItem("rowAction", chatgptxRegistry.rowActions, definition, options);
+        return swivoxRegisterExtensionItem("rowAction", swivoxRegistry.rowActions, definition, options);
       },
 
       /** 加一个图标栏入口（点击后走 registerPage 注册的页面）。 */
       registerNavEntry(definition, options = {}) {
-        return chatgptxRegisterExtensionItem("navEntry", chatgptxRegistry.navEntries, definition, options);
+        return swivoxRegisterExtensionItem("navEntry", swivoxRegistry.navEntries, definition, options);
       },
 
       /**
-       * 在 ChatGPTX 菜单的「主页」面板里加一行。
+       * 在 Swivox 菜单的「主页」面板里加一行。
        *
        * 两种形态，按 definition 里给的字段决定：
        *   - 开关：给 `onChange(next)`，可选 `toggleValue()` 提供当前值
        *   - 按钮：给 `onActivate({ close })`
        *
-       * 这些是 ChatGPTX 自己的设置面板，改动会立刻反映到当前打开的菜单上；
+       * 这些是 Swivox 自己的设置面板，改动会立刻反映到当前打开的菜单上；
        * 菜单重新打开时会从 `toggleValue()` 重新读一次状态。
        */
       registerMenuItem(definition, options = {}) {
-        return chatgptxRegisterExtensionItem("menuItem", chatgptxRegistry.menuItems, definition, options);
+        return swivoxRegisterExtensionItem("menuItem", swivoxRegistry.menuItems, definition, options);
       },
 
       /**
        * 注册一个整页视图。
        *
-       * 同时自动配一个图标栏入口——内置的三个页面（ChatGPTX / 拓展 / 推荐内容）
+       * 同时自动配一个图标栏入口——内置的三个页面（Swivox / 拓展 / 推荐内容）
        * 都是「rail 入口 + 整页」的形态，第三方页面沿用同一种形态，用户才不会
        * 在弹窗里找入口。`options.navLabel` / `options.icon` 控制入口外观。
        *
        * render 每次打开都被重新调用，不要缓存 DOM（见本文件顶部的生命周期约定）。
        */
       registerPage(definition, options = {}) {
-        const scriptKey = chatgptxCurrentExtensionScriptKey(options);
-        const pageId = `${scriptKey}:page:${options.id || chatgptxExtensionIdSeed()}`;
-        const disposePage = registerChatGPTXExtension("page", chatgptxRegistry.pages, pageId, definition, scriptKey);
+        const scriptKey = swivoxCurrentExtensionScriptKey(options);
+        const pageId = `${scriptKey}:page:${options.id || swivoxExtensionIdSeed()}`;
+        const disposePage = registerSwivoxExtension("page", swivoxRegistry.pages, pageId, definition, scriptKey);
         // 入口与页面成对存在：页面没了，入口也该消失，否则点了没有任何反应。
         const entry = {
           ...definition,
@@ -239,29 +239,29 @@
         const navId = `${scriptKey}:navEntry:${pageId}`;
         let disposeNav = null;
         try {
-          disposeNav = registerChatGPTXExtension("navEntry", chatgptxRegistry.navEntries, navId, entry, scriptKey);
+          disposeNav = registerSwivoxExtension("navEntry", swivoxRegistry.navEntries, navId, entry, scriptKey);
         } catch {
           // 入口注册失败（配额满）时页面本身仍可用，不要回滚已成功的页面注册。
         }
-        chatgptxRefreshExtensionHosts();
+        swivoxRefreshExtensionHosts();
         return () => {
           try {
             disposeNav?.();
           } catch {}
           disposePage();
-          chatgptxRefreshExtensionHosts();
+          swivoxRefreshExtensionHosts();
         };
       },
 
       /** 注册清理函数，热重载时逆序执行。 */
       onCleanup(cleanup) {
-        return window.__chatgptxUserScripts?.registerCleanup?.(cleanup);
+        return window.__swivoxUserScripts?.registerCleanup?.(cleanup);
       },
 
       /** 主动上报失败，供异步阶段的错误使用（同步阶段由 wrap_script 捕获）。 */
       fail(error) {
-        chatgptxMarkExtensionFailure(
-          window.__chatgptxUserScripts?.currentKey,
+        swivoxMarkExtensionFailure(
+          window.__swivoxUserScripts?.currentKey,
           String(error?.stack || error?.message || error),
         );
       },

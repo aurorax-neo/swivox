@@ -1,21 +1,21 @@
 (() => {
   // The launcher targets the Codex app page, but keep a renderer-side guard
   // so this bundle cannot create UI in embedded browser documents.
-  const chatgptxIsNodeTestHarness = typeof process === "object" && !!process.versions?.node;
-  if (!chatgptxIsNodeTestHarness && (window.top !== window || window.self !== window || !window.electronBridge || !/^app:\/\/\-\//i.test(window.location.href))) return;
-  const chatgptxIsWindowsPlatform = /\bWindows\b/i.test(navigator.userAgent || "");
+  const swivoxIsNodeTestHarness = typeof process === "object" && !!process.versions?.node;
+  if (!swivoxIsNodeTestHarness && (window.top !== window || window.self !== window || !window.electronBridge || !/^app:\/\/\-\//i.test(window.location.href))) return;
+  const swivoxIsWindowsPlatform = /\bWindows\b/i.test(navigator.userAgent || "");
 
-  function installChatGPTXForceChineseLocale() {
-    const config = window.__CHATGPTX_FORCE_CHINESE_LOCALE__;
+  function installSwivoxForceChineseLocale() {
+    const config = window.__SWIVOX_FORCE_CHINESE_LOCALE__;
     if (!config) return;
     const enabled = config.enabled === true;
     const locale = typeof config.locale === "string" && config.locale ? config.locale : "zh-CN";
     const installationKey = `2:${enabled ? "on" : "off"}:${locale}`;
-    if (window.__chatgptxForceChineseLocaleInstalled === installationKey) return;
-    window.__chatgptxForceChineseLocaleInstalled = installationKey;
+    if (window.__swivoxForceChineseLocaleInstalled === installationKey) return;
+    window.__swivoxForceChineseLocaleInstalled = installationKey;
     const languages = [locale, "zh", "en-US", "en"];
-    const managedLocaleStorageKey = "chatgptx.forceChineseLocale.managed.v1";
-    const localeReloadStorageKey = "chatgptx.forceChineseLocale.reload.v1";
+    const managedLocaleStorageKey = "swivox.forceChineseLocale.managed.v1";
+    const localeReloadStorageKey = "swivox.forceChineseLocale.reload.v1";
 
     const readManagedLocale = () => {
       try {
@@ -149,14 +149,14 @@
         dynamicConfig.value = nextValue;
       } catch {
       }
-      if (typeof dynamicConfig.get === "function" && !dynamicConfig.__chatgptxForceChineseLocaleGetPatched) {
+      if (typeof dynamicConfig.get === "function" && !dynamicConfig.__swivoxForceChineseLocaleGetPatched) {
         const originalGet = dynamicConfig.get.bind(dynamicConfig);
         dynamicConfig.get = (key, fallback) => {
           if (key === "enable_i18n") return true;
           if (key === "locale_source") return "SYSTEM";
           return originalGet(key, fallback);
         };
-        dynamicConfig.__chatgptxForceChineseLocaleGetPatched = true;
+        dynamicConfig.__swivoxForceChineseLocaleGetPatched = true;
       }
       return dynamicConfig;
     };
@@ -190,44 +190,44 @@
         layer.value = nextValue;
       } catch {
       }
-      if (typeof layer.get === "function" && !layer.__chatgptxForceChineseLocaleLayerPatched) {
+      if (typeof layer.get === "function" && !layer.__swivoxForceChineseLocaleLayerPatched) {
         const originalGet = layer.get.bind(layer);
         layer.get = (key, fallback) => {
           if (key === "enable_i18n") return true;
           if (key === "locale_source") return "SYSTEM";
           return originalGet(key, fallback);
         };
-        layer.__chatgptxForceChineseLocaleLayerPatched = true;
+        layer.__swivoxForceChineseLocaleLayerPatched = true;
       }
       return layer;
     };
 
     const patchStatsigClient = (client) => {
       if (!client || typeof client !== "object") return;
-      if (typeof client.getLayer === "function" && !client.__chatgptxForceChineseLocaleLayerChannelPatched) {
+      if (typeof client.getLayer === "function" && !client.__swivoxForceChineseLocaleLayerChannelPatched) {
         const originalGetLayer = client.getLayer.bind(client);
         client.getLayer = (name, options) => {
           const result = originalGetLayer(name, options);
           return name === "72216192" ? patchI18nLayer(result) : result;
         };
-        client.__chatgptxForceChineseLocaleLayerChannelPatched = true;
+        client.__swivoxForceChineseLocaleLayerChannelPatched = true;
       }
-      if (typeof client._getLayerImpl === "function" && !client.__chatgptxForceChineseLocaleLayerImplPatched) {
+      if (typeof client._getLayerImpl === "function" && !client.__swivoxForceChineseLocaleLayerImplPatched) {
         const originalGetLayerImpl = client._getLayerImpl.bind(client);
         client._getLayerImpl = function (name, ...rest) {
           const result = originalGetLayerImpl(name, ...rest);
           return name === "72216192" ? patchI18nLayer(result) : result;
         };
-        client.__chatgptxForceChineseLocaleLayerImplPatched = true;
+        client.__swivoxForceChineseLocaleLayerImplPatched = true;
       }
       if (typeof client.getDynamicConfig !== "function") return;
-      if (!client.__chatgptxForceChineseLocalePatched) {
+      if (!client.__swivoxForceChineseLocalePatched) {
         const originalGetDynamicConfig = client.getDynamicConfig.bind(client);
         client.getDynamicConfig = (name, options) => {
           const result = originalGetDynamicConfig(name, options);
           return name === "72216192" ? patchI18nConfig(result) : result;
         };
-        client.__chatgptxForceChineseLocalePatched = true;
+        client.__swivoxForceChineseLocalePatched = true;
       }
       try {
         patchI18nConfig(client.getDynamicConfig("72216192", { disableExposureLog: true }));
@@ -242,8 +242,8 @@
     };
 
     const patchStatsigRoot = (root) => {
-      if (!root || typeof root !== "object" || root.__chatgptxForceChineseLocaleRootPatched) return;
-      root.__chatgptxForceChineseLocaleRootPatched = true;
+      if (!root || typeof root !== "object" || root.__swivoxForceChineseLocaleRootPatched) return;
+      root.__swivoxForceChineseLocaleRootPatched = true;
       ["firstInstance", "instance"].forEach((key) => {
         let current;
         try {
@@ -303,7 +303,7 @@
     }, 50);
   }
 
-  const helperBase = window.__CODEX_SESSION_DELETE_HELPER__ || "http://127.0.0.1:57321";
+  const helperBase = window.__CODEX_SESSION_DELETE_HELPER__ || "http://127.0.0.1:58321";
   const buttonClass = "codex-delete-button";
   const exportButtonClass = "codex-export-button";
   const actionButtonClass = "codex-session-action-button";
@@ -315,9 +315,9 @@
   const conversationViewMinWidth = 320;
   const conversationViewMaxAllowedWidth = 4000;
   const conversationViewDefaultWidth = 900;
-  const conversationViewLegacyWidthKey = "chatgptx.threadCenter.maxWidth";
+  const conversationViewLegacyWidthKey = "swivox.threadCenter.maxWidth";
   // 模型容量错误自动重试的次数上下限。放在 prelude 是因为默认设置
-  // （10-style.js 的 defaultChatGPTXSettings）和运行逻辑（81-capacity-auto-retry.js）
+  // （10-style.js 的 defaultSwivoxSettings）和运行逻辑（81-capacity-auto-retry.js）
   // 都要用，而后者的 const 在 IIFE 里初始化得更晚。
   const capacityAutoRetryDefaultMaxAttempts = 15;
   const capacityAutoRetryMaxAttemptsCeiling = 200;
@@ -333,9 +333,9 @@
   const sessionCopyMenuActivationTimeoutMs = 12000;
   const sessionShareButtonClass = "codex-session-share-button";
   const sessionShareButtonVersion = "1";
-  const chatgptxShareBaseUrl = "https://share.codexpp.cc";
-  const chatgptxShareFallbackBaseUrl = "https://codexpp-share.pages.dev";
-  const chatgptxShareMaxCharacters = 900000;
+  const swivoxShareBaseUrl = "https://share.codexpp.cc";
+  const swivoxShareFallbackBaseUrl = "https://codexpp-share.pages.dev";
+  const swivoxShareMaxCharacters = 900000;
   const sessionAutoRenameTimeoutMs = 20000;
   const zedRemoteToastClass = "codex-zed-remote-toast";
   const upstreamWorktreeDialogClass = "codex-upstream-worktree-dialog";
@@ -344,26 +344,26 @@
   // 改 10-style.js 里的任何 CSS 都要把它 +1：installStyle 靠这个版本号判断
   // 页面里已有的 <style> 是否过期，不升的话新样式在旧标签存在时会被直接跳过。
   const codexDeleteStyleVersion = "32";
-  const chatgptxMenuId = "chatgptx-menu";
-  const chatgptxMenuFloatingClass = "chatgptx-menu-floating";
-  const chatgptxSidebarNavId = "chatgptx-sidebar-nav";
-  const chatgptxPageClass = "chatgptx-page-overlay";
+  const swivoxMenuId = "swivox-menu";
+  const swivoxMenuFloatingClass = "swivox-menu-floating";
+  const swivoxSidebarNavId = "swivox-sidebar-nav";
+  const swivoxPageClass = "swivox-page-overlay";
   // 新版 Codex 在最左侧多出一条导航图标栏（navigation rail）。
-  // 三个入口分别挂进去：ChatGPTX 主页、「拓展」（原用户脚本）和「推荐内容」。
+  // 三个入口分别挂进去：Swivox 主页、「拓展」（原用户脚本）和「推荐内容」。
   // 三者各自是一个独立页面，不再作为弹窗里的二级 tab。
-  const chatgptxRailNavId = "chatgptx-rail-nav";
-  const chatgptxRailExtensionsId = "chatgptx-rail-extensions";
-  const chatgptxRailSponsorId = "chatgptx-rail-sponsor";
-  const chatgptxRailPluginMarketId = "chatgptx-rail-plugin-market";
-  const chatgptxSidebarPluginMarketId = "chatgptx-sidebar-plugin-market";
-  const chatgptxPluginMarketTab = "plugin-market";
-  const chatgptxRailSelector = "nav[data-app-navigation-rail]";
-  const chatgptxRailDestinationSelector = "[data-sidebar-destination]";
-  const chatgptxExtensionsTab = "extensions";
-  const chatgptxSponsorTab = "sponsor";
+  const swivoxRailNavId = "swivox-rail-nav";
+  const swivoxRailExtensionsId = "swivox-rail-extensions";
+  const swivoxRailSponsorId = "swivox-rail-sponsor";
+  const swivoxRailPluginMarketId = "swivox-rail-plugin-market";
+  const swivoxSidebarPluginMarketId = "swivox-sidebar-plugin-market";
+  const swivoxPluginMarketTab = "plugin-market";
+  const swivoxRailSelector = "nav[data-app-navigation-rail]";
+  const swivoxRailDestinationSelector = "[data-sidebar-destination]";
+  const swivoxExtensionsTab = "extensions";
+  const swivoxSponsorTab = "sponsor";
   // Codex 的界面缩放是给内层布局节点设 CSS zoom，不是改 documentElement。
   // 我们的 overlay 挂在 body 下、落在那棵缩放子树之外，只能自己读这个变量跟随。
-  const chatgptxWindowZoomVar = "--codex-window-zoom";
+  const swivoxWindowZoomVar = "--codex-window-zoom";
   const codexDeleteVersion = "7";
   const codexExportVersion = "1";
   const codexActionGroupVersion = "6";
@@ -375,10 +375,10 @@
   const codexThreadServiceTierVersion = "1";
   const codexServiceTierBadgeClass = "codex-service-tier-badge";
   const codexServiceTierBadgeVersion = "3";
-  let chatgptxVersion = window.__CHATGPTX_VERSION__ || "unknown";
-  const chatgptxBuild = window.__CHATGPTX_BUILD__ || "unknown";
+  let swivoxVersion = window.__SWIVOX_VERSION__ || "unknown";
+  const swivoxBuild = window.__SWIVOX_BUILD__ || "unknown";
   let lastSessionActionTrigger = null;
-  const chatgptxSettingsKey = "chatgptxSettings";
+  const swivoxSettingsKey = "swivoxSettings";
   const codexThreadScrollKey = "codexThreadScroll";
   const codexThreadServiceTierKey = "codexThreadServiceTierOverrides";
   const codexThreadServiceTierMaxEntries = 120;
@@ -398,7 +398,7 @@
   const codexThreadScrollRouteHooksVersion = "dispatcher:2";
   const codexThreadScrollListenerVersion = "4";
   const codexThreadScrollUserIntentVersion = "dispatcher:2";
-  const chatgptxImageOverlayId = "chatgptx-image-overlay";
+  const swivoxImageOverlayId = "swivox-image-overlay";
   clearTimeout(window.__codexThreadScrollSaveTimer);
   window.__codexThreadScrollSaveTimer = null;
   (window.__codexThreadScrollRestoreTimers || []).forEach((timer) => clearTimeout(timer));
@@ -407,10 +407,10 @@
   window.__codexThreadScrollSyncTimers = [];
   window.__codexThreadScrollRestoreRevision = (window.__codexThreadScrollRestoreRevision || 0) + 1;
 
-  function installChatGPTXImageOverlay() {
-    const config = window.__CHATGPTX_IMAGE_OVERLAY__ || {};
+  function installSwivoxImageOverlay() {
+    const config = window.__SWIVOX_IMAGE_OVERLAY__ || {};
     const source = typeof config.dataUrl === "string" ? config.dataUrl : "";
-    const cached = window.__chatgptxImageOverlayResource;
+    const cached = window.__swivoxImageOverlayResource;
     const configuredOpacity = Number(config.opacity);
     const opacity = Number.isFinite(configuredOpacity)
       ? Math.min(1, Math.max(0.01, configuredOpacity)) : 0.35;
@@ -418,14 +418,14 @@
       ? config.fitMode : "fit";
     const reuse = !!(config.enabled && source && cached?.version === 29 && cached.ready && cached.source === source);
     if (reuse && cached.opacity === opacity && cached.fitMode === fitMode &&
-      document.getElementById(chatgptxImageOverlayId)?.getAttribute("data-chatgptx-ext") === "image-overlay") return;
-    window.__chatgptxImageOverlayGeometryCleanup?.();
-    window.__chatgptxImageOverlayGeometryCleanup = null;
-    window.__chatgptxImageOverlayCleanup?.(reuse);
-    window.__chatgptxImageOverlayCleanup = null;
-    document.getElementById(chatgptxImageOverlayId)?.remove();
+      document.getElementById(swivoxImageOverlayId)?.getAttribute("data-swivox-ext") === "image-overlay") return;
+    window.__swivoxImageOverlayGeometryCleanup?.();
+    window.__swivoxImageOverlayGeometryCleanup = null;
+    window.__swivoxImageOverlayCleanup?.(reuse);
+    window.__swivoxImageOverlayCleanup = null;
+    document.getElementById(swivoxImageOverlayId)?.remove();
     const root = document.documentElement;
-    window.__chatgptxImageOverlayReady = Promise.resolve(false);
+    window.__swivoxImageOverlayReady = Promise.resolve(false);
     if (!config.enabled || !source || !root) return;
 
     const fitStyles = {
@@ -449,7 +449,7 @@
     const browserSelector = `[data-browser-sidebar-webview], ${toolbarSelector}`;
     const sidebarSelector = "aside.app-shell-left-panel, [data-app-action-sidebar-scroll], nav[data-app-navigation-rail]";
     const sidebarRowSelector = "[data-app-action-sidebar-thread-row], [data-app-action-sidebar-project-row]";
-    const pageSelector = ".chatgptx-page-overlay";
+    const pageSelector = ".swivox-page-overlay";
     const timelineSelector = "[data-app-action-timeline-scroll], .thread-scroll-container";
     const reviewHeaderSelector = '[class~="group/turn-diff-header"]';
     const rightPanelSelector = '[data-app-shell-focus-area="right-panel"]';
@@ -463,28 +463,28 @@
     const composerOverlaySelector = "[data-composer-overlay-floating-ui]";
     const diffPreviewSelector = '[data-testid="diff-preview-scroll"]';
     const controlSelector = 'button, [role="button"], input, textarea, select, a';
-    const mediaAttribute = "data-chatgptx-image-native";
-    const scopeAttribute = "data-chatgptx-image-scope";
-    const containmentAttribute = "data-chatgptx-image-contain";
-    const browserPortalAttribute = "data-chatgptx-image-browser-portal";
-    const popupMaterialAttribute = "data-chatgptx-image-popup-material";
-    const popupBoundaryAttribute = "data-chatgptx-image-popup-boundary";
-    const controlAttribute = "data-chatgptx-image-control";
-    const paintAttribute = "data-chatgptx-image-paint";
-    const topControlAttribute = "data-chatgptx-image-top-control";
-    const footerAttribute = "data-chatgptx-image-footer-gutter";
+    const mediaAttribute = "data-swivox-image-native";
+    const scopeAttribute = "data-swivox-image-scope";
+    const containmentAttribute = "data-swivox-image-contain";
+    const browserPortalAttribute = "data-swivox-image-browser-portal";
+    const popupMaterialAttribute = "data-swivox-image-popup-material";
+    const popupBoundaryAttribute = "data-swivox-image-popup-boundary";
+    const controlAttribute = "data-swivox-image-control";
+    const paintAttribute = "data-swivox-image-paint";
+    const topControlAttribute = "data-swivox-image-top-control";
+    const footerAttribute = "data-swivox-image-footer-gutter";
     const footerSelector = "[data-thread-scroll-footer]";
     const topControlSelector = [
       '[role="menu"]', '[role="listbox"]', '[role="dialog"]', '[role="tooltip"]',
       "[data-radix-popper-content-wrapper]", '[data-slot="popover-content"]', "[popover]", composerOverlaySelector,
     ].join(", ");
     // Extensions keep their own layers; their full-page shell is the one wallpaper surface.
-    const owned = node => !!node?.closest?.('[data-chatgptx-ext]') && !node.matches(pageSelector);
+    const owned = node => !!node?.closest?.('[data-swivox-ext]') && !node.matches(pageSelector);
     const wallpaperLayer = 1000;
     const overlay = document.createElement("div");
-    overlay.id = chatgptxImageOverlayId;
+    overlay.id = swivoxImageOverlayId;
     overlay.setAttribute("aria-hidden", "true");
-    overlay.setAttribute("data-chatgptx-ext", "image-overlay");
+    overlay.setAttribute("data-swivox-ext", "image-overlay");
     Object.assign(overlay.style, {
       position: "fixed", inset: "0", width: "100vw", height: "100vh",
       opacity: String(opacity), pointerEvents: "none", zIndex: String(wallpaperLayer),
@@ -493,7 +493,7 @@
       transition: "none", animation: "none",
     });
     const style = document.createElement("style");
-    style.setAttribute("data-chatgptx-ext", "image-overlay");
+    style.setAttribute("data-swivox-ext", "image-overlay");
     const nativeRules = `
       [${scopeAttribute}] { isolation:auto!important;z-index:auto!important;will-change:auto!important; }
       [${browserPortalAttribute}] { z-index:${wallpaperLayer + 1}!important; }
@@ -532,7 +532,7 @@
       for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, String(value));
       return node;
     };
-    const svg = svgNode("svg", { width: 0, height: 0, "aria-hidden": "true", "data-chatgptx-ext": "image-overlay" });
+    const svg = svgNode("svg", { width: 0, height: 0, "aria-hidden": "true", "data-swivox-ext": "image-overlay" });
     Object.assign(svg.style, { position: "fixed", width: "0", height: "0", pointerEvents: "none" });
     const defs = svgNode("defs");
     svg.appendChild(defs);
@@ -561,8 +561,8 @@
     let geometryDirty = true;
     const originalAttributes = new Map();
     const stats = { frames: 0, rectReads: 0, styleReads: 0, queries: 0, maskWrites: 0, layerWrites: 0 };
-    window.__chatgptxImageOverlayStats = stats;
-    window.__chatgptxImageOverlayReady = new Promise(resolve => { finishReady = resolve; });
+    window.__swivoxImageOverlayStats = stats;
+    window.__swivoxImageOverlayReady = new Promise(resolve => { finishReady = resolve; });
     const mark = (node, name, value) => {
       let attributes = originalAttributes.get(node);
       if (!attributes) originalAttributes.set(node, attributes = new Map());
@@ -1349,7 +1349,7 @@
         .map((item, index) => backdropInput(item, box, sx, sy, index));
       const key = [box.x, box.y, box.width, box.height, sx, sy, innerWidth, innerHeight,
         record.nativeBackdrop, ...inputs.map(input => input.key)].join("|");
-      const id = `${chatgptxImageOverlayId}-backdrop-${record.id}`;
+      const id = `${swivoxImageOverlayId}-backdrop-${record.id}`;
       if (!record.backdrop) {
         record.backdrop = svgNode("filter", { id, filterUnits: "userSpaceOnUse", "color-interpolation-filters": "sRGB" });
         defs.appendChild(record.backdrop);
@@ -1405,7 +1405,7 @@
         return;
       }
       record.key = key;
-      const id = `${chatgptxImageOverlayId}-control-${record.id}`;
+      const id = `${swivoxImageOverlayId}-control-${record.id}`;
       if (!record.filter) {
         record.filter = svgNode("filter", { id, filterUnits: "userSpaceOnUse", "color-interpolation-filters": "sRGB" });
         defs.appendChild(record.filter);
@@ -1623,7 +1623,7 @@
       [document, "transitionend", onControlMotionEnd, true],
       [document, "animationend", onControlMotionEnd, true],
     ];
-    window.__chatgptxImageOverlayCleanup = (keepResource = false) => {
+    window.__swivoxImageOverlayCleanup = (keepResource = false) => {
       if (disposed) return;
       disposed = true;
       if (raf) cancelAnimationFrame(raf);
@@ -1644,8 +1644,8 @@
       if (!keepResource && resource) {
         if (resource.blobUrl) URL.revokeObjectURL(resource.blobUrl);
         if (resource.tileInputUrl) URL.revokeObjectURL(resource.tileInputUrl);
-        if (window.__chatgptxImageOverlayResource === resource) window.__chatgptxImageOverlayResource = null;
-        if (window.__chatgptxImageOverlayBlobUrl === resource.blobUrl) window.__chatgptxImageOverlayBlobUrl = "";
+        if (window.__swivoxImageOverlayResource === resource) window.__swivoxImageOverlayResource = null;
+        if (window.__swivoxImageOverlayBlobUrl === resource.blobUrl) window.__swivoxImageOverlayBlobUrl = "";
       }
     };
     const install = () => {
@@ -1668,7 +1668,7 @@
         target.addEventListener(event, handler, { capture, passive: true });
       render();
       finishReady(true);
-      sendChatGPTXDiagnostic("image_overlay_installed", { opacity, fitMode, sourceKind: source.startsWith("data:") ? "data-uri" : "unknown" });
+      sendSwivoxDiagnostic("image_overlay_installed", { opacity, fitMode, sourceKind: source.startsWith("data:") ? "data-uri" : "unknown" });
     };
     if (resource) install();
     else {
@@ -1681,41 +1681,41 @@
         blobUrl = URL.createObjectURL(new Blob([bytes], { type: data[1] }));
       }
       resource = { version: 29, source, blobUrl, imageSource: blobUrl || source };
-      window.__chatgptxImageOverlayResource = resource;
-      window.__chatgptxImageOverlayBlobUrl = blobUrl;
+      window.__swivoxImageOverlayResource = resource;
+      window.__swivoxImageOverlayBlobUrl = blobUrl;
       image.onload = install;
-      image.onerror = () => { if (!disposed) window.__chatgptxImageOverlayCleanup?.(); };
+      image.onerror = () => { if (!disposed) window.__swivoxImageOverlayCleanup?.(); };
       image.src = resource.imageSource;
     }
   }
 
-  function scheduleChatGPTXImageOverlay() {
-    window.__chatgptxImageOverlayReadyCleanup?.();
-    window.__chatgptxImageOverlayReadyCleanup = null;
+  function scheduleSwivoxImageOverlay() {
+    window.__swivoxImageOverlayReadyCleanup?.();
+    window.__swivoxImageOverlayReadyCleanup = null;
     if (document.readyState === "loading") {
       const onReady = () => {
-        window.__chatgptxImageOverlayReadyCleanup = null;
-        installChatGPTXImageOverlay();
+        window.__swivoxImageOverlayReadyCleanup = null;
+        installSwivoxImageOverlay();
       };
       document.addEventListener("DOMContentLoaded", onReady, { once: true });
-      window.__chatgptxImageOverlayReadyCleanup = () =>
+      window.__swivoxImageOverlayReadyCleanup = () =>
         document.removeEventListener("DOMContentLoaded", onReady);
       return;
     }
-    installChatGPTXImageOverlay();
+    installSwivoxImageOverlay();
   }
 
-  scheduleChatGPTXImageOverlay();
+  scheduleSwivoxImageOverlay();
   window.__codexThreadScrollSyncRevision = (window.__codexThreadScrollSyncRevision || 0) + 1;
-  ["__chatgptxHtmlCenteredThreadWidth", "__chatgptxViewportCenteredThreadWidth", "__chatgptxBoundedThreadCenter"].forEach((key) => {
+  ["__swivoxHtmlCenteredThreadWidth", "__swivoxViewportCenteredThreadWidth", "__swivoxBoundedThreadCenter"].forEach((key) => {
     try {
       window[key]?.cleanup?.();
     } catch (_) {}
   });
   try {
-    window.__chatgptxConversationViewCleanup?.();
+    window.__swivoxConversationViewCleanup?.();
   } catch (_) {}
-  window.__chatgptxConversationViewCleanup = null;
+  window.__swivoxConversationViewCleanup = null;
   const selectors = {
     sidebarThread: "[data-app-action-sidebar-thread-id]",
     threadTitle: "[data-thread-title]",
@@ -1734,21 +1734,21 @@
   /**
    * 拓展注册中心。
    *
-   * 第三方用户脚本通过挂到 window 上的 `chatgptx` 对象注册 UI 项，注册结果
+   * 第三方用户脚本通过挂到 window 上的 `swivox` 对象注册 UI 项，注册结果
    * 落在这里。注册中心只存数据与回调，不做任何渲染——渲染由各消费方在合适的
    * 时机读表完成。这样「内置项」和「第三方项」不会产生两条代码路径。
    *
    * 生命周期约定（很重要）：
    *   注册表持久，DOM 瞬态。
    *
-   * ChatGPTX 的 UI 宿主会被反复重建（overlay 每次打开都清空重建、会话行按钮在
+   * Swivox 的 UI 宿主会被反复重建（overlay 每次打开都清空重建、会话行按钮在
    * 版本号变化时整组重建），所以任何消费方都不能缓存 DOM 引用，必须每次从注册
    * 表读数据全量重建。反过来说，第三方脚本不需要关心 DOM 何时被销毁。
    *
    * 注意：注册中心本身不持有 DOM，也不在模块顶层读 DOM，因此可以安全地放在
    * prelude 之后的最前面——此时常量已声明，而所有顶层启动语句都还没执行。
    */
-  const chatgptxRegistry = {
+  const swivoxRegistry = {
     rowActions: new Map(),
     navEntries: new Map(),
     pages: new Map(),
@@ -1756,28 +1756,28 @@
   };
 
   /** 每个脚本最多注册多少项、全局最多多少项，防止劣质拓展把扫描拖慢。 */
-  const chatgptxExtensionPerScriptLimit = 16;
-  const chatgptxExtensionGlobalLimit = 64;
+  const swivoxExtensionPerScriptLimit = 16;
+  const swivoxExtensionGlobalLimit = 64;
 
   /**
    * 必须被扫描调度忽略的选择器。
    *
-   * 这些节点由 ChatGPTX 自己（或拓展）插入到 Codex 的容器里，而容器本身是
+   * 这些节点由 Swivox 自己（或拓展）插入到 Codex 的容器里，而容器本身是
    * scan-relevant 的。如果不排除，就会形成「写入 → 观察到自己的写入 → 200ms
    * 后再 scan → 再写入」的自喂循环：空闲时也每秒全量扫描五次，macOS 上足以
    * 吃满一个核（issue #1960）。
    *
-   * 内置项在这里，拓展项通过 registerChatGPTXExtensionSelector 动态加入。
-   * 拓展自带的选择器一律是 `[data-chatgptx-ext="<脚本 key>"]`，由接口层在
+   * 内置项在这里，拓展项通过 registerSwivoxExtensionSelector 动态加入。
+   * 拓展自带的选择器一律是 `[data-swivox-ext="<脚本 key>"]`，由接口层在
    * 注册时自动加上，拓展作者不需要也不应该自己维护这个列表。
    */
-  const chatgptxExtensionSelectors = new Set();
-  let chatgptxExtensionSelectorCache = null;
+  const swivoxExtensionSelectors = new Set();
+  let swivoxExtensionSelectorCache = null;
 
-  function registerChatGPTXExtensionSelector(selector) {
+  function registerSwivoxExtensionSelector(selector) {
     if (typeof selector !== "string" || !selector.trim()) return false;
-    if (chatgptxExtensionSelectors.has(selector)) return true;
-    if (chatgptxExtensionSelectors.size >= chatgptxExtensionGlobalLimit) {
+    if (swivoxExtensionSelectors.has(selector)) return true;
+    if (swivoxExtensionSelectors.size >= swivoxExtensionGlobalLimit) {
       return false;
     }
     // 提前验证选择器语法：非法选择器会在 closest() 里抛错，而 closest() 跑在
@@ -1787,8 +1787,8 @@
     } catch {
       return false;
     }
-    chatgptxExtensionSelectors.add(selector);
-    chatgptxExtensionSelectorCache = null;
+    swivoxExtensionSelectors.add(selector);
+    swivoxExtensionSelectorCache = null;
     return true;
   }
 
@@ -1796,14 +1796,14 @@
    * 拼给 closest() 用的选择器串。Set 变化时重建、否则复用——closest() 传一个
    * 逗号串比逐个调用快得多，而这里每次 DOM 变更都会走一遍。
    */
-  function chatgptxExtensionSelector() {
-    if (chatgptxExtensionSelectorCache !== null) return chatgptxExtensionSelectorCache;
-    chatgptxExtensionSelectorCache = [...chatgptxExtensionSelectors].join(", ");
-    return chatgptxExtensionSelectorCache;
+  function swivoxExtensionSelector() {
+    if (swivoxExtensionSelectorCache !== null) return swivoxExtensionSelectorCache;
+    swivoxExtensionSelectorCache = [...swivoxExtensionSelectors].join(", ");
+    return swivoxExtensionSelectorCache;
   }
 
-  function isChatGPTXExtensionNode(node) {
-    const selector = chatgptxExtensionSelector();
+  function isSwivoxExtensionNode(node) {
+    const selector = swivoxExtensionSelector();
     if (!selector) return false;
     return !!node?.closest?.(selector);
   }
@@ -1814,7 +1814,7 @@
    * 所有类别共用同一套校验与配额，免得每个 register* 各写一遍。`kind` 只用于
    * 诊断与配额统计，不参与渲染。
    */
-  function registerChatGPTXExtension(kind, registry, id, definition, scriptKey) {
+  function registerSwivoxExtension(kind, registry, id, definition, scriptKey) {
     if (typeof id !== "string" || !id.trim()) {
       throw new Error("拓展项 id 不能为空");
     }
@@ -1822,11 +1822,11 @@
       throw new Error(`拓展项 id 已被占用：${id}`);
     }
     const owned = [...registry.values()].filter((item) => item.scriptKey === scriptKey).length;
-    if (owned >= chatgptxExtensionPerScriptLimit) {
-      throw new Error(`每个脚本最多注册 ${chatgptxExtensionPerScriptLimit} 项`);
+    if (owned >= swivoxExtensionPerScriptLimit) {
+      throw new Error(`每个脚本最多注册 ${swivoxExtensionPerScriptLimit} 项`);
     }
-    if (registry.size >= chatgptxExtensionGlobalLimit) {
-      throw new Error(`拓展项总数已达上限 ${chatgptxExtensionGlobalLimit}`);
+    if (registry.size >= swivoxExtensionGlobalLimit) {
+      throw new Error(`拓展项总数已达上限 ${swivoxExtensionGlobalLimit}`);
     }
     // 每个类别至少要有一个可调用的钩子，否则注册进来也渲染不出东西。
     // 菜单项的开关形态是 onChange，页面/入口是 render，其余是 onActivate。
@@ -1838,21 +1838,21 @@
     // 内置项占用 0~999，第三方从 1000 起，避免插到内置项前面破坏既有布局。
     const normalized = { ...definition, kind, id, order: Math.max(1000, order), scriptKey };
     registry.set(id, normalized);
-    chatgptxRegistryDiagnostics(kind, "register", id, scriptKey);
+    swivoxRegistryDiagnostics(kind, "register", id, scriptKey);
     return () => {
       if (registry.get(id) === normalized) {
         registry.delete(id);
-        chatgptxRegistryDiagnostics(kind, "dispose", id, scriptKey);
+        swivoxRegistryDiagnostics(kind, "dispose", id, scriptKey);
       }
     };
   }
 
   /** 按 order 排序的注册项快照。消费方每次渲染时取，不要缓存结果。 */
-  function chatgptxExtensionItems(registry) {
+  function swivoxExtensionItems(registry) {
     return [...registry.values()].sort((left, right) => left.order - right.order);
   }
 
-  function chatgptxRegistryDiagnostics(kind, action, id, scriptKey) {
+  function swivoxRegistryDiagnostics(kind, action, id, scriptKey) {
     const entry = {
       kind,
       action,
@@ -1861,9 +1861,9 @@
       at: Date.now(),
       // 不抛错：诊断通道本身出问题时不该影响注册。
     };
-    window.__chatgptxRegistryLog = window.__chatgptxRegistryLog || [];
-    window.__chatgptxRegistryLog.push(entry);
-    if (window.__chatgptxRegistryLog.length > 200) window.__chatgptxRegistryLog.shift();
+    window.__swivoxRegistryLog = window.__swivoxRegistryLog || [];
+    window.__swivoxRegistryLog.push(entry);
+    if (window.__swivoxRegistryLog.length > 200) window.__swivoxRegistryLog.shift();
     try {
       window.__codexSessionDeleteBridge?.("/diagnostics/log", {
         event: "extension_registry",
@@ -1879,12 +1879,12 @@
    * 通道（和用户脚本自身的失败上报同一个字段），并由调用方决定如何降级展示。
    * 返回值约定：成功返回 { ok: true, value }，失败返回 { ok: false, error }。
    */
-  function runChatGPTXExtensionCallback(scriptKey, label, callback) {
+  function runSwivoxExtensionCallback(scriptKey, label, callback) {
     try {
       return { ok: true, value: callback() };
     } catch (error) {
       const message = String(error?.stack || error?.message || error);
-      chatgptxMarkExtensionFailure(scriptKey, `${label}: ${message}`);
+      swivoxMarkExtensionFailure(scriptKey, `${label}: ${message}`);
       return { ok: false, error: message };
     }
   }
@@ -1893,20 +1893,20 @@
    * 把拓展的失败写进用户脚本运行时状态。
    *
    * 复用 wrap_script 已经建立的上报通道：管理页读的就是
-   * window.__chatgptxUserScripts.scripts[key].error。这样拓展的 UI 错误和
+   * window.__swivoxUserScripts.scripts[key].error。这样拓展的 UI 错误和
    * 脚本本身抛错在用户看来是同一件事，不需要第二套排查入口。
    */
-  function chatgptxMarkExtensionFailure(scriptKey, message) {
+  function swivoxMarkExtensionFailure(scriptKey, message) {
     if (!scriptKey) return;
-    const record = window.__chatgptxUserScripts?.scripts?.[scriptKey];
+    const record = window.__swivoxUserScripts?.scripts?.[scriptKey];
     if (record) {
       record.error = message;
       // 不覆盖 status：脚本本身可能已成功加载，失败的只是它注册的某一项 UI。
       record.extensionError = message;
     }
-    window.__chatgptxExtensionFailures = window.__chatgptxExtensionFailures || [];
-    window.__chatgptxExtensionFailures.push({ script_key: scriptKey, message, at: Date.now() });
-    if (window.__chatgptxExtensionFailures.length > 100) window.__chatgptxExtensionFailures.shift();
+    window.__swivoxExtensionFailures = window.__swivoxExtensionFailures || [];
+    window.__swivoxExtensionFailures.push({ script_key: scriptKey, message, at: Date.now() });
+    if (window.__swivoxExtensionFailures.length > 100) window.__swivoxExtensionFailures.shift();
   }
   function installStyle() {
     const existingStyle = document.getElementById(styleId);
@@ -1938,7 +1938,7 @@
         border: 0;
         border-radius: 6px;
         background: transparent;
-        color: var(--codex-session-action-color, var(--color-token-text-tertiary, var(--chatgptx-text-tertiary, rgba(255,255,255,.5))));
+        color: var(--codex-session-action-color, var(--color-token-text-tertiary, var(--swivox-text-tertiary, rgba(255,255,255,.5))));
         font: 14px/1 system-ui, sans-serif;
         padding: 0;
         cursor: default;
@@ -1959,10 +1959,10 @@
         position: fixed;
         z-index: 2147483201;
         min-width: 104px;
-        border: 1px solid var(--chatgptx-border);
+        border: 1px solid var(--swivox-border);
         border-radius: var(--border-radius-lg, 8px);
-        background: var(--chatgptx-bg-elevated);
-        color: var(--chatgptx-text);
+        background: var(--swivox-bg-elevated);
+        color: var(--swivox-text);
         box-shadow: var(--ui-menu-shadow, var(--shadow-300, 0 8px 24px rgba(0,0,0,.16)));
         padding: 4px;
       }
@@ -1988,7 +1988,7 @@
       }
       .codex-session-more-menu-item:hover,
       .codex-session-more-menu-item:focus-visible {
-        background: var(--chatgptx-bg-hover);
+        background: var(--swivox-bg-hover);
         outline: none;
       }
       .codex-session-more-menu-icon {
@@ -2001,7 +2001,7 @@
         align-items: center;
         max-width: 152px;
         margin-right: 8px;
-        color: var(--text-secondary, var(--color-token-text-secondary, var(--chatgptx-text-secondary, rgba(142,142,160,.95))));
+        color: var(--text-secondary, var(--color-token-text-secondary, var(--swivox-text-secondary, rgba(142,142,160,.95))));
         font: 11px/1.1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
         letter-spacing: .01em;
         opacity: .9;
@@ -2060,8 +2060,8 @@
       }
       .${sessionShareButtonClass}:hover,
       .${sessionShareButtonClass}:focus-visible {
-        background: var(--color-token-list-hover-background, var(--chatgptx-bg-hover));
-        color: var(--color-token-text-primary, var(--chatgptx-text));
+        background: var(--color-token-list-hover-background, var(--swivox-bg-hover));
+        color: var(--color-token-text-primary, var(--swivox-text));
         outline: none;
       }
       .${sessionShareButtonClass}[aria-busy="true"] {
@@ -2092,10 +2092,10 @@
         position: fixed;
         z-index: 2147483201;
         max-width: min(220px, calc(100vw - 32px));
-        border: 1px solid var(--chatgptx-border);
+        border: 1px solid var(--swivox-border);
         border-radius: var(--border-radius-md, 6px);
-        background: var(--chatgptx-bg-elevated);
-        color: var(--chatgptx-text);
+        background: var(--swivox-bg-elevated);
+        color: var(--swivox-text);
         font: inherit;
         font-size: 13px;
         line-height: 16px;
@@ -2128,10 +2128,10 @@
         bottom: 18px;
         z-index: 2147483000;
         padding: 10px 12px;
-        border: 1px solid var(--chatgptx-border);
+        border: 1px solid var(--swivox-border);
         border-radius: var(--border-radius-lg, 8px);
-        background: var(--chatgptx-bg-elevated);
-        color: var(--chatgptx-text);
+        background: var(--swivox-bg-elevated);
+        color: var(--swivox-text);
         font: inherit;
         font-size: 13px;
         box-shadow: var(--ui-menu-shadow, var(--shadow-300, 0 8px 24px rgba(0,0,0,.16)));
@@ -2139,9 +2139,9 @@
       }
       .codex-delete-toast button { margin-left: 10px; pointer-events: auto; }
       /* 拓展与内置提示共用的类型配色。不传 type 时保持上面的默认外观。 */
-      .codex-delete-toast[data-toast-type="success"] { border-color: var(--chatgptx-success, #2f9e63); }
-      .codex-delete-toast[data-toast-type="warn"] { border-color: var(--chatgptx-warn, #b7791f); }
-      .codex-delete-toast[data-toast-type="error"] { border-color: var(--chatgptx-error, #c53030); }
+      .codex-delete-toast[data-toast-type="success"] { border-color: var(--swivox-success, #2f9e63); }
+      .codex-delete-toast[data-toast-type="warn"] { border-color: var(--swivox-warn, #b7791f); }
+      .codex-delete-toast[data-toast-type="error"] { border-color: var(--swivox-error, #c53030); }
       .codex-delete-confirm-overlay {
         position: fixed;
         inset: 0;
@@ -2154,17 +2154,17 @@
       }
       .codex-delete-confirm-content {
         width: min(420px, calc(100vw - 48px));
-        border: 1px solid var(--chatgptx-border);
+        border: 1px solid var(--swivox-border);
         border-radius: var(--border-radius-xl, 12px);
-        background: var(--chatgptx-bg-elevated);
-        color: var(--chatgptx-text);
+        background: var(--swivox-bg-elevated);
+        color: var(--swivox-text);
         font: inherit;
         font-size: 14px;
         box-shadow: var(--shadow-400, 0 16px 48px rgba(0,0,0,.2));
         padding: 20px;
       }
       .codex-delete-confirm-title { font-size: 16px; font-weight: 650; }
-      .codex-delete-confirm-message { margin-top: 8px; color: var(--chatgptx-text-secondary); line-height: 1.45; }
+      .codex-delete-confirm-message { margin-top: 8px; color: var(--swivox-text-secondary); line-height: 1.45; }
       .codex-delete-confirm-actions {
         display: flex;
         justify-content: flex-end;
@@ -2173,18 +2173,18 @@
       }
       .codex-delete-confirm-actions button {
         min-height: 32px;
-        border: 1px solid var(--chatgptx-border);
+        border: 1px solid var(--swivox-border);
         border-radius: var(--border-radius-lg, 8px);
         padding: 5px 12px;
-        background: var(--chatgptx-bg-secondary);
-        color: var(--chatgptx-text);
+        background: var(--swivox-bg-secondary);
+        color: var(--swivox-text);
         font: inherit;
         font-size: 13px;
         cursor: pointer;
       }
       .codex-delete-confirm-actions button:hover,
       .codex-delete-confirm-actions button:focus-visible {
-        background: var(--chatgptx-bg-hover);
+        background: var(--swivox-bg-hover);
         outline: none;
       }
       .codex-delete-confirm-actions [data-codex-delete-confirm="true"] {
@@ -2192,20 +2192,20 @@
         background: var(--color-background-danger-solid, #dc2626);
         color: var(--color-text-danger-solid, #fff);
       }
-      .chatgptx-modal-overlay {
+      .swivox-modal-overlay {
         position: fixed;
         top: 0;
         left: 0;
         /*
-         * overlay 自身带 zoom（见 applyChatGPTXZoom），而它的 inset: 0 与 100vw
+         * overlay 自身带 zoom（见 applySwivoxZoom），而它的 inset: 0 与 100vw
          * 都按未缩放的视口算，再乘 zoom 就溢出（实测 zoom=1.2 时 100vw 得到 2072px，
-         * 视口只有 1727px）。用 calc(100vw / var(--chatgptx-zoom)) 抵消；zoom 缺失
+         * 视口只有 1727px）。用 calc(100vw / var(--swivox-zoom)) 抵消；zoom 缺失
          * 时分母回落到 1，行为与改造前一致。
          * 内部子元素用百分比即可——它们在缩放空间里，百分比本来就对。
          * 注意：本段在 JS 模板字符串里，注释中不能出现反引号，否则会提前闭合。
          */
-        width: calc(100vw / var(--chatgptx-zoom, 1));
-        height: calc(100vh / var(--chatgptx-zoom, 1));
+        width: calc(100vw / var(--swivox-zoom, 1));
+        height: calc(100vh / var(--swivox-zoom, 1));
         z-index: 2147483646;
         display: flex;
         align-items: center;
@@ -2215,23 +2215,23 @@
         pointer-events: auto;
         -webkit-app-region: no-drag;
       }
-      .chatgptx-modal-content {
+      .swivox-modal-content {
         width: min(520px, calc(100% - 48px));
         max-height: min(680px, calc(100% - 40px));
         display: flex;
         flex-direction: column;
         overflow: hidden;
-        border: 1px solid var(--chatgptx-border);
+        border: 1px solid var(--swivox-border);
         border-radius: var(--border-radius-xl, 12px);
-        background: var(--chatgptx-bg-primary);
-        color: var(--chatgptx-text);
+        background: var(--swivox-bg-primary);
+        color: var(--swivox-text);
         font: inherit;
         font-size: 14px;
         box-shadow: var(--shadow-400, 0 16px 48px rgba(0,0,0,.2));
         pointer-events: auto;
         -webkit-app-region: no-drag;
       }
-      .chatgptx-modal-header {
+      .swivox-modal-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -2239,17 +2239,17 @@
         flex: 0 0 auto;
         -webkit-app-region: no-drag;
       }
-      .chatgptx-modal-title { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 600; }
-      .chatgptx-backend-indicator { width: 8px; height: 8px; border-radius: 999px; background: var(--chatgptx-text-tertiary); display: inline-block; }
-      .chatgptx-backend-indicator[data-status="ok"] { background: var(--chatgptx-success); }
-      .chatgptx-backend-indicator[data-status="failed"] { background: var(--chatgptx-danger); }
-      .chatgptx-backend-indicator[data-status="checking"] { background: var(--chatgptx-warning); }
-      .chatgptx-backend-indicator[data-status="degraded"] { background: var(--chatgptx-warning); }
-      #${chatgptxSidebarNavId} {
+      .swivox-modal-title { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 600; }
+      .swivox-backend-indicator { width: 8px; height: 8px; border-radius: 999px; background: var(--swivox-text-tertiary); display: inline-block; }
+      .swivox-backend-indicator[data-status="ok"] { background: var(--swivox-success); }
+      .swivox-backend-indicator[data-status="failed"] { background: var(--swivox-danger); }
+      .swivox-backend-indicator[data-status="checking"] { background: var(--swivox-warning); }
+      .swivox-backend-indicator[data-status="degraded"] { background: var(--swivox-warning); }
+      #${swivoxSidebarNavId} {
         position: relative;
         flex: 0 0 auto;
       }
-      #${chatgptxSidebarNavId} .chatgptx-sidebar-nav-icon {
+      #${swivoxSidebarNavId} .swivox-sidebar-nav-icon {
         width: 20px;
         height: 20px;
         flex: 0 0 20px;
@@ -2257,12 +2257,12 @@
         align-items: center;
         justify-content: center;
       }
-      #${chatgptxSidebarNavId} .chatgptx-sidebar-nav-icon svg {
+      #${swivoxSidebarNavId} .swivox-sidebar-nav-icon svg {
         width: 19px;
         height: 19px;
         display: block;
       }
-      #${chatgptxSidebarNavId} .chatgptx-sidebar-nav-status {
+      #${swivoxSidebarNavId} .swivox-sidebar-nav-status {
         width: 7px;
         height: 7px;
         margin-left: auto;
@@ -2270,78 +2270,78 @@
         background: #a1a1aa;
         opacity: .9;
       }
-      #${chatgptxSidebarNavId} .chatgptx-sidebar-nav-status[data-status="ok"] {
+      #${swivoxSidebarNavId} .swivox-sidebar-nav-status[data-status="ok"] {
         background: #34d399;
         box-shadow: 0 0 7px rgba(52,211,153,.7);
       }
-      #${chatgptxSidebarNavId} .chatgptx-sidebar-nav-status[data-status="failed"] { background: #ef4444; }
-      #${chatgptxSidebarNavId} .chatgptx-sidebar-nav-status[data-status="checking"] { background: #fbbf24; }
-      #${chatgptxSidebarNavId} button[data-active="true"] {
-        background: var(--chatgptx-bg-selected);
-        color: var(--chatgptx-text);
+      #${swivoxSidebarNavId} .swivox-sidebar-nav-status[data-status="failed"] { background: #ef4444; }
+      #${swivoxSidebarNavId} .swivox-sidebar-nav-status[data-status="checking"] { background: #fbbf24; }
+      #${swivoxSidebarNavId} button[data-active="true"] {
+        background: var(--swivox-bg-selected);
+        color: var(--swivox-text);
       }
-      .chatgptx-plugin-sidebar { position: relative; flex: 0 0 auto; }
-      .chatgptx-plugin-sidebar .chatgptx-sidebar-nav-icon { width: 20px; height: 20px; flex: 0 0 20px; display: inline-flex; align-items: center; justify-content: center; }
-      .chatgptx-plugin-sidebar .chatgptx-sidebar-nav-icon svg { width: 19px; height: 19px; }
-      .chatgptx-plugin-sidebar-label { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; }
-      .chatgptx-plugin-sidebar button[data-active="true"] { background: var(--chatgptx-bg-selected); color: var(--chatgptx-text); }
-      .chatgptx-plugin-market-panel { max-width: 1140px; width: 100%; margin: 0 auto; box-sizing: border-box; }
-      .chatgptx-plugin-intro { margin: 0 0 18px; color: var(--chatgptx-text-secondary); font-size: 13px; line-height: 1.6; }
-      .chatgptx-plugin-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 14px; }
-      .chatgptx-plugin-sources { display: flex; gap: 4px; flex: 1 1 auto; }
-      .chatgptx-plugin-sources button { border: 1px solid var(--chatgptx-border); border-radius: 7px; padding: 7px 12px; color: var(--chatgptx-text-secondary); background: transparent; cursor: pointer; }
-      .chatgptx-plugin-sources button[data-active="true"] { background: var(--chatgptx-bg-selected); color: var(--chatgptx-text); }
-      .chatgptx-plugin-search { flex: 1 1 240px; min-width: 120px; border: 1px solid var(--chatgptx-border); border-radius: 8px; background: var(--chatgptx-bg-secondary); color: var(--chatgptx-text); padding: 9px 12px; font-size: 14px; }
-      .chatgptx-plugin-filter { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--chatgptx-text-secondary); }
-      .chatgptx-plugin-status { font-size: 12px; color: var(--chatgptx-text-secondary); white-space: pre-wrap; margin-bottom: 14px; }
-      .chatgptx-plugin-results { display: flex; flex-direction: column; gap: 10px; }
-      .chatgptx-plugin-card { display: flex; align-items: flex-start; gap: 18px; padding: 16px; border: 1px solid var(--chatgptx-border); border-radius: 10px; background: var(--chatgptx-bg-secondary); }
-      .chatgptx-plugin-card-info { flex: 1 1 auto; min-width: 0; }
-      .chatgptx-plugin-name { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
-      .chatgptx-plugin-id, .chatgptx-plugin-meta { color: var(--chatgptx-text-tertiary); font-size: 11px; margin-top: 4px; overflow-wrap: anywhere; }
-      .chatgptx-plugin-description { color: var(--chatgptx-text-secondary); font-size: 13px; line-height: 1.55; margin: 7px 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
-      .chatgptx-plugin-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
-      .chatgptx-plugin-tags span { border-radius: 5px; padding: 2px 6px; background: var(--chatgptx-bg-selected); color: var(--chatgptx-text-secondary); font-size: 10px; overflow-wrap: anywhere; }
-      .chatgptx-plugin-install { flex: 0 0 auto; white-space: nowrap; }
-      .chatgptx-plugin-market-page button:disabled { opacity: .55; cursor: default; }
-      .chatgptx-plugin-job-message { font-size: 12px; color: var(--chatgptx-text-secondary); margin-top: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
-      .chatgptx-plugin-job-message[data-status="failed"] { color: var(--chatgptx-danger); }
-      .chatgptx-plugin-pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 20px; font-size: 12px; color: var(--chatgptx-text-secondary); }
-      .chatgptx-plugin-pagination > span { margin-right: auto; }
-      .chatgptx-plugin-empty { padding: 40px 16px; text-align: center; color: var(--chatgptx-text-secondary); }
-      @media (max-width: 600px) { .chatgptx-plugin-card { flex-direction: column; gap: 10px; } .chatgptx-plugin-install { align-self: flex-end; } }
+      .swivox-plugin-sidebar { position: relative; flex: 0 0 auto; }
+      .swivox-plugin-sidebar .swivox-sidebar-nav-icon { width: 20px; height: 20px; flex: 0 0 20px; display: inline-flex; align-items: center; justify-content: center; }
+      .swivox-plugin-sidebar .swivox-sidebar-nav-icon svg { width: 19px; height: 19px; }
+      .swivox-plugin-sidebar-label { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; }
+      .swivox-plugin-sidebar button[data-active="true"] { background: var(--swivox-bg-selected); color: var(--swivox-text); }
+      .swivox-plugin-market-panel { max-width: 1140px; width: 100%; margin: 0 auto; box-sizing: border-box; }
+      .swivox-plugin-intro { margin: 0 0 18px; color: var(--swivox-text-secondary); font-size: 13px; line-height: 1.6; }
+      .swivox-plugin-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 14px; }
+      .swivox-plugin-sources { display: flex; gap: 4px; flex: 1 1 auto; }
+      .swivox-plugin-sources button { border: 1px solid var(--swivox-border); border-radius: 7px; padding: 7px 12px; color: var(--swivox-text-secondary); background: transparent; cursor: pointer; }
+      .swivox-plugin-sources button[data-active="true"] { background: var(--swivox-bg-selected); color: var(--swivox-text); }
+      .swivox-plugin-search { flex: 1 1 240px; min-width: 120px; border: 1px solid var(--swivox-border); border-radius: 8px; background: var(--swivox-bg-secondary); color: var(--swivox-text); padding: 9px 12px; font-size: 14px; }
+      .swivox-plugin-filter { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--swivox-text-secondary); }
+      .swivox-plugin-status { font-size: 12px; color: var(--swivox-text-secondary); white-space: pre-wrap; margin-bottom: 14px; }
+      .swivox-plugin-results { display: flex; flex-direction: column; gap: 10px; }
+      .swivox-plugin-card { display: flex; align-items: flex-start; gap: 18px; padding: 16px; border: 1px solid var(--swivox-border); border-radius: 10px; background: var(--swivox-bg-secondary); }
+      .swivox-plugin-card-info { flex: 1 1 auto; min-width: 0; }
+      .swivox-plugin-name { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+      .swivox-plugin-id, .swivox-plugin-meta { color: var(--swivox-text-tertiary); font-size: 11px; margin-top: 4px; overflow-wrap: anywhere; }
+      .swivox-plugin-description { color: var(--swivox-text-secondary); font-size: 13px; line-height: 1.55; margin: 7px 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+      .swivox-plugin-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+      .swivox-plugin-tags span { border-radius: 5px; padding: 2px 6px; background: var(--swivox-bg-selected); color: var(--swivox-text-secondary); font-size: 10px; overflow-wrap: anywhere; }
+      .swivox-plugin-install { flex: 0 0 auto; white-space: nowrap; }
+      .swivox-plugin-market-page button:disabled { opacity: .55; cursor: default; }
+      .swivox-plugin-job-message { font-size: 12px; color: var(--swivox-text-secondary); margin-top: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+      .swivox-plugin-job-message[data-status="failed"] { color: var(--swivox-danger); }
+      .swivox-plugin-pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 20px; font-size: 12px; color: var(--swivox-text-secondary); }
+      .swivox-plugin-pagination > span { margin-right: auto; }
+      .swivox-plugin-empty { padding: 40px 16px; text-align: center; color: var(--swivox-text-secondary); }
+      @media (max-width: 600px) { .swivox-plugin-card { flex-direction: column; gap: 10px; } .swivox-plugin-install { align-self: flex-end; } }
       /*
-       * 新版导航图标栏里的 ChatGPTX / 拓展 / 推荐内容入口：原生按钮只放图标，
+       * 新版导航图标栏里的 Swivox / 拓展 / 推荐内容入口：原生按钮只放图标，
        * 这里对齐它的尺寸。
        *
-       * 用 [data-chatgptx-rail] 而不是逐个列 id——早先按 id 写，加第三个入口时
+       * 用 [data-swivox-rail] 而不是逐个列 id——早先按 id 写，加第三个入口时
        * 漏掉了对应的选择器，那个图标容器就没有 20px 约束、撑成整个按钮宽，
        * 表现为图标偏左不居中。
        */
-      [data-chatgptx-rail] {
+      [data-swivox-rail] {
         position: relative;
         flex: 0 0 auto;
         display: flex;
         align-items: center;
         justify-content: center;
       }
-      [data-chatgptx-rail] > button {
+      [data-swivox-rail] > button {
         position: relative;
       }
-      [data-chatgptx-rail] .chatgptx-rail-icon {
+      [data-swivox-rail] .swivox-rail-icon {
         width: 20px;
         height: 20px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
       }
-      [data-chatgptx-rail] .chatgptx-rail-icon svg {
+      [data-swivox-rail] .swivox-rail-icon svg {
         width: 19px;
         height: 19px;
         display: block;
       }
       /* 图标栏是纯图标，状态点挂在按钮右上角，不占布局。 */
-      #${chatgptxRailNavId} .chatgptx-sidebar-nav-status {
+      #${swivoxRailNavId} .swivox-sidebar-nav-status {
         position: absolute;
         top: 2px;
         right: 2px;
@@ -2355,20 +2355,20 @@
        * 页面打开时给根节点打标记，用 CSS 把原生选中项压成未选中；
        * 关掉页面即移除标记，原生状态自动恢复——比改它的按钮属性稳，
        * 不会和 React 的重渲染打架。
-       * 颜色取自当前主题下真实未选中项（见 syncChatGPTXRailNativeSelection），
+       * 颜色取自当前主题下真实未选中项（见 syncSwivoxRailNativeSelection），
        * 主题切换时下次同步会重算。
        */
-      html[data-chatgptx-page-open] nav[data-app-navigation-rail] [data-sidebar-destination][aria-current="page"] {
-        color: var(--chatgptx-rail-dim, var(--chatgptx-text-tertiary, currentColor)) !important;
+      html[data-swivox-page-open] nav[data-app-navigation-rail] [data-sidebar-destination][aria-current="page"] {
+        color: var(--swivox-rail-dim, var(--swivox-text-tertiary, currentColor)) !important;
       }
-      html[data-chatgptx-page-open] nav[data-app-navigation-rail] [data-sidebar-destination][aria-current="page"]::before {
+      html[data-swivox-page-open] nav[data-app-navigation-rail] [data-sidebar-destination][aria-current="page"]::before {
         opacity: 0 !important;
       }
-      html[data-chatgptx-page-open] nav[data-app-navigation-rail] [data-sidebar-destination][aria-current="page"] * {
-        color: var(--chatgptx-rail-dim, var(--chatgptx-text-tertiary, currentColor)) !important;
+      html[data-swivox-page-open] nav[data-app-navigation-rail] [data-sidebar-destination][aria-current="page"] * {
+        color: var(--swivox-rail-dim, var(--swivox-text-tertiary, currentColor)) !important;
       }
       /*
-       * 页面 overlay 的 left 由 positionChatGPTXPage 按图标栏右边界算好写进来。
+       * 页面 overlay 的 left 由 positionSwivoxPage 按图标栏右边界算好写进来。
        *
        * 关键：写进来的必须是**布局坐标**（视觉值 / zoom），因为 overlay 自己在缩放
        * 空间里布局，宽度也要用同一个空间的量。width 的 calc(100vw / zoom - left - right)
@@ -2380,70 +2380,70 @@
        * [52, 44, 1663, 940]），四角 12px；它外面套了一个 padding: 0 4px 4px 0 的槽，
        * 右、下能看到底色。我们原先 right/bottom 贴 0 且无圆角，于是方角并且比官方
        * 多占 4px，用户反馈「少一个圆角」就是这个。
-       * 圆角值由 positionChatGPTXPage 量官方面板写入，四个角一起用，不做左右区分。
-       * overflow: hidden 让圆角真正裁到内容；内容都在 .chatgptx-modal-content 内，
+       * 圆角值由 positionSwivoxPage 量官方面板写入，四个角一起用，不做左右区分。
+       * overflow: hidden 让圆角真正裁到内容；内容都在 .swivox-modal-content 内，
        * 没有依赖溢出显示的全屏浮层，切掉是安全的。
        */
-      .${chatgptxPageClass} {
+      .${swivoxPageClass} {
         position: fixed;
-        top: var(--chatgptx-page-top, 0px);
-        right: var(--chatgptx-page-right, 0px);
-        bottom: var(--chatgptx-page-bottom, 0px);
-        left: var(--chatgptx-page-left, 0px);
-        width: calc(100vw / var(--chatgptx-zoom, 1) - var(--chatgptx-page-left, 0px) - var(--chatgptx-page-right, 0px));
-        height: calc(100vh / var(--chatgptx-zoom, 1) - var(--chatgptx-page-top, 0px) - var(--chatgptx-page-bottom, 0px));
-        border-radius: var(--chatgptx-page-radius, 0px);
+        top: var(--swivox-page-top, 0px);
+        right: var(--swivox-page-right, 0px);
+        bottom: var(--swivox-page-bottom, 0px);
+        left: var(--swivox-page-left, 0px);
+        width: calc(100vw / var(--swivox-zoom, 1) - var(--swivox-page-left, 0px) - var(--swivox-page-right, 0px));
+        height: calc(100vh / var(--swivox-zoom, 1) - var(--swivox-page-top, 0px) - var(--swivox-page-bottom, 0px));
+        border-radius: var(--swivox-page-radius, 0px);
         overflow: hidden;
         z-index: 2147483644;
         display: block;
-        background: var(--chatgptx-bg-primary, #fff);
+        background: var(--swivox-bg-primary, #fff);
         pointer-events: auto;
         -webkit-app-region: no-drag;
       }
-      .${chatgptxPageClass} .chatgptx-modal-content {
+      .${swivoxPageClass} .swivox-modal-content {
         width: auto;
         height: 100%;
         max-height: none;
         border: 0;
         border-radius: 0;
-        background: var(--chatgptx-bg-primary, #fff);
+        background: var(--swivox-bg-primary, #fff);
         box-shadow: none;
       }
-      .${chatgptxPageClass} .chatgptx-modal-header {
+      .${swivoxPageClass} .swivox-modal-header {
         width: 100%;
         margin: 0;
         padding: 16px 24px 10px;
       }
-      .${chatgptxPageClass} .chatgptx-modal-body {
+      .${swivoxPageClass} .swivox-modal-body {
         width: 100%;
         margin: 0;
         padding: 4px 32px 32px;
       }
       /* 两栏：左侧自己的面板（导航 / 列表），右侧内容区。观感对齐 Codex 原生页面。 */
-      .${chatgptxPageClass} .chatgptx-page-layout {
+      .${swivoxPageClass} .swivox-page-layout {
         display: flex;
         flex: 1 1 auto;
         min-height: 0;
         width: 100%;
       }
-      .${chatgptxPageClass} .chatgptx-page-nav {
+      .${swivoxPageClass} .swivox-page-nav {
         width: 260px;
         flex: 0 0 260px;
         display: flex;
         flex-direction: column;
         min-height: 0;
-        border-right: 1px solid var(--chatgptx-border-subtle);
+        border-right: 1px solid var(--swivox-border-subtle);
       }
-      .${chatgptxPageClass} .chatgptx-page-nav-header {
+      .${swivoxPageClass} .swivox-page-nav-header {
         flex: 0 0 auto;
         padding: 4px 16px 10px;
       }
-      .${chatgptxPageClass} .chatgptx-page-nav-title {
+      .${swivoxPageClass} .swivox-page-nav-title {
         font-size: 15px;
         font-weight: 600;
-        color: var(--chatgptx-text);
+        color: var(--swivox-text);
       }
-      .${chatgptxPageClass} .chatgptx-page-nav-body {
+      .${swivoxPageClass} .swivox-page-nav-body {
         flex: 1 1 auto;
         min-height: 0;
         overflow-y: auto;
@@ -2459,14 +2459,14 @@
         user-select: none;
         -webkit-user-select: none;
       }
-      .${chatgptxPageClass} .chatgptx-page-main {
+      .${swivoxPageClass} .swivox-page-main {
         flex: 1 1 auto;
         min-width: 0;
         display: flex;
         flex-direction: column;
         min-height: 0;
       }
-      .chatgptx-page-nav-item {
+      .swivox-page-nav-item {
         display: flex;
         align-items: center;
         gap: 8px;
@@ -2475,30 +2475,30 @@
         border: 0;
         border-radius: 8px;
         background: transparent;
-        color: var(--chatgptx-text-secondary);
+        color: var(--swivox-text-secondary);
         font: inherit;
         font-size: 13px;
         text-align: left;
         cursor: pointer;
       }
-      .chatgptx-page-nav-item:hover { background: var(--chatgptx-bg-hover); }
-      .chatgptx-page-nav-item[data-active="true"] {
-        background: var(--chatgptx-bg-selected);
-        color: var(--chatgptx-text);
+      .swivox-page-nav-item:hover { background: var(--swivox-bg-hover); }
+      .swivox-page-nav-item[data-active="true"] {
+        background: var(--swivox-bg-selected);
+        color: var(--swivox-text);
       }
-      .chatgptx-page-nav-item-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-      .chatgptx-page-nav-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .chatgptx-page-nav-item-meta { font-size: 13px; color: var(--chatgptx-text-tertiary); }
-      .chatgptx-page-nav-item-state {
+      .swivox-page-nav-item-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+      .swivox-page-nav-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .swivox-page-nav-item-meta { font-size: 13px; color: var(--swivox-text-tertiary); }
+      .swivox-page-nav-item-state {
         flex: 0 0 auto;
         width: 7px;
         height: 7px;
         border-radius: 999px;
-        background: var(--chatgptx-text-tertiary);
+        background: var(--swivox-text-tertiary);
       }
-      .chatgptx-page-nav-item-state[data-state="on"] { background: #34d399; }
+      .swivox-page-nav-item-state[data-state="on"] { background: #34d399; }
       /* 拓展条目：三行结构（名称 / 简介 / 作者+操作），对齐 VSCode 扩展列表的 .extension-list-item */
-      .chatgptx-page-nav-item .chatgptx-extensions-item-body {
+      .swivox-page-nav-item .swivox-extensions-item-body {
         flex: 1 1 auto;
         min-width: 0;
         display: flex;
@@ -2507,44 +2507,44 @@
         justify-content: center;
         overflow: hidden;
       }
-      .chatgptx-extensions-item-header {
+      .swivox-extensions-item-header {
         display: flex;
         align-items: center;
         gap: 8px;
         min-width: 0;
       }
-      .chatgptx-extensions-icon {
+      .swivox-extensions-icon {
         flex: 0 0 auto;
         display: flex;
         align-items: flex-start;
         padding-top: 10px;
-        color: var(--chatgptx-text-secondary);
+        color: var(--swivox-text-secondary);
       }
-      .chatgptx-extensions-icon svg { width: 40px; height: 40px; display: block; }
+      .swivox-extensions-icon svg { width: 40px; height: 40px; display: block; }
       /* 市场清单给的图标：正方形等比缩放，圆角与 VSCode 的扩展图标一致 */
-      .chatgptx-extensions-icon .chatgptx-extensions-icon-img {
+      .swivox-extensions-icon .swivox-extensions-icon-img {
         width: 40px;
         height: 40px;
         display: block;
         object-fit: contain;
         border-radius: 6px;
       }
-      .chatgptx-page-nav-item[data-active="true"] .chatgptx-extensions-icon { color: var(--chatgptx-text); }
+      .swivox-page-nav-item[data-active="true"] .swivox-extensions-icon { color: var(--swivox-text); }
       /* 名称：VSCode 用 semiBold，且 hover 才加下划线 */
-      .chatgptx-extensions-item-name {
+      .swivox-extensions-item-name {
         flex: 1 1 auto;
         min-width: 0;
         font-weight: 600;
-        color: var(--chatgptx-text);
+        color: var(--swivox-text);
         white-space: nowrap;
         text-overflow: ellipsis;
         overflow: hidden;
       }
-      .chatgptx-page-nav-item:hover .chatgptx-extensions-item-name { text-decoration: underline; }
-      .chatgptx-extensions-item-description {
+      .swivox-page-nav-item:hover .swivox-extensions-item-name { text-decoration: underline; }
+      .swivox-extensions-item-description {
         margin-top: 2px;
         padding-right: 8px;
-        color: var(--chatgptx-text-tertiary);
+        color: var(--swivox-text-tertiary);
         font-size: 13px;
         line-height: normal;
         display: -webkit-box;
@@ -2553,7 +2553,7 @@
         overflow: hidden;
       }
       /* 底部行：作者在左、操作在右，VSCode 的 .footer 是 24px 高 */
-      .chatgptx-extensions-item-footer {
+      .swivox-extensions-item-footer {
         display: flex;
         align-items: center;
         justify-content: flex-end;
@@ -2561,7 +2561,7 @@
         min-height: 24px;
         padding-top: 2px;
       }
-      .chatgptx-extensions-item-publisher {
+      .swivox-extensions-item-publisher {
         flex: 1 1 auto;
         min-width: 0;
         overflow: hidden;
@@ -2569,37 +2569,37 @@
         white-space: nowrap;
         font-size: 13px;
         font-weight: 600;
-        color: var(--chatgptx-text-tertiary);
+        color: var(--swivox-text-tertiary);
       }
-      .chatgptx-extensions-item-actions { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; }
+      .swivox-extensions-item-actions { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; }
       /* 行内按钮：默认低调，hover 整行时才提亮，避免列表花掉 */
-      .chatgptx-extensions-item-button {
+      .swivox-extensions-item-button {
         padding: 2px 8px;
-        border: 1px solid var(--chatgptx-border);
+        border: 1px solid var(--swivox-border);
         border-radius: 6px;
         background: transparent;
-        color: var(--chatgptx-text-secondary);
+        color: var(--swivox-text-secondary);
         font-size: 13px;
         line-height: 16px;
         white-space: nowrap;
       }
-      .chatgptx-page-nav-item:hover .chatgptx-extensions-item-button {
-        background: var(--chatgptx-bg-selected);
-        color: var(--chatgptx-text);
+      .swivox-page-nav-item:hover .swivox-extensions-item-button {
+        background: var(--swivox-bg-selected);
+        color: var(--swivox-text);
       }
       /* 启用状态点挪到名称右侧，用 VSCode 那种 14px 徽标尺寸 */
-      .chatgptx-page-nav-item[data-active="true"] .chatgptx-extensions-item-state {
+      .swivox-page-nav-item[data-active="true"] .swivox-extensions-item-state {
         background: currentColor;
       }
-      .chatgptx-extensions-item-state {
+      .swivox-extensions-item-state {
         flex: 0 0 auto;
         width: 7px;
         height: 7px;
         border-radius: 999px;
-        background: var(--chatgptx-text-tertiary);
+        background: var(--swivox-text-tertiary);
       }
-      .chatgptx-extensions-item-state[data-state="on"] { background: #34d399; }
-      .chatgptx-extensions-icon-badge {
+      .swivox-extensions-item-state[data-state="on"] { background: #34d399; }
+      .swivox-extensions-icon-badge {
         flex: 0 0 auto;
         width: 14px;
         height: 14px;
@@ -2612,25 +2612,25 @@
         font-size: 13px;
         line-height: 1;
       }
-      .chatgptx-page-nav-empty { padding: 8px 10px; color: var(--chatgptx-text-tertiary); font-size: 13px; }
+      .swivox-page-nav-empty { padding: 8px 10px; color: var(--swivox-text-tertiary); font-size: 13px; }
       /* 拓展页：搜索框 + 分组标题 + 市场条目的「安装」按钮 */
-      .chatgptx-page-search { padding: 0 10px 8px; }
-      .chatgptx-page-search-input {
+      .swivox-page-search { padding: 0 10px 8px; }
+      .swivox-page-search-input {
         width: 100%;
         box-sizing: border-box;
         padding: 6px 9px;
-        border: 1px solid var(--chatgptx-border);
+        border: 1px solid var(--swivox-border);
         border-radius: 8px;
-        background: var(--chatgptx-bg-secondary);
-        color: var(--chatgptx-text);
+        background: var(--swivox-bg-secondary);
+        color: var(--swivox-text);
         font: inherit;
         font-size: 13px;
         outline: none;
       }
-      .chatgptx-page-search-input:focus { border-color: var(--chatgptx-border-subtle); background: var(--chatgptx-bg-elevated); }
-      .chatgptx-page-search-input::placeholder { color: var(--chatgptx-text-tertiary); }
+      .swivox-page-search-input:focus { border-color: var(--swivox-border-subtle); background: var(--swivox-bg-elevated); }
+      .swivox-page-search-input::placeholder { color: var(--swivox-text-tertiary); }
       /* 左面板条目图标：市场里没有图标字段，统一用 VSCode 的默认扩展字形 */
-      .chatgptx-page-nav-item-icon {
+      .swivox-page-nav-item-icon {
         flex: 0 0 auto;
         width: 22px;
         height: 22px;
@@ -2638,29 +2638,29 @@
         align-items: center;
         justify-content: center;
         border-radius: 5px;
-        background: var(--chatgptx-bg-hover);
-        color: var(--chatgptx-text-secondary);
+        background: var(--swivox-bg-hover);
+        color: var(--swivox-text-secondary);
       }
-      .chatgptx-page-nav-item-icon svg { width: 14px; height: 14px; display: block; }
-      .chatgptx-page-nav-item[data-active="true"] .chatgptx-page-nav-item-icon {
-        color: var(--chatgptx-text);
+      .swivox-page-nav-item-icon svg { width: 14px; height: 14px; display: block; }
+      .swivox-page-nav-item[data-active="true"] .swivox-page-nav-item-icon {
+        color: var(--swivox-text);
       }
       /* 右上角详情：形态对齐 VSCode 的扩展详情页 */
-      .chatgptx-extensions-detail { padding: 4px 4px 24px; }
-      .chatgptx-extensions-detail-empty {
+      .swivox-extensions-detail { padding: 4px 4px 24px; }
+      .swivox-extensions-detail-empty {
         padding: 40px 8px;
-        color: var(--chatgptx-text-tertiary);
+        color: var(--swivox-text-tertiary);
         font-size: 13px;
         text-align: center;
       }
-      .chatgptx-extensions-detail-head {
+      .swivox-extensions-detail-head {
         display: flex;
         align-items: flex-start;
         gap: 14px;
         padding-bottom: 14px;
-        border-bottom: 1px solid var(--chatgptx-border-subtle);
+        border-bottom: 1px solid var(--swivox-border-subtle);
       }
-      .chatgptx-extensions-detail-icon {
+      .swivox-extensions-detail-icon {
         flex: 0 0 auto;
         width: 64px;
         height: 64px;
@@ -2668,134 +2668,134 @@
         align-items: center;
         justify-content: center;
         border-radius: 12px;
-        background: var(--chatgptx-bg-hover);
-        color: var(--chatgptx-text-secondary);
+        background: var(--swivox-bg-hover);
+        color: var(--swivox-text-secondary);
       }
-      .chatgptx-extensions-detail-icon svg { width: 40px; height: 40px; display: block; }
-      .chatgptx-extensions-detail-heading { flex: 1 1 auto; min-width: 0; }
-      .chatgptx-extensions-detail-title {
+      .swivox-extensions-detail-icon svg { width: 40px; height: 40px; display: block; }
+      .swivox-extensions-detail-heading { flex: 1 1 auto; min-width: 0; }
+      .swivox-extensions-detail-title {
         font-size: 19px;
         font-weight: 600;
-        color: var(--chatgptx-text);
+        color: var(--swivox-text);
         line-height: 1.3;
       }
-      .chatgptx-extensions-detail-meta {
+      .swivox-extensions-detail-meta {
         margin-top: 3px;
-        color: var(--chatgptx-text-secondary);
+        color: var(--swivox-text-secondary);
         font-size: 13px;
       }
-      .chatgptx-extensions-detail-sep { margin: 0 6px; color: var(--chatgptx-text-tertiary); }
+      .swivox-extensions-detail-sep { margin: 0 6px; color: var(--swivox-text-tertiary); }
       /* issue #2359：原 #fbbf24 在浅色主题下对比度仅 1.56:1，改为随主题走的警告色。 */
-      .chatgptx-extensions-detail-update { margin-top: 5px; color: var(--chatgptx-warning); font-size: 13px; }
-      .chatgptx-extensions-detail-actions {
+      .swivox-extensions-detail-update { margin-top: 5px; color: var(--swivox-warning); font-size: 13px; }
+      .swivox-extensions-detail-actions {
         flex: 0 0 auto;
         display: inline-flex;
         align-items: center;
         gap: 8px;
       }
-      .chatgptx-extensions-detail-button {
+      .swivox-extensions-detail-button {
         padding: 5px 12px;
-        border: 1px solid var(--chatgptx-border);
+        border: 1px solid var(--swivox-border);
         border-radius: 8px;
         background: transparent;
-        color: var(--chatgptx-text-secondary);
+        color: var(--swivox-text-secondary);
         font: inherit;
         font-size: 13px;
         cursor: pointer;
       }
-      .chatgptx-extensions-detail-button:hover { background: var(--chatgptx-bg-hover); color: var(--chatgptx-text); }
-      .chatgptx-extensions-detail-primary {
+      .swivox-extensions-detail-button:hover { background: var(--swivox-bg-hover); color: var(--swivox-text); }
+      .swivox-extensions-detail-primary {
         background: #10a37f;
         border-color: #10a37f;
         color: #fff;
       }
-      .chatgptx-extensions-detail-primary:hover { background: #0e8f70; color: #fff; }
-      .chatgptx-extensions-detail-description {
+      .swivox-extensions-detail-primary:hover { background: #0e8f70; color: #fff; }
+      .swivox-extensions-detail-description {
         margin-top: 14px;
-        color: var(--chatgptx-text-secondary);
+        color: var(--swivox-text-secondary);
         font-size: 13px;
         line-height: 1.6;
       }
-      .chatgptx-extensions-detail-tags {
+      .swivox-extensions-detail-tags {
         display: flex;
         flex-wrap: wrap;
         gap: 6px;
         margin-top: 12px;
       }
-      .chatgptx-extensions-detail-tags span {
+      .swivox-extensions-detail-tags span {
         padding: 2px 8px;
         border-radius: 999px;
-        background: var(--chatgptx-bg-hover);
-        color: var(--chatgptx-text-tertiary);
+        background: var(--swivox-bg-hover);
+        color: var(--swivox-text-tertiary);
         font-size: 13px;
       }
-      .chatgptx-extensions-detail-section { margin-top: 16px; }
-      .chatgptx-extensions-detail-section-title {
+      .swivox-extensions-detail-section { margin-top: 16px; }
+      .swivox-extensions-detail-section-title {
         margin-bottom: 6px;
         font-weight: 600;
         font-size: 13px;
-        color: var(--chatgptx-text);
+        color: var(--swivox-text);
       }
-      .chatgptx-extensions-detail-section ul {
+      .swivox-extensions-detail-section ul {
         margin: 0;
         padding-left: 18px;
-        color: var(--chatgptx-text-secondary);
+        color: var(--swivox-text-secondary);
         font-size: 13px;
         line-height: 1.7;
       }
-      .chatgptx-extensions-detail-link { margin-top: 16px; font-size: 13px; }
-      .chatgptx-extensions-detail-link a { color: var(--chatgptx-success); word-break: break-all; }
-      .chatgptx-extensions-detail-error {
+      .swivox-extensions-detail-link { margin-top: 16px; font-size: 13px; }
+      .swivox-extensions-detail-link a { color: var(--swivox-success); word-break: break-all; }
+      .swivox-extensions-detail-error {
         margin-top: 14px;
         padding: 8px 10px;
         border-radius: 8px;
-        background: var(--chatgptx-danger-bg);
-        color: var(--chatgptx-danger);
+        background: var(--swivox-danger-bg);
+        color: var(--swivox-danger);
         font-size: 13px;
       }
-      .chatgptx-page-nav-group { margin-bottom: 10px; }
-      .chatgptx-page-nav-group-head {
+      .swivox-page-nav-group { margin-bottom: 10px; }
+      .swivox-page-nav-group-head {
         display: flex;
         align-items: center;
         justify-content: space-between;
         padding: 4px 10px;
-        color: var(--chatgptx-text-tertiary);
+        color: var(--swivox-text-tertiary);
         font-size: 13px;
         text-transform: uppercase;
         letter-spacing: .04em;
       }
-      .chatgptx-page-nav-group-count {
+      .swivox-page-nav-group-count {
         min-width: 16px;
         padding: 0 5px;
         border-radius: 999px;
-        background: var(--chatgptx-bg-hover);
+        background: var(--swivox-bg-hover);
         text-align: center;
         font-size: 13px;
       }
-      .chatgptx-page-nav-group-tail { display: inline-flex; align-items: center; gap: 6px; }
-      .chatgptx-page-nav-group-action {
+      .swivox-page-nav-group-tail { display: inline-flex; align-items: center; gap: 6px; }
+      .swivox-page-nav-group-action {
         border: 0;
         background: transparent;
-        color: var(--chatgptx-text-tertiary);
+        color: var(--swivox-text-tertiary);
         font: inherit;
         font-size: 13px;
         cursor: pointer;
         padding: 0 2px;
       }
-      .chatgptx-page-nav-group-action:hover { color: var(--chatgptx-text); }
-      .chatgptx-page-nav-item-action {
+      .swivox-page-nav-group-action:hover { color: var(--swivox-text); }
+      .swivox-page-nav-item-action {
         flex: 0 0 auto;
         padding: 2px 8px;
-        border: 1px solid var(--chatgptx-border);
+        border: 1px solid var(--swivox-border);
         border-radius: 6px;
-        color: var(--chatgptx-text-secondary);
+        color: var(--swivox-text-secondary);
         font-size: 13px;
       }
-      .chatgptx-page-nav-item:hover .chatgptx-page-nav-item-action {
-        background: var(--chatgptx-bg-selected);
-        color: var(--chatgptx-text);
+      .swivox-page-nav-item:hover .swivox-page-nav-item-action {
+        background: var(--swivox-bg-selected);
+        color: var(--swivox-text);
       }
-      .chatgptx-modal-close {
+      .swivox-modal-close {
         border: 0;
         background: transparent;
         color: #d1d5db;
@@ -2804,7 +2804,7 @@
         pointer-events: auto;
         -webkit-app-region: no-drag;
       }
-      .chatgptx-modal-body {
+      .swivox-modal-body {
         flex: 1 1 auto;
         min-height: 0;
         overflow-y: auto;
@@ -2814,16 +2814,16 @@
         scrollbar-width: thin;
         scrollbar-color: rgba(255,255,255,.28) transparent;
       }
-      .chatgptx-modal-body::-webkit-scrollbar { width: 10px; }
-      .chatgptx-modal-body::-webkit-scrollbar-track { background: transparent; }
-      .chatgptx-modal-body::-webkit-scrollbar-thumb {
+      .swivox-modal-body::-webkit-scrollbar { width: 10px; }
+      .swivox-modal-body::-webkit-scrollbar-track { background: transparent; }
+      .swivox-modal-body::-webkit-scrollbar-thumb {
         border: 2px solid transparent;
         border-radius: 999px;
         background: rgba(255,255,255,.28);
         background-clip: padding-box;
       }
-      .chatgptx-modal-body::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.38); background-clip: padding-box; }
-      .chatgptx-row {
+      .swivox-modal-body::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.38); background-clip: padding-box; }
+      .swivox-row {
         display: flex;
         align-items: flex-start;
         justify-content: space-between;
@@ -2831,11 +2831,11 @@
         padding: 10px 0;
         border-top: 1px solid rgba(255,255,255,.1);
       }
-      .chatgptx-row:first-child { border-top: 0; }
-      .chatgptx-row-title { font-weight: 550; line-height: 1.35; }
-      .chatgptx-row-description { margin-top: 2px; color: #a1a1aa; font-size: 13px; line-height: 1.4; }
-      .chatgptx-model-compat-warning { margin-top: 6px; color: #fbbf24; font-size: 13px; line-height: 1.45; }
-      .chatgptx-toggle {
+      .swivox-row:first-child { border-top: 0; }
+      .swivox-row-title { font-weight: 550; line-height: 1.35; }
+      .swivox-row-description { margin-top: 2px; color: #a1a1aa; font-size: 13px; line-height: 1.4; }
+      .swivox-model-compat-warning { margin-top: 6px; color: #fbbf24; font-size: 13px; line-height: 1.45; }
+      .swivox-toggle {
         width: 42px;
         height: 24px;
         border: 0;
@@ -2843,7 +2843,7 @@
         background: #52525b;
         padding: 2px;
       }
-      .chatgptx-toggle span {
+      .swivox-toggle span {
         display: block;
         width: 20px;
         height: 20px;
@@ -2851,19 +2851,19 @@
         background: white;
         transition: transform .12s ease;
       }
-      .chatgptx-toggle,
-      .chatgptx-action-button,
-      .chatgptx-issue-button,
-      .chatgptx-backend-status {
+      .swivox-toggle,
+      .swivox-action-button,
+      .swivox-issue-button,
+      .swivox-backend-status {
         flex-shrink: 0;
         align-self: center;
       }
-      .chatgptx-toggle[data-enabled="true"] { background: #10a37f; }
-      .chatgptx-toggle[data-enabled="true"] span { transform: translateX(18px); }
-      .chatgptx-toggle[data-pending="true"],
-      .chatgptx-toggle:disabled { cursor: not-allowed; opacity: .55; }
-      .chatgptx-width-control { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 176px; align-self: center; }
-      .chatgptx-width-input {
+      .swivox-toggle[data-enabled="true"] { background: #10a37f; }
+      .swivox-toggle[data-enabled="true"] span { transform: translateX(18px); }
+      .swivox-toggle[data-pending="true"],
+      .swivox-toggle:disabled { cursor: not-allowed; opacity: .55; }
+      .swivox-width-control { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 176px; align-self: center; }
+      .swivox-width-input {
         width: 78px;
         height: 26px;
         box-sizing: border-box;
@@ -2875,8 +2875,8 @@
         font-family: inherit;
         padding: 0 8px;
       }
-      .chatgptx-width-input:disabled { opacity: .55; cursor: not-allowed; }
-      .chatgptx-typing-effect-select {
+      .swivox-width-input:disabled { opacity: .55; cursor: not-allowed; }
+      .swivox-typing-effect-select {
         flex-shrink: 0;
         align-self: center;
         min-width: 112px;
@@ -2884,21 +2884,21 @@
         padding: 0 8px;
         font-size: 13px;
       }
-      .chatgptx-typing-effect-select:disabled { opacity: .55; cursor: not-allowed; }
-      .chatgptx-service-tier-control { display: grid; gap: 6px; min-width: 316px; justify-items: end; align-self: center; }
-      .chatgptx-service-tier-status { color: #a1a1aa; font-size: 13px; line-height: 1.3; text-align: right; }
-      .chatgptx-service-tier-status[data-status="ok"] { color: #34d399; }
-      .chatgptx-service-tier-status[data-status="failed"] { color: #f87171; }
-      .chatgptx-service-tier-status[data-status="unsupported"] { color: #fbbf24; }
-      .chatgptx-service-tier-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
-      .chatgptx-service-tier-thread-actions { opacity: .88; align-items: center; }
-      .chatgptx-service-tier-thread-label { color: #a1a1aa; font-size: 13px;
+      .swivox-typing-effect-select:disabled { opacity: .55; cursor: not-allowed; }
+      .swivox-service-tier-control { display: grid; gap: 6px; min-width: 316px; justify-items: end; align-self: center; }
+      .swivox-service-tier-status { color: #a1a1aa; font-size: 13px; line-height: 1.3; text-align: right; }
+      .swivox-service-tier-status[data-status="ok"] { color: #34d399; }
+      .swivox-service-tier-status[data-status="failed"] { color: #f87171; }
+      .swivox-service-tier-status[data-status="unsupported"] { color: #fbbf24; }
+      .swivox-service-tier-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+      .swivox-service-tier-thread-actions { opacity: .88; align-items: center; }
+      .swivox-service-tier-thread-label { color: #a1a1aa; font-size: 13px;
         line-height: 1.2;
         font-family: inherit; white-space: nowrap; }
-      .chatgptx-service-tier-button { border: 1px solid rgba(255,255,255,.18); border-radius: 7px; background: #3f3f46; color: #f3f4f6; font-size: 13px;
+      .swivox-service-tier-button { border: 1px solid rgba(255,255,255,.18); border-radius: 7px; background: #3f3f46; color: #f3f4f6; font-size: 13px;
         font-family: inherit; padding: 5px 8px; white-space: nowrap; }
-      .chatgptx-service-tier-button[data-active="true"] { border-color: #10a37f; background: rgba(16,163,127,.22); color: #6ee7b7; }
-      .chatgptx-service-tier-button:disabled { opacity: .55; cursor: not-allowed; }
+      .swivox-service-tier-button[data-active="true"] { border-color: #10a37f; background: rgba(16,163,127,.22); color: #6ee7b7; }
+      .swivox-service-tier-button:disabled { opacity: .55; cursor: not-allowed; }
       .${codexServiceTierBadgeClass} {
         display: inline-flex;
         align-items: center;
@@ -2925,23 +2925,23 @@
       .${codexServiceTierBadgeClass}[data-tier="failed"] { border-color: rgba(248,113,113,.42); background: rgba(248,113,113,.12); color: #fca5a5; }
       .${codexServiceTierBadgeClass}[data-tier="unsupported"] { border-color: rgba(251,191,36,.48); background: rgba(251,191,36,.13); color: #fbbf24; }
       .${codexServiceTierBadgeClass}[data-disabled="true"] { cursor: not-allowed; opacity: .78; }
-      .chatgptx-about { color: #a1a1aa; line-height: 1.5; }
-      .chatgptx-panel[hidden] { display: none; }
-      .chatgptx-action-button,
-      .chatgptx-issue-button { border: 1px solid rgba(255,255,255,.18); border-radius: 7px; background: #3f3f46; color: #f3f4f6; font-size: 13px;
+      .swivox-about { color: #a1a1aa; line-height: 1.5; }
+      .swivox-panel[hidden] { display: none; }
+      .swivox-action-button,
+      .swivox-issue-button { border: 1px solid rgba(255,255,255,.18); border-radius: 7px; background: #3f3f46; color: #f3f4f6; font-size: 13px;
         font-family: inherit; padding: 6px 8px; }
-      .chatgptx-form-field {
+      .swivox-form-field {
         display: grid;
         gap: 4px;
         margin-top: 10px;
         /* issue #2359：原来是写死的 #d4d4d8，浅色主题下对比度只有 1.38:1（≈看不见）。
            标签文字改跟主题走。 */
-        color: var(--chatgptx-text-secondary);
+        color: var(--swivox-text-secondary);
         font-size: 13px;
         font-family: inherit;
         text-align: left;
       }
-      .chatgptx-form-field input {
+      .swivox-form-field input {
         width: min(520px, 72vw);
         border: 1px solid rgba(255,255,255,.18);
         border-radius: 8px;
@@ -2950,7 +2950,7 @@
         padding: 8px 10px;
         font: 13px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       }
-      .chatgptx-form-message {
+      .swivox-form-message {
         min-height: 18px;
         margin-top: 10px;
         color: #a1a1aa;
@@ -2958,27 +2958,27 @@
         font-family: inherit;
         text-align: left;
       }
-      .chatgptx-form-message[data-status="ok"] { color: #34d399; }
-      .chatgptx-form-message[data-status="failed"] { color: #f87171; }
-      .chatgptx-form-message[data-status="loading"] { color: #fbbf24; }
-      .chatgptx-backend-status { display: grid; gap: 4px; min-width: 132px; justify-items: end; }
-      .chatgptx-backend-label { color: #a1a1aa; font-size: 13px; }
-      .chatgptx-backend-label[data-status="ok"] { color: #34d399; }
-      .chatgptx-backend-label[data-status="failed"] { color: #f87171; }
-      .chatgptx-backend-label[data-status="degraded"] { color: #fbbf24; }
-      .chatgptx-sponsor-text { color: #d1d5db; font-size: 13px; line-height: 1.55; margin: 4px 0 12px; }
+      .swivox-form-message[data-status="ok"] { color: #34d399; }
+      .swivox-form-message[data-status="failed"] { color: #f87171; }
+      .swivox-form-message[data-status="loading"] { color: #fbbf24; }
+      .swivox-backend-status { display: grid; gap: 4px; min-width: 132px; justify-items: end; }
+      .swivox-backend-label { color: #a1a1aa; font-size: 13px; }
+      .swivox-backend-label[data-status="ok"] { color: #34d399; }
+      .swivox-backend-label[data-status="failed"] { color: #f87171; }
+      .swivox-backend-label[data-status="degraded"] { color: #fbbf24; }
+      .swivox-sponsor-text { color: #d1d5db; font-size: 13px; line-height: 1.55; margin: 4px 0 12px; }
       /*
        * 推荐内容：网格卡片。
        *
        * 一张卡 = 图标 + 名称/简介 + 右上箭头 + 底部优惠条。用 auto-fill + minmax
        * 让列数随宽度自适应（宽屏 4 列、窄屏递减），卡片等高对齐。
        */
-      .chatgptx-ad-list {
+      .swivox-ad-list {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
         gap: 12px;
       }
-      .chatgptx-ad-card {
+      .swivox-ad-card {
         display: flex;
         flex-direction: column;
         gap: 12px;
@@ -2990,14 +2990,14 @@
         padding: 16px;
         transition: background .12s ease, border-color .12s ease;
       }
-      .chatgptx-ad-card:hover,
-      .chatgptx-ad-card:focus-visible {
+      .swivox-ad-card:hover,
+      .swivox-ad-card:focus-visible {
         border-color: rgba(255,255,255,.18);
         background: rgba(255,255,255,.05);
         outline: none;
       }
-      .chatgptx-ad-main { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
-      .chatgptx-ad-icon {
+      .swivox-ad-main { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+      .swivox-ad-icon {
         flex: 0 0 auto;
         width: 36px;
         height: 36px;
@@ -3006,7 +3006,7 @@
         background: rgba(255,255,255,.06);
       }
       /* 清单没给图时用名称首字占位，比空一块整齐。 */
-      .chatgptx-ad-icon-fallback {
+      .swivox-ad-icon-fallback {
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -3014,17 +3014,17 @@
         font-size: 15px;
         font-weight: 600;
       }
-      .chatgptx-ad-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-      .chatgptx-ad-title { overflow: hidden; color: #f8fafc; font-size: 14px; font-weight: 600; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+      .swivox-ad-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+      .swivox-ad-title { overflow: hidden; color: #f8fafc; font-size: 14px; font-weight: 600; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
       /* 简介不再压成一行：卡片按内容撑高，最多 3 行，超出才省略。
          nowrap 会让「提供 Claude 与 ...」这类较长简介只露前几个字。 */
-      .chatgptx-ad-description { display: -webkit-box; overflow: hidden; color: #a1a1aa; font-size: 13px; line-height: 1.4; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
-      .chatgptx-ad-arrow { flex: 0 0 auto; width: 14px; height: 14px; margin-top: 2px; color: #71717a; }
-      .chatgptx-ad-arrow svg { width: 14px; height: 14px; display: block; }
-      .chatgptx-ad-card:hover .chatgptx-ad-arrow,
-      .chatgptx-ad-card:focus-visible .chatgptx-ad-arrow { color: #f3f4f6; }
+      .swivox-ad-description { display: -webkit-box; overflow: hidden; color: #a1a1aa; font-size: 13px; line-height: 1.4; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+      .swivox-ad-arrow { flex: 0 0 auto; width: 14px; height: 14px; margin-top: 2px; color: #71717a; }
+      .swivox-ad-arrow svg { width: 14px; height: 14px; display: block; }
+      .swivox-ad-card:hover .swivox-ad-arrow,
+      .swivox-ad-card:focus-visible .swivox-ad-arrow { color: #f3f4f6; }
       /* 底部优惠条：撑满卡片宽度，长文本截断。 */
-      .chatgptx-ad-promo {
+      .swivox-ad-promo {
         display: block;
         overflow: hidden;
         border-radius: 8px;
@@ -3036,7 +3036,7 @@
         text-overflow: ellipsis;
         white-space: nowrap;
       }
-      .chatgptx-ad-empty { border: 1px dashed rgba(255,255,255,.16); border-radius: 12px; color: #9ca3af; font-size: 13px; padding: 12px; text-align: center; }
+      .swivox-ad-empty { border: 1px dashed rgba(255,255,255,.16); border-radius: 12px; color: #9ca3af; font-size: 13px; padding: 12px; text-align: center; }
       /*
        * 注入面板的语义色板：前景/背景必须取自同一套 token，且都要能被主题切换带走。
        *
@@ -3051,58 +3051,58 @@
        * --color-token-* 上；末级兜底仅作最后保险，不再承担主题判断。
        */
       :root {
-        --chatgptx-bg-primary: var(--color-token-bg-primary, var(--color-token-main-surface-primary, #fff));
-        --chatgptx-bg-secondary: var(--color-token-bg-secondary, var(--chatgptx-bg-primary));
-        --chatgptx-bg-elevated: var(--color-token-dropdown-background, var(--color-token-bg-secondary, var(--chatgptx-bg-primary)));
-        --chatgptx-bg-hover: var(--color-token-interactive-bg-secondary-hover, var(--color-token-list-hover-background, rgba(0,0,0,.06)));
-        --chatgptx-bg-selected: var(--color-token-interactive-bg-secondary-selected, var(--chatgptx-bg-hover));
-        --chatgptx-text: var(--color-token-text-primary, var(--color-token-foreground, #171717));
-        --chatgptx-text-secondary: var(--color-token-text-secondary, var(--chatgptx-text));
-        --chatgptx-text-tertiary: var(--color-token-text-tertiary, var(--chatgptx-text-secondary));
-        --chatgptx-border: var(--color-token-border-light, var(--color-token-border, var(--color-token-border-default, rgba(0,0,0,.12))));
-        --chatgptx-border-subtle: var(--chatgptx-border);
-        --chatgptx-focus: var(--color-token-focus-border, var(--color-border-focus, currentColor));
-        --chatgptx-danger: var(--color-text-danger, #dc2626);
-        --chatgptx-danger-bg: var(--color-background-danger-soft, rgba(220,38,38,.1));
-        --chatgptx-success: var(--color-text-success, #15803d);
-        --chatgptx-warning: var(--color-text-warning, #a16207);
+        --swivox-bg-primary: var(--color-token-bg-primary, var(--color-token-main-surface-primary, #fff));
+        --swivox-bg-secondary: var(--color-token-bg-secondary, var(--swivox-bg-primary));
+        --swivox-bg-elevated: var(--color-token-dropdown-background, var(--color-token-bg-secondary, var(--swivox-bg-primary)));
+        --swivox-bg-hover: var(--color-token-interactive-bg-secondary-hover, var(--color-token-list-hover-background, rgba(0,0,0,.06)));
+        --swivox-bg-selected: var(--color-token-interactive-bg-secondary-selected, var(--swivox-bg-hover));
+        --swivox-text: var(--color-token-text-primary, var(--color-token-foreground, #171717));
+        --swivox-text-secondary: var(--color-token-text-secondary, var(--swivox-text));
+        --swivox-text-tertiary: var(--color-token-text-tertiary, var(--swivox-text-secondary));
+        --swivox-border: var(--color-token-border-light, var(--color-token-border, var(--color-token-border-default, rgba(0,0,0,.12))));
+        --swivox-border-subtle: var(--swivox-border);
+        --swivox-focus: var(--color-token-focus-border, var(--color-border-focus, currentColor));
+        --swivox-danger: var(--color-text-danger, #dc2626);
+        --swivox-danger-bg: var(--color-background-danger-soft, rgba(220,38,38,.1));
+        --swivox-success: var(--color-text-success, #15803d);
+        --swivox-warning: var(--color-text-warning, #a16207);
       }
-      :where(.${moreMenuClass}, .${actionTooltipClass}, .codex-delete-toast, .codex-delete-confirm-overlay, .chatgptx-modal-overlay, .${chatgptxPageClass}) {
-        color: var(--chatgptx-text);
+      :where(.${moreMenuClass}, .${actionTooltipClass}, .codex-delete-toast, .codex-delete-confirm-overlay, .swivox-modal-overlay, .${swivoxPageClass}) {
+        color: var(--swivox-text);
         font-family: inherit;
       }
       .${moreMenuClass} {
-        border-color: var(--chatgptx-border);
+        border-color: var(--swivox-border);
         border-radius: var(--border-radius-lg, 8px);
-        background: var(--chatgptx-bg-elevated);
-        color: var(--chatgptx-text);
+        background: var(--swivox-bg-elevated);
+        color: var(--swivox-text);
         box-shadow: var(--ui-menu-shadow, var(--shadow-300, 0 8px 24px rgba(0,0,0,.16)));
       }
       .codex-session-more-menu-item { border-radius: var(--border-radius-sm, 6px); font-family: inherit; }
       .codex-session-more-menu-item:hover,
-      .codex-session-more-menu-item:focus-visible { background: var(--chatgptx-bg-hover); }
+      .codex-session-more-menu-item:focus-visible { background: var(--swivox-bg-hover); }
       .${actionButtonClass} {
         width: var(--h-token-button-composer-sm, 28px);
         height: var(--h-token-button-composer-sm, 28px);
         border-radius: var(--border-radius-lg, 8px);
-        color: var(--codex-session-action-color, var(--chatgptx-text-tertiary));
+        color: var(--codex-session-action-color, var(--swivox-text-tertiary));
         font-family: inherit;
       }
       .${actionButtonClass}:hover,
       .${actionButtonClass}:focus-visible {
-        background: var(--codex-session-action-hover-background, var(--chatgptx-bg-hover));
-        color: var(--codex-session-action-hover-color, var(--chatgptx-text));
+        background: var(--codex-session-action-hover-background, var(--swivox-bg-hover));
+        color: var(--codex-session-action-hover-color, var(--swivox-text));
       }
       .${sessionShareButtonClass}:hover,
       .${sessionShareButtonClass}:focus-visible {
-        background: var(--chatgptx-bg-hover);
-        color: var(--chatgptx-text);
+        background: var(--swivox-bg-hover);
+        color: var(--swivox-text);
       }
       .${actionTooltipClass} {
-        border-color: var(--chatgptx-border);
+        border-color: var(--swivox-border);
         border-radius: var(--border-radius-md, 6px);
-        background: var(--chatgptx-bg-elevated);
-        color: var(--chatgptx-text);
+        background: var(--swivox-bg-elevated);
+        color: var(--swivox-text);
         font-family: inherit;
         font-size: 13px;
         line-height: 16px;
@@ -3110,32 +3110,32 @@
         box-shadow: var(--tooltip-box-shadow, var(--shadow-200, 0 4px 12px rgba(0,0,0,.14)));
       }
       .codex-delete-confirm-overlay,
-      .chatgptx-modal-overlay { background: var(--color-background-surface-under, rgba(0,0,0,.32)); backdrop-filter: blur(1px); }
+      .swivox-modal-overlay { background: var(--color-background-surface-under, rgba(0,0,0,.32)); backdrop-filter: blur(1px); }
       .codex-delete-confirm-content,
-      .chatgptx-modal-content {
-        border-color: var(--chatgptx-border);
+      .swivox-modal-content {
+        border-color: var(--swivox-border);
         border-radius: var(--border-radius-xl, 12px);
-        background: var(--chatgptx-bg-primary);
-        color: var(--chatgptx-text);
+        background: var(--swivox-bg-primary);
+        color: var(--swivox-text);
         font-family: inherit;
         box-shadow: var(--shadow-400, 0 16px 48px rgba(0,0,0,.2));
       }
       .codex-delete-confirm-message,
-      .chatgptx-row-description,
-      .chatgptx-about,
-      .chatgptx-service-tier-thread-label,
-      .chatgptx-backend-label,
-      .chatgptx-form-message,
-      .chatgptx-sponsor-text { color: var(--chatgptx-text-secondary); }
+      .swivox-row-description,
+      .swivox-about,
+      .swivox-service-tier-thread-label,
+      .swivox-backend-label,
+      .swivox-form-message,
+      .swivox-sponsor-text { color: var(--swivox-text-secondary); }
       .codex-delete-confirm-actions button,
-      .chatgptx-action-button,
-      .chatgptx-issue-button,
-      .chatgptx-service-tier-button {
+      .swivox-action-button,
+      .swivox-issue-button,
+      .swivox-service-tier-button {
         min-height: 32px;
-        border: 1px solid var(--chatgptx-border);
+        border: 1px solid var(--swivox-border);
         border-radius: var(--border-radius-lg, 8px);
-        background: var(--chatgptx-bg-secondary);
-        color: var(--chatgptx-text);
+        background: var(--swivox-bg-secondary);
+        color: var(--swivox-text);
         font: inherit;
         font-size: 13px;
         line-height: 18px;
@@ -3143,121 +3143,121 @@
       }
       .codex-delete-confirm-actions button:hover,
       .codex-delete-confirm-actions button:focus-visible,
-      .chatgptx-action-button:hover,
-      .chatgptx-action-button:focus-visible,
-      .chatgptx-issue-button:hover,
-      .chatgptx-issue-button:focus-visible,
-      .chatgptx-service-tier-button:hover,
-      .chatgptx-service-tier-button:focus-visible,
+      .swivox-action-button:hover,
+      .swivox-action-button:focus-visible,
+      .swivox-issue-button:hover,
+      .swivox-issue-button:focus-visible,
+      .swivox-service-tier-button:hover,
+      .swivox-service-tier-button:focus-visible,
       .codex-delete-confirm-actions [data-codex-delete-confirm="true"] {
         border-color: var(--color-border-danger, #dc2626);
         background: var(--color-background-danger-solid, #dc2626);
         color: var(--color-text-danger-solid, #fff);
       }
-      .chatgptx-modal-close { border-color: var(--chatgptx-border); color: var(--chatgptx-text-secondary); border-radius: var(--border-radius-lg, 8px); }
-      .chatgptx-modal-close:hover,
-      .chatgptx-modal-close:focus-visible { background: var(--chatgptx-bg-hover); color: var(--chatgptx-text); outline: none; }
-      .${chatgptxPageClass},
-      .${chatgptxPageClass} .chatgptx-modal-content {
-        background: var(--chatgptx-bg-primary) !important;
-        color: var(--chatgptx-text) !important;
+      .swivox-modal-close { border-color: var(--swivox-border); color: var(--swivox-text-secondary); border-radius: var(--border-radius-lg, 8px); }
+      .swivox-modal-close:hover,
+      .swivox-modal-close:focus-visible { background: var(--swivox-bg-hover); color: var(--swivox-text); outline: none; }
+      .${swivoxPageClass},
+      .${swivoxPageClass} .swivox-modal-content {
+        background: var(--swivox-bg-primary) !important;
+        color: var(--swivox-text) !important;
       }
-      .${chatgptxPageClass} .chatgptx-modal-content { border-color: transparent; }
-      .chatgptx-modal-body { scrollbar-color: var(--chatgptx-text-tertiary) transparent; }
-      .chatgptx-modal-body::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--chatgptx-text-tertiary) 45%, transparent); background-clip: padding-box; }
-      .chatgptx-modal-body::-webkit-scrollbar-thumb:hover { background: var(--chatgptx-text-tertiary); background-clip: padding-box; }
-      .chatgptx-row { border-top-color: var(--chatgptx-border-subtle); }
-      .chatgptx-toggle { background: var(--color-background-secondary-solid, var(--chatgptx-text-tertiary)); }
-      .chatgptx-toggle span { background: var(--color-token-bg-primary, #fff); box-shadow: var(--switch-thumb-shadow, 0 1px 2px rgba(0,0,0,.16)); }
-      .chatgptx-toggle[data-enabled="true"] { background: var(--color-background-primary-solid, var(--color-background-success-solid, #10a37f)); }
-      .chatgptx-width-input,
-      .chatgptx-typing-effect-select,
-      .chatgptx-form-field input {
-        border: 1px solid var(--chatgptx-border);
+      .${swivoxPageClass} .swivox-modal-content { border-color: transparent; }
+      .swivox-modal-body { scrollbar-color: var(--swivox-text-tertiary) transparent; }
+      .swivox-modal-body::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--swivox-text-tertiary) 45%, transparent); background-clip: padding-box; }
+      .swivox-modal-body::-webkit-scrollbar-thumb:hover { background: var(--swivox-text-tertiary); background-clip: padding-box; }
+      .swivox-row { border-top-color: var(--swivox-border-subtle); }
+      .swivox-toggle { background: var(--color-background-secondary-solid, var(--swivox-text-tertiary)); }
+      .swivox-toggle span { background: var(--color-token-bg-primary, #fff); box-shadow: var(--switch-thumb-shadow, 0 1px 2px rgba(0,0,0,.16)); }
+      .swivox-toggle[data-enabled="true"] { background: var(--color-background-primary-solid, var(--color-background-success-solid, #10a37f)); }
+      .swivox-width-input,
+      .swivox-typing-effect-select,
+      .swivox-form-field input {
+        border: 1px solid var(--swivox-border);
         border-radius: var(--border-radius-lg, 8px);
-        background: var(--chatgptx-bg-secondary);
-        color: var(--chatgptx-text);
+        background: var(--swivox-bg-secondary);
+        color: var(--swivox-text);
         font-family: inherit;
       }
-      .chatgptx-width-input:focus,
-      .chatgptx-typing-effect-select:focus,
-      .chatgptx-form-field input:focus { border-color: var(--chatgptx-focus); outline: 2px solid color-mix(in srgb, var(--chatgptx-focus) 25%, transparent); outline-offset: 0; }
-      .chatgptx-service-tier-button[data-active="true"] {
-        border-color: var(--color-border-primary, var(--chatgptx-focus));
-        background: var(--color-background-primary-soft, var(--chatgptx-bg-selected));
-        color: var(--color-text-primary, var(--chatgptx-text));
+      .swivox-width-input:focus,
+      .swivox-typing-effect-select:focus,
+      .swivox-form-field input:focus { border-color: var(--swivox-focus); outline: 2px solid color-mix(in srgb, var(--swivox-focus) 25%, transparent); outline-offset: 0; }
+      .swivox-service-tier-button[data-active="true"] {
+        border-color: var(--color-border-primary, var(--swivox-focus));
+        background: var(--color-background-primary-soft, var(--swivox-bg-selected));
+        color: var(--color-text-primary, var(--swivox-text));
       }
-      #${chatgptxSidebarNavId} .chatgptx-sidebar-nav-status,
-      .chatgptx-backend-indicator { box-shadow: none; }
-      #${chatgptxSidebarNavId} .chatgptx-sidebar-nav-status[data-status="ok"],
-      .chatgptx-backend-indicator[data-status="ok"] { background: var(--chatgptx-success); }
-      #${chatgptxSidebarNavId} .chatgptx-sidebar-nav-status[data-status="failed"],
-      .chatgptx-backend-indicator[data-status="failed"] { background: var(--chatgptx-danger); }
-      #${chatgptxSidebarNavId} .chatgptx-sidebar-nav-status[data-status="checking"],
-      .chatgptx-backend-indicator[data-status="checking"] { background: var(--chatgptx-warning); }
-      #${chatgptxSidebarNavId} .chatgptx-sidebar-nav-status[data-status="degraded"],
-      .chatgptx-backend-indicator[data-status="degraded"] { background: var(--chatgptx-warning); }
+      #${swivoxSidebarNavId} .swivox-sidebar-nav-status,
+      .swivox-backend-indicator { box-shadow: none; }
+      #${swivoxSidebarNavId} .swivox-sidebar-nav-status[data-status="ok"],
+      .swivox-backend-indicator[data-status="ok"] { background: var(--swivox-success); }
+      #${swivoxSidebarNavId} .swivox-sidebar-nav-status[data-status="failed"],
+      .swivox-backend-indicator[data-status="failed"] { background: var(--swivox-danger); }
+      #${swivoxSidebarNavId} .swivox-sidebar-nav-status[data-status="checking"],
+      .swivox-backend-indicator[data-status="checking"] { background: var(--swivox-warning); }
+      #${swivoxSidebarNavId} .swivox-sidebar-nav-status[data-status="degraded"],
+      .swivox-backend-indicator[data-status="degraded"] { background: var(--swivox-warning); }
       .${codexServiceTierBadgeClass} {
         height: 24px;
-        border-color: var(--chatgptx-border);
+        border-color: var(--swivox-border);
         border-radius: var(--border-radius-lg, 8px);
-        background: var(--chatgptx-bg-secondary);
-        color: var(--chatgptx-text-secondary);
+        background: var(--swivox-bg-secondary);
+        color: var(--swivox-text-secondary);
         font-family: inherit;
       }
-      .${codexServiceTierBadgeClass}:hover { border-color: var(--chatgptx-focus); background: var(--chatgptx-bg-hover); }
-      .${codexServiceTierBadgeClass}[data-tier="fast"] { border-color: var(--color-border-primary, var(--chatgptx-focus)); background: var(--color-background-primary-soft, var(--chatgptx-bg-selected)); color: var(--chatgptx-text); }
-      .${codexServiceTierBadgeClass}[data-tier="failed"] { border-color: var(--color-border-danger, var(--chatgptx-danger)); background: var(--chatgptx-danger-bg); color: var(--chatgptx-danger); }
-      .${codexServiceTierBadgeClass}[data-tier="unsupported"] { border-color: var(--color-border-warning, var(--chatgptx-border)); background: var(--color-background-warning-soft, var(--chatgptx-bg-hover)); color: var(--chatgptx-warning); }
-      .chatgptx-ad-card { border-color: var(--chatgptx-border-subtle); background: var(--chatgptx-bg-secondary); }
-      .chatgptx-ad-card:hover,
-      .chatgptx-ad-card:focus-visible { border-color: var(--chatgptx-border); background: var(--chatgptx-bg-hover); }
-      .chatgptx-ad-icon { background: var(--chatgptx-bg-hover); }
-      .chatgptx-ad-icon-fallback { color: var(--chatgptx-text); }
-      .chatgptx-ad-title { color: var(--chatgptx-text); }
-      .chatgptx-ad-description { color: var(--chatgptx-text-secondary); }
-      .chatgptx-ad-arrow { color: var(--chatgptx-text-tertiary); }
-      .chatgptx-ad-card:hover .chatgptx-ad-arrow,
-      .chatgptx-ad-card:focus-visible .chatgptx-ad-arrow { color: var(--chatgptx-text); }
+      .${codexServiceTierBadgeClass}:hover { border-color: var(--swivox-focus); background: var(--swivox-bg-hover); }
+      .${codexServiceTierBadgeClass}[data-tier="fast"] { border-color: var(--color-border-primary, var(--swivox-focus)); background: var(--color-background-primary-soft, var(--swivox-bg-selected)); color: var(--swivox-text); }
+      .${codexServiceTierBadgeClass}[data-tier="failed"] { border-color: var(--color-border-danger, var(--swivox-danger)); background: var(--swivox-danger-bg); color: var(--swivox-danger); }
+      .${codexServiceTierBadgeClass}[data-tier="unsupported"] { border-color: var(--color-border-warning, var(--swivox-border)); background: var(--color-background-warning-soft, var(--swivox-bg-hover)); color: var(--swivox-warning); }
+      .swivox-ad-card { border-color: var(--swivox-border-subtle); background: var(--swivox-bg-secondary); }
+      .swivox-ad-card:hover,
+      .swivox-ad-card:focus-visible { border-color: var(--swivox-border); background: var(--swivox-bg-hover); }
+      .swivox-ad-icon { background: var(--swivox-bg-hover); }
+      .swivox-ad-icon-fallback { color: var(--swivox-text); }
+      .swivox-ad-title { color: var(--swivox-text); }
+      .swivox-ad-description { color: var(--swivox-text-secondary); }
+      .swivox-ad-arrow { color: var(--swivox-text-tertiary); }
+      .swivox-ad-card:hover .swivox-ad-arrow,
+      .swivox-ad-card:focus-visible .swivox-ad-arrow { color: var(--swivox-text); }
       /*
        * 优惠条：暗底配橙色文字。
        *
-       * 底色不能用 --chatgptx-danger-bg —— 它在当前主题下解析成浅粉（偏浅色主题
+       * 底色不能用 --swivox-danger-bg —— 它在当前主题下解析成浅粉（偏浅色主题
        * 的值），压在深色卡片上非常刺眼。改成用警告色按低透明度混出来，深浅主题
        * 都成立，也和原生「需要注意」的语义色同源。
        */
-      .chatgptx-ad-promo {
-        background: color-mix(in srgb, var(--chatgptx-warning) 14%, transparent);
-        color: var(--chatgptx-warning);
+      .swivox-ad-promo {
+        background: color-mix(in srgb, var(--swivox-warning) 14%, transparent);
+        color: var(--swivox-warning);
       }
-      .chatgptx-ad-empty { border-color: var(--chatgptx-border); color: var(--chatgptx-text-tertiary); }
-      .chatgptx-form-message[data-status="ok"], .chatgptx-service-tier-status[data-status="ok"], .chatgptx-backend-label[data-status="ok"] { color: var(--chatgptx-success); }
-      .chatgptx-form-message[data-status="failed"], .chatgptx-service-tier-status[data-status="failed"], .chatgptx-backend-label[data-status="failed"] { color: var(--chatgptx-danger); }
-      .chatgptx-backend-label[data-status="degraded"] { color: var(--chatgptx-warning); }
-      .chatgptx-form-message[data-status="loading"], .chatgptx-service-tier-status[data-status="unsupported"], .chatgptx-model-compat-warning { color: var(--chatgptx-warning); }
-      /* ChatGPTX 设置主页：对齐原生设置页，保持其它页面与弹窗的布局独立。 */
-      .${chatgptxPageClass} .chatgptx-modal-content[data-chatgptx-active-tab="home"] {
-        background: var(--chatgptx-settings-page-bg, var(--chatgptx-bg-primary)) !important;
+      .swivox-ad-empty { border-color: var(--swivox-border); color: var(--swivox-text-tertiary); }
+      .swivox-form-message[data-status="ok"], .swivox-service-tier-status[data-status="ok"], .swivox-backend-label[data-status="ok"] { color: var(--swivox-success); }
+      .swivox-form-message[data-status="failed"], .swivox-service-tier-status[data-status="failed"], .swivox-backend-label[data-status="failed"] { color: var(--swivox-danger); }
+      .swivox-backend-label[data-status="degraded"] { color: var(--swivox-warning); }
+      .swivox-form-message[data-status="loading"], .swivox-service-tier-status[data-status="unsupported"], .swivox-model-compat-warning { color: var(--swivox-warning); }
+      /* Swivox 设置主页：对齐原生设置页，保持其它页面与弹窗的布局独立。 */
+      .${swivoxPageClass} .swivox-modal-content[data-swivox-active-tab="home"] {
+        background: var(--swivox-settings-page-bg, var(--swivox-bg-primary)) !important;
       }
-      .${chatgptxPageClass} .chatgptx-modal-content[data-chatgptx-active-tab="home"] .chatgptx-modal-body {
+      .${swivoxPageClass} .swivox-modal-content[data-swivox-active-tab="home"] .swivox-modal-body {
         box-sizing: border-box;
         padding: 72px 32px 64px;
       }
-      .chatgptx-settings {
+      .swivox-settings {
         width: 100%;
         max-width: 740px;
         min-width: 0;
         margin: 0 auto;
-        container: chatgptx-settings / inline-size;
+        container: swivox-settings / inline-size;
       }
-      .chatgptx-settings > .chatgptx-modal-header {
+      .swivox-settings > .swivox-modal-header {
         width: 100%;
         box-sizing: border-box;
         padding: 0;
         margin: 0 0 48px;
         gap: 16px;
       }
-      .chatgptx-settings .chatgptx-modal-title {
+      .swivox-settings .swivox-modal-title {
         min-width: 0;
         font-size: 28px;
         font-weight: 600;
@@ -3265,26 +3265,26 @@
         letter-spacing: -.02em;
         overflow-wrap: anywhere;
       }
-      .chatgptx-settings-section { margin: 0 0 48px; }
-      .chatgptx-settings-section:last-child { margin-bottom: 0; }
-      .chatgptx-settings-section-title {
+      .swivox-settings-section { margin: 0 0 48px; }
+      .swivox-settings-section:last-child { margin-bottom: 0; }
+      .swivox-settings-section-title {
         margin: 0 0 16px;
-        color: var(--chatgptx-text);
+        color: var(--swivox-text);
         font-size: 14px;
         font-weight: 550;
         line-height: 20px;
       }
-      .chatgptx-settings-card,
-      .chatgptx-settings > [data-chatgptx-ext-menu] {
+      .swivox-settings-card,
+      .swivox-settings > [data-swivox-ext-menu] {
         box-sizing: border-box;
         min-width: 0;
         padding: 0 16px;
-        border: 1px solid var(--chatgptx-border);
+        border: 1px solid var(--swivox-border);
         border-radius: 16px;
-        background: var(--chatgptx-settings-card-bg, var(--chatgptx-bg-secondary));
+        background: var(--swivox-settings-card-bg, var(--swivox-bg-secondary));
       }
-      .chatgptx-settings > [data-chatgptx-ext-menu] { margin-top: 48px; }
-      .chatgptx-settings .chatgptx-row {
+      .swivox-settings > [data-swivox-ext-menu] { margin-top: 48px; }
+      .swivox-settings .swivox-row {
         box-sizing: border-box;
         min-height: 60px;
         align-items: center;
@@ -3293,74 +3293,74 @@
         font-size: 14px;
         line-height: 20px;
       }
-      .chatgptx-settings .chatgptx-row[hidden] { display: none; }
-      .chatgptx-settings .chatgptx-row > :first-child {
+      .swivox-settings .swivox-row[hidden] { display: none; }
+      .swivox-settings .swivox-row > :first-child {
         flex: 1 1 auto;
         min-width: 0;
         overflow-wrap: anywhere;
       }
-      .chatgptx-settings .chatgptx-row > :not(:first-child) { max-width: 48%; }
-      .chatgptx-settings .chatgptx-row-title { font-weight: 500; line-height: 20px; }
-      .chatgptx-settings .chatgptx-row-description,
-      .chatgptx-settings .chatgptx-about {
+      .swivox-settings .swivox-row > :not(:first-child) { max-width: 48%; }
+      .swivox-settings .swivox-row-title { font-weight: 500; line-height: 20px; }
+      .swivox-settings .swivox-row-description,
+      .swivox-settings .swivox-about {
         margin-top: 2px;
-        color: var(--chatgptx-text-secondary);
+        color: var(--swivox-text-secondary);
         font-size: 13px;
         line-height: 18px;
         overflow-wrap: anywhere;
       }
-      .chatgptx-settings .chatgptx-toggle {
+      .swivox-settings .swivox-toggle {
         flex: 0 0 32px;
         width: 32px;
         height: 20px;
         min-height: 20px;
         box-sizing: border-box;
         padding: 2px;
-        background: var(--chatgptx-switch-off, #3a3a3a);
+        background: var(--swivox-switch-off, #3a3a3a);
         cursor: pointer;
       }
-      .chatgptx-settings .chatgptx-toggle span {
+      .swivox-settings .swivox-toggle span {
         width: 16px;
         height: 16px;
-        background: var(--chatgptx-switch-thumb, #fff);
+        background: var(--swivox-switch-thumb, #fff);
       }
-      .chatgptx-settings .chatgptx-toggle[data-enabled="true"] { background: var(--chatgptx-switch-on, #3485ff); }
-      .chatgptx-settings .chatgptx-toggle[data-enabled="true"] span { transform: translateX(12px); }
-      .chatgptx-settings .chatgptx-toggle[data-pending="true"],
-      .chatgptx-settings .chatgptx-toggle:disabled { cursor: not-allowed; opacity: .55; }
-      .chatgptx-settings .chatgptx-width-control {
+      .swivox-settings .swivox-toggle[data-enabled="true"] { background: var(--swivox-switch-on, #3485ff); }
+      .swivox-settings .swivox-toggle[data-enabled="true"] span { transform: translateX(12px); }
+      .swivox-settings .swivox-toggle[data-pending="true"],
+      .swivox-settings .swivox-toggle:disabled { cursor: not-allowed; opacity: .55; }
+      .swivox-settings .swivox-width-control {
         flex: 0 1 auto;
         min-width: 0;
         flex-wrap: wrap;
         gap: 8px;
       }
-      .chatgptx-settings .chatgptx-service-tier-control {
+      .swivox-settings .swivox-service-tier-control {
         flex: 0 1 300px;
         min-width: 0;
       }
-      .chatgptx-settings .chatgptx-service-tier-status { overflow-wrap: anywhere; }
-      .chatgptx-settings .chatgptx-backend-status { overflow-wrap: anywhere; text-align: right; }
-      .chatgptx-settings .chatgptx-action-button,
-      .chatgptx-settings .chatgptx-issue-button,
-      .chatgptx-settings .chatgptx-service-tier-button,
-      .chatgptx-settings .chatgptx-width-input,
-      .chatgptx-settings .chatgptx-typing-effect-select {
+      .swivox-settings .swivox-service-tier-status { overflow-wrap: anywhere; }
+      .swivox-settings .swivox-backend-status { overflow-wrap: anywhere; text-align: right; }
+      .swivox-settings .swivox-action-button,
+      .swivox-settings .swivox-issue-button,
+      .swivox-settings .swivox-service-tier-button,
+      .swivox-settings .swivox-width-input,
+      .swivox-settings .swivox-typing-effect-select {
         box-sizing: border-box;
         min-height: 32px;
-        border: 1px solid var(--chatgptx-border);
+        border: 1px solid var(--swivox-border);
         border-radius: 8px;
-        background: var(--chatgptx-bg-secondary);
-        color: var(--chatgptx-text);
+        background: var(--swivox-bg-secondary);
+        color: var(--swivox-text);
         font-family: inherit;
         font-size: 13px;
         line-height: 18px;
       }
-      .chatgptx-settings .chatgptx-width-input,
-      .chatgptx-settings .chatgptx-typing-effect-select { height: 32px; }
-      .chatgptx-settings .chatgptx-width-input { width: 72px; min-width: 48px; }
-      .chatgptx-settings .chatgptx-typing-effect-select { min-width: 0; }
-      .chatgptx-settings .chatgptx-typing-effect-select[hidden] { display: none; }
-      .chatgptx-settings .chatgptx-dropdown-trigger {
+      .swivox-settings .swivox-width-input,
+      .swivox-settings .swivox-typing-effect-select { height: 32px; }
+      .swivox-settings .swivox-width-input { width: 72px; min-width: 48px; }
+      .swivox-settings .swivox-typing-effect-select { min-width: 0; }
+      .swivox-settings .swivox-typing-effect-select[hidden] { display: none; }
+      .swivox-settings .swivox-dropdown-trigger {
         display: inline-flex;
         flex: 0 0 auto;
         align-items: center;
@@ -3370,27 +3370,27 @@
         height: 28px;
         min-width: 112px;
         box-sizing: border-box;
-        border: 1px solid var(--chatgptx-border);
+        border: 1px solid var(--swivox-border);
         border-radius: 8px;
         padding: 3px 10px;
-        background: var(--chatgptx-bg-secondary);
-        color: var(--chatgptx-text);
+        background: var(--swivox-bg-secondary);
+        color: var(--swivox-text);
         font: inherit;
         font-size: 13px;
         line-height: 20px;
         cursor: pointer;
       }
-      .chatgptx-settings .chatgptx-dropdown-trigger > svg {
+      .swivox-settings .swivox-dropdown-trigger > svg {
         flex: 0 0 16px;
         width: 16px;
         height: 16px;
-        color: var(--chatgptx-text-secondary);
+        color: var(--swivox-text-secondary);
       }
-      .chatgptx-settings .chatgptx-dropdown-trigger:hover:not(:disabled),
-      .chatgptx-settings .chatgptx-dropdown-trigger[aria-expanded="true"] { background: var(--chatgptx-bg-hover); }
-      .chatgptx-settings .chatgptx-dropdown-trigger:disabled { cursor: not-allowed; opacity: .55; }
+      .swivox-settings .swivox-dropdown-trigger:hover:not(:disabled),
+      .swivox-settings .swivox-dropdown-trigger[aria-expanded="true"] { background: var(--swivox-bg-hover); }
+      .swivox-settings .swivox-dropdown-trigger:disabled { cursor: not-allowed; opacity: .55; }
       /* 菜单挂在 overlay 上，避免设置卡片或滚动容器裁切。 */
-      .chatgptx-dropdown-menu {
+      .swivox-dropdown-menu {
         position: absolute;
         z-index: 2;
         overflow-y: auto;
@@ -3399,15 +3399,15 @@
         max-width: calc(100% - 16px);
         box-sizing: border-box;
         padding: 6px;
-        border: 1px solid var(--chatgptx-border);
+        border: 1px solid var(--swivox-border);
         border-radius: 14px;
-        background: var(--chatgptx-bg-elevated);
-        color: var(--chatgptx-text);
+        background: var(--swivox-bg-elevated);
+        color: var(--swivox-text);
         font-family: inherit;
         box-shadow: var(--ui-menu-shadow, var(--shadow-300, 0 8px 24px rgba(0,0,0,.16)));
       }
-      .chatgptx-dropdown-menu[hidden] { display: none; }
-      .chatgptx-dropdown-option {
+      .swivox-dropdown-menu[hidden] { display: none; }
+      .swivox-dropdown-option {
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -3426,75 +3426,75 @@
         text-align: left;
         cursor: pointer;
       }
-      .chatgptx-dropdown-option > svg {
+      .swivox-dropdown-option > svg {
         flex: 0 0 16px;
         width: 16px;
         height: 16px;
         visibility: hidden;
       }
-      .chatgptx-dropdown-option[aria-selected="true"] > svg { visibility: visible; }
-      .chatgptx-dropdown-option:hover,
-      .chatgptx-dropdown-option:focus-visible {
-        background: var(--chatgptx-bg-hover);
+      .swivox-dropdown-option[aria-selected="true"] > svg { visibility: visible; }
+      .swivox-dropdown-option:hover,
+      .swivox-dropdown-option:focus-visible {
+        background: var(--swivox-bg-hover);
         outline: none;
       }
-      .chatgptx-settings .chatgptx-action-button,
-      .chatgptx-settings .chatgptx-issue-button { white-space: normal; overflow-wrap: anywhere; }
-      .chatgptx-settings .chatgptx-action-button:hover,
-      .chatgptx-settings .chatgptx-action-button:focus-visible,
-      .chatgptx-settings .chatgptx-issue-button:hover,
-      .chatgptx-settings .chatgptx-issue-button:focus-visible,
-      .chatgptx-settings .chatgptx-service-tier-button:hover,
-      .chatgptx-settings .chatgptx-service-tier-button:focus-visible {
-        border-color: var(--chatgptx-border);
-        background: var(--chatgptx-bg-hover);
-        color: var(--chatgptx-text);
+      .swivox-settings .swivox-action-button,
+      .swivox-settings .swivox-issue-button { white-space: normal; overflow-wrap: anywhere; }
+      .swivox-settings .swivox-action-button:hover,
+      .swivox-settings .swivox-action-button:focus-visible,
+      .swivox-settings .swivox-issue-button:hover,
+      .swivox-settings .swivox-issue-button:focus-visible,
+      .swivox-settings .swivox-service-tier-button:hover,
+      .swivox-settings .swivox-service-tier-button:focus-visible {
+        border-color: var(--swivox-border);
+        background: var(--swivox-bg-hover);
+        color: var(--swivox-text);
       }
-      .chatgptx-settings .chatgptx-service-tier-button[data-active="true"] {
-        border-color: var(--chatgptx-switch-on, #3485ff);
-        background: color-mix(in srgb, var(--chatgptx-switch-on, #3485ff) 16%, var(--chatgptx-settings-card-bg, var(--chatgptx-bg-secondary)));
-        color: var(--chatgptx-text);
+      .swivox-settings .swivox-service-tier-button[data-active="true"] {
+        border-color: var(--swivox-switch-on, #3485ff);
+        background: color-mix(in srgb, var(--swivox-switch-on, #3485ff) 16%, var(--swivox-settings-card-bg, var(--swivox-bg-secondary)));
+        color: var(--swivox-text);
       }
-      .chatgptx-settings button:focus-visible,
-      .chatgptx-settings input:focus-visible,
-      .chatgptx-settings select:focus-visible {
-        outline: 2px solid var(--chatgptx-switch-on, #3485ff);
+      .swivox-settings button:focus-visible,
+      .swivox-settings input:focus-visible,
+      .swivox-settings select:focus-visible {
+        outline: 2px solid var(--swivox-switch-on, #3485ff);
         outline-offset: 3px;
       }
-      .${chatgptxPageClass} .chatgptx-modal-content[data-chatgptx-active-tab="home"] { container: chatgptx-settings-page / inline-size; }
-      @container chatgptx-settings-page (max-width: 800px) {
-        .${chatgptxPageClass} .chatgptx-modal-content[data-chatgptx-active-tab="home"] .chatgptx-modal-body { padding: 48px 24px; }
+      .${swivoxPageClass} .swivox-modal-content[data-swivox-active-tab="home"] { container: swivox-settings-page / inline-size; }
+      @container swivox-settings-page (max-width: 800px) {
+        .${swivoxPageClass} .swivox-modal-content[data-swivox-active-tab="home"] .swivox-modal-body { padding: 48px 24px; }
       }
-      @container chatgptx-settings-page (max-width: 480px) {
-        .${chatgptxPageClass} .chatgptx-modal-content[data-chatgptx-active-tab="home"] .chatgptx-modal-body { padding: 32px 16px; }
+      @container swivox-settings-page (max-width: 480px) {
+        .${swivoxPageClass} .swivox-modal-content[data-swivox-active-tab="home"] .swivox-modal-body { padding: 32px 16px; }
       }
-      @container chatgptx-settings (max-width: 560px) {
-        .chatgptx-settings .chatgptx-row { gap: 16px; }
-        .chatgptx-settings .chatgptx-row[data-codex-service-tier-controls="true"] { flex-wrap: wrap; }
-        .chatgptx-settings .chatgptx-row[data-codex-service-tier-controls="true"] > :first-child { flex-basis: 100%; }
-        .chatgptx-settings .chatgptx-row[data-codex-service-tier-controls="true"] > .chatgptx-service-tier-control { flex-basis: 100%; max-width: 100%; }
+      @container swivox-settings (max-width: 560px) {
+        .swivox-settings .swivox-row { gap: 16px; }
+        .swivox-settings .swivox-row[data-codex-service-tier-controls="true"] { flex-wrap: wrap; }
+        .swivox-settings .swivox-row[data-codex-service-tier-controls="true"] > :first-child { flex-basis: 100%; }
+        .swivox-settings .swivox-row[data-codex-service-tier-controls="true"] > .swivox-service-tier-control { flex-basis: 100%; max-width: 100%; }
       }
       /* 拓展与推荐内容使用原生插件页面的导航、标题和轻量列表布局。 */
-      .${chatgptxPageClass} .chatgptx-modal-content:is([data-chatgptx-active-tab="extensions"], [data-chatgptx-active-tab="sponsor"]) {
-        background: var(--chatgptx-settings-page-bg, var(--chatgptx-bg-primary)) !important;
-        container: chatgptx-discovery-page / inline-size;
+      .${swivoxPageClass} .swivox-modal-content:is([data-swivox-active-tab="extensions"], [data-swivox-active-tab="sponsor"]) {
+        background: var(--swivox-settings-page-bg, var(--swivox-bg-primary)) !important;
+        container: swivox-discovery-page / inline-size;
       }
-      .${chatgptxPageClass} .chatgptx-modal-content:is([data-chatgptx-active-tab="extensions"], [data-chatgptx-active-tab="sponsor"]) > .chatgptx-modal-header { display: none; }
-      .${chatgptxPageClass} .chatgptx-modal-content:is([data-chatgptx-active-tab="extensions"], [data-chatgptx-active-tab="sponsor"]) .chatgptx-modal-body {
+      .${swivoxPageClass} .swivox-modal-content:is([data-swivox-active-tab="extensions"], [data-swivox-active-tab="sponsor"]) > .swivox-modal-header { display: none; }
+      .${swivoxPageClass} .swivox-modal-content:is([data-swivox-active-tab="extensions"], [data-swivox-active-tab="sponsor"]) .swivox-modal-body {
         box-sizing: border-box;
         padding: 32px 32px 56px;
       }
-      .${chatgptxPageClass} .chatgptx-modal-content[data-chatgptx-active-tab="extensions"] .chatgptx-page-nav {
+      .${swivoxPageClass} .swivox-modal-content[data-swivox-active-tab="extensions"] .swivox-page-nav {
         box-sizing: border-box;
         width: 312px;
         flex-basis: 312px;
-        background: var(--chatgptx-nav-bg, var(--chatgptx-bg-secondary));
+        background: var(--swivox-nav-bg, var(--swivox-bg-secondary));
       }
-      .${chatgptxPageClass} .chatgptx-modal-content[data-chatgptx-active-tab="extensions"] .chatgptx-page-nav-item[data-active="true"] { background: var(--chatgptx-nav-selected-bg, var(--chatgptx-bg-selected)); }
-      .${chatgptxPageClass} .chatgptx-modal-content[data-chatgptx-active-tab="extensions"] .chatgptx-page-nav-header { padding: 16px; }
-      .${chatgptxPageClass} .chatgptx-modal-content[data-chatgptx-active-tab="extensions"] .chatgptx-page-nav-title { font-size: 18px; line-height: 24px; }
-      .${chatgptxPageClass} .chatgptx-modal-content[data-chatgptx-active-tab="extensions"] .chatgptx-page-nav-body { padding: 0 12px 20px; }
-      .chatgptx-extensions-nav-entry {
+      .${swivoxPageClass} .swivox-modal-content[data-swivox-active-tab="extensions"] .swivox-page-nav-item[data-active="true"] { background: var(--swivox-nav-selected-bg, var(--swivox-bg-selected)); }
+      .${swivoxPageClass} .swivox-modal-content[data-swivox-active-tab="extensions"] .swivox-page-nav-header { padding: 16px; }
+      .${swivoxPageClass} .swivox-modal-content[data-swivox-active-tab="extensions"] .swivox-page-nav-title { font-size: 18px; line-height: 24px; }
+      .${swivoxPageClass} .swivox-modal-content[data-swivox-active-tab="extensions"] .swivox-page-nav-body { padding: 0 12px 20px; }
+      .swivox-extensions-nav-entry {
         min-height: 36px;
         gap: 10px;
         box-sizing: border-box;
@@ -3503,8 +3503,8 @@
         font-weight: 400;
         line-height: 20px;
       }
-      .chatgptx-extensions-nav-entry .chatgptx-page-nav-item-icon,
-      .chatgptx-extensions-nav-entry .chatgptx-extensions-icon {
+      .swivox-extensions-nav-entry .swivox-page-nav-item-icon,
+      .swivox-extensions-nav-entry .swivox-extensions-icon {
         flex: 0 0 20px;
         display: inline-flex;
         align-items: center;
@@ -3514,46 +3514,46 @@
         padding: 0;
         background: transparent;
       }
-      .chatgptx-extensions-nav-entry .chatgptx-page-nav-item-icon svg,
-      .chatgptx-extensions-nav-entry .chatgptx-extensions-icon svg,
-      .chatgptx-extensions-nav-entry .chatgptx-extensions-icon-img { width: 20px; height: 20px; }
-      .chatgptx-extensions-nav-entry .chatgptx-extensions-icon-img { display: block; object-fit: contain; }
-      .chatgptx-extensions-nav-entry .chatgptx-extensions-item-name { font-weight: 400; }
-      .chatgptx-extensions-nav-entry + .chatgptx-page-nav-group { margin-top: 24px; }
-      .chatgptx-extensions-nav-entry:hover .chatgptx-extensions-item-name { text-decoration: none; }
-      .chatgptx-discovery {
+      .swivox-extensions-nav-entry .swivox-page-nav-item-icon svg,
+      .swivox-extensions-nav-entry .swivox-extensions-icon svg,
+      .swivox-extensions-nav-entry .swivox-extensions-icon-img { width: 20px; height: 20px; }
+      .swivox-extensions-nav-entry .swivox-extensions-icon-img { display: block; object-fit: contain; }
+      .swivox-extensions-nav-entry .swivox-extensions-item-name { font-weight: 400; }
+      .swivox-extensions-nav-entry + .swivox-page-nav-group { margin-top: 24px; }
+      .swivox-extensions-nav-entry:hover .swivox-extensions-item-name { text-decoration: none; }
+      .swivox-discovery {
         width: 100%;
         max-width: 900px;
         min-width: 0;
         margin: 0 auto;
         padding: 0;
-        container: chatgptx-discovery / inline-size;
+        container: swivox-discovery / inline-size;
       }
-      .chatgptx-discovery-header {
+      .swivox-discovery-header {
         display: flex;
         align-items: flex-start;
         justify-content: space-between;
         gap: 24px;
       }
-      .chatgptx-discovery-header > :first-child { flex: 1 1 auto; min-width: 0; }
-      .chatgptx-discovery-title {
+      .swivox-discovery-header > :first-child { flex: 1 1 auto; min-width: 0; }
+      .swivox-discovery-title {
         margin: 0;
-        color: var(--chatgptx-text);
+        color: var(--swivox-text);
         font-size: 26px;
         font-weight: 600;
         line-height: 34px;
         letter-spacing: -.02em;
         overflow-wrap: anywhere;
       }
-      .chatgptx-discovery-description {
+      .swivox-discovery-description {
         margin: 12px 0 0;
-        color: var(--chatgptx-text-secondary);
+        color: var(--swivox-text-secondary);
         font-size: 14px;
         line-height: 20px;
         overflow-wrap: anywhere;
       }
-      .chatgptx-discovery-toolbar { display: flex; flex: 0 1 auto; align-items: center; gap: 8px; min-width: 0; }
-      .chatgptx-discovery-search {
+      .swivox-discovery-toolbar { display: flex; flex: 0 1 auto; align-items: center; gap: 8px; min-width: 0; }
+      .swivox-discovery-search {
         display: flex;
         flex: 0 1 240px;
         align-items: center;
@@ -3562,31 +3562,31 @@
         max-width: 100%;
         min-width: 0;
         box-sizing: border-box;
-        border: 1px solid var(--chatgptx-border);
+        border: 1px solid var(--swivox-border);
         border-radius: 999px;
         padding: 8px 12px;
         background: transparent;
-        color: var(--chatgptx-text-secondary);
+        color: var(--swivox-text-secondary);
       }
-      .chatgptx-discovery-search > svg { flex: 0 0 16px; width: 16px; height: 16px; }
-      .chatgptx-discovery-search input {
+      .swivox-discovery-search > svg { flex: 0 0 16px; width: 16px; height: 16px; }
+      .swivox-discovery-search input {
         width: 100%;
         min-width: 0;
         border: 0;
         padding: 0;
         outline: none;
         background: transparent;
-        color: var(--chatgptx-text);
+        color: var(--swivox-text);
         font: inherit;
         font-size: 13px;
         line-height: 18px;
       }
-      .chatgptx-discovery-search input::placeholder { color: var(--chatgptx-text-tertiary); }
-      .chatgptx-discovery-search:focus-within {
-        outline: 2px solid var(--chatgptx-switch-on, #3485ff);
+      .swivox-discovery-search input::placeholder { color: var(--swivox-text-tertiary); }
+      .swivox-discovery-search:focus-within {
+        outline: 2px solid var(--swivox-switch-on, #3485ff);
         outline-offset: 2px;
       }
-      .chatgptx-discovery-icon-button {
+      .swivox-discovery-icon-button {
         display: inline-flex;
         flex: 0 0 32px;
         align-items: center;
@@ -3598,38 +3598,38 @@
         border-radius: 8px;
         padding: 0;
         background: transparent;
-        color: var(--chatgptx-text-secondary);
+        color: var(--swivox-text-secondary);
         cursor: pointer;
       }
-      .chatgptx-discovery-icon-button svg { width: 16px; height: 16px; }
-      .chatgptx-discovery-icon-button:hover { background: var(--chatgptx-bg-hover); color: var(--chatgptx-text); }
-      .chatgptx-discovery-icon-button:disabled { opacity: .55; cursor: not-allowed; }
-      .chatgptx-extensions-filter { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
-      .chatgptx-extensions-filter button {
+      .swivox-discovery-icon-button svg { width: 16px; height: 16px; }
+      .swivox-discovery-icon-button:hover { background: var(--swivox-bg-hover); color: var(--swivox-text); }
+      .swivox-discovery-icon-button:disabled { opacity: .55; cursor: not-allowed; }
+      .swivox-extensions-filter { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+      .swivox-extensions-filter button {
         border: 0;
         border-radius: 999px;
         padding: 8px 16px;
         background: transparent;
-        color: var(--chatgptx-text-secondary);
+        color: var(--swivox-text-secondary);
         font: inherit;
         font-size: 13px;
         line-height: 20px;
         cursor: pointer;
       }
-      .chatgptx-extensions-filter button[data-active="true"] { background: var(--chatgptx-bg-selected); color: var(--chatgptx-text); }
-      .chatgptx-extensions-filter button:hover { background: var(--chatgptx-bg-hover); }
-      .chatgptx-discovery-section-title {
+      .swivox-extensions-filter button[data-active="true"] { background: var(--swivox-bg-selected); color: var(--swivox-text); }
+      .swivox-extensions-filter button:hover { background: var(--swivox-bg-hover); }
+      .swivox-discovery-section-title {
         margin: 32px 0 16px;
-        color: var(--chatgptx-text);
+        color: var(--swivox-text);
         font-size: 16px;
         font-weight: 550;
         line-height: 24px;
       }
-      .chatgptx-extensions-grid,
-      .chatgptx-discovery .chatgptx-ad-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 32px; }
-      .chatgptx-extensions-grid > .chatgptx-extensions-detail-empty,
-      .chatgptx-discovery .chatgptx-ad-empty { grid-column: 1 / -1; }
-      .chatgptx-extension-card {
+      .swivox-extensions-grid,
+      .swivox-discovery .swivox-ad-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 32px; }
+      .swivox-extensions-grid > .swivox-extensions-detail-empty,
+      .swivox-discovery .swivox-ad-empty { grid-column: 1 / -1; }
+      .swivox-extension-card {
         display: flex;
         align-items: center;
         gap: 16px;
@@ -3640,7 +3640,7 @@
         padding: 8px 0;
         background: transparent;
       }
-      .chatgptx-extension-card-select {
+      .swivox-extension-card-select {
         display: flex;
         flex: 1 1 auto;
         align-items: center;
@@ -3650,12 +3650,12 @@
         border-radius: 8px;
         padding: 0;
         background: transparent;
-        color: var(--chatgptx-text);
+        color: var(--swivox-text);
         font: inherit;
         text-align: left;
         cursor: pointer;
       }
-      .chatgptx-extension-card-icon {
+      .swivox-extension-card-icon {
         display: inline-flex;
         flex: 0 0 36px;
         align-items: center;
@@ -3663,56 +3663,56 @@
         width: 36px;
         height: 36px;
         box-sizing: border-box;
-        border: 1px solid var(--chatgptx-border);
+        border: 1px solid var(--swivox-border);
         border-radius: 10px;
-        color: var(--chatgptx-text-secondary);
+        color: var(--swivox-text-secondary);
       }
-      .chatgptx-extension-card-icon svg { width: 24px; height: 24px; }
-      .chatgptx-extension-card-icon img { width: 32px; height: 32px; object-fit: contain; border-radius: 8px; }
-      .chatgptx-extension-card-copy { display: flex; flex: 1 1 auto; flex-direction: column; gap: 2px; min-width: 0; }
-      .chatgptx-extension-card-title {
+      .swivox-extension-card-icon svg { width: 24px; height: 24px; }
+      .swivox-extension-card-icon img { width: 32px; height: 32px; object-fit: contain; border-radius: 8px; }
+      .swivox-extension-card-copy { display: flex; flex: 1 1 auto; flex-direction: column; gap: 2px; min-width: 0; }
+      .swivox-extension-card-title {
         overflow: hidden;
-        color: var(--chatgptx-text);
+        color: var(--swivox-text);
         font-size: 14px;
         font-weight: 500;
         line-height: 20px;
         white-space: nowrap;
         text-overflow: ellipsis;
       }
-      .chatgptx-extension-card-description {
+      .swivox-extension-card-description {
         display: block;
         overflow: hidden;
-        color: var(--chatgptx-text-secondary);
+        color: var(--swivox-text-secondary);
         font-size: 13px;
         line-height: 18px;
         white-space: nowrap;
         text-overflow: ellipsis;
       }
-      .chatgptx-extension-card-actions { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px; }
-      .chatgptx-discovery .chatgptx-extensions-detail { max-width: 900px; margin: 0 auto; padding: 0 0 24px; }
-      .chatgptx-discovery .chatgptx-extensions-detail-head { align-items: center; border-bottom: 0; gap: 20px; padding-bottom: 20px; }
-      .chatgptx-discovery .chatgptx-extensions-detail-title { font-size: 26px; line-height: 34px; overflow-wrap: anywhere; }
-      .chatgptx-discovery .chatgptx-extensions-detail-icon img { width: 40px; height: 40px; object-fit: contain; border-radius: 8px; }
-      .chatgptx-discovery .chatgptx-extensions-detail-description { font-size: 14px; line-height: 20px; overflow-wrap: anywhere; }
-      .chatgptx-discovery .chatgptx-extensions-detail-actions { flex-wrap: wrap; }
-      .chatgptx-discovery .chatgptx-extensions-detail-button { min-height: 32px; box-sizing: border-box; }
-      .chatgptx-discovery .chatgptx-extensions-detail-primary {
-        border-color: var(--chatgptx-text);
-        background: var(--chatgptx-text);
-        color: var(--chatgptx-settings-page-bg, var(--chatgptx-bg-primary));
+      .swivox-extension-card-actions { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px; }
+      .swivox-discovery .swivox-extensions-detail { max-width: 900px; margin: 0 auto; padding: 0 0 24px; }
+      .swivox-discovery .swivox-extensions-detail-head { align-items: center; border-bottom: 0; gap: 20px; padding-bottom: 20px; }
+      .swivox-discovery .swivox-extensions-detail-title { font-size: 26px; line-height: 34px; overflow-wrap: anywhere; }
+      .swivox-discovery .swivox-extensions-detail-icon img { width: 40px; height: 40px; object-fit: contain; border-radius: 8px; }
+      .swivox-discovery .swivox-extensions-detail-description { font-size: 14px; line-height: 20px; overflow-wrap: anywhere; }
+      .swivox-discovery .swivox-extensions-detail-actions { flex-wrap: wrap; }
+      .swivox-discovery .swivox-extensions-detail-button { min-height: 32px; box-sizing: border-box; }
+      .swivox-discovery .swivox-extensions-detail-primary {
+        border-color: var(--swivox-text);
+        background: var(--swivox-text);
+        color: var(--swivox-settings-page-bg, var(--swivox-bg-primary));
       }
-      .chatgptx-discovery .chatgptx-extensions-detail-primary:hover {
-        background: color-mix(in srgb, var(--chatgptx-text) 90%, transparent);
-        color: var(--chatgptx-settings-page-bg, var(--chatgptx-bg-primary));
+      .swivox-discovery .swivox-extensions-detail-primary:hover {
+        background: color-mix(in srgb, var(--swivox-text) 90%, transparent);
+        color: var(--swivox-settings-page-bg, var(--swivox-bg-primary));
       }
-      .chatgptx-discovery .chatgptx-extensions-detail-link a { color: var(--color-text-link, var(--color-token-text-link, var(--chatgptx-switch-on, #3485ff))); }
-      .chatgptx-discovery .chatgptx-toggle { flex: 0 0 32px; width: 32px; height: 20px; min-height: 20px; box-sizing: border-box; padding: 2px; background: var(--chatgptx-switch-off, #3a3a3a); cursor: pointer; }
-      .chatgptx-discovery .chatgptx-toggle span { width: 16px; height: 16px; background: var(--chatgptx-switch-thumb, #fff); }
-      .chatgptx-discovery .chatgptx-toggle[data-enabled="true"] { background: var(--chatgptx-switch-on, #3485ff); }
-      .chatgptx-discovery .chatgptx-toggle[data-enabled="true"] span { transform: translateX(12px); }
-      .chatgptx-discovery .chatgptx-toggle[data-pending="true"],
-      .chatgptx-discovery .chatgptx-toggle:disabled { cursor: not-allowed; opacity: .55; }
-      .chatgptx-extensions-back {
+      .swivox-discovery .swivox-extensions-detail-link a { color: var(--color-text-link, var(--color-token-text-link, var(--swivox-switch-on, #3485ff))); }
+      .swivox-discovery .swivox-toggle { flex: 0 0 32px; width: 32px; height: 20px; min-height: 20px; box-sizing: border-box; padding: 2px; background: var(--swivox-switch-off, #3a3a3a); cursor: pointer; }
+      .swivox-discovery .swivox-toggle span { width: 16px; height: 16px; background: var(--swivox-switch-thumb, #fff); }
+      .swivox-discovery .swivox-toggle[data-enabled="true"] { background: var(--swivox-switch-on, #3485ff); }
+      .swivox-discovery .swivox-toggle[data-enabled="true"] span { transform: translateX(12px); }
+      .swivox-discovery .swivox-toggle[data-pending="true"],
+      .swivox-discovery .swivox-toggle:disabled { cursor: not-allowed; opacity: .55; }
+      .swivox-extensions-back {
         display: inline-flex;
         align-items: center;
         gap: 6px;
@@ -3721,18 +3721,18 @@
         border-radius: 8px;
         padding: 4px 0;
         background: transparent;
-        color: var(--chatgptx-text-secondary);
+        color: var(--swivox-text-secondary);
         font: inherit;
         font-size: 13px;
         line-height: 20px;
         cursor: pointer;
       }
-      .chatgptx-extensions-back svg { width: 16px; height: 16px; }
-      .chatgptx-extensions-back:hover { color: var(--chatgptx-text); }
-      .chatgptx-discovery button:focus-visible,
-      .chatgptx-discovery a:focus-visible,
-      .chatgptx-extensions-nav-entry:focus-visible { outline: 2px solid var(--chatgptx-switch-on, #3485ff); outline-offset: 3px; }
-      .chatgptx-discovery .chatgptx-ad-card {
+      .swivox-extensions-back svg { width: 16px; height: 16px; }
+      .swivox-extensions-back:hover { color: var(--swivox-text); }
+      .swivox-discovery button:focus-visible,
+      .swivox-discovery a:focus-visible,
+      .swivox-extensions-nav-entry:focus-visible { outline: 2px solid var(--swivox-switch-on, #3485ff); outline-offset: 3px; }
+      .swivox-discovery .swivox-ad-card {
         flex-direction: row;
         align-items: center;
         gap: 16px;
@@ -3744,58 +3744,58 @@
         padding: 8px 0;
         background: transparent;
       }
-      .chatgptx-discovery .chatgptx-ad-card:hover,
-      .chatgptx-discovery .chatgptx-ad-card:focus-visible { background: transparent; }
-      .chatgptx-discovery .chatgptx-ad-main { flex: 1 1 auto; align-items: center; gap: 12px; }
-      .chatgptx-discovery .chatgptx-ad-icon { flex: 0 0 36px; border: 1px solid var(--chatgptx-border); border-radius: 10px; background: transparent; box-sizing: border-box; }
-      .chatgptx-discovery .chatgptx-ad-text { gap: 4px; }
-      .chatgptx-discovery .chatgptx-ad-title { font-size: 14px; font-weight: 500; line-height: 20px; }
-      .chatgptx-discovery .chatgptx-ad-description { font-size: 13px; line-height: 18px; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
-      .chatgptx-discovery .chatgptx-ad-promo { border-radius: 0; padding: 0; background: transparent; color: var(--chatgptx-text-secondary); font-size: 12px; line-height: 16px; white-space: normal; overflow-wrap: anywhere; }
-      .chatgptx-discovery .chatgptx-ad-arrow { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; margin: 0; color: var(--chatgptx-text-secondary); }
-      .chatgptx-discovery .chatgptx-ad-arrow svg { width: 16px; height: 16px; }
-      @container chatgptx-discovery-page (max-width: 900px) {
-        .chatgptx-discovery-header { flex-wrap: wrap; gap: 20px; }
-        .chatgptx-discovery-toolbar { flex-basis: 100%; }
-        .chatgptx-discovery .chatgptx-extensions-detail-head { flex-wrap: wrap; }
-        .chatgptx-discovery .chatgptx-extensions-detail-actions { flex-basis: 100%; }
+      .swivox-discovery .swivox-ad-card:hover,
+      .swivox-discovery .swivox-ad-card:focus-visible { background: transparent; }
+      .swivox-discovery .swivox-ad-main { flex: 1 1 auto; align-items: center; gap: 12px; }
+      .swivox-discovery .swivox-ad-icon { flex: 0 0 36px; border: 1px solid var(--swivox-border); border-radius: 10px; background: transparent; box-sizing: border-box; }
+      .swivox-discovery .swivox-ad-text { gap: 4px; }
+      .swivox-discovery .swivox-ad-title { font-size: 14px; font-weight: 500; line-height: 20px; }
+      .swivox-discovery .swivox-ad-description { font-size: 13px; line-height: 18px; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
+      .swivox-discovery .swivox-ad-promo { border-radius: 0; padding: 0; background: transparent; color: var(--swivox-text-secondary); font-size: 12px; line-height: 16px; white-space: normal; overflow-wrap: anywhere; }
+      .swivox-discovery .swivox-ad-arrow { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; margin: 0; color: var(--swivox-text-secondary); }
+      .swivox-discovery .swivox-ad-arrow svg { width: 16px; height: 16px; }
+      @container swivox-discovery-page (max-width: 900px) {
+        .swivox-discovery-header { flex-wrap: wrap; gap: 20px; }
+        .swivox-discovery-toolbar { flex-basis: 100%; }
+        .swivox-discovery .swivox-extensions-detail-head { flex-wrap: wrap; }
+        .swivox-discovery .swivox-extensions-detail-actions { flex-basis: 100%; }
       }
-      @container chatgptx-discovery (max-width: 600px) {
-        .chatgptx-extensions-grid,
-        .chatgptx-discovery .chatgptx-ad-list { grid-template-columns: minmax(0, 1fr); }
+      @container swivox-discovery (max-width: 600px) {
+        .swivox-extensions-grid,
+        .swivox-discovery .swivox-ad-list { grid-template-columns: minmax(0, 1fr); }
       }
-      @container chatgptx-discovery-page (max-width: 700px) {
-        .${chatgptxPageClass} .chatgptx-modal-content[data-chatgptx-active-tab="extensions"] .chatgptx-page-nav { width: 180px; flex-basis: 180px; }
-        .${chatgptxPageClass} .chatgptx-modal-content:is([data-chatgptx-active-tab="extensions"], [data-chatgptx-active-tab="sponsor"]) .chatgptx-modal-body { padding: 24px 20px 40px; }
+      @container swivox-discovery-page (max-width: 700px) {
+        .${swivoxPageClass} .swivox-modal-content[data-swivox-active-tab="extensions"] .swivox-page-nav { width: 180px; flex-basis: 180px; }
+        .${swivoxPageClass} .swivox-modal-content:is([data-swivox-active-tab="extensions"], [data-swivox-active-tab="sponsor"]) .swivox-modal-body { padding: 24px 20px 40px; }
       }
-      @container chatgptx-discovery-page (max-width: 480px) {
-        .${chatgptxPageClass} .chatgptx-modal-content[data-chatgptx-active-tab="extensions"] .chatgptx-page-nav { width: 56px; flex-basis: 56px; }
-        .${chatgptxPageClass} .chatgptx-modal-content[data-chatgptx-active-tab="extensions"] .chatgptx-page-nav-header { display: none; }
-        .${chatgptxPageClass} .chatgptx-modal-content[data-chatgptx-active-tab="extensions"] .chatgptx-page-nav-body { padding: 12px 8px; }
-        .chatgptx-extensions-nav-entry { justify-content: center; padding: 8px; }
-        .chatgptx-extensions-nav-entry .chatgptx-page-nav-item-text,
-        .chatgptx-extensions-nav-entry .chatgptx-page-nav-item-name,
-        .chatgptx-extensions-nav-entry .chatgptx-extensions-item-name,
-        .chatgptx-extensions-nav-entry .chatgptx-page-nav-item-state,
-        .chatgptx-extensions-nav-entry .chatgptx-extensions-item-state { display: none; }
-        .${chatgptxPageClass} .chatgptx-modal-content[data-chatgptx-active-tab="extensions"] .chatgptx-page-nav-group-head,
-        .${chatgptxPageClass} .chatgptx-modal-content[data-chatgptx-active-tab="extensions"] .chatgptx-page-nav-empty { display: none; }
-        .${chatgptxPageClass} .chatgptx-modal-content:is([data-chatgptx-active-tab="extensions"], [data-chatgptx-active-tab="sponsor"]) .chatgptx-modal-body { padding: 24px 16px 40px; }
+      @container swivox-discovery-page (max-width: 480px) {
+        .${swivoxPageClass} .swivox-modal-content[data-swivox-active-tab="extensions"] .swivox-page-nav { width: 56px; flex-basis: 56px; }
+        .${swivoxPageClass} .swivox-modal-content[data-swivox-active-tab="extensions"] .swivox-page-nav-header { display: none; }
+        .${swivoxPageClass} .swivox-modal-content[data-swivox-active-tab="extensions"] .swivox-page-nav-body { padding: 12px 8px; }
+        .swivox-extensions-nav-entry { justify-content: center; padding: 8px; }
+        .swivox-extensions-nav-entry .swivox-page-nav-item-text,
+        .swivox-extensions-nav-entry .swivox-page-nav-item-name,
+        .swivox-extensions-nav-entry .swivox-extensions-item-name,
+        .swivox-extensions-nav-entry .swivox-page-nav-item-state,
+        .swivox-extensions-nav-entry .swivox-extensions-item-state { display: none; }
+        .${swivoxPageClass} .swivox-modal-content[data-swivox-active-tab="extensions"] .swivox-page-nav-group-head,
+        .${swivoxPageClass} .swivox-modal-content[data-swivox-active-tab="extensions"] .swivox-page-nav-empty { display: none; }
+        .${swivoxPageClass} .swivox-modal-content:is([data-swivox-active-tab="extensions"], [data-swivox-active-tab="sponsor"]) .swivox-modal-body { padding: 24px 16px 40px; }
       }
     `;
     document.documentElement.appendChild(style);
   }
 
-  function defaultChatGPTXSettings() {
+  function defaultSwivoxSettings() {
     // capacityAutoRetry* 必须写成字面量：多个测试（typing-effects-settings、whale-widget、
-    // session-share-runtime…）把 defaultChatGPTXSettings 切片到不带 prelude 的沙箱里执行，
+    // session-share-runtime…）把 defaultSwivoxSettings 切片到不带 prelude 的沙箱里执行，
     // 引用 prelude 常量会直接 ReferenceError。与 00-prelude.js 里
     // capacityAutoRetryDefaultMaxAttempts / capacityAutoRetryDefaultIntervalSeconds 的一致性
     // 由 capacity-auto-retry.test.ts 的防漂移用例守住。
     return { pluginMarketplaceUnlock: true, modelWhitelistUnlock: true, sessionDelete: true, markdownExport: true, sessionShare: true, pasteFix: false, typingEffect: "off", threadIdBadge: false, conversationView: false, whaleWidget: false, conversationViewMaxWidth: conversationViewDefaultWidth, threadScrollRestore: true, nativeMenuPlacement: true, serviceTierControls: false, petRealMouseLook: false, activityOverlayRight: false, stepwise: false, answerOutline: false, usageStatusLine: true, capacityAutoRetry: false, capacityAutoRetryMaxAttempts: 15, capacityAutoRetryIntervalSeconds: 0 };
   }
 
-  const chatgptxBackendSettingMap = {
+  const swivoxBackendSettingMap = {
     pluginMarketplaceUnlock: "codexAppPluginMarketplaceUnlock",
     modelWhitelistUnlock: "codexAppModelWhitelistUnlock",
     sessionDelete: "codexAppSessionDelete",
@@ -3816,12 +3816,12 @@
     pasteFix: "codexAppPasteFix",
     typingEffect: "codexAppTypingEffect",
   };
-  const chatgptxBackendMappedSettings = new Set(Object.keys(chatgptxBackendSettingMap));
+  const swivoxBackendMappedSettings = new Set(Object.keys(swivoxBackendSettingMap));
 
-  function backendChatGPTXSettings() {
+  function backendSwivoxSettings() {
     const settings = {};
-    Object.entries(chatgptxBackendSettingMap).forEach(([localKey, backendKey]) => {
-      const value = chatgptxBackendSettings[backendKey];
+    Object.entries(swivoxBackendSettingMap).forEach(([localKey, backendKey]) => {
+      const value = swivoxBackendSettings[backendKey];
       if (typeof value === "boolean" || typeof value === "string" || (value && typeof value === "object" && !Array.isArray(value))) {
         settings[localKey] = value;
       }
@@ -3829,8 +3829,8 @@
     return settings;
   }
 
-  function chatgptxSettings() {
-    if (chatgptxBackendSettings.enhancementsEnabled === false) {
+  function swivoxSettings() {
+    if (swivoxBackendSettings.enhancementsEnabled === false) {
       return {
         pluginMarketplaceUnlock: false,
         modelWhitelistUnlock: false,
@@ -3857,18 +3857,18 @@
       };
     }
     try {
-      const settings = { ...defaultChatGPTXSettings(), ...JSON.parse(localStorage.getItem(chatgptxSettingsKey) || "{}"), ...backendChatGPTXSettings() };
+      const settings = { ...defaultSwivoxSettings(), ...JSON.parse(localStorage.getItem(swivoxSettingsKey) || "{}"), ...backendSwivoxSettings() };
       delete settings.customLayout;
       return settings;
     } catch {
-      const settings = { ...defaultChatGPTXSettings(), ...backendChatGPTXSettings() };
+      const settings = { ...defaultSwivoxSettings(), ...backendSwivoxSettings() };
       return settings;
     }
   }
 
 
-  function setChatGPTXSetting(key, value) {
-    const backendKey = chatgptxBackendSettingMap[key];
+  function setSwivoxSetting(key, value) {
+    const backendKey = swivoxBackendSettingMap[key];
     if (backendKey) {
       if (key === "stepwise") syncStepwisePanel(value);
       if (key === "answerOutline") syncStepwisePanel(undefined, value);
@@ -3877,7 +3877,7 @@
           Promise.resolve(window.__codexStepwisePanel?.loadSettings?.()).then(() => syncStepwisePanel());
         }
         // 容量错误自动重试：开关落库后立即启停轮询，不必等下一次心跳。
-        if (key === "capacityAutoRetry") syncChatGPTXCapacityAutoRetry();
+        if (key === "capacityAutoRetry") syncSwivoxCapacityAutoRetry();
       }).catch(() => {
         void loadBackendSettings();
       });
@@ -3885,12 +3885,12 @@
     }
     let stored = {};
     try {
-      stored = JSON.parse(localStorage.getItem(chatgptxSettingsKey) || "{}");
+      stored = JSON.parse(localStorage.getItem(swivoxSettingsKey) || "{}");
     } catch {
       stored = {};
     }
     const next = { ...stored, [key]: value };
-    localStorage.setItem(chatgptxSettingsKey, JSON.stringify(next));
+    localStorage.setItem(swivoxSettingsKey, JSON.stringify(next));
     if (key === "threadScrollRestore" && !value) {
       clearTimeout(window.__codexThreadScrollSaveTimer);
       window.__codexThreadScrollSaveTimer = null;
@@ -3911,13 +3911,13 @@
       }
     }
     if (key === "stepwise") syncStepwisePanel(value);
-    renderChatGPTXMenu();
+    renderSwivoxMenu();
     scan();
   }
 
   function syncStepwisePanel(
-    enabled = chatgptxSettings().stepwise,
-    answerOutlineEnabled = chatgptxSettings().answerOutline
+    enabled = swivoxSettings().stepwise,
+    answerOutlineEnabled = swivoxSettings().answerOutline
   ) {
     try {
       window.__codexStepwisePanel?.syncSettings?.({
@@ -3925,7 +3925,7 @@
         answerOutlineEnabled: !!answerOutlineEnabled,
       });
     } catch (error) {
-      sendChatGPTXDiagnostic("stepwise_sync_failed", {
+      sendSwivoxDiagnostic("stepwise_sync_failed", {
         errorName: error?.name || "",
         errorMessage: error?.message || String(error),
       });
@@ -3940,16 +3940,16 @@
   }
 
   function conversationViewWidth() {
-    const settingsWidth = normalizeConversationViewWidth(chatgptxSettings().conversationViewMaxWidth);
+    const settingsWidth = normalizeConversationViewWidth(swivoxSettings().conversationViewMaxWidth);
     if (settingsWidth) return settingsWidth;
     const legacyWidth = normalizeConversationViewWidth(localStorage.getItem(conversationViewLegacyWidthKey));
     return legacyWidth || conversationViewDefaultWidth;
   }
 
   function refreshConversationViewControls() {
-    const enabled = !!chatgptxSettings().conversationView;
+    const enabled = !!swivoxSettings().conversationView;
     const width = conversationViewWidth();
-    document.querySelectorAll("[data-chatgptx-conversation-view-width]").forEach((input) => {
+    document.querySelectorAll("[data-swivox-conversation-view-width]").forEach((input) => {
       input.value = String(width);
       input.disabled = !enabled;
     });
@@ -3958,13 +3958,13 @@
   function setConversationViewWidth(value) {
     const width = normalizeConversationViewWidth(value);
     if (!width) return;
-    setChatGPTXSetting("conversationViewMaxWidth", width);
+    setSwivoxSetting("conversationViewMaxWidth", width);
   }
-  function renderChatGPTXMenu() {
-    const settings = chatgptxSettings();
-    document.querySelectorAll(".chatgptx-toggle[data-chatgptx-setting]").forEach((button) => {
-      const key = button.getAttribute("data-chatgptx-setting");
-      const waitsForBackend = chatgptxBackendMappedSettings.has(key) && !chatgptxBackendSettingsLoaded;
+  function renderSwivoxMenu() {
+    const settings = swivoxSettings();
+    document.querySelectorAll(".swivox-toggle[data-swivox-setting]").forEach((button) => {
+      const key = button.getAttribute("data-swivox-setting");
+      const waitsForBackend = swivoxBackendMappedSettings.has(key) && !swivoxBackendSettingsLoaded;
       button.dataset.enabled = String(!!settings[key]);
       button.setAttribute("aria-checked", button.dataset.enabled);
       button.dataset.pending = String(waitsForBackend);
@@ -3972,15 +3972,15 @@
     });
     refreshConversationViewControls();
     refreshCodexServiceTierControls();
-    document.querySelectorAll("[data-chatgptx-typing-effect]").forEach((select) => {
+    document.querySelectorAll("[data-swivox-typing-effect]").forEach((select) => {
       select.value = ["rainbow", "fireworks", "stars"].includes(settings.typingEffect) ? settings.typingEffect : "off";
-      select.disabled = !chatgptxBackendSettingsLoaded || chatgptxBackendSettings.enhancementsEnabled === false;
-      if (typeof syncChatGPTXTypingEffectDropdown === "function") syncChatGPTXTypingEffectDropdown(select);
+      select.disabled = !swivoxBackendSettingsLoaded || swivoxBackendSettings.enhancementsEnabled === false;
+      if (typeof syncSwivoxTypingEffectDropdown === "function") syncSwivoxTypingEffectDropdown(select);
     });
   }
 
-  let chatgptxBackendSettings = { providerSyncEnabled: false, enhancementsEnabled: true, codexAppVersion: "" };
-  let chatgptxBackendSettingsSeq = 0;
+  let swivoxBackendSettings = { providerSyncEnabled: false, enhancementsEnabled: true, codexAppVersion: "" };
+  let swivoxBackendSettingsSeq = 0;
   const codexPluginLegacyEntryUnlockBeforeVersion = "26.601.2237";
   const codexPluginBridgeRequestUnlockFromVersion = "26.616.0";
   const codexPluginBroadCatalogKindsFromVersion = "26.803.0";
@@ -4009,18 +4009,18 @@
   }
 
   function codexPluginUnlockStrategy() {
-    const version = String(chatgptxBackendSettings.codexAppVersion || "").trim();
+    const version = String(swivoxBackendSettings.codexAppVersion || "").trim();
     const comparison = compareCodexVersions(version, codexPluginLegacyEntryUnlockBeforeVersion);
     if (comparison == null) return "unknown";
     return comparison < 0 ? "legacy" : "modern";
   }
 
   function logCodexPluginUnlockStrategy(strategy) {
-    const codexAppVersion = String(chatgptxBackendSettings.codexAppVersion || "").trim();
+    const codexAppVersion = String(swivoxBackendSettings.codexAppVersion || "").trim();
     const signature = `${strategy}:${codexAppVersion || "unknown"}`;
     if (window.__codexPluginUnlockStrategyLogged === signature) return;
     window.__codexPluginUnlockStrategyLogged = signature;
-    sendChatGPTXDiagnostic("plugin_unlock_strategy_selected", {
+    sendSwivoxDiagnostic("plugin_unlock_strategy_selected", {
       strategy,
       codexAppVersion,
       cutoff: codexPluginLegacyEntryUnlockBeforeVersion,
@@ -4030,19 +4030,19 @@
   function codexPluginMarketplaceRequestPatchStrategy() {
     const pluginStrategy = codexPluginUnlockStrategy();
     if (pluginStrategy === "legacy") return "none";
-    const version = String(chatgptxBackendSettings.codexAppVersion || "").trim();
+    const version = String(swivoxBackendSettings.codexAppVersion || "").trim();
     const comparison = compareCodexVersions(version, codexPluginBridgeRequestUnlockFromVersion);
     if (comparison == null) return "unknown";
     return comparison >= 0 ? "bridge" : "client";
   }
 
   function codexPluginUsesBroadCatalogKinds() {
-    const version = String(chatgptxBackendSettings.codexAppVersion || "").trim();
+    const version = String(swivoxBackendSettings.codexAppVersion || "").trim();
     const comparison = compareCodexVersions(version, codexPluginBroadCatalogKindsFromVersion);
     return comparison != null && comparison >= 0;
   }
 
-  let chatgptxBackendSettingsLoaded = false;
+  let swivoxBackendSettingsLoaded = false;
   let codexServiceTierState = {
     status: "loading",
     serviceTier: null,
@@ -4066,10 +4066,10 @@
   // namePart -> { at, attempts, error }，见 loadCodexAppModule 里的说明。
   // 挂在 window 上跨重注入保留：否则每次重注入都会清空失败记录，重新全量 fetch asset
   // （issue #2330 / #2169：桥接看门狗重注入后 asset rescan 被重新跑满）。
-  const codexAppModuleFailures = window.__chatgptxAppModuleFailures || (window.__chatgptxAppModuleFailures = new Map());
+  const codexAppModuleFailures = window.__swivoxAppModuleFailures || (window.__swivoxAppModuleFailures = new Map());
   // namePart -> { at, url }：codexAppAssetUrlFromScriptText 的查找结果，未命中也缓存，
   // 同样跨重注入保留（有调用方会绕过 asset loader 直接调它）。
-  const codexAppAssetUrlLookups = window.__chatgptxAssetUrlLookups || (window.__chatgptxAssetUrlLookups = new Map());
+  const codexAppAssetUrlLookups = window.__swivoxAssetUrlLookups || (window.__swivoxAssetUrlLookups = new Map());
   const codexAppModuleRetryCooldownMs = 30000;
   const codexAppModuleMaxAttempts = 8;
   const codexServiceTierSupportedFastModels = new Set(["gpt-5.4", "gpt-5.5"]);
@@ -4150,13 +4150,13 @@
   // （issue #1316 的「未找到 Codex App asset: vscode-api-」就是这么冒到用户面前的）。
   function codexAppAssetMissingError(namePart) {
     const error = new Error(`未找到 Codex App asset: ${namePart}`);
-    error.code = "CHATGPTX_ASSET_MISSING";
+    error.code = "SWIVOX_ASSET_MISSING";
     error.assetNamePart = namePart;
     return error;
   }
 
   function isCodexAppAssetMissingError(error) {
-    return !!error && (error.code === "CHATGPTX_ASSET_MISSING" || error.name === "ChatGPTXAssetMissingError");
+    return !!error && (error.code === "SWIVOX_ASSET_MISSING" || error.name === "SwivoxAssetMissingError");
   }
 
   async function loadCodexAppModule(namePart) {
@@ -4398,8 +4398,8 @@
 
   // threadId -> 模型名。挂在 window 上跨重注入保留（重注入不该丢掉已知的线程模型）。
   // 只在请求路径观测到模型时写入，用于让界面判定跟上线程当前模型（issue #1463）。
-  const codexServiceTierThreadModels = window.__chatgptxServiceTierThreadModels
-    || (window.__chatgptxServiceTierThreadModels = new Map());
+  const codexServiceTierThreadModels = window.__swivoxServiceTierThreadModels
+    || (window.__swivoxServiceTierThreadModels = new Map());
 
   // 线程中途换模型后，全局 catalog 的 model 字段往往还没更新，直接拿它判 Fast 可用性
   // 会落后一拍。因此界面优先读「当前线程最近一次实际请求用的模型」，读不到才回落全局。
@@ -4439,7 +4439,7 @@
     // 不按名字猜：模型叫 deepseek 不代表它的中转站支持 priority tier。
     // 只认上游模型元数据里明确声明的 priority。
     try {
-      const metadata = typeof chatgptxModelMetadata === "function" ? chatgptxModelMetadata(modelName) : null;
+      const metadata = typeof swivoxModelMetadata === "function" ? swivoxModelMetadata(modelName) : null;
       if (typeof metadata?.prioritySupportOverride === "boolean") return metadata.prioritySupportOverride;
       const tierIs = (tier, expected) => String(typeof tier === "string" ? tier : tier?.id || "").trim().toLowerCase() === expected;
       if (Array.isArray(metadata?.serviceTiers) && metadata.serviceTiers.some((tier) => tierIs(tier, "priority"))) return true;
@@ -4671,7 +4671,7 @@
   }
 
   function setCodexServiceTierControlMode(mode) {
-    if (chatgptxBackendStatus.status !== "ok") {
+    if (swivoxBackendStatus.status !== "ok") {
       showToast("后端未连接，无法切换服务模式", null);
       refreshCodexServiceTierControls();
       return;
@@ -4707,7 +4707,7 @@
   }
 
   function syncCodexServiceTierEffectiveState() {
-    if (!chatgptxSettings().serviceTierControls) {
+    if (!swivoxSettings().serviceTierControls) {
       codexServiceTierState = {
         ...codexServiceTierState,
         activeThreadId: "",
@@ -4752,8 +4752,8 @@
   }
 
   function codexServiceTierBadgeState() {
-    if (chatgptxBackendStatus.status === "checking") return { tier: "loading", label: "...", disabled: true, title: "服务模式：正在检查后端连接" };
-    if (chatgptxBackendStatus.status && chatgptxBackendStatus.status !== "ok") return { tier: "failed", label: "未连接", disabled: true, title: "服务模式：后端未连接，无法切换" };
+    if (swivoxBackendStatus.status === "checking") return { tier: "loading", label: "...", disabled: true, title: "服务模式：正在检查后端连接" };
+    if (swivoxBackendStatus.status && swivoxBackendStatus.status !== "ok") return { tier: "failed", label: "未连接", disabled: true, title: "服务模式：后端未连接，无法切换" };
     if (codexServiceTierState.status === "loading") return { tier: "loading", label: "...", title: "服务模式：正在读取" };
     if (codexServiceTierState.status === "failed") return { tier: "failed", label: "?", title: "服务模式：读取失败" };
     const fastAvailability = codexServiceTierFastAvailability();
@@ -4788,9 +4788,9 @@
 
   function refreshCodexServiceTierControls() {
     syncCodexServiceTierEffectiveState();
-    const featureEnabled = !!chatgptxSettings().serviceTierControls;
-    const backendConnected = chatgptxBackendStatus.status === "ok";
-    const backendChecking = chatgptxBackendStatus.status === "checking";
+    const featureEnabled = !!swivoxSettings().serviceTierControls;
+    const backendConnected = swivoxBackendStatus.status === "ok";
+    const backendChecking = swivoxBackendStatus.status === "checking";
     if (featureEnabled && backendConnected) codexServiceTierMaybeLoadModelCatalog();
     const fastAvailability = codexServiceTierFastAvailability();
     const fastDisabled = !featureEnabled || !backendConnected || codexServiceTierState.status === "loading" || !fastAvailability.supported;
@@ -4874,7 +4874,7 @@
   }
 
   async function loadCodexServiceTierState() {
-    if (!chatgptxSettings().serviceTierControls) {
+    if (!swivoxSettings().serviceTierControls) {
       codexServiceTierState = { ...codexServiceTierState, status: "idle", message: "未启用" };
       refreshCodexServiceTierControls();
       return;
@@ -4897,7 +4897,7 @@
         status: "failed",
         message: "读取失败",
       };
-      sendChatGPTXDiagnostic("service_tier_read_failed", {
+      sendSwivoxDiagnostic("service_tier_read_failed", {
         errorName: error?.name || "",
         errorMessage: error?.message || String(error),
       });
@@ -4907,7 +4907,7 @@
   }
 
   function setCodexThreadServiceTierMode(mode) {
-    if (chatgptxBackendStatus.status !== "ok") {
+    if (swivoxBackendStatus.status !== "ok") {
       showToast("后端未连接，无法切换服务模式", null);
       refreshCodexServiceTierControls();
       return;
@@ -4930,7 +4930,7 @@
   }
 
   function toggleCodexServiceTierFromBadge() {
-    if (chatgptxBackendStatus.status !== "ok") {
+    if (swivoxBackendStatus.status !== "ok") {
       showToast("后端未连接，无法切换服务模式", null);
       refreshCodexServiceTierControls();
       return;
@@ -4978,7 +4978,7 @@
   }
 
   function codexServiceTierOverrideForRequest(method, params, threadIdHint = "") {
-    if (!chatgptxSettings().serviceTierControls) return null;
+    if (!swivoxSettings().serviceTierControls) return null;
     if (!codexServiceTierRequestMethods().has(method) || !params || typeof params !== "object") return null;
     const state = readThreadServiceTierState();
     const controlMode = normalizeCodexServiceTierControlMode(state.mode);
@@ -5019,7 +5019,7 @@
     if (Object.prototype.hasOwnProperty.call(nextParams, "service_tier") || override.fastBlocked) {
       nextParams.service_tier = override.serviceTier;
     }
-    sendChatGPTXDiagnostic("service_tier_request_override_applied", {
+    sendSwivoxDiagnostic("service_tier_request_override_applied", {
       method,
       threadId: override.threadId || "",
       mode: override.mode,
@@ -5037,11 +5037,11 @@
   }
 
   function codexRemoteSessionActiveProfile() {
-    if (!chatgptxBackendSettings.relayProfilesEnabled) return null;
-    const profiles = Array.isArray(chatgptxBackendSettings.relayProfiles)
-      ? chatgptxBackendSettings.relayProfiles
+    if (!swivoxBackendSettings.relayProfilesEnabled) return null;
+    const profiles = Array.isArray(swivoxBackendSettings.relayProfiles)
+      ? swivoxBackendSettings.relayProfiles
       : [];
-    const activeId = String(chatgptxBackendSettings.activeRelayId || "");
+    const activeId = String(swivoxBackendSettings.activeRelayId || "");
     return profiles.find((item) => String(item?.id || "") === activeId) || null;
   }
 
@@ -5058,7 +5058,7 @@
     const profile = codexRemoteSessionActiveProfile();
     if (String(profile?.relayMode || "") !== "official") return false;
     const sessionProvider = String(
-      chatgptxBackendSettings.activeRelaySessionProvider || "custom"
+      swivoxBackendSettings.activeRelaySessionProvider || "custom"
     ).trim().toLowerCase();
     return sessionProvider !== "openai";
   }
@@ -5093,7 +5093,7 @@
     // pureApi 且 profile 自己没声明供应方时回到 "custom"，不去读可能陈旧的全局缓存。
     if (relayMode === "pureApi") return "custom";
     return String(
-      chatgptxBackendSettings.activeRelayCodexProvider
+      swivoxBackendSettings.activeRelayCodexProvider
       || codexModelCatalog?.codex_model_provider
       || codexModelCatalog?.codexModelProvider
       || codexModelCatalog?.model_provider
@@ -5139,7 +5139,7 @@
     }
     const nextParams = { ...params, modelProvider: targetProvider };
     delete nextParams.model_provider;
-    sendChatGPTXDiagnostic("remote_session_provider_override_applied", {
+    sendSwivoxDiagnostic("remote_session_provider_override_applied", {
       method: requestMethod,
       from: requestedProvider || "(missing)",
       to: targetProvider,
@@ -5198,7 +5198,7 @@
 
   function requestCodexRemoteSessionRecovery(threadId, attempt) {
     const payload = { thread_id: threadId };
-    const testHook = window.__CHATGPTX_TEST_REMOTE_RECOVERY__;
+    const testHook = window.__SWIVOX_TEST_REMOTE_RECOVERY__;
     const request = typeof testHook === "function"
       ? Promise.resolve(testHook(payload, attempt))
       : postJson("/remote-control-session/recover", payload);
@@ -5206,7 +5206,7 @@
       if (attempt === 0
         || result?.message === "Remote Control session recovery complete"
         || result?.message === "Remote Control session catalog recovery complete") {
-        sendChatGPTXDiagnostic("remote_session_recovery_requested", {
+        sendSwivoxDiagnostic("remote_session_recovery_requested", {
           threadId,
           attempt,
           status: result?.status || "",
@@ -5218,7 +5218,7 @@
       return result;
     }).catch((error) => {
       if (attempt === 0) {
-        sendChatGPTXDiagnostic("remote_session_recovery_failed", {
+        sendSwivoxDiagnostic("remote_session_recovery_failed", {
           threadId,
           attempt,
           errorName: error?.name || "",
@@ -5233,8 +5233,8 @@
     if (!codexRemoteSessionProviderNormalizationEnabled()) return false;
     const normalizedThreadId = String(threadId || "").trim();
     if (!normalizedThreadId || normalizedThreadId.length > 128) return false;
-    window.__chatgptxRemoteSessionRecoveryPending = window.__chatgptxRemoteSessionRecoveryPending || new Map();
-    const pending = window.__chatgptxRemoteSessionRecoveryPending;
+    window.__swivoxRemoteSessionRecoveryPending = window.__swivoxRemoteSessionRecoveryPending || new Map();
+    const pending = window.__swivoxRemoteSessionRecoveryPending;
     if (pending.has(normalizedThreadId)) return false;
     const retryOffsets = [100, 350, 800, 1600, 3000];
     const state = { timer: 0 };
@@ -5276,12 +5276,12 @@
   }
 
   function installCodexRemoteSessionRecoveryListener() {
-    if (window.__chatgptxRemoteSessionRecoveryInstalled === codexRemoteSessionRecoveryVersion) return true;
-    if (window.__chatgptxRemoteSessionRecoveryMessageHandler) {
-      window.removeEventListener("message", window.__chatgptxRemoteSessionRecoveryMessageHandler, true);
+    if (window.__swivoxRemoteSessionRecoveryInstalled === codexRemoteSessionRecoveryVersion) return true;
+    if (window.__swivoxRemoteSessionRecoveryMessageHandler) {
+      window.removeEventListener("message", window.__swivoxRemoteSessionRecoveryMessageHandler, true);
     }
-    if (window.__chatgptxRemoteSessionRecoveryViewHandler) {
-      window.removeEventListener("codex-message-from-view", window.__chatgptxRemoteSessionRecoveryViewHandler, true);
+    if (window.__swivoxRemoteSessionRecoveryViewHandler) {
+      window.removeEventListener("codex-message-from-view", window.__swivoxRemoteSessionRecoveryViewHandler, true);
     }
     const messageHandler = (event) => {
       if (event?.source !== window) return false;
@@ -5290,12 +5290,12 @@
       return observeCodexRemoteSessionNotification(event?.data);
     };
     const viewHandler = (event) => observeCodexRemoteSessionNotification(event?.detail);
-    window.__chatgptxRemoteSessionRecoveryMessageHandler = messageHandler;
-    window.__chatgptxRemoteSessionRecoveryViewHandler = viewHandler;
+    window.__swivoxRemoteSessionRecoveryMessageHandler = messageHandler;
+    window.__swivoxRemoteSessionRecoveryViewHandler = viewHandler;
     window.addEventListener("message", messageHandler, true);
     window.addEventListener("codex-message-from-view", viewHandler, true);
-    window.__chatgptxRemoteSessionRecoveryInstalled = codexRemoteSessionRecoveryVersion;
-    sendChatGPTXDiagnostic("remote_session_recovery_listener_installed", {
+    window.__swivoxRemoteSessionRecoveryInstalled = codexRemoteSessionRecoveryVersion;
+    sendSwivoxDiagnostic("remote_session_recovery_listener_installed", {
       version: codexRemoteSessionRecoveryVersion,
     });
     return true;
@@ -5303,13 +5303,13 @@
 
   function installCodexRemoteSessionDispatcherSubscription(dispatcher, assetPrefix = "") {
     if (!dispatcher || typeof dispatcher.subscribe !== "function") return false;
-    if (window.__chatgptxRemoteSessionRecoveryDispatcher === dispatcher
-        && window.__chatgptxRemoteSessionRecoveryDispatcherVersion === codexRemoteSessionRecoveryVersion) {
+    if (window.__swivoxRemoteSessionRecoveryDispatcher === dispatcher
+        && window.__swivoxRemoteSessionRecoveryDispatcherVersion === codexRemoteSessionRecoveryVersion) {
       return true;
     }
-    if (typeof window.__chatgptxRemoteSessionRecoveryDispatcherUnsubscribe === "function") {
+    if (typeof window.__swivoxRemoteSessionRecoveryDispatcherUnsubscribe === "function") {
       try {
-        window.__chatgptxRemoteSessionRecoveryDispatcherUnsubscribe();
+        window.__swivoxRemoteSessionRecoveryDispatcherUnsubscribe();
       } catch {
       }
     }
@@ -5333,9 +5333,9 @@
       dispatcher.subscribe("thread/started", handler),
       dispatcher.subscribe("browser-sidebar-browser-use-state", browserUseHandler),
     ];
-    window.__chatgptxRemoteSessionRecoveryDispatcher = dispatcher;
-    window.__chatgptxRemoteSessionRecoveryDispatcherHandler = handler;
-    window.__chatgptxRemoteSessionRecoveryDispatcherUnsubscribe = () => {
+    window.__swivoxRemoteSessionRecoveryDispatcher = dispatcher;
+    window.__swivoxRemoteSessionRecoveryDispatcherHandler = handler;
+    window.__swivoxRemoteSessionRecoveryDispatcherUnsubscribe = () => {
       for (const unsubscribe of unsubscribers) {
         if (typeof unsubscribe !== "function") continue;
         try {
@@ -5344,8 +5344,8 @@
         }
       }
     };
-    window.__chatgptxRemoteSessionRecoveryDispatcherVersion = codexRemoteSessionRecoveryVersion;
-    sendChatGPTXDiagnostic("remote_session_dispatcher_subscription_installed", { assetPrefix });
+    window.__swivoxRemoteSessionRecoveryDispatcherVersion = codexRemoteSessionRecoveryVersion;
+    sendSwivoxDiagnostic("remote_session_dispatcher_subscription_installed", { assetPrefix });
     return true;
   }
 
@@ -5498,16 +5498,16 @@
           dispatcher.__codexServiceTierOriginalDispatchMessage = dispatcher.dispatchMessage.bind(dispatcher);
         }
         dispatcher.dispatchMessage = (type, payload) => {
-          return dispatchChatGPTXMessage(dispatcher, type, payload);
+          return dispatchSwivoxMessage(dispatcher, type, payload);
         };
         installCodexRemoteSessionDispatcherSubscription(dispatcher, assetPrefix);
         window.__codexServiceTierRequestOverrideInstalled = codexServiceTierRequestOverrideVersion;
         serviceTierDispatcherPatchMissCount = 0;
-        sendChatGPTXDiagnostic("service_tier_dispatcher_patch_installed", { assetPrefix });
+        sendSwivoxDiagnostic("service_tier_dispatcher_patch_installed", { assetPrefix });
       } catch (error) {
         serviceTierDispatcherPatchMissCount += 1;
         if (serviceTierDispatcherPatchMissCount === 1) {
-          sendChatGPTXDiagnostic("service_tier_dispatcher_patch_failed", {
+          sendSwivoxDiagnostic("service_tier_dispatcher_patch_failed", {
             errorName: error?.name || "",
             errorMessage: error?.message || String(error),
           });
@@ -5515,7 +5515,7 @@
         if (serviceTierDispatcherPatchMissCount >= serviceTierDispatcherPatchMaxMisses
             && !serviceTierDispatcherPatchDisabled) {
           serviceTierDispatcherPatchDisabled = true;
-          sendChatGPTXDiagnostic("service_tier_dispatcher_patch_skipped", {
+          sendSwivoxDiagnostic("service_tier_dispatcher_patch_skipped", {
             misses: serviceTierDispatcherPatchMissCount,
           });
         }
@@ -5528,7 +5528,7 @@
 
   // 保留旧调用入口，语音能力由独立的 opt-in 控件提供。
   function installDictationSupportPatch() {
-    installChatGPTXDictation();
+    installSwivoxDictation();
   }
 
   const codexAppServerPreparationTimeoutMs = 2000;
@@ -5542,8 +5542,8 @@
         postJson(path, payload),
         new Promise((_, reject) => {
           timeoutId = setTimeout(() => {
-            sendChatGPTXDiagnostic("app_server_preparation_read_timeout", { path, timeoutMs });
-            reject(new Error(`ChatGPTX preparation read timed out: ${path}`));
+            sendSwivoxDiagnostic("app_server_preparation_read_timeout", { path, timeoutMs });
+            reject(new Error(`Swivox preparation read timed out: ${path}`));
           }, timeoutMs);
         }),
       ]);
@@ -5553,7 +5553,7 @@
   }
 
   async function loadBackendSettingsState(timeoutMs = 0) {
-    const seq = chatgptxBackendSettingsSeq;
+    const seq = swivoxBackendSettingsSeq;
     try {
       const settings = await (timeoutMs > 0
         ? readCodexAppServerPreparation("/settings/get", {}, timeoutMs)
@@ -5561,17 +5561,17 @@
       if (!settings || typeof settings !== "object" || (!("enhancementsEnabled" in settings) && !("providerSyncEnabled" in settings))) {
         throw new Error("invalid backend settings response");
       }
-      if (seq !== chatgptxBackendSettingsSeq) {
+      if (seq !== swivoxBackendSettingsSeq) {
         return false;
       }
-      chatgptxBackendSettings = { ...chatgptxBackendSettings, ...settings };
-      chatgptxBackendSettingsLoaded = true;
+      swivoxBackendSettings = { ...swivoxBackendSettings, ...settings };
+      swivoxBackendSettingsLoaded = true;
     } catch (_) {
       return false;
     }
     // 设置已加载成功；语音 UI 的异常不应使 provider/Fast 刷新误判为失败。
     // service-tier harness 在 70 分片提前返回，尚未初始化 93 分片的录音状态。
-    if (!window.__CHATGPTX_TEST_SERVICE_TIER__) runScanStep(installChatGPTXDictation);
+    if (!window.__SWIVOX_TEST_SERVICE_TIER__) runScanStep(installSwivoxDictation);
     return true;
   }
   async function loadBackendSettings() {
@@ -5579,14 +5579,14 @@
     if (loaded && codexRemoteSessionProviderOverrideEnabled()) {
       void loadCodexModelCatalog();
     }
-    refreshChatGPTXBackendToggles();
+    refreshSwivoxBackendToggles();
     if (loaded) syncOfficialUsagePolicy();
-    if (loaded) runScanStep(syncChatGPTXTypingEffects);
-    if (loaded && typeof syncChatGPTXWhaleWidget === "function") runScanStep(syncChatGPTXWhaleWidget);
+    if (loaded) runScanStep(syncSwivoxTypingEffects);
+    if (loaded && typeof syncSwivoxWhaleWidget === "function") runScanStep(syncSwivoxWhaleWidget);
     // typeof 守卫：这两个函数会被 session-share-runtime / typing-effects-settings
     // 之类的用例切片到不带其它分片的沙箱里执行，缺函数时不能直接 ReferenceError。
-    if (loaded && typeof syncChatGPTXCapacityAutoRetry === "function") runScanStep(syncChatGPTXCapacityAutoRetry);
-    globalThis.__CHATGPTX_ACTIVITY_OVERLAY_SYNC__?.();
+    if (loaded && typeof syncSwivoxCapacityAutoRetry === "function") runScanStep(syncSwivoxCapacityAutoRetry);
+    globalThis.__SWIVOX_ACTIVITY_OVERLAY_SYNC__?.();
     return loaded;
   }
 
@@ -5607,16 +5607,16 @@
     if (syncBackendSettingsInFlight) return;
     syncBackendSettingsInFlight = true;
     try {
-      const previousConversationView = !!chatgptxSettings().conversationView;
+      const previousConversationView = !!swivoxSettings().conversationView;
       const loaded = await loadBackendSettingsState();
       if (loaded) {
         syncOfficialUsagePolicy();
-        runScanStep(syncChatGPTXTypingEffects);
-        if (typeof syncChatGPTXWhaleWidget === "function") runScanStep(syncChatGPTXWhaleWidget);
-        if (typeof syncChatGPTXCapacityAutoRetry === "function") runScanStep(syncChatGPTXCapacityAutoRetry);
-        globalThis.__CHATGPTX_ACTIVITY_OVERLAY_SYNC__?.();
-        renderChatGPTXMenu();
-        if (previousConversationView !== !!chatgptxSettings().conversationView) {
+        runScanStep(syncSwivoxTypingEffects);
+        if (typeof syncSwivoxWhaleWidget === "function") runScanStep(syncSwivoxWhaleWidget);
+        if (typeof syncSwivoxCapacityAutoRetry === "function") runScanStep(syncSwivoxCapacityAutoRetry);
+        globalThis.__SWIVOX_ACTIVITY_OVERLAY_SYNC__?.();
+        renderSwivoxMenu();
+        if (previousConversationView !== !!swivoxSettings().conversationView) {
           refreshConversationView();
         }
       }
@@ -5626,104 +5626,104 @@
   }
 
   async function setBackendSetting(key, value) {
-    const seq = ++chatgptxBackendSettingsSeq;
-    chatgptxBackendSettings = { ...chatgptxBackendSettings, [key]: value };
-    chatgptxBackendSettingsLoaded = true;
-    globalThis.__CHATGPTX_ACTIVITY_OVERLAY_SYNC__?.();
-    refreshChatGPTXBackendToggles();
+    const seq = ++swivoxBackendSettingsSeq;
+    swivoxBackendSettings = { ...swivoxBackendSettings, [key]: value };
+    swivoxBackendSettingsLoaded = true;
+    globalThis.__SWIVOX_ACTIVITY_OVERLAY_SYNC__?.();
+    refreshSwivoxBackendToggles();
     try {
       const settings = await postJson("/settings/set", { [key]: value });
-      if (seq === chatgptxBackendSettingsSeq) {
-        chatgptxBackendSettings = { ...chatgptxBackendSettings, ...settings };
-        globalThis.__CHATGPTX_ACTIVITY_OVERLAY_SYNC__?.();
+      if (seq === swivoxBackendSettingsSeq) {
+        swivoxBackendSettings = { ...swivoxBackendSettings, ...settings };
+        globalThis.__SWIVOX_ACTIVITY_OVERLAY_SYNC__?.();
       }
     } finally {
-      refreshChatGPTXBackendToggles();
+      refreshSwivoxBackendToggles();
     }
   }
 
-  function refreshChatGPTXBackendToggles() {
-    globalThis.__CHATGPTX_ACTIVITY_OVERLAY_SYNC__?.();
-    globalThis.__CHATGPTX_USAGE_STATUSLINE_SYNC__?.();
-    document.querySelectorAll(".chatgptx-toggle[data-codex-backend-setting]").forEach((button) => {
+  function refreshSwivoxBackendToggles() {
+    globalThis.__SWIVOX_ACTIVITY_OVERLAY_SYNC__?.();
+    globalThis.__SWIVOX_USAGE_STATUSLINE_SYNC__?.();
+    document.querySelectorAll(".swivox-toggle[data-codex-backend-setting]").forEach((button) => {
       const key = button.getAttribute("data-codex-backend-setting");
-      button.dataset.enabled = String(!!chatgptxBackendSettings[key]);
+      button.dataset.enabled = String(!!swivoxBackendSettings[key]);
       button.setAttribute("aria-checked", button.dataset.enabled);
     });
     syncStepwisePanel();
-    runScanStep(syncChatGPTXTypingEffects);
-    if (typeof syncChatGPTXWhaleWidget === "function") runScanStep(syncChatGPTXWhaleWidget);
-    renderChatGPTXMenu();
+    runScanStep(syncSwivoxTypingEffects);
+    if (typeof syncSwivoxWhaleWidget === "function") runScanStep(syncSwivoxWhaleWidget);
+    renderSwivoxMenu();
     scan();
   }
 
-  let chatgptxUserScripts = { enabled: true, builtin_dir: "", user_dir: "", scripts: [] };
+  let swivoxUserScripts = { enabled: true, builtin_dir: "", user_dir: "", scripts: [] };
   // 单独跟踪「读过了没有」：scripts 为空既可能是真没有脚本，也可能是还没读到。
   // 不区分就会在无后端时把「正在读取」直接显示成「未发现」。
-  let chatgptxUserScriptsLoaded = false;
+  let swivoxUserScriptsLoaded = false;
   // 市场清单。为空 + 未加载 = 还在拉；加载过为空 = 市场里确实没东西。
-  let chatgptxScriptMarket = { scripts: [], loaded: false, loading: false, message: "" };
+  let swivoxScriptMarket = { scripts: [], loaded: false, loading: false, message: "" };
   // 「拓展」页左面板的搜索关键词，纯前端过滤。
-  let chatgptxExtensionsQuery = "";
-  let chatgptxExtensionsFilter = "market";
+  let swivoxExtensionsQuery = "";
+  let swivoxExtensionsFilter = "market";
   // 当前选中的拓展（左面板点开后右侧显示详情）。空 = 还没选。
-  let chatgptxExtensionsSelected = null;
+  let swivoxExtensionsSelected = null;
   // 默认扩展图标：VSCode codicon 的 `extensions` 字形（\eae6），
   // 从本机 VSCode 的 codicon.ttf 抽出轮廓后归一到 16x16 视口。
   // 市场清单目前没有图标字段，所有市场条目都用它；本地脚本同理。
-  const chatgptxDefaultExtensionIconPath = "M15.0 4.95 Q15.0 4.37 14.63 3.99 L12.01 1.37 Q11.63 1.0 11.05 1.0 Q10.46 1.0 10.08 1.37 L8.0 3.46 L8.0 3.3 Q8.0 2.71 7.6 2.31 Q7.2 1.91 6.61 1.91 L2.39 1.91 Q1.8 1.91 1.4 2.31 Q1.0 2.71 1.0 3.3 L1.0 13.61 Q1.0 14.2 1.4 14.6 Q1.8 15.0 2.39 15.0 L12.7 15.0 Q13.24 15.0 13.66 14.6 Q14.09 14.2 14.09 13.61 L14.09 9.39 Q14.09 8.8 13.66 8.4 Q13.24 8.0 12.7 8.0 L12.54 8.0 L14.63 5.92 Q15.0 5.54 15.0 4.95 Z M2.39 2.87 L6.61 2.87 Q6.77 2.87 6.93 3.0 Q7.09 3.14 7.09 3.3 L7.09 8.0 L1.91 8.0 L1.91 3.3 Q1.91 3.14 2.04 3.0 Q2.18 2.87 2.39 2.87 Z M1.91 13.61 L1.91 8.91 L7.09 8.91 L7.09 14.09 L2.39 14.09 Q2.18 14.09 2.04 13.96 Q1.91 13.82 1.91 13.61 Z M13.13 9.39 L13.13 13.61 Q13.13 13.82 13.0 13.96 Q12.86 14.09 12.7 14.09 L8.0 14.09 L8.0 8.91 L12.7 8.91 Q12.86 8.91 13.0 9.07 Q13.13 9.23 13.13 9.39 Z M8.0 8.0 L8.0 6.45 L9.55 8.0 Z M13.93 5.27 L11.37 7.84 Q11.21 8.0 11.02 8.0 Q10.83 8.0 10.73 7.84 L8.11 5.27 Q8.0 5.11 8.0 4.93 Q8.0 4.74 8.11 4.63 L10.73 2.02 Q10.83 1.91 11.02 1.91 Q11.21 1.91 11.37 2.02 L13.93 4.63 Q14.09 4.74 14.09 4.93 Q14.09 5.11 13.93 5.27 Z";
-  let chatgptxBackendStatus = window.__chatgptxBackendStatus || { status: "checking", message: "正在检查后端…" };
-  let chatgptxBackendCheckSeq = 0;
-  let chatgptxBackendCheckInFlight = false;
-  let chatgptxBackendFailureCount = 0;
-  const CHATGPTX_BACKEND_FAILURE_THRESHOLD = 3;
+  const swivoxDefaultExtensionIconPath = "M15.0 4.95 Q15.0 4.37 14.63 3.99 L12.01 1.37 Q11.63 1.0 11.05 1.0 Q10.46 1.0 10.08 1.37 L8.0 3.46 L8.0 3.3 Q8.0 2.71 7.6 2.31 Q7.2 1.91 6.61 1.91 L2.39 1.91 Q1.8 1.91 1.4 2.31 Q1.0 2.71 1.0 3.3 L1.0 13.61 Q1.0 14.2 1.4 14.6 Q1.8 15.0 2.39 15.0 L12.7 15.0 Q13.24 15.0 13.66 14.6 Q14.09 14.2 14.09 13.61 L14.09 9.39 Q14.09 8.8 13.66 8.4 Q13.24 8.0 12.7 8.0 L12.54 8.0 L14.63 5.92 Q15.0 5.54 15.0 4.95 Z M2.39 2.87 L6.61 2.87 Q6.77 2.87 6.93 3.0 Q7.09 3.14 7.09 3.3 L7.09 8.0 L1.91 8.0 L1.91 3.3 Q1.91 3.14 2.04 3.0 Q2.18 2.87 2.39 2.87 Z M1.91 13.61 L1.91 8.91 L7.09 8.91 L7.09 14.09 L2.39 14.09 Q2.18 14.09 2.04 13.96 Q1.91 13.82 1.91 13.61 Z M13.13 9.39 L13.13 13.61 Q13.13 13.82 13.0 13.96 Q12.86 14.09 12.7 14.09 L8.0 14.09 L8.0 8.91 L12.7 8.91 Q12.86 8.91 13.0 9.07 Q13.13 9.23 13.13 9.39 Z M8.0 8.0 L8.0 6.45 L9.55 8.0 Z M13.93 5.27 L11.37 7.84 Q11.21 8.0 11.02 8.0 Q10.83 8.0 10.73 7.84 L8.11 5.27 Q8.0 5.11 8.0 4.93 Q8.0 4.74 8.11 4.63 L10.73 2.02 Q10.83 1.91 11.02 1.91 Q11.21 1.91 11.37 2.02 L13.93 4.63 Q14.09 4.74 14.09 4.93 Q14.09 5.11 13.93 5.27 Z";
+  let swivoxBackendStatus = window.__swivoxBackendStatus || { status: "checking", message: "正在检查后端…" };
+  let swivoxBackendCheckSeq = 0;
+  let swivoxBackendCheckInFlight = false;
+  let swivoxBackendFailureCount = 0;
+  const SWIVOX_BACKEND_FAILURE_THRESHOLD = 3;
   // 桥接通道（binding）与后端可用性分开统计：HTTP 回落成功会让后端状态保持绿色，
   // 但桥接持续失败时必须把降级呈现出来，否则启动器侧的重注入修复循环对用户完全不可见（issue #2169）。
-  let chatgptxBridgeFailureCount = 0;
-  const CHATGPTX_BRIDGE_FAILURE_THRESHOLD = 3;
-  const chatgptxBackendGeneration = (Number(window.__chatgptxBackendGeneration) || 0) + 1;
-  window.__chatgptxBackendGeneration = chatgptxBackendGeneration;
+  let swivoxBridgeFailureCount = 0;
+  const SWIVOX_BRIDGE_FAILURE_THRESHOLD = 3;
+  const swivoxBackendGeneration = (Number(window.__swivoxBackendGeneration) || 0) + 1;
+  window.__swivoxBackendGeneration = swivoxBackendGeneration;
 
-  function recordChatGPTXBridgeHealth(field) {
-    if (chatgptxBackendGeneration !== window.__chatgptxBackendGeneration) return;
-    const health = window.__chatgptxBridgeHealth || (window.__chatgptxBridgeHealth = {});
+  function recordSwivoxBridgeHealth(field) {
+    if (swivoxBackendGeneration !== window.__swivoxBackendGeneration) return;
+    const health = window.__swivoxBridgeHealth || (window.__swivoxBridgeHealth = {});
     health[field] = Date.now();
   }
 
-  function recordChatGPTXBridgeSuccess() {
-    recordChatGPTXBridgeHealth("lastSuccessAt");
-    chatgptxBridgeFailureCount = 0;
+  function recordSwivoxBridgeSuccess() {
+    recordSwivoxBridgeHealth("lastSuccessAt");
+    swivoxBridgeFailureCount = 0;
   }
 
-  function recordChatGPTXBridgeAttempt() {
-    recordChatGPTXBridgeHealth("lastAttemptAt");
+  function recordSwivoxBridgeAttempt() {
+    recordSwivoxBridgeHealth("lastAttemptAt");
   }
 
-  function recordChatGPTXBridgeFailure() {
-    chatgptxBridgeFailureCount += 1;
+  function recordSwivoxBridgeFailure() {
+    swivoxBridgeFailureCount += 1;
   }
 
   function renderBackendStatus() {
-    const bridgeDegraded = chatgptxBridgeFailureCount >= CHATGPTX_BRIDGE_FAILURE_THRESHOLD;
-    const rawStatus = chatgptxBackendStatus.status || "failed";
+    const bridgeDegraded = swivoxBridgeFailureCount >= SWIVOX_BRIDGE_FAILURE_THRESHOLD;
+    const rawStatus = swivoxBackendStatus.status || "failed";
     const status = bridgeDegraded && rawStatus === "ok" ? "degraded" : rawStatus;
-    if (chatgptxBackendStatus.version) {
-      chatgptxVersion = chatgptxBackendStatus.version;
-      document.querySelectorAll("[data-chatgptx-version]").forEach((node) => {
-        node.textContent = `ChatGPTX ${chatgptxVersion}`;
+    if (swivoxBackendStatus.version) {
+      swivoxVersion = swivoxBackendStatus.version;
+      document.querySelectorAll("[data-swivox-version]").forEach((node) => {
+        node.textContent = `Swivox ${swivoxVersion}`;
       });
     }
     const labelFallback = status === "ok" ? "后端已连接" : status === "degraded" ? "桥接降级，自动修复中" : status === "checking" ? "正在检查后端…" : "未连接";
     const label = document.querySelector("[data-codex-backend-status]");
     if (label) {
       label.dataset.status = status;
-      label.textContent = status === "degraded" ? labelFallback : (chatgptxBackendStatus.message || labelFallback);
+      label.textContent = status === "degraded" ? labelFallback : (swivoxBackendStatus.message || labelFallback);
     }
     document.querySelectorAll("[data-codex-backend-indicator]").forEach((indicator) => {
       indicator.dataset.status = status;
       indicator.title = status === "ok" ? "后端已连接" : status === "degraded" ? "后端可达，桥接降级，正在自动修复" : status === "checking" ? "正在检查后端" : "未连接";
     });
-    const sidebarStatus = document.querySelector(`#${chatgptxSidebarNavId} .chatgptx-sidebar-nav-status`);
+    const sidebarStatus = document.querySelector(`#${swivoxSidebarNavId} .swivox-sidebar-nav-status`);
     if (sidebarStatus) {
       sidebarStatus.dataset.status = status;
       sidebarStatus.title = status === "ok" ? "后端已连接" : status === "degraded" ? "后端可达，桥接降级，正在自动修复" : status === "checking" ? "正在检查后端" : "未连接";
@@ -5739,35 +5739,35 @@
   }
 
   async function checkBackendStatus() {
-    if (chatgptxBackendCheckInFlight) return;
-    chatgptxBackendCheckInFlight = true;
-    const seq = ++chatgptxBackendCheckSeq;
+    if (swivoxBackendCheckInFlight) return;
+    swivoxBackendCheckInFlight = true;
+    const seq = ++swivoxBackendCheckSeq;
     try {
       const nextStatus = await postJson("/backend/status", {});
-      if (seq !== chatgptxBackendCheckSeq || chatgptxBackendGeneration !== window.__chatgptxBackendGeneration) return;
+      if (seq !== swivoxBackendCheckSeq || swivoxBackendGeneration !== window.__swivoxBackendGeneration) return;
       if (nextStatus?.status === "ok") {
-        chatgptxBackendFailureCount = 0;
-        chatgptxBackendStatus = window.__chatgptxBackendStatus = nextStatus;
+        swivoxBackendFailureCount = 0;
+        swivoxBackendStatus = window.__swivoxBackendStatus = nextStatus;
         if (typeof nextStatus.hideOfficialUsageAlert === "boolean") {
-          window.__CHATGPTX_HIDE_OFFICIAL_USAGE_ALERT__ = nextStatus.hideOfficialUsageAlert;
+          window.__SWIVOX_HIDE_OFFICIAL_USAGE_ALERT__ = nextStatus.hideOfficialUsageAlert;
           syncOfficialUsagePolicy();
         }
         void syncBackendSettingsFromHeartbeat();
       } else {
-        chatgptxBackendFailureCount += 1;
-        sendChatGPTXDiagnostic("backend_check_failed", {
+        swivoxBackendFailureCount += 1;
+        sendSwivoxDiagnostic("backend_check_failed", {
           status: nextStatus?.status || "unknown",
           message: nextStatus?.message || "",
           timeout: !!nextStatus?.timeout,
-          consecutiveFailures: chatgptxBackendFailureCount,
+          consecutiveFailures: swivoxBackendFailureCount,
         });
-        if (chatgptxBackendFailureCount >= CHATGPTX_BACKEND_FAILURE_THRESHOLD) {
-          chatgptxBackendStatus = window.__chatgptxBackendStatus = nextStatus;
+        if (swivoxBackendFailureCount >= SWIVOX_BACKEND_FAILURE_THRESHOLD) {
+          swivoxBackendStatus = window.__swivoxBackendStatus = nextStatus;
         }
       }
       renderBackendStatus();
     } finally {
-      chatgptxBackendCheckInFlight = false;
+      swivoxBackendCheckInFlight = false;
     }
   }
 
@@ -5781,12 +5781,12 @@
   }
 
   function scheduleBackendHeartbeat() {
-    if (chatgptxBackendGeneration !== window.__chatgptxBackendGeneration) return;
-    if (window.__chatgptxBackendHeartbeat &&
-        window.__chatgptxBackendHeartbeatGeneration === chatgptxBackendGeneration) return;
-    if (window.__chatgptxBackendHeartbeat) clearInterval(window.__chatgptxBackendHeartbeat);
-    window.__chatgptxBackendHeartbeatGeneration = chatgptxBackendGeneration;
-    window.__chatgptxBackendHeartbeat = setInterval(checkBackendStatus, 5000);
+    if (swivoxBackendGeneration !== window.__swivoxBackendGeneration) return;
+    if (window.__swivoxBackendHeartbeat &&
+        window.__swivoxBackendHeartbeatGeneration === swivoxBackendGeneration) return;
+    if (window.__swivoxBackendHeartbeat) clearInterval(window.__swivoxBackendHeartbeat);
+    window.__swivoxBackendHeartbeatGeneration = swivoxBackendGeneration;
+    window.__swivoxBackendHeartbeat = setInterval(checkBackendStatus, 5000);
     checkBackendStatus();
   }
 
@@ -5795,7 +5795,7 @@
   }
 
   // 使用已安装 Lucide Search / RotateCw / Plus / ArrowLeft 的 ISC 图标路径。
-  const chatgptxDiscoveryIcons = {
+  const swivoxDiscoveryIcons = {
     search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>',
     refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>',
     plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5v14"/></svg>',
@@ -5803,86 +5803,86 @@
   };
 
   /** 原生风格侧栏：浏览入口和已安装拓展的单行名称。 */
-  function renderChatGPTXExtensionsNav() {
-    const { installed } = chatgptxExtensionsEntries();
-    const shown = filterChatGPTXExtensionsEntries(installed);
+  function renderSwivoxExtensionsNav() {
+    const { installed } = swivoxExtensionsEntries();
+    const shown = filterSwivoxExtensionsEntries(installed);
     const rows = shown.map((entry) => {
-      const selected = chatgptxExtensionsSelected?.kind === "installed" && chatgptxExtensionsSelected.key === entry.key;
-      const marketItem = chatgptxExtensionMarketItem(entry);
+      const selected = swivoxExtensionsSelected?.kind === "installed" && swivoxExtensionsSelected.key === entry.key;
+      const marketItem = swivoxExtensionMarketItem(entry);
       return `
-        <button type="button" class="chatgptx-page-nav-item chatgptx-extensions-nav-entry" data-codex-extensions-select="installed:${escapeHtml(entry.key)}" data-active="${String(selected)}" title="${escapeHtml(entry.name)}" aria-label="${escapeHtml(entry.name)}">
-          <span class="chatgptx-page-nav-item-icon" aria-hidden="true">${extensionIconMarkup(marketItem?.icon)}</span>
-          <span class="chatgptx-page-nav-item-text"><span class="chatgptx-page-nav-item-name">${escapeHtml(entry.name)}</span></span>
-          <span class="chatgptx-page-nav-item-state" data-state="${entry.enabled ? "on" : "off"}" title="${entry.enabled ? "已启用" : "已禁用"}"></span>
+        <button type="button" class="swivox-page-nav-item swivox-extensions-nav-entry" data-codex-extensions-select="installed:${escapeHtml(entry.key)}" data-active="${String(selected)}" title="${escapeHtml(entry.name)}" aria-label="${escapeHtml(entry.name)}">
+          <span class="swivox-page-nav-item-icon" aria-hidden="true">${extensionIconMarkup(marketItem?.icon)}</span>
+          <span class="swivox-page-nav-item-text"><span class="swivox-page-nav-item-name">${escapeHtml(entry.name)}</span></span>
+          <span class="swivox-page-nav-item-state" data-state="${entry.enabled ? "on" : "off"}" title="${entry.enabled ? "已启用" : "已禁用"}"></span>
         </button>
       `;
     }).join("");
-    const empty = chatgptxExtensionsQuery.trim() ? "没有匹配的已安装拓展。" : chatgptxUserScriptsLoaded ? "未发现已安装的拓展。" : "正在读取用户拓展…";
+    const empty = swivoxExtensionsQuery.trim() ? "没有匹配的已安装拓展。" : swivoxUserScriptsLoaded ? "未发现已安装的拓展。" : "正在读取用户拓展…";
     return `
-      <button type="button" class="chatgptx-page-nav-item chatgptx-extensions-nav-entry" data-codex-extensions-browse="market" data-active="${String(!chatgptxExtensionsSelected && chatgptxExtensionsFilter === "market")}" title="浏览拓展" aria-label="浏览拓展">
-        <span class="chatgptx-page-nav-item-icon" aria-hidden="true">${extensionIconSvg()}</span>
-        <span class="chatgptx-page-nav-item-text"><span class="chatgptx-page-nav-item-name">浏览拓展</span></span>
+      <button type="button" class="swivox-page-nav-item swivox-extensions-nav-entry" data-codex-extensions-browse="market" data-active="${String(!swivoxExtensionsSelected && swivoxExtensionsFilter === "market")}" title="浏览拓展" aria-label="浏览拓展">
+        <span class="swivox-page-nav-item-icon" aria-hidden="true">${extensionIconSvg()}</span>
+        <span class="swivox-page-nav-item-text"><span class="swivox-page-nav-item-name">浏览拓展</span></span>
       </button>
-      <div class="chatgptx-page-nav-group">
-        <div class="chatgptx-page-nav-group-head"><span>已安装</span><span class="chatgptx-page-nav-group-count">${installed.length}</span></div>
-        ${rows || `<div class="chatgptx-page-nav-empty">${escapeHtml(empty)}</div>`}
+      <div class="swivox-page-nav-group">
+        <div class="swivox-page-nav-group-head"><span>已安装</span><span class="swivox-page-nav-group-count">${installed.length}</span></div>
+        ${rows || `<div class="swivox-page-nav-empty">${escapeHtml(empty)}</div>`}
       </div>
     `;
   }
 
   /** 主区使用原生插件列表的图标、简介和独立操作列，避免嵌套按钮。 */
-  function renderChatGPTXExtensionsOverview() {
-    const { installed, market } = chatgptxExtensionsEntries();
-    const isInstalled = chatgptxExtensionsFilter === "installed";
-    const entries = filterChatGPTXExtensionsEntries(isInstalled ? installed : market);
+  function renderSwivoxExtensionsOverview() {
+    const { installed, market } = swivoxExtensionsEntries();
+    const isInstalled = swivoxExtensionsFilter === "installed";
+    const entries = filterSwivoxExtensionsEntries(isInstalled ? installed : market);
     const cards = entries.map((entry) => {
-      const item = chatgptxExtensionMarketItem(entry);
+      const item = swivoxExtensionMarketItem(entry);
       const description = item?.description || entry.script?.description || entry.meta || "";
       const select = `${entry.kind}:${escapeHtml(entry.key)}`;
       const action = entry.kind === "market"
-        ? `<button type="button" class="chatgptx-discovery-icon-button" data-codex-market-install="${escapeHtml(entry.key)}" aria-label="安装 ${escapeHtml(entry.name)}" title="安装 ${escapeHtml(entry.name)}">${chatgptxDiscoveryIcons.plus}</button>`
-        : `<button type="button" class="chatgptx-toggle" data-codex-user-script-key="${escapeHtml(entry.key)}" data-enabled="${String(entry.enabled)}" role="switch" aria-checked="${String(entry.enabled)}" aria-label="启用 ${escapeHtml(entry.name)}"><span></span></button>`;
+        ? `<button type="button" class="swivox-discovery-icon-button" data-codex-market-install="${escapeHtml(entry.key)}" aria-label="安装 ${escapeHtml(entry.name)}" title="安装 ${escapeHtml(entry.name)}">${swivoxDiscoveryIcons.plus}</button>`
+        : `<button type="button" class="swivox-toggle" data-codex-user-script-key="${escapeHtml(entry.key)}" data-enabled="${String(entry.enabled)}" role="switch" aria-checked="${String(entry.enabled)}" aria-label="启用 ${escapeHtml(entry.name)}"><span></span></button>`;
       return `
-        <article class="chatgptx-extension-card">
-          <button type="button" class="chatgptx-extension-card-select" data-codex-extensions-select="${select}" aria-label="查看 ${escapeHtml(entry.name)}">
-            <span class="chatgptx-extension-card-icon" aria-hidden="true">${extensionIconMarkup(item?.icon)}</span>
-            <span class="chatgptx-extension-card-copy">
-              <span class="chatgptx-extension-card-title">${escapeHtml(entry.name)}</span>
-              <span class="chatgptx-extension-card-description">${escapeHtml(description)}</span>
+        <article class="swivox-extension-card">
+          <button type="button" class="swivox-extension-card-select" data-codex-extensions-select="${select}" aria-label="查看 ${escapeHtml(entry.name)}">
+            <span class="swivox-extension-card-icon" aria-hidden="true">${extensionIconMarkup(item?.icon)}</span>
+            <span class="swivox-extension-card-copy">
+              <span class="swivox-extension-card-title">${escapeHtml(entry.name)}</span>
+              <span class="swivox-extension-card-description">${escapeHtml(description)}</span>
             </span>
           </button>
-          <div class="chatgptx-extension-card-actions">${action}</div>
+          <div class="swivox-extension-card-actions">${action}</div>
         </article>
       `;
     }).join("");
-    const empty = chatgptxExtensionsQuery.trim() ? `没有匹配「${chatgptxExtensionsQuery}」的拓展。`
-      : isInstalled ? (chatgptxUserScriptsLoaded ? "未发现已安装的拓展。" : "正在读取用户拓展…")
-      : chatgptxScriptMarket.loading && !chatgptxScriptMarket.loaded ? "正在读取拓展…"
-      : chatgptxScriptMarket.message || "市场里没有可安装的拓展。";
+    const empty = swivoxExtensionsQuery.trim() ? `没有匹配「${swivoxExtensionsQuery}」的拓展。`
+      : isInstalled ? (swivoxUserScriptsLoaded ? "未发现已安装的拓展。" : "正在读取用户拓展…")
+      : swivoxScriptMarket.loading && !swivoxScriptMarket.loaded ? "正在读取拓展…"
+      : swivoxScriptMarket.message || "市场里没有可安装的拓展。";
     return `
-      <div class="chatgptx-extensions-filter" role="group" aria-label="拓展来源">
+      <div class="swivox-extensions-filter" role="group" aria-label="拓展来源">
         <button type="button" data-codex-extensions-browse="market" data-active="${String(!isInstalled)}" aria-pressed="${String(!isInstalled)}">市场</button>
         <button type="button" data-codex-extensions-browse="installed" data-active="${String(isInstalled)}" aria-pressed="${String(isInstalled)}">已安装</button>
       </div>
-      <h2 class="chatgptx-discovery-section-title">${isInstalled ? "已安装拓展" : "市场拓展"}</h2>
-      <div class="chatgptx-extensions-grid" data-chatgptx-extensions-list="true">
-        ${cards || `<div class="chatgptx-extensions-detail-empty" role="status">${escapeHtml(empty)}</div>`}
+      <h2 class="swivox-discovery-section-title">${isInstalled ? "已安装拓展" : "市场拓展"}</h2>
+      <div class="swivox-extensions-grid" data-swivox-extensions-list="true">
+        ${cards || `<div class="swivox-extensions-detail-empty" role="status">${escapeHtml(empty)}</div>`}
       </div>
     `;
   }
 
   /** 只刷新侧栏和结果区；搜索输入框保持原 DOM 与光标位置。 */
-  function refreshChatGPTXExtensionsView() {
-    if (chatgptxActiveEntry() !== "extensions") return;
-    if (chatgptxExtensionsSelected && !chatgptxExtensionsSelectionDetail()) chatgptxExtensionsSelected = null;
+  function refreshSwivoxExtensionsView() {
+    if (swivoxActiveEntry() !== "extensions") return;
+    if (swivoxExtensionsSelected && !swivoxExtensionsSelectionDetail()) swivoxExtensionsSelected = null;
     const active = document.activeElement;
     const focused = active?.getAttribute?.("data-codex-user-script-key");
     const focusedBrowse = active?.getAttribute?.("data-codex-extensions-browse");
-    const focusedNav = !!active?.closest?.("[data-chatgptx-page-nav-body]");
-    const body = document.querySelector("[data-chatgptx-page-nav-body]");
-    if (body) body.innerHTML = renderChatGPTXExtensionsNav();
-    const detail = document.querySelector("[data-chatgptx-extensions-detail]");
-    if (detail) detail.innerHTML = renderChatGPTXExtensionsDetail();
+    const focusedNav = !!active?.closest?.("[data-swivox-page-nav-body]");
+    const body = document.querySelector("[data-swivox-page-nav-body]");
+    if (body) body.innerHTML = renderSwivoxExtensionsNav();
+    const detail = document.querySelector("[data-swivox-extensions-detail]");
+    if (detail) detail.innerHTML = renderSwivoxExtensionsDetail();
     if (focused) {
       Array.from(detail?.querySelectorAll("[data-codex-user-script-key]") || [])
         .find((button) => button.getAttribute("data-codex-user-script-key") === focused)?.focus({ preventScroll: true });
@@ -5898,22 +5898,22 @@
    * 已安装的市场脚本，本地清单里有 `market_id`，据此把市场的描述/作者等补上；
    * 纯本地脚本则只有本地那几个字段。
    */
-  function chatgptxExtensionsSelectionDetail() {
-    const sel = chatgptxExtensionsSelected;
+  function swivoxExtensionsSelectionDetail() {
+    const sel = swivoxExtensionsSelected;
     if (!sel) return null;
     const local = sel.kind === "installed"
-      ? (chatgptxUserScripts.scripts || []).find((script) => script.key === sel.key) || null
+      ? (swivoxUserScripts.scripts || []).find((script) => script.key === sel.key) || null
       : null;
     const marketId = sel.kind === "market" ? sel.key : (local?.market_id || "");
     const marketItem = marketId
-      ? (chatgptxScriptMarket.scripts || []).find((item) => item.id === marketId) || null
+      ? (swivoxScriptMarket.scripts || []).find((item) => item.id === marketId) || null
       : null;
     if ((sel.kind === "installed" && !local) || (sel.kind === "market" && !marketItem)) return null;
     return { sel, local, marketItem };
   }
 
   function extensionIconSvg() {
-    return `<svg viewBox="0 0 16 16" fill="currentColor"><path d="${chatgptxDefaultExtensionIconPath}"/></svg>`;
+    return `<svg viewBox="0 0 16 16" fill="currentColor"><path d="${swivoxDefaultExtensionIconPath}"/></svg>`;
   }
 
   /**
@@ -5926,7 +5926,7 @@
   function extensionIconMarkup(icon) {
     const url = String(icon || "").trim();
     if (!url) return extensionIconSvg();
-    return `<img class="chatgptx-extensions-icon-img" src="${escapeHtml(url)}" alt="" loading="lazy" />`;
+    return `<img class="swivox-extensions-icon-img" src="${escapeHtml(url)}" alt="" loading="lazy" />`;
   }
 
   /**
@@ -5937,7 +5937,7 @@
    */
   function handleExtensionIconError(event) {
     const img = event.target;
-    if (!(img instanceof HTMLImageElement) || !img.classList.contains("chatgptx-extensions-icon-img")) return;
+    if (!(img instanceof HTMLImageElement) || !img.classList.contains("swivox-extensions-icon-img")) return;
     const holder = document.createElement("span");
     holder.innerHTML = extensionIconSvg();
     const svg = holder.firstElementChild;
@@ -5945,11 +5945,11 @@
   }
 
   /** 原生风格详情：居中展示图标、名称、介绍与管理操作。 */
-  function renderChatGPTXExtensionsDetail() {
-    const detail = chatgptxExtensionsSelectionDetail();
+  function renderSwivoxExtensionsDetail() {
+    const detail = swivoxExtensionsSelectionDetail();
     if (!detail) {
-      chatgptxExtensionsSelected = null;
-      return renderChatGPTXExtensionsOverview();
+      swivoxExtensionsSelected = null;
+      return renderSwivoxExtensionsOverview();
     }
     const { sel, local, marketItem } = detail;
     const name = marketItem?.name || local?.name || sel.key;
@@ -5968,44 +5968,44 @@
       author ? escapeHtml(author) : "",
       version ? `v${escapeHtml(version)}` : "",
       local ? `${local.source === "builtin" ? "内置" : "用户"} · ${escapeHtml(userScriptStatusLabel(local.status))}` : "",
-    ].filter(Boolean).join('<span class="chatgptx-extensions-detail-sep">·</span>');
+    ].filter(Boolean).join('<span class="swivox-extensions-detail-sep">·</span>');
 
     const actions = [];
     if (isInstalled) {
       actions.push(`
-        <button type="button" class="chatgptx-toggle" data-codex-user-script-key="${escapeHtml(local?.key || "")}" data-enabled="${String(!!local?.enabled)}" role="switch" aria-checked="${String(!!local?.enabled)}" aria-label="启用 ${escapeHtml(name)}"><span></span></button>
+        <button type="button" class="swivox-toggle" data-codex-user-script-key="${escapeHtml(local?.key || "")}" data-enabled="${String(!!local?.enabled)}" role="switch" aria-checked="${String(!!local?.enabled)}" aria-label="启用 ${escapeHtml(name)}"><span></span></button>
       `);
       // 内置脚本在只读目录里，删不掉；只给用户目录的脚本提供卸载。
       if (local?.source === "user") {
-        actions.push(`<button type="button" class="chatgptx-extensions-detail-button" data-codex-extensions-uninstall="${escapeHtml(local.key)}">卸载</button>`);
+        actions.push(`<button type="button" class="swivox-extensions-detail-button" data-codex-extensions-uninstall="${escapeHtml(local.key)}">卸载</button>`);
       }
     } else if (marketItem) {
-      actions.push(`<button type="button" class="chatgptx-extensions-detail-button chatgptx-extensions-detail-primary" data-codex-market-install="${escapeHtml(marketItem.id)}">安装</button>`);
+      actions.push(`<button type="button" class="swivox-extensions-detail-button swivox-extensions-detail-primary" data-codex-market-install="${escapeHtml(marketItem.id)}">安装</button>`);
     }
 
     // 使用要求与限制保留为独立正文分区。
     const list = (title, items) => items.length
-      ? `<div class="chatgptx-extensions-detail-section"><div class="chatgptx-extensions-detail-section-title">${escapeHtml(title)}</div><ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>`
+      ? `<div class="swivox-extensions-detail-section"><div class="swivox-extensions-detail-section-title">${escapeHtml(title)}</div><ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>`
       : "";
 
     return `
-      <button type="button" class="chatgptx-extensions-back" data-codex-extensions-browse="${chatgptxExtensionsFilter}" aria-label="返回拓展列表">${chatgptxDiscoveryIcons.back}<span>返回拓展列表</span></button>
-      <div class="chatgptx-extensions-detail-head">
-        <div class="chatgptx-extensions-detail-icon" aria-hidden="true">${extensionIconMarkup(marketItem?.icon)}</div>
-        <div class="chatgptx-extensions-detail-heading">
-          <div class="chatgptx-extensions-detail-title">${escapeHtml(name)}</div>
-          ${publisherLine ? `<div class="chatgptx-extensions-detail-meta">${publisherLine}</div>` : ""}
-          ${updateAvailable ? `<div class="chatgptx-extensions-detail-update">有新版本 v${escapeHtml(version)} 可更新</div>` : ""}
+      <button type="button" class="swivox-extensions-back" data-codex-extensions-browse="${swivoxExtensionsFilter}" aria-label="返回拓展列表">${swivoxDiscoveryIcons.back}<span>返回拓展列表</span></button>
+      <div class="swivox-extensions-detail-head">
+        <div class="swivox-extensions-detail-icon" aria-hidden="true">${extensionIconMarkup(marketItem?.icon)}</div>
+        <div class="swivox-extensions-detail-heading">
+          <div class="swivox-extensions-detail-title">${escapeHtml(name)}</div>
+          ${publisherLine ? `<div class="swivox-extensions-detail-meta">${publisherLine}</div>` : ""}
+          ${updateAvailable ? `<div class="swivox-extensions-detail-update">有新版本 v${escapeHtml(version)} 可更新</div>` : ""}
         </div>
-        <div class="chatgptx-extensions-detail-actions">${actions.join("")}</div>
+        <div class="swivox-extensions-detail-actions">${actions.join("")}</div>
       </div>
-      <div class="chatgptx-extensions-detail-body">
-        ${description ? `<div class="chatgptx-extensions-detail-description">${escapeHtml(description)}</div>` : ""}
-        ${tags.length ? `<div class="chatgptx-extensions-detail-tags">${tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}</div>` : ""}
+      <div class="swivox-extensions-detail-body">
+        ${description ? `<div class="swivox-extensions-detail-description">${escapeHtml(description)}</div>` : ""}
+        ${tags.length ? `<div class="swivox-extensions-detail-tags">${tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}</div>` : ""}
         ${list("使用要求", requirements)}
         ${list("已知限制", limitations)}
-        ${homepage ? `<div class="chatgptx-extensions-detail-link"><a href="${escapeHtml(homepage)}" target="_blank" rel="noreferrer">${escapeHtml(homepage)}</a></div>` : ""}
-        ${local?.error ? `<div class="chatgptx-extensions-detail-error">${escapeHtml(local.error)}</div>` : ""}
+        ${homepage ? `<div class="swivox-extensions-detail-link"><a href="${escapeHtml(homepage)}" target="_blank" rel="noreferrer">${escapeHtml(homepage)}</a></div>` : ""}
+        ${local?.error ? `<div class="swivox-extensions-detail-error">${escapeHtml(local.error)}</div>` : ""}
       </div>
     `;
   }
@@ -6014,46 +6014,46 @@
   async function uninstallUserScript(key) {
     if (!key) return;
     await postJson("/user-scripts/delete", { key });
-    if (chatgptxExtensionsSelected?.kind === "installed" && chatgptxExtensionsSelected.key === key) {
-      chatgptxExtensionsSelected = null;
+    if (swivoxExtensionsSelected?.kind === "installed" && swivoxExtensionsSelected.key === key) {
+      swivoxExtensionsSelected = null;
     }
     await loadUserScripts();
-    refreshChatGPTXExtensionsView();
+    refreshSwivoxExtensionsView();
   }
 
-  /** 左面板的导航项。ChatGPTX 页面切分组，「拓展」页面列脚本。 */
-  function renderChatGPTXPageNavItems(tab) {
-    if (tab === chatgptxExtensionsTab) return renderChatGPTXExtensionsNav();
+  /** 左面板的导航项。Swivox 页面切分组，「拓展」页面列脚本。 */
+  function renderSwivoxPageNavItems(tab) {
+    if (tab === swivoxExtensionsTab) return renderSwivoxExtensionsNav();
     return [
       { key: "home", label: "主页" },
     ].map((item) => `
-      <button type="button" class="chatgptx-page-nav-item" data-chatgptx-page-nav="${item.key}" data-active="${String(tab === item.key)}">${item.label}</button>
+      <button type="button" class="swivox-page-nav-item" data-swivox-page-nav="${item.key}" data-active="${String(tab === item.key)}">${item.label}</button>
     `).join("");
   }
 
   /**
    * 页面模式下把单栏内容改造成两栏：左面板 + 右内容区。
    *
-   * 只搬动已有的 .chatgptx-modal-body，不重建里面那些 data-codex-* 挂载点，
+   * 只搬动已有的 .swivox-modal-body，不重建里面那些 data-codex-* 挂载点，
    * 免得 renderUserScripts / 各类 toggle 的 querySelector 找不到目标。
    */
-  function installChatGPTXPageLayout(overlay, tab) {
-    if (!overlay || overlay.querySelector(".chatgptx-page-layout")) return;
-    const content = overlay.querySelector(".chatgptx-modal-content");
-    const body = content?.querySelector(".chatgptx-modal-body");
+  function installSwivoxPageLayout(overlay, tab) {
+    if (!overlay || overlay.querySelector(".swivox-page-layout")) return;
+    const content = overlay.querySelector(".swivox-modal-content");
+    const body = content?.querySelector(".swivox-modal-body");
     if (!content || !body) return;
     const layout = document.createElement("div");
-    layout.className = "chatgptx-page-layout";
+    layout.className = "swivox-page-layout";
     const main = document.createElement("div");
-    main.className = "chatgptx-page-main";
+    main.className = "swivox-page-main";
     // 只有「拓展」需要左面板（它是脚本列表）。主页和推荐内容都是单栏内容页，
     // 页面切换交给图标栏那三个入口，再列一遍就是重复。
-    if (tab === chatgptxExtensionsTab) {
+    if (tab === swivoxExtensionsTab) {
       const nav = document.createElement("div");
-      nav.className = "chatgptx-page-nav";
+      nav.className = "swivox-page-nav";
       nav.innerHTML = `
-        <div class="chatgptx-page-nav-header"><div class="chatgptx-page-nav-title">${chatgptxPageTitle(tab)}</div></div>
-        <div class="chatgptx-page-nav-body" data-chatgptx-page-nav-body="true">${renderChatGPTXPageNavItems(tab)}</div>
+        <div class="swivox-page-nav-header"><div class="swivox-page-nav-title">${swivoxPageTitle(tab)}</div></div>
+        <div class="swivox-page-nav-body" data-swivox-page-nav-body="true">${renderSwivoxPageNavItems(tab)}</div>
       `;
       layout.appendChild(nav);
     }
@@ -6062,48 +6062,48 @@
     main.appendChild(body);
     if (tab === "home") {
       // 设置标题和卡片共用居中栏，并随内容滚动，保持原生设置页的阅读节奏。
-      const header = content.querySelector(".chatgptx-modal-header");
-      if (header) body.querySelector(".chatgptx-settings")?.prepend(header);
+      const header = content.querySelector(".swivox-modal-header");
+      if (header) body.querySelector(".swivox-settings")?.prepend(header);
     }
   }
 
   /** 页面标题：每个 rail 入口一个名字，和图标栏上的标签保持一致。 */
-  function chatgptxPageTitle(tab) {
-    if (tab === chatgptxExtensionsTab) return "拓展";
-    return "ChatGPTX";
+  function swivoxPageTitle(tab) {
+    if (tab === swivoxExtensionsTab) return "拓展";
+    return "Swivox";
   }
 
   /** 左面板内容随当前分组刷新（切 tab 后调用）。 */
-  function refreshChatGPTXPageNav(tab) {
-    const body = document.querySelector("[data-chatgptx-page-nav-body]");
+  function refreshSwivoxPageNav(tab) {
+    const body = document.querySelector("[data-swivox-page-nav-body]");
     if (!body) return;
-    const title = document.querySelector(".chatgptx-page-nav-title");
-    if (title) title.textContent = tab === chatgptxExtensionsTab ? "拓展" : "ChatGPTX";
-    body.innerHTML = renderChatGPTXPageNavItems(tab);
+    const title = document.querySelector(".swivox-page-nav-title");
+    if (title) title.textContent = tab === swivoxExtensionsTab ? "拓展" : "Swivox";
+    body.innerHTML = renderSwivoxPageNavItems(tab);
   }
 
   /**
    * 脚本清单变化后同步左面板。
    *
    * 原来这里还要往「用户脚本」区块的开关与目录文本里写值，那个区块已经删掉，
-   * 侧栏显示已安装清单，主区列表与详情由 refreshChatGPTXExtensionsView 同步。
+   * 侧栏显示已安装清单，主区列表与详情由 refreshSwivoxExtensionsView 同步。
    */
   function renderUserScripts() {
     // 左面板也要跟着刷新，否则脚本的启停/状态变化不会反映到列表上。
-    if (chatgptxActiveEntry() === "extensions") refreshChatGPTXPageNav(chatgptxExtensionsTab);
+    if (swivoxActiveEntry() === "extensions") refreshSwivoxPageNav(swivoxExtensionsTab);
   }
 
   async function loadUserScripts(path = "/user-scripts/list", payload = {}) {
     const requestPayload = path === "/user-scripts/list"
-      ? { ...payload, runtime_status: window.__chatgptxUserScripts?.scripts || {} }
+      ? { ...payload, runtime_status: window.__swivoxUserScripts?.scripts || {} }
       : payload;
     const result = await postJson(path, requestPayload);
     if (result?.scripts) {
-      chatgptxUserScripts = result;
-      chatgptxUserScriptsLoaded = true;
+      swivoxUserScripts = result;
+      swivoxUserScriptsLoaded = true;
       renderUserScripts();
       // 已安装状态变了，市场的「已安装/有更新」标记也要跟着刷新。
-      if (chatgptxActiveEntry() === "extensions") refreshChatGPTXExtensionsView();
+      if (swivoxActiveEntry() === "extensions") refreshSwivoxExtensionsView();
     }
   }
 
@@ -6114,34 +6114,34 @@
    * 前端只需合并本地脚本清单来显示来源与状态。
    */
   async function loadScriptMarket(force = false) {
-    if (chatgptxScriptMarket.loading) return;
-    if (chatgptxScriptMarket.loaded && !force) return;
-    chatgptxScriptMarket = { ...chatgptxScriptMarket, loading: true };
-    if (chatgptxActiveEntry() === "extensions") refreshChatGPTXExtensionsView();
+    if (swivoxScriptMarket.loading) return;
+    if (swivoxScriptMarket.loaded && !force) return;
+    swivoxScriptMarket = { ...swivoxScriptMarket, loading: true };
+    if (swivoxActiveEntry() === "extensions") refreshSwivoxExtensionsView();
     const result = await postJson("/script-market/list", {});
     if (Array.isArray(result?.scripts)) {
-      chatgptxScriptMarket = {
+      swivoxScriptMarket = {
         scripts: result.scripts,
         loaded: true,
         loading: false,
         message: result.message || "",
       };
     } else {
-      chatgptxScriptMarket = {
-        ...chatgptxScriptMarket,
+      swivoxScriptMarket = {
+        ...swivoxScriptMarket,
         loaded: true,
         loading: false,
         message: result?.message || "拓展加载失败",
       };
     }
-    if (chatgptxActiveEntry() === "extensions") refreshChatGPTXExtensionsView();
+    if (swivoxActiveEntry() === "extensions") refreshSwivoxExtensionsView();
   }
 
   async function installScriptFromMarket(id) {
     if (!id) return;
     const result = await postJson("/script-market/install", { id });
     if (Array.isArray(result?.scripts)) {
-      chatgptxScriptMarket = {
+      swivoxScriptMarket = {
         scripts: result.scripts,
         loaded: true,
         loading: false,
@@ -6150,17 +6150,17 @@
     }
     // 后端装完会把本地清单一起带回来，省一次往返。
     if (result?.user_scripts?.scripts) {
-      chatgptxUserScripts = result.user_scripts;
-      chatgptxUserScriptsLoaded = true;
+      swivoxUserScripts = result.user_scripts;
+      swivoxUserScriptsLoaded = true;
       renderUserScripts();
     } else {
       await loadUserScripts();
     }
-    if (chatgptxExtensionsSelected?.kind === "market" && chatgptxExtensionsSelected.key === id) {
-      const installed = (chatgptxUserScripts.scripts || []).find((script) => script.market_id === id);
-      if (installed) chatgptxExtensionsSelected = { kind: "installed", key: installed.key };
+    if (swivoxExtensionsSelected?.kind === "market" && swivoxExtensionsSelected.key === id) {
+      const installed = (swivoxUserScripts.scripts || []).find((script) => script.market_id === id);
+      if (installed) swivoxExtensionsSelected = { kind: "installed", key: installed.key };
     }
-    if (chatgptxActiveEntry() === "extensions") refreshChatGPTXExtensionsView();
+    if (swivoxActiveEntry() === "extensions") refreshSwivoxExtensionsView();
   }
 
   /**
@@ -6169,9 +6169,9 @@
    * 本地有市场装来的脚本（带 market_id），据此判断「已安装」并给出卸载入口；
    * 「市场」分组只列还没装的，避免同一脚本出现两次。
    */
-  function chatgptxExtensionsEntries() {
-    const local = chatgptxUserScripts.scripts || [];
-    const marketById = new Map((chatgptxScriptMarket.scripts || []).map((item) => [item.id, item]));
+  function swivoxExtensionsEntries() {
+    const local = swivoxUserScripts.scripts || [];
+    const marketById = new Map((swivoxScriptMarket.scripts || []).map((item) => [item.id, item]));
     const localByMarketId = new Map(
       local.filter((script) => script.market_id).map((script) => [script.market_id, script]),
     );
@@ -6183,7 +6183,7 @@
       enabled: !!script.enabled,
       script,
     }));
-    const market = (chatgptxScriptMarket.scripts || [])
+    const market = (swivoxScriptMarket.scripts || [])
       .filter((item) => !localByMarketId.has(item.id))
       .map((item) => ({
         kind: "market",
@@ -6192,7 +6192,7 @@
         meta: `${item.author || "未知作者"} · v${item.version}`,
         item,
       }));
-    const available = (chatgptxScriptMarket.scripts || []).filter((item) => localByMarketId.has(item.id));
+    const available = (swivoxScriptMarket.scripts || []).filter((item) => localByMarketId.has(item.id));
     return { installed, market, available, localByMarketId };
   }
 
@@ -6202,18 +6202,18 @@
    * 市场条目自带 `item`；已安装条目只有本地脚本（`script`），要靠脚本上的
    * `market_id` 回查，否则拿不到图标、简介、标签。纯本地脚本两者都没有。
    */
-  function chatgptxExtensionMarketItem(entry) {
+  function swivoxExtensionMarketItem(entry) {
     if (entry.kind === "market") return entry.item || null;
     const marketId = entry.script?.market_id;
     if (!marketId) return null;
-    return (chatgptxScriptMarket.scripts || []).find((item) => item.id === marketId) || null;
+    return (swivoxScriptMarket.scripts || []).find((item) => item.id === marketId) || null;
   }
 
-  function filterChatGPTXExtensionsEntries(entries) {
-    const query = chatgptxExtensionsQuery.trim().toLowerCase();
+  function filterSwivoxExtensionsEntries(entries) {
+    const query = swivoxExtensionsQuery.trim().toLowerCase();
     if (!query) return entries;
     return entries.filter((entry) => {
-      const marketItem = chatgptxExtensionMarketItem(entry);
+      const marketItem = swivoxExtensionMarketItem(entry);
       return [entry.name, entry.key, entry.script?.name, entry.meta, marketItem?.description, ...(marketItem?.tags || [])]
         .filter(Boolean)
         .some((text) => String(text).toLowerCase().includes(query));
@@ -6221,37 +6221,37 @@
   }
 
 
-  function selectChatGPTXTab(tab) {
-    closeChatGPTXTypingEffectDropdown();
+  function selectSwivoxTab(tab) {
+    closeSwivoxTypingEffectDropdown();
     // 归一化后再比对：panel 用的是 extensions，而旧调用点仍传 userScripts，
     // 不统一就会两边都对不上、所有 panel 全被隐藏。
-    const normalized = chatgptxModalTab(tab);
-    document.querySelectorAll(".chatgptx-modal-content").forEach((modal) => {
-      modal.dataset.chatgptxActiveTab = normalized;
+    const normalized = swivoxModalTab(tab);
+    document.querySelectorAll(".swivox-modal-content").forEach((modal) => {
+      modal.dataset.swivoxActiveTab = normalized;
     });
-    document.querySelectorAll("[data-chatgptx-panel]").forEach((panel) => {
-      panel.hidden = chatgptxModalTab(panel.getAttribute("data-chatgptx-panel")) !== normalized;
+    document.querySelectorAll("[data-swivox-panel]").forEach((panel) => {
+      panel.hidden = swivoxModalTab(panel.getAttribute("data-swivox-panel")) !== normalized;
     });
-    if (normalized === chatgptxExtensionsTab) {
+    if (normalized === swivoxExtensionsTab) {
       loadUserScripts();
       // 市场清单拉过一次就缓存，切换分组不再重复请求；失败后可从界面手动刷新。
       void loadScriptMarket();
     }
-    refreshChatGPTXPageNav(normalized);
+    refreshSwivoxPageNav(normalized);
   }
 
   /** 两个 rail 入口各自对应一个页面，激活态要分别判断，不能只看页面开着没有。 */
-  function chatgptxActiveEntry() {
-    const overlay = document.querySelector(`.${chatgptxPageClass}`);
+  function swivoxActiveEntry() {
+    const overlay = document.querySelector(`.${swivoxPageClass}`);
     if (!overlay) return null;
-    const tab = overlay.querySelector(".chatgptx-modal-content")?.dataset?.chatgptxActiveTab;
-    if (tab === chatgptxExtensionsTab) return "extensions";
-    if (tab === chatgptxPluginMarketTab) return "plugin-market";
+    const tab = overlay.querySelector(".swivox-modal-content")?.dataset?.swivoxActiveTab;
+    if (tab === swivoxExtensionsTab) return "extensions";
+    if (tab === swivoxPluginMarketTab) return "plugin-market";
     return "home";
   }
 
-  function setChatGPTXSidebarNavActive(active, entry = "home") {
-    const nav = document.getElementById(chatgptxSidebarNavId);
+  function setSwivoxSidebarNavActive(active, entry = "home") {
+    const nav = document.getElementById(swivoxSidebarNavId);
     const button = nav?.querySelector("button");
     if (button) {
       const on = Boolean(active) && entry === "home";
@@ -6260,8 +6260,8 @@
       else button.removeAttribute("aria-current");
     }
     [
-      [chatgptxRailNavId, "home"],
-      [chatgptxRailExtensionsId, "extensions"],
+      [swivoxRailNavId, "home"],
+      [swivoxRailExtensionsId, "extensions"],
     ].forEach(([id, name]) => {
       const railButton = document.querySelector(`#${id} > button`);
       if (!railButton) return;
@@ -6273,7 +6273,7 @@
       if (on) railButton.setAttribute("data-selected", "");
       else railButton.removeAttribute("data-selected");
     });
-    syncChatGPTXRailNativeSelection();
+    syncSwivoxRailNativeSelection();
   }
 
   /**
@@ -6283,27 +6283,27 @@
    *
    * 未选中的颜色取自当前主题下真实的未选中项，避免把深浅色写死。
    */
-  function syncChatGPTXRailNativeSelection() {
+  function syncSwivoxRailNativeSelection() {
     const root = document.documentElement;
     if (!root) return;
-    if (!document.querySelector(`.${chatgptxPageClass}`)) {
-      root.removeAttribute("data-chatgptx-page-open");
-      root.style.removeProperty("--chatgptx-rail-dim");
+    if (!document.querySelector(`.${swivoxPageClass}`)) {
+      root.removeAttribute("data-swivox-page-open");
+      root.style.removeProperty("--swivox-rail-dim");
       return;
     }
-    const rail = document.querySelector(chatgptxRailSelector);
-    const unselected = rail?.querySelector(`${chatgptxRailDestinationSelector}:not([aria-current="page"])`);
+    const rail = document.querySelector(swivoxRailSelector);
+    const unselected = rail?.querySelector(`${swivoxRailDestinationSelector}:not([aria-current="page"])`);
     const dim = unselected ? getComputedStyle(unselected).color : "";
-    if (dim) root.style.setProperty("--chatgptx-rail-dim", dim);
-    root.setAttribute("data-chatgptx-page-open", "");
+    if (dim) root.style.setProperty("--swivox-rail-dim", dim);
+    root.setAttribute("data-swivox-page-open", "");
   }
 
-  function positionChatGPTXPage(overlay) {
-    if (!overlay?.classList?.contains(chatgptxPageClass)) return;
+  function positionSwivoxPage(overlay) {
+    if (!overlay?.classList?.contains(swivoxPageClass)) return;
     const sidebar = document.querySelector("aside.app-shell-left-panel");
     const rect = sidebar?.getBoundingClientRect?.();
     const main = document.querySelector("main");
-    const rail = document.querySelector(chatgptxRailSelector);
+    const rail = document.querySelector(swivoxRailSelector);
     const railRect = rail?.getBoundingClientRect?.();
     // 新版：页面要顶替原生侧边栏——从图标栏右边界起铺满，把宽面板整个盖住，
     // 而不是并排在其右侧多出一列（那样会变成「图标栏 + 会话列表 + 我们的面板」三段）。
@@ -6313,9 +6313,9 @@
       : (rect && rect.width > 0 ? Math.max(0, rect.right) : 0);
     // 量出来的是视觉坐标，而 overlay 在缩放空间里布局，所以统一折算成布局坐标。
     // CSS 的 calc(100vw / zoom - left) 用的也是这个空间的量，两边才配得上。
-    const zoom = chatgptxWindowZoom();
+    const zoom = swivoxWindowZoom();
     const layoutLeft = zoom === 1 ? left : left / zoom;
-    overlay.style.setProperty("--chatgptx-page-left", `${layoutLeft}px`);
+    overlay.style.setProperty("--swivox-page-left", `${layoutLeft}px`);
     overlay.style.left = `${layoutLeft}px`;
     // 官方顶部有一条 header（返回/前进/隐藏侧边栏），图标栏与侧边栏都从它的下沿开始。
     // 我们的 overlay 若从 y=0 铺满就会把整条 header 盖住——用户反馈「比官方少了一条顶部栏」
@@ -6324,7 +6324,7 @@
       ? Math.max(0, railRect.top)
       : (rect && rect.height > 0 ? Math.max(0, rect.top) : 0);
     const layoutTop = zoom === 1 ? top : top / zoom;
-    overlay.style.setProperty("--chatgptx-page-top", `${layoutTop}px`);
+    overlay.style.setProperty("--swivox-page-top", `${layoutTop}px`);
     overlay.style.top = `${layoutTop}px`;
     // 右侧与下方官方各留了一圈槽：整行的 [data-app-shell-workspace-row] 比视口小
     // （真机 1715x984 / 视口 1719x988，即右、下各 4px），官方内容面板正好收在行的右下角。
@@ -6335,8 +6335,8 @@
     const bottomGutter = rowRect && rowRect.height > 0 ? Math.max(0, window.innerHeight - rowRect.bottom) : 0;
     const layoutRight = zoom === 1 ? rightGutter : rightGutter / zoom;
     const layoutBottom = zoom === 1 ? bottomGutter : bottomGutter / zoom;
-    overlay.style.setProperty("--chatgptx-page-right", `${layoutRight}px`);
-    overlay.style.setProperty("--chatgptx-page-bottom", `${layoutBottom}px`);
+    overlay.style.setProperty("--swivox-page-right", `${layoutRight}px`);
+    overlay.style.setProperty("--swivox-page-bottom", `${layoutBottom}px`);
     overlay.style.right = `${layoutRight}px`;
     overlay.style.bottom = `${layoutBottom}px`;
     // 圆角同样量取官方面板自身的值，不写死 12px。
@@ -6359,33 +6359,33 @@
       parseFloat(mainSurfaceStyle?.getPropertyValue("--app-shell-main-surface-clip-end-radius") || "") ||
       0;
     const layoutRadius = zoom === 1 ? radius : radius / zoom;
-    overlay.style.setProperty("--chatgptx-page-radius", `${layoutRadius}px`);
-    if (window.__chatgptxPageLayoutObserver &&
-        (window.__chatgptxPageLayoutTargets?.main !== main ||
-         window.__chatgptxPageLayoutTargets?.sidebar !== sidebar ||
-         window.__chatgptxPageLayoutTargets?.rail !== rail)) {
-      window.__chatgptxPageLayoutObserver.disconnect();
+    overlay.style.setProperty("--swivox-page-radius", `${layoutRadius}px`);
+    if (window.__swivoxPageLayoutObserver &&
+        (window.__swivoxPageLayoutTargets?.main !== main ||
+         window.__swivoxPageLayoutTargets?.sidebar !== sidebar ||
+         window.__swivoxPageLayoutTargets?.rail !== rail)) {
+      window.__swivoxPageLayoutObserver.disconnect();
       for (const target of new Set([main, sidebar, rail])) {
-        if (target) window.__chatgptxPageLayoutObserver.observe(target);
+        if (target) window.__swivoxPageLayoutObserver.observe(target);
       }
-      window.__chatgptxPageLayoutTargets = { main, sidebar, rail };
+      window.__swivoxPageLayoutTargets = { main, sidebar, rail };
     }
   }
 
-  function observeChatGPTXPageLayout(overlay) {
-    window.__chatgptxPageLayoutObserver?.disconnect();
-    window.removeEventListener("resize", window.__chatgptxPageResizeHandler);
+  function observeSwivoxPageLayout(overlay) {
+    window.__swivoxPageLayoutObserver?.disconnect();
+    window.removeEventListener("resize", window.__swivoxPageResizeHandler);
     const reposition = () => {
-      if (overlay.isConnected) positionChatGPTXPage(overlay);
+      if (overlay.isConnected) positionSwivoxPage(overlay);
     };
-    window.__chatgptxPageLayoutObserver = new ResizeObserver(reposition);
-    window.__chatgptxPageLayoutTargets = {};
-    window.__chatgptxPageResizeHandler = reposition;
+    window.__swivoxPageLayoutObserver = new ResizeObserver(reposition);
+    window.__swivoxPageLayoutTargets = {};
+    window.__swivoxPageResizeHandler = reposition;
     window.addEventListener("resize", reposition);
-    positionChatGPTXPage(overlay);
+    positionSwivoxPage(overlay);
   }
 
-  function chatgptxHostUsesLightTheme() {
+  function swivoxHostUsesLightTheme() {
     const root = document.documentElement;
     const body = document.body;
     const explicitTheme = [
@@ -6412,10 +6412,10 @@
    *
    * Codex 的界面缩放的实现是给内层布局节点设 CSS `zoom`（例如 1.2），而不是改
    * documentElement，所以固定在 body 下的 overlay 不会自动跟随。这里把它读出来，
-   * 由 applyChatGPTXZoom 自己套上。
+   * 由 applySwivoxZoom 自己套上。
    */
-  function chatgptxWindowZoom() {
-    const raw = getComputedStyle(document.documentElement).getPropertyValue(chatgptxWindowZoomVar);
+  function swivoxWindowZoom() {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue(swivoxWindowZoomVar);
     const value = Number.parseFloat(raw);
     return Number.isFinite(value) && value > 0 ? value : 1;
   }
@@ -6425,15 +6425,15 @@
    *
    * 直接给 fixed 元素设 zoom 的话，它自身的 `inset: 0` / `100vw` 都还是按未缩放的
    * 视口算，再乘 zoom 就溢出（实测 zoom=1.2 时 100vw 得到 2072px，视口只有 1727）。
-   * 所以 overlay 自身的尺寸改用 `calc(100vw / var(--chatgptx-zoom))` 抵消，
+   * 所以 overlay 自身的尺寸改用 `calc(100vw / var(--swivox-zoom))` 抵消，
    * 内部子元素则用百分比——它们在缩放空间里，百分比本来就对。
    *
    * 字号不在这里动：由 CSS 跟随 zoom 自然放大，与原生行为一致。
    */
-  function applyChatGPTXZoom(overlay) {
+  function applySwivoxZoom(overlay) {
     if (!overlay?.style) return 1;
-    const zoom = chatgptxWindowZoom();
-    overlay.style.setProperty("--chatgptx-zoom", String(zoom));
+    const zoom = swivoxWindowZoom();
+    overlay.style.setProperty("--swivox-zoom", String(zoom));
     if (zoom === 1) {
       overlay.style.removeProperty("zoom");
       return 1;
@@ -6450,9 +6450,9 @@
    * 比原生偏白偏冷。现在改成读宿主算好的值——取不到才回落到兜底色，
    * 这样浅色/深色主题都跟原生同源，也不会在 Codex 调色板变动后失配。
    */
-  function applyChatGPTXTheme(overlay) {
+  function applySwivoxTheme(overlay) {
     if (!overlay?.style) return;
-    const light = chatgptxHostUsesLightTheme();
+    const light = swivoxHostUsesLightTheme();
     const host = getComputedStyle(document.documentElement);
     const read = (names, fallback) => {
       for (const name of names) {
@@ -6462,144 +6462,144 @@
       return fallback;
     };
     const variables = {
-      "--chatgptx-bg-primary": read(
+      "--swivox-bg-primary": read(
         ["--color-token-bg-primary", "--token-bg-primary", "--app-color-background-surface"],
         light ? "#ffffff" : "#141414",
       ),
-      "--chatgptx-bg-secondary": read(
+      "--swivox-bg-secondary": read(
         ["--color-token-bg-secondary", "--token-bg-secondary", "--color-surface-secondary"],
         light ? "#f7f7f7" : "#2f2f2f",
       ),
-      "--chatgptx-bg-elevated": read(
+      "--swivox-bg-elevated": read(
         ["--color-token-dropdown-background", "--color-surface-elevated-secondary", "--color-token-bg-elevated-secondary"],
         light ? "#ffffff" : "#2f2f2f",
       ),
       // 设置页使用独立 surface，正文背景令牌在部分版本中比原生设置页更深。
-      "--chatgptx-settings-page-bg": read(
+      "--swivox-settings-page-bg": read(
         ["--color-background-surface", "--app-color-background-surface"],
         light ? "#ffffff" : "#181818",
       ),
-      "--chatgptx-nav-bg": read(
+      "--swivox-nav-bg": read(
         ["--color-token-sidebar-background", "--color-background-sidebar"],
         light ? "#f7f7f7" : "#1e1e1e",
       ),
-      "--chatgptx-nav-selected-bg": read(
+      "--swivox-nav-selected-bg": read(
         ["--color-token-interactive-bg-secondary-selected", "--color-background-primary-soft-active"],
         light ? "#e9e9e9" : "#2f2f2f",
       ),
-      "--chatgptx-settings-card-bg": read(
+      "--swivox-settings-card-bg": read(
         ["--color-background-surface-secondary", "--color-background-surface-raised"],
         light ? "#f7f7f7" : "#232323",
       ),
-      "--chatgptx-switch-on": read(
+      "--swivox-switch-on": read(
         ["--color-background-accent-solid", "--color-token-bg-accent"],
         "#3485ff",
       ),
-      "--chatgptx-switch-off": read(
+      "--swivox-switch-off": read(
         ["--color-background-switch-off", "--color-background-secondary-solid"],
         light ? "#dedede" : "#3a3a3a",
       ),
-      "--chatgptx-switch-thumb": read(
+      "--swivox-switch-thumb": read(
         ["--color-background-switch-thumb"],
         "#ffffff",
       ),
-      "--chatgptx-bg-hover": read(
+      "--swivox-bg-hover": read(
         ["--color-token-interactive-bg-secondary-hover", "--color-background-primary-soft-hover", "--token-list-hover-background"],
         light ? "rgba(0,0,0,.06)" : "rgba(255,255,255,.08)",
       ),
-      "--chatgptx-bg-selected": read(
+      "--swivox-bg-selected": read(
         ["--color-token-interactive-bg-secondary-selected", "--color-background-primary-soft-active"],
         light ? "rgba(0,0,0,.08)" : "rgba(255,255,255,.12)",
       ),
-      "--chatgptx-text": read(
+      "--swivox-text": read(
         ["--color-token-text-primary", "--color-text-primary", "--token-text-primary"],
         light ? "#171717" : "#dfdfdf",
       ),
-      "--chatgptx-text-secondary": read(
+      "--swivox-text-secondary": read(
         ["--color-token-text-secondary", "--color-text-secondary-solid", "--color-text-secondary"],
         light ? "#5d5d5d" : "rgba(255,255,255,.71)",
       ),
-      "--chatgptx-text-tertiary": read(
+      "--swivox-text-tertiary": read(
         ["--color-token-text-tertiary", "--color-text-tertiary"],
         light ? "#8a8a8a" : "rgba(255,255,255,.498)",
       ),
-      "--chatgptx-border": read(
+      "--swivox-border": read(
         ["--color-token-border-default", "--color-token-border", "--color-border-primary-outline"],
         light ? "rgba(0,0,0,.12)" : "rgba(255,255,255,.084)",
       ),
-      "--chatgptx-border-subtle": read(
+      "--swivox-border-subtle": read(
         ["--color-token-border-subtle", "--color-border-disabled"],
         light ? "rgba(0,0,0,.08)" : "rgba(255,255,255,.06)",
       ),
-      "--chatgptx-danger": read(
+      "--swivox-danger": read(
         ["--color-text-danger", "--color-token-text-error"],
         light ? "#dc2626" : "#ff6764",
       ),
-      "--chatgptx-success": read(
+      "--swivox-success": read(
         ["--color-text-success", "--app-color-text-success"],
         light ? "#15803d" : "#40c977",
       ),
-      "--chatgptx-warning": read(
+      "--swivox-warning": read(
         ["--color-text-warning", "--color-text-caution-surface"],
         light ? "#a16207" : "#ffc300",
       ),
     };
     Object.entries(variables).forEach(([name, value]) => overlay.style.setProperty(name, value));
-    overlay.dataset.chatgptxTheme = light ? "light" : "dark";
+    overlay.dataset.swivoxTheme = light ? "light" : "dark";
   }
 
   /**
    * 规范化页面/tab 名。
    *
-   * 用户脚本从 ChatGPTX 弹窗里拆出来成了独立的「拓展」页面，
+   * 用户脚本从 Swivox 弹窗里拆出来成了独立的「拓展」页面，
    * 这里把旧名 userScripts 也映射过去，避免存量调用点失效。
    */
-  function chatgptxModalTab(tab) {
-    if (tab === "extensions" || tab === "userScripts") return chatgptxExtensionsTab;
+  function swivoxModalTab(tab) {
+    if (tab === "extensions" || tab === "userScripts") return swivoxExtensionsTab;
     return "home";
   }
 
-  let chatgptxTypingEffectDropdownCleanup = null;
+  let swivoxTypingEffectDropdownCleanup = null;
 
   /** 保留 select 的值与 change 契约，只替换原生系统菜单的呈现。 */
-  function syncChatGPTXTypingEffectDropdown(select) {
-    const overlay = select.closest(".chatgptx-modal-overlay, .chatgptx-page-overlay");
-    const trigger = overlay?.querySelector("[data-chatgptx-typing-effect-trigger]");
+  function syncSwivoxTypingEffectDropdown(select) {
+    const overlay = select.closest(".swivox-modal-overlay, .swivox-page-overlay");
+    const trigger = overlay?.querySelector("[data-swivox-typing-effect-trigger]");
     if (!trigger) return;
     trigger.disabled = select.disabled;
-    const label = trigger.querySelector("[data-chatgptx-dropdown-label]");
+    const label = trigger.querySelector("[data-swivox-dropdown-label]");
     if (label) label.textContent = select.selectedOptions[0]?.textContent || "关闭";
-    overlay.querySelectorAll("[data-chatgptx-typing-effect-option]").forEach((option) => {
-      const selected = option.dataset.chatgptxTypingEffectOption === select.value;
+    overlay.querySelectorAll("[data-swivox-typing-effect-option]").forEach((option) => {
+      const selected = option.dataset.swivoxTypingEffectOption === select.value;
       option.setAttribute("aria-selected", String(selected));
       option.tabIndex = selected ? 0 : -1;
     });
-    if (select.disabled) closeChatGPTXTypingEffectDropdown();
+    if (select.disabled) closeSwivoxTypingEffectDropdown();
   }
 
-  function closeChatGPTXTypingEffectDropdown(restoreFocus = false) {
-    const menu = document.querySelector("[data-chatgptx-typing-effect-menu]");
-    const trigger = menu?.parentElement?.querySelector("[data-chatgptx-typing-effect-trigger]");
+  function closeSwivoxTypingEffectDropdown(restoreFocus = false) {
+    const menu = document.querySelector("[data-swivox-typing-effect-menu]");
+    const trigger = menu?.parentElement?.querySelector("[data-swivox-typing-effect-trigger]");
     if (menu) menu.hidden = true;
     trigger?.setAttribute("aria-expanded", "false");
-    chatgptxTypingEffectDropdownCleanup?.();
-    chatgptxTypingEffectDropdownCleanup = null;
+    swivoxTypingEffectDropdownCleanup?.();
+    swivoxTypingEffectDropdownCleanup = null;
     if (restoreFocus && trigger?.isConnected && !trigger.disabled) trigger.focus();
   }
 
-  function openChatGPTXTypingEffectDropdown(overlay, last = false) {
-    const select = overlay.querySelector("[data-chatgptx-typing-effect]");
-    const trigger = overlay.querySelector("[data-chatgptx-typing-effect-trigger]");
-    const menu = overlay.querySelector("[data-chatgptx-typing-effect-menu]");
+  function openSwivoxTypingEffectDropdown(overlay, last = false) {
+    const select = overlay.querySelector("[data-swivox-typing-effect]");
+    const trigger = overlay.querySelector("[data-swivox-typing-effect-trigger]");
+    const menu = overlay.querySelector("[data-swivox-typing-effect-menu]");
     if (!select || select.disabled || !trigger || !menu) return;
-    closeChatGPTXTypingEffectDropdown();
-    syncChatGPTXTypingEffectDropdown(select);
+    closeSwivoxTypingEffectDropdown();
+    syncSwivoxTypingEffectDropdown(select);
     menu.hidden = false;
     trigger.setAttribute("aria-expanded", "true");
     // 菜单直接挂 overlay，避开滚动内容的裁剪；坐标换算与页面缩放保持同源。
     const frame = overlay.getBoundingClientRect();
     const anchor = trigger.getBoundingClientRect();
-    const zoom = chatgptxWindowZoom();
+    const zoom = swivoxWindowZoom();
     const width = frame.width / zoom;
     const height = frame.height / zoom;
     menu.style.maxHeight = `${Math.max(0, height - 16)}px`;
@@ -6613,7 +6613,7 @@
     const focused = last ? options[options.length - 1] : options.find((option) => option.getAttribute("aria-selected") === "true") || options[0];
     focused?.focus({ preventScroll: true });
     const controller = new AbortController();
-    const close = () => closeChatGPTXTypingEffectDropdown();
+    const close = () => closeSwivoxTypingEffectDropdown();
     document.addEventListener("pointerdown", (event) => {
       if (!menu.contains(event.target) && !trigger.contains(event.target)) close();
     }, { capture: true, signal: controller.signal });
@@ -6626,252 +6626,252 @@
       if (!overlay.isConnected) close();
     });
     observer.observe(document.body, { childList: true });
-    chatgptxTypingEffectDropdownCleanup = () => {
+    swivoxTypingEffectDropdownCleanup = () => {
       controller.abort();
       observer.disconnect();
     };
   }
 
-  function openChatGPTXModal(options = {}) {
+  function openSwivoxModal(options = {}) {
     const pageMode = options.page === true;
-    const initialTab = chatgptxModalTab(options.tab);
-    closeChatGPTXPage();
-    document.querySelectorAll(".chatgptx-modal-overlay").forEach((node) => node.remove());
-    document.querySelectorAll(`.${chatgptxPageClass}, [data-chatgptx-dialog="true"]`).forEach((node) => node.remove());
+    const initialTab = swivoxModalTab(options.tab);
+    closeSwivoxPage();
+    document.querySelectorAll(".swivox-modal-overlay").forEach((node) => node.remove());
+    document.querySelectorAll(`.${swivoxPageClass}, [data-swivox-dialog="true"]`).forEach((node) => node.remove());
     const overlay = document.createElement("div");
-    overlay.className = pageMode ? chatgptxPageClass : "chatgptx-modal-overlay";
-    overlay.dataset.chatgptxPage = String(pageMode);
-    applyChatGPTXTheme(overlay);
+    overlay.className = pageMode ? swivoxPageClass : "swivox-modal-overlay";
+    overlay.dataset.swivoxPage = String(pageMode);
+    applySwivoxTheme(overlay);
     // 跟随 Codex 的界面缩放。必须在写 innerHTML 之前设好，否则内部那些
-    // calc(100% / var(--chatgptx-zoom-inverse)) 会先按 1 算一遍再被 zoom 放大。
-    applyChatGPTXZoom(overlay);
+    // calc(100% / var(--swivox-zoom-inverse)) 会先按 1 算一遍再被 zoom 放大。
+    applySwivoxZoom(overlay);
     // 下拉箭头与勾选图标使用已安装的 Lucide ChevronDown / Check（ISC）路径。
     overlay.innerHTML = `
-      <div class="chatgptx-modal-content" role="dialog" aria-modal="true" aria-label="ChatGPTX">
-        <div class="chatgptx-modal-header">
-          <div class="chatgptx-modal-title"><span class="chatgptx-backend-indicator" data-codex-backend-indicator="true" data-status="checking"></span><span data-chatgptx-version="true">ChatGPTX ${chatgptxVersion}</span></div>
-          ${pageMode ? "" : `<button type="button" class="chatgptx-modal-close" aria-label="关闭">×</button>`}
+      <div class="swivox-modal-content" role="dialog" aria-modal="true" aria-label="Swivox">
+        <div class="swivox-modal-header">
+          <div class="swivox-modal-title"><span class="swivox-backend-indicator" data-codex-backend-indicator="true" data-status="checking"></span><span data-swivox-version="true">Swivox ${swivoxVersion}</span></div>
+          ${pageMode ? "" : `<button type="button" class="swivox-modal-close" aria-label="关闭">×</button>`}
         </div>
-        <div class="chatgptx-modal-body">
-          <div class="chatgptx-panel chatgptx-settings" data-chatgptx-panel="home">
-            <section class="chatgptx-settings-section" aria-label="常规">
-              <h2 class="chatgptx-settings-section-title">常规</h2>
-              <div class="chatgptx-settings-card">
-                <div class="chatgptx-row">
-                  <div><div class="chatgptx-row-title">后端连接</div><div class="chatgptx-row-description">每 5 秒检查一次 launcher 后端状态。</div></div>
-                  <div class="chatgptx-backend-status">
-                    <div class="chatgptx-backend-label" data-codex-backend-status="true" data-status="checking">正在检查后端…</div>
+        <div class="swivox-modal-body">
+          <div class="swivox-panel swivox-settings" data-swivox-panel="home">
+            <section class="swivox-settings-section" aria-label="常规">
+              <h2 class="swivox-settings-section-title">常规</h2>
+              <div class="swivox-settings-card">
+                <div class="swivox-row">
+                  <div><div class="swivox-row-title">后端连接</div><div class="swivox-row-description">每 5 秒检查一次 launcher 后端状态。</div></div>
+                  <div class="swivox-backend-status">
+                    <div class="swivox-backend-label" data-codex-backend-status="true" data-status="checking">正在检查后端…</div>
                   </div>
                 </div>
-                <div class="chatgptx-row">
-                  <div><div class="chatgptx-row-title">Codex增强</div><div class="chatgptx-row-description">关闭后停用删除、导出、插件相关和菜单位置增强。</div></div>
-                  <button type="button" class="chatgptx-toggle" data-codex-backend-setting="enhancementsEnabled"><span></span></button>
+                <div class="swivox-row">
+                  <div><div class="swivox-row-title">Codex增强</div><div class="swivox-row-description">关闭后停用删除、导出、插件相关和菜单位置增强。</div></div>
+                  <button type="button" class="swivox-toggle" data-codex-backend-setting="enhancementsEnabled"><span></span></button>
                 </div>
-                <div class="chatgptx-row">
-                  <div><div class="chatgptx-row-title">插件市场解锁</div><div class="chatgptx-row-description">扩展插件市场请求，尽量显示完整插件列表。</div></div>
-                  <button type="button" class="chatgptx-toggle" data-chatgptx-setting="pluginMarketplaceUnlock"><span></span></button>
+                <div class="swivox-row">
+                  <div><div class="swivox-row-title">插件市场解锁</div><div class="swivox-row-description">扩展插件市场请求，尽量显示完整插件列表。</div></div>
+                  <button type="button" class="swivox-toggle" data-swivox-setting="pluginMarketplaceUnlock"><span></span></button>
                 </div>
-                <div class="chatgptx-row">
-                  <div><div class="chatgptx-row-title">模型白名单解锁</div><div class="chatgptx-row-description">从环境变量和 Codex config.toml 中的中转站 /v1/models 拉取模型，并补进模型选择列表。</div></div>
-                  <button type="button" class="chatgptx-toggle" data-chatgptx-setting="modelWhitelistUnlock"><span></span></button>
+                <div class="swivox-row">
+                  <div><div class="swivox-row-title">模型白名单解锁</div><div class="swivox-row-description">从环境变量和 Codex config.toml 中的中转站 /v1/models 拉取模型，并补进模型选择列表。</div></div>
+                  <button type="button" class="swivox-toggle" data-swivox-setting="modelWhitelistUnlock"><span></span></button>
                 </div>
               </div>
             </section>
-            <section class="chatgptx-settings-section" aria-label="模型与服务">
-              <h2 class="chatgptx-settings-section-title">模型与服务</h2>
-              <div class="chatgptx-settings-card">
-                <div class="chatgptx-row">
-                  <div><div class="chatgptx-row-title">Fast 按钮</div><div class="chatgptx-row-description">显示服务模式切换按钮；Fast 仅支持 ${codexServiceTierFastModelListLabel()}，其他模型按 Standard 发送。</div></div>
-                  <button type="button" class="chatgptx-toggle" data-chatgptx-setting="serviceTierControls"><span></span></button>
+            <section class="swivox-settings-section" aria-label="模型与服务">
+              <h2 class="swivox-settings-section-title">模型与服务</h2>
+              <div class="swivox-settings-card">
+                <div class="swivox-row">
+                  <div><div class="swivox-row-title">Fast 按钮</div><div class="swivox-row-description">显示服务模式切换按钮；Fast 仅支持 ${codexServiceTierFastModelListLabel()}，其他模型按 Standard 发送。</div></div>
+                  <button type="button" class="swivox-toggle" data-swivox-setting="serviceTierControls"><span></span></button>
                 </div>
-                <div class="chatgptx-row" data-codex-service-tier-controls="true">
-                  <div><div class="chatgptx-row-title">服务模式</div><div class="chatgptx-row-description">继承优先读取 Codex 应用内设置，其次读取 config.toml 的 service_tier；全局模式覆盖全部 thread；自定义允许按 thread 覆盖。</div></div>
-                  <div class="chatgptx-service-tier-control">
-                    <div class="chatgptx-service-tier-status" data-codex-service-tier-status="true" data-status="loading">正在读取…</div>
-                    <div class="chatgptx-service-tier-actions">
-                      <button type="button" class="chatgptx-service-tier-button" data-codex-service-tier-inherit="true">继承</button>
-                      <button type="button" class="chatgptx-service-tier-button" data-codex-service-tier-standard="true">全局 Standard</button>
-                      <button type="button" class="chatgptx-service-tier-button" data-codex-service-tier-fast="true">全局 Fast</button>
-                      <button type="button" class="chatgptx-service-tier-button" data-codex-service-tier-custom="true">自定义</button>
+                <div class="swivox-row" data-codex-service-tier-controls="true">
+                  <div><div class="swivox-row-title">服务模式</div><div class="swivox-row-description">继承优先读取 Codex 应用内设置，其次读取 config.toml 的 service_tier；全局模式覆盖全部 thread；自定义允许按 thread 覆盖。</div></div>
+                  <div class="swivox-service-tier-control">
+                    <div class="swivox-service-tier-status" data-codex-service-tier-status="true" data-status="loading">正在读取…</div>
+                    <div class="swivox-service-tier-actions">
+                      <button type="button" class="swivox-service-tier-button" data-codex-service-tier-inherit="true">继承</button>
+                      <button type="button" class="swivox-service-tier-button" data-codex-service-tier-standard="true">全局 Standard</button>
+                      <button type="button" class="swivox-service-tier-button" data-codex-service-tier-fast="true">全局 Fast</button>
+                      <button type="button" class="swivox-service-tier-button" data-codex-service-tier-custom="true">自定义</button>
                     </div>
-                    <div class="chatgptx-service-tier-actions chatgptx-service-tier-thread-actions">
-                      <span class="chatgptx-service-tier-thread-label">当前 thread 覆盖</span>
-                      <button type="button" class="chatgptx-service-tier-button" data-codex-service-tier-thread-inherit="true" title="当前 thread 不单独覆盖，继承 Codex 默认设置">继承</button>
-                      <button type="button" class="chatgptx-service-tier-button" data-codex-service-tier-thread-standard="true" title="仅当前 thread 使用 Standard，并切到自定义模式">Standard</button>
-                      <button type="button" class="chatgptx-service-tier-button" data-codex-service-tier-thread-fast="true" title="仅当前 thread 使用 Fast，并切到自定义模式">Fast</button>
+                    <div class="swivox-service-tier-actions swivox-service-tier-thread-actions">
+                      <span class="swivox-service-tier-thread-label">当前 thread 覆盖</span>
+                      <button type="button" class="swivox-service-tier-button" data-codex-service-tier-thread-inherit="true" title="当前 thread 不单独覆盖，继承 Codex 默认设置">继承</button>
+                      <button type="button" class="swivox-service-tier-button" data-codex-service-tier-thread-standard="true" title="仅当前 thread 使用 Standard，并切到自定义模式">Standard</button>
+                      <button type="button" class="swivox-service-tier-button" data-codex-service-tier-thread-fast="true" title="仅当前 thread 使用 Fast，并切到自定义模式">Fast</button>
                     </div>
                   </div>
                 </div>
               </div>
             </section>
-            <section class="chatgptx-settings-section" aria-label="对话与输入">
-              <h2 class="chatgptx-settings-section-title">对话与输入</h2>
-              <div class="chatgptx-settings-card">
-                <div class="chatgptx-row">
-                  <div><div class="chatgptx-row-title">悬浮球 · 下一步建议</div><div class="chatgptx-row-description">生成下一步建议。</div></div>
-                  <button type="button" class="chatgptx-toggle" data-chatgptx-setting="stepwise"><span></span></button>
+            <section class="swivox-settings-section" aria-label="对话与输入">
+              <h2 class="swivox-settings-section-title">对话与输入</h2>
+              <div class="swivox-settings-card">
+                <div class="swivox-row">
+                  <div><div class="swivox-row-title">悬浮球 · 下一步建议</div><div class="swivox-row-description">生成下一步建议。</div></div>
+                  <button type="button" class="swivox-toggle" data-swivox-setting="stepwise"><span></span></button>
                 </div>
-                <div class="chatgptx-row">
-                  <div><div class="chatgptx-row-title">悬浮球 · 回答大纲</div><div class="chatgptx-row-description">整理回答结构。</div></div>
-                  <button type="button" class="chatgptx-toggle" data-chatgptx-setting="answerOutline"><span></span></button>
+                <div class="swivox-row">
+                  <div><div class="swivox-row-title">悬浮球 · 回答大纲</div><div class="swivox-row-description">整理回答结构。</div></div>
+                  <button type="button" class="swivox-toggle" data-swivox-setting="answerOutline"><span></span></button>
                 </div>
-                <div class="chatgptx-row">
-                  <div><div class="chatgptx-row-title">容量错误自动重试</div><div class="chatgptx-row-description">模型容量不足时（横幅文案如 “Selected model is at capacity”），自动点「重试」。Codex 原生只会自动重试 4 次，之后只剩手动按钮；开启后由 ChatGPTX 立刻接管（原生倒计时也一并接管，前 4 次同样不等它），直到成功或达到次数上限。间隔 0 秒表示失败后立刻重试（内部最小 1 秒，避免连发）。</div></div>
-                  <div class="chatgptx-width-control">
-                    <input class="chatgptx-width-input" data-chatgptx-capacity-retry-interval="true" min="0" max="${capacityAutoRetryIntervalCeilingSeconds}" step="1" type="number" value="${capacityAutoRetryIntervalSeconds()}" title="重试间隔（秒），0 表示立刻重试" aria-label="重试间隔（秒）">
-                    <input class="chatgptx-width-input" data-chatgptx-capacity-retry-max-attempts="true" min="1" max="${capacityAutoRetryMaxAttemptsCeiling}" step="1" type="number" value="${capacityAutoRetryMaxAttempts()}" title="最大自动重试次数" aria-label="最大自动重试次数">
-                    <button type="button" class="chatgptx-toggle" data-chatgptx-setting="capacityAutoRetry"><span></span></button>
+                <div class="swivox-row">
+                  <div><div class="swivox-row-title">容量错误自动重试</div><div class="swivox-row-description">模型容量不足时（横幅文案如 “Selected model is at capacity”），自动点「重试」。Codex 原生只会自动重试 4 次，之后只剩手动按钮；开启后由 Swivox 立刻接管（原生倒计时也一并接管，前 4 次同样不等它），直到成功或达到次数上限。间隔 0 秒表示失败后立刻重试（内部最小 1 秒，避免连发）。</div></div>
+                  <div class="swivox-width-control">
+                    <input class="swivox-width-input" data-swivox-capacity-retry-interval="true" min="0" max="${capacityAutoRetryIntervalCeilingSeconds}" step="1" type="number" value="${capacityAutoRetryIntervalSeconds()}" title="重试间隔（秒），0 表示立刻重试" aria-label="重试间隔（秒）">
+                    <input class="swivox-width-input" data-swivox-capacity-retry-max-attempts="true" min="1" max="${capacityAutoRetryMaxAttemptsCeiling}" step="1" type="number" value="${capacityAutoRetryMaxAttempts()}" title="最大自动重试次数" aria-label="最大自动重试次数">
+                    <button type="button" class="swivox-toggle" data-swivox-setting="capacityAutoRetry"><span></span></button>
                   </div>
                 </div>
-                <div class="chatgptx-row">
-                  <div><div class="chatgptx-row-title">会话删除</div><div class="chatgptx-row-description">在会话列表悬停显示删除按钮，并支持撤销。</div></div>
-                  <button type="button" class="chatgptx-toggle" data-chatgptx-setting="sessionDelete"><span></span></button>
+                <div class="swivox-row">
+                  <div><div class="swivox-row-title">会话删除</div><div class="swivox-row-description">在会话列表悬停显示删除按钮，并支持撤销。</div></div>
+                  <button type="button" class="swivox-toggle" data-swivox-setting="sessionDelete"><span></span></button>
                 </div>
-                <div class="chatgptx-row">
-                  <div><div class="chatgptx-row-title">Markdown 导出</div><div class="chatgptx-row-description">在会话列表显示导出按钮，按本地 rollout 导出带时间戳的 Markdown。</div></div>
-                  <button type="button" class="chatgptx-toggle" data-chatgptx-setting="markdownExport"><span></span></button>
+                <div class="swivox-row">
+                  <div><div class="swivox-row-title">Markdown 导出</div><div class="swivox-row-description">在会话列表显示导出按钮，按本地 rollout 导出带时间戳的 Markdown。</div></div>
+                  <button type="button" class="swivox-toggle" data-swivox-setting="markdownExport"><span></span></button>
                 </div>
-                <div class="chatgptx-row">
-                  <div><div class="chatgptx-row-title">分享会话按钮</div><div class="chatgptx-row-description">在当前会话工具栏显示分享按钮，关闭后立即隐藏。</div></div>
-                  <button type="button" class="chatgptx-toggle" data-chatgptx-setting="sessionShare"><span></span></button>
+                <div class="swivox-row">
+                  <div><div class="swivox-row-title">分享会话按钮</div><div class="swivox-row-description">在当前会话工具栏显示分享按钮，关闭后立即隐藏。</div></div>
+                  <button type="button" class="swivox-toggle" data-swivox-setting="sessionShare"><span></span></button>
                 </div>
-                <div class="chatgptx-row">
-                  <div><div class="chatgptx-row-title">粘贴修复</div><div class="chatgptx-row-description">从 Word 等富文本来源粘贴到 Codex composer 时只保留纯文本，避免被识别为图片/文件附件。需重启 Codex 才生效。</div></div>
-                  <button type="button" class="chatgptx-toggle" data-chatgptx-setting="pasteFix"><span></span></button>
+                <div class="swivox-row">
+                  <div><div class="swivox-row-title">粘贴修复</div><div class="swivox-row-description">从 Word 等富文本来源粘贴到 Codex composer 时只保留纯文本，避免被识别为图片/文件附件。需重启 Codex 才生效。</div></div>
+                  <button type="button" class="swivox-toggle" data-swivox-setting="pasteFix"><span></span></button>
                 </div>
               </div>
             </section>
-            <section class="chatgptx-settings-section" aria-label="外观与布局">
-              <h2 class="chatgptx-settings-section-title">外观与布局</h2>
-              <div class="chatgptx-settings-card">
-                ${chatgptxIsWindowsPlatform ? `<div class="chatgptx-row">
-                  <div><div class="chatgptx-row-title">桌宠跟随真实鼠标</div><div class="chatgptx-row-description">仅支持 V2 桌宠；不会修改宠物文件。将 V2 的 Computer Use 光标朝向动作映射到真实鼠标，V1 开启后安全不生效；拖拽、原生悬停或 Computer Use 活跃时自动让步。</div></div>
-                  <button type="button" class="chatgptx-toggle" data-chatgptx-setting="petRealMouseLook"><span></span></button>
+            <section class="swivox-settings-section" aria-label="外观与布局">
+              <h2 class="swivox-settings-section-title">外观与布局</h2>
+              <div class="swivox-settings-card">
+                ${swivoxIsWindowsPlatform ? `<div class="swivox-row">
+                  <div><div class="swivox-row-title">桌宠跟随真实鼠标</div><div class="swivox-row-description">仅支持 V2 桌宠；不会修改宠物文件。将 V2 的 Computer Use 光标朝向动作映射到真实鼠标，V1 开启后安全不生效；拖拽、原生悬停或 Computer Use 活跃时自动让步。</div></div>
+                  <button type="button" class="swivox-toggle" data-swivox-setting="petRealMouseLook"><span></span></button>
                 </div>` : ""}
-                <div class="chatgptx-row">
-                  <div><div class="chatgptx-row-title">打字特效（彩虹 P）</div><div class="chatgptx-row-description">在输入框的光标附近显示彩虹粒子、烟花或星光。系统减少动态效果时暂停。</div></div>
-                  <select class="chatgptx-typing-effect-select" data-chatgptx-typing-effect="true" aria-label="打字特效（彩虹 P）" hidden aria-hidden="true" tabindex="-1">
+                <div class="swivox-row">
+                  <div><div class="swivox-row-title">打字特效（彩虹 P）</div><div class="swivox-row-description">在输入框的光标附近显示彩虹粒子、烟花或星光。系统减少动态效果时暂停。</div></div>
+                  <select class="swivox-typing-effect-select" data-swivox-typing-effect="true" aria-label="打字特效（彩虹 P）" hidden aria-hidden="true" tabindex="-1">
                     <option value="off">关闭</option>
                     <option value="rainbow">彩虹粒子</option>
                     <option value="fireworks">烟花</option>
                     <option value="stars">星光</option>
                   </select>
-                  <button type="button" class="chatgptx-dropdown-trigger" data-chatgptx-typing-effect-trigger="true" aria-label="打字特效（彩虹 P）" aria-haspopup="listbox" aria-expanded="false" aria-controls="chatgptx-typing-effect-menu">
-                    <span data-chatgptx-dropdown-label="true">关闭</span>
+                  <button type="button" class="swivox-dropdown-trigger" data-swivox-typing-effect-trigger="true" aria-label="打字特效（彩虹 P）" aria-haspopup="listbox" aria-expanded="false" aria-controls="swivox-typing-effect-menu">
+                    <span data-swivox-dropdown-label="true">关闭</span>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
                   </button>
                 </div>
-                <div class="chatgptx-row">
-                  <div><div class="chatgptx-row-title">会话 ID 标识</div><div class="chatgptx-row-description">在侧边栏会话标题前显示短 ID 和 UUIDv7 创建时间，方便定位历史会话。</div></div>
-                  <button type="button" class="chatgptx-toggle" data-chatgptx-setting="threadIdBadge"><span></span></button>
+                <div class="swivox-row">
+                  <div><div class="swivox-row-title">会话 ID 标识</div><div class="swivox-row-description">在侧边栏会话标题前显示短 ID 和 UUIDv7 创建时间，方便定位历史会话。</div></div>
+                  <button type="button" class="swivox-toggle" data-swivox-setting="threadIdBadge"><span></span></button>
                 </div>
-                <div class="chatgptx-row">
-                  <div><div class="chatgptx-row-title">对话居中宽度</div><div class="chatgptx-row-description">开启后把主对话和输入框限制到固定最大宽度，适合大屏阅读。</div></div>
-                  <div class="chatgptx-width-control">
-                    <input class="chatgptx-width-input" data-chatgptx-conversation-view-width="true" min="${conversationViewMinWidth}" max="${conversationViewMaxAllowedWidth}" step="10" type="number" value="${conversationViewWidth()}">
-                    <button type="button" class="chatgptx-toggle" data-chatgptx-setting="conversationView"><span></span></button>
+                <div class="swivox-row">
+                  <div><div class="swivox-row-title">对话居中宽度</div><div class="swivox-row-description">开启后把主对话和输入框限制到固定最大宽度，适合大屏阅读。</div></div>
+                  <div class="swivox-width-control">
+                    <input class="swivox-width-input" data-swivox-conversation-view-width="true" min="${conversationViewMinWidth}" max="${conversationViewMaxAllowedWidth}" step="10" type="number" value="${conversationViewWidth()}">
+                    <button type="button" class="swivox-toggle" data-swivox-setting="conversationView"><span></span></button>
                   </div>
                 </div>
-                <div class="chatgptx-row">
-                  <div><div class="chatgptx-row-title">切换对话保留位置</div><div class="chatgptx-row-description">开启后在不同 thread 之间切换时恢复到上一次浏览位置，不再自动跳到底部。</div></div>
-                  <button type="button" class="chatgptx-toggle" data-chatgptx-setting="threadScrollRestore"><span></span></button>
+                <div class="swivox-row">
+                  <div><div class="swivox-row-title">切换对话保留位置</div><div class="swivox-row-description">开启后在不同 thread 之间切换时恢复到上一次浏览位置，不再自动跳到底部。</div></div>
+                  <button type="button" class="swivox-toggle" data-swivox-setting="threadScrollRestore"><span></span></button>
                 </div>
-                <div class="chatgptx-row">
-                  <div><div class="chatgptx-row-title">Codex 用量挂件</div><div class="chatgptx-row-description">显示当前 Codex 会话用量、任务状态与可用的供应商余额。可拖动、上传角色图片和设置提醒；默认静音。</div></div>
-                  <button type="button" class="chatgptx-toggle" data-chatgptx-setting="whaleWidget"><span></span></button>
-                </div>
-              </div>
-            </section>
-            <section class="chatgptx-settings-section" aria-label="工具与关于">
-              <h2 class="chatgptx-settings-section-title">工具与关于</h2>
-              <div class="chatgptx-settings-card">
-                <div class="chatgptx-row">
-                  <div><div class="chatgptx-row-title">历史会话修复</div><div class="chatgptx-row-description">切换官方登录、混合 API 或纯 API 后，让旧对话重新显示在当前模式下。</div></div>
-                  <button type="button" class="chatgptx-toggle" data-codex-backend-setting="providerSyncEnabled"><span></span></button>
-                </div>
-                <div class="chatgptx-row">
-                  <div><div class="chatgptx-row-title">管理工具</div><div class="chatgptx-row-description">配置增强功能、模型和语音服务。</div></div>
-                  <button type="button" class="chatgptx-action-button" data-codex-open-manager="true">打开管理工具</button>
-                </div>
-                <div class="chatgptx-row">
-                  <div><div class="chatgptx-row-title">打开 DevTools</div><div class="chatgptx-row-description">打开当前 Codex 页面开发者工具，方便查看用户拓展报错。</div></div>
-                  <button type="button" class="chatgptx-action-button" data-codex-open-devtools="true">打开 DevTools</button>
-                </div>
-                <div class="chatgptx-row">
-                  <div><div class="chatgptx-row-title">关于 ChatGPTX</div><div class="chatgptx-about">ChatGPTX 是通过外部 launcher 注入的增强菜单，不修改 Codex App 原始安装文件。<br>Build: <span data-chatgptx-build="true">${chatgptxBuild}</span><br>GitHub: <a href="https://github.com/aurorax-neo/chatgptx" target="_blank" rel="noreferrer">https://github.com/aurorax-neo/chatgptx</a><br>Discord: <a href="https://discord.gg/y96kX7A76v" target="_blank" rel="noreferrer">https://discord.gg/y96kX7A76v</a><br>Telegram: <a href="https://t.me/ChatGPTX" target="_blank" rel="noreferrer">https://t.me/ChatGPTX</a></div></div>
-                </div>
-                <div class="chatgptx-row">
-                  <div><div class="chatgptx-row-title">Discord 社区</div><div class="chatgptx-row-description">加入 Discord 获取更新消息、反馈问题或交流使用体验。</div></div>
-                  <button type="button" class="chatgptx-action-button" data-chatgptx-discord="true">打开 Discord</button>
-                </div>
-                <div class="chatgptx-row">
-                  <div><div class="chatgptx-row-title">Telegram 频道</div><div class="chatgptx-row-description">加入 Telegram 获取更新消息和交流使用体验。</div></div>
-                  <button type="button" class="chatgptx-action-button" data-chatgptx-telegram="true">打开 Telegram</button>
-                </div>
-                <div class="chatgptx-row">
-                  <div><div class="chatgptx-row-title">提出问题</div><div class="chatgptx-row-description">打开 GitHub Issues 反馈问题或建议。</div></div>
-                  <button type="button" class="chatgptx-issue-button" data-chatgptx-issue="true">提出问题</button>
+                <div class="swivox-row">
+                  <div><div class="swivox-row-title">Codex 用量挂件</div><div class="swivox-row-description">显示当前 Codex 会话用量、任务状态与可用的供应商余额。可拖动、上传角色图片和设置提醒；默认静音。</div></div>
+                  <button type="button" class="swivox-toggle" data-swivox-setting="whaleWidget"><span></span></button>
                 </div>
               </div>
             </section>
-            ${renderChatGPTXExtensionMenuRows()}
+            <section class="swivox-settings-section" aria-label="工具与关于">
+              <h2 class="swivox-settings-section-title">工具与关于</h2>
+              <div class="swivox-settings-card">
+                <div class="swivox-row">
+                  <div><div class="swivox-row-title">历史会话修复</div><div class="swivox-row-description">切换官方登录、混合 API 或纯 API 后，让旧对话重新显示在当前模式下。</div></div>
+                  <button type="button" class="swivox-toggle" data-codex-backend-setting="providerSyncEnabled"><span></span></button>
+                </div>
+                <div class="swivox-row">
+                  <div><div class="swivox-row-title">管理工具</div><div class="swivox-row-description">配置增强功能、模型和语音服务。</div></div>
+                  <button type="button" class="swivox-action-button" data-codex-open-manager="true">打开管理工具</button>
+                </div>
+                <div class="swivox-row">
+                  <div><div class="swivox-row-title">打开 DevTools</div><div class="swivox-row-description">打开当前 Codex 页面开发者工具，方便查看用户拓展报错。</div></div>
+                  <button type="button" class="swivox-action-button" data-codex-open-devtools="true">打开 DevTools</button>
+                </div>
+                <div class="swivox-row">
+                  <div><div class="swivox-row-title">关于 Swivox</div><div class="swivox-about">Swivox 是通过外部 launcher 注入的增强菜单，不修改 Codex App 原始安装文件。<br>Build: <span data-swivox-build="true">${swivoxBuild}</span><br>GitHub: <a href="https://github.com/aurorax-neo/swivox" target="_blank" rel="noreferrer">https://github.com/aurorax-neo/swivox</a><br>Discord: <a href="https://discord.gg/y96kX7A76v" target="_blank" rel="noreferrer">https://discord.gg/y96kX7A76v</a><br>Telegram: <a href="https://t.me/Swivox" target="_blank" rel="noreferrer">https://t.me/Swivox</a></div></div>
+                </div>
+                <div class="swivox-row">
+                  <div><div class="swivox-row-title">Discord 社区</div><div class="swivox-row-description">加入 Discord 获取更新消息、反馈问题或交流使用体验。</div></div>
+                  <button type="button" class="swivox-action-button" data-swivox-discord="true">打开 Discord</button>
+                </div>
+                <div class="swivox-row">
+                  <div><div class="swivox-row-title">Telegram 频道</div><div class="swivox-row-description">加入 Telegram 获取更新消息和交流使用体验。</div></div>
+                  <button type="button" class="swivox-action-button" data-swivox-telegram="true">打开 Telegram</button>
+                </div>
+                <div class="swivox-row">
+                  <div><div class="swivox-row-title">提出问题</div><div class="swivox-row-description">打开 GitHub Issues 反馈问题或建议。</div></div>
+                  <button type="button" class="swivox-issue-button" data-swivox-issue="true">提出问题</button>
+                </div>
+              </div>
+            </section>
+            ${renderSwivoxExtensionMenuRows()}
           </div>
-          <div class="chatgptx-panel" data-chatgptx-panel="${chatgptxExtensionsTab}" hidden>
-            <div class="chatgptx-discovery chatgptx-extensions-page">
-              <div class="chatgptx-discovery-header">
-                <div><h1 class="chatgptx-discovery-title">拓展</h1><p class="chatgptx-discovery-description">为 Codex 添加更多增强功能。</p></div>
-                <div class="chatgptx-discovery-toolbar">
-                  <label class="chatgptx-discovery-search">${chatgptxDiscoveryIcons.search}<input type="search" data-codex-extensions-search="true" aria-label="搜索拓展" placeholder="搜索拓展" value="${escapeHtml(chatgptxExtensionsQuery)}" spellcheck="false" /></label>
-                  <button type="button" class="chatgptx-discovery-icon-button" data-codex-market-refresh="true" title="刷新拓展" aria-label="刷新拓展">${chatgptxDiscoveryIcons.refresh}</button>
+          <div class="swivox-panel" data-swivox-panel="${swivoxExtensionsTab}" hidden>
+            <div class="swivox-discovery swivox-extensions-page">
+              <div class="swivox-discovery-header">
+                <div><h1 class="swivox-discovery-title">拓展</h1><p class="swivox-discovery-description">为 Codex 添加更多增强功能。</p></div>
+                <div class="swivox-discovery-toolbar">
+                  <label class="swivox-discovery-search">${swivoxDiscoveryIcons.search}<input type="search" data-codex-extensions-search="true" aria-label="搜索拓展" placeholder="搜索拓展" value="${escapeHtml(swivoxExtensionsQuery)}" spellcheck="false" /></label>
+                  <button type="button" class="swivox-discovery-icon-button" data-codex-market-refresh="true" title="刷新拓展" aria-label="刷新拓展">${swivoxDiscoveryIcons.refresh}</button>
                 </div>
               </div>
-              <div class="chatgptx-extensions-detail" data-chatgptx-extensions-detail="true">${renderChatGPTXExtensionsDetail()}</div>
+              <div class="swivox-extensions-detail" data-swivox-extensions-detail="true">${renderSwivoxExtensionsDetail()}</div>
             </div>
           </div>
         </div>
       </div>
-      <div id="chatgptx-typing-effect-menu" class="chatgptx-dropdown-menu" data-chatgptx-typing-effect-menu="true" role="listbox" aria-label="打字特效（彩虹 P）" hidden>
+      <div id="swivox-typing-effect-menu" class="swivox-dropdown-menu" data-swivox-typing-effect-menu="true" role="listbox" aria-label="打字特效（彩虹 P）" hidden>
         ${[["off", "关闭"], ["rainbow", "彩虹粒子"], ["fireworks", "烟花"], ["stars", "星光"]].map(([value, label]) => `
-          <button type="button" class="chatgptx-dropdown-option" data-chatgptx-typing-effect-option="${value}" role="option" aria-selected="false" tabindex="-1">
+          <button type="button" class="swivox-dropdown-option" data-swivox-typing-effect-option="${value}" role="option" aria-selected="false" tabindex="-1">
             <span>${label}</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
           </button>
         `).join("")}
       </div>
     `;
-    overlay.querySelectorAll(".chatgptx-toggle[data-chatgptx-setting], .chatgptx-toggle[data-codex-backend-setting]").forEach((button) => {
+    overlay.querySelectorAll(".swivox-toggle[data-swivox-setting], .swivox-toggle[data-codex-backend-setting]").forEach((button) => {
       button.setAttribute("role", "switch");
       button.setAttribute("aria-checked", "false");
-      button.setAttribute("aria-label", button.closest(".chatgptx-row")?.querySelector(".chatgptx-row-title")?.textContent || "设置");
+      button.setAttribute("aria-label", button.closest(".swivox-row")?.querySelector(".swivox-row-title")?.textContent || "设置");
     });
-    const closeButton = overlay.querySelector(".chatgptx-modal-close");
+    const closeButton = overlay.querySelector(".swivox-modal-close");
     closeButton?.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
       overlay.remove();
-      if (pageMode) setChatGPTXSidebarNavActive(false);
+      if (pageMode) setSwivoxSidebarNavActive(false);
     }, true);
     overlay.addEventListener("input", (event) => {
       const target = event.target instanceof Element ? event.target : event.target?.parentElement;
       const searchInput = target?.closest("[data-codex-extensions-search]");
       if (searchInput) {
-        chatgptxExtensionsQuery = searchInput.value;
-        chatgptxExtensionsSelected = null;
-        refreshChatGPTXExtensionsView();
+        swivoxExtensionsQuery = searchInput.value;
+        swivoxExtensionsSelected = null;
+        refreshSwivoxExtensionsView();
         return;
       }
-      const widthInput = target?.closest("[data-chatgptx-conversation-view-width]");
+      const widthInput = target?.closest("[data-swivox-conversation-view-width]");
       if (widthInput) setConversationViewWidth(widthInput.value);
     }, true);
     overlay.addEventListener("change", (event) => {
       const target = event.target instanceof Element ? event.target : event.target?.parentElement;
-      const typingEffectSelect = target?.closest("[data-chatgptx-typing-effect]");
+      const typingEffectSelect = target?.closest("[data-swivox-typing-effect]");
       if (typingEffectSelect) {
         if (!typingEffectSelect.disabled && ["off", "rainbow", "fireworks", "stars"].includes(typingEffectSelect.value)) {
-          setChatGPTXSetting("typingEffect", typingEffectSelect.value);
+          setSwivoxSetting("typingEffect", typingEffectSelect.value);
         }
         return;
       }
-      const widthInput = target?.closest("[data-chatgptx-conversation-view-width]");
+      const widthInput = target?.closest("[data-swivox-conversation-view-width]");
       if (widthInput) {
         const width = normalizeConversationViewWidth(widthInput.value);
         widthInput.value = String(width || conversationViewWidth());
@@ -6879,11 +6879,11 @@
       }
       // 次数/间隔输入只在 change（失焦/回车）时提交：input 事件逐字符提交会把
       // 用户输入 "15" 的过程保存成 1。
-      const attemptsInput = target?.closest("[data-chatgptx-capacity-retry-max-attempts]");
+      const attemptsInput = target?.closest("[data-swivox-capacity-retry-max-attempts]");
       if (attemptsInput) {
         attemptsInput.value = String(setCapacityAutoRetryMaxAttempts(attemptsInput.value));
       }
-      const intervalInput = target?.closest("[data-chatgptx-capacity-retry-interval]");
+      const intervalInput = target?.closest("[data-swivox-capacity-retry-interval]");
       if (intervalInput) {
         intervalInput.value = String(setCapacityAutoRetryIntervalSeconds(intervalInput.value));
       }
@@ -6892,38 +6892,38 @@
       const target = event.target instanceof Element ? event.target : event.target?.parentElement;
       // 拓展注册的菜单项。放在最前面是因为它的判定完全基于自己的 data 属性，
       // 与下面那些内置分支不会重叠；万一将来重叠，也应当由拓展优先拿到。
-      if (handleChatGPTXExtensionMenuClick(target)) return;
-      const typingEffectTrigger = target?.closest("[data-chatgptx-typing-effect-trigger]");
+      if (handleSwivoxExtensionMenuClick(target)) return;
+      const typingEffectTrigger = target?.closest("[data-swivox-typing-effect-trigger]");
       if (typingEffectTrigger) {
-        const menu = overlay.querySelector("[data-chatgptx-typing-effect-menu]");
-        if (menu?.hidden) openChatGPTXTypingEffectDropdown(overlay);
-        else closeChatGPTXTypingEffectDropdown();
+        const menu = overlay.querySelector("[data-swivox-typing-effect-menu]");
+        if (menu?.hidden) openSwivoxTypingEffectDropdown(overlay);
+        else closeSwivoxTypingEffectDropdown();
         return;
       }
-      const typingEffectOption = target?.closest("[data-chatgptx-typing-effect-option]");
+      const typingEffectOption = target?.closest("[data-swivox-typing-effect-option]");
       if (typingEffectOption) {
-        const select = overlay.querySelector("[data-chatgptx-typing-effect]");
+        const select = overlay.querySelector("[data-swivox-typing-effect]");
         if (select && !select.disabled) {
-          const value = typingEffectOption.dataset.chatgptxTypingEffectOption;
+          const value = typingEffectOption.dataset.swivoxTypingEffectOption;
           if (select.value !== value) {
             select.value = value;
             select.dispatchEvent(new Event("change", { bubbles: true }));
           }
         }
-        closeChatGPTXTypingEffectDropdown(true);
+        closeSwivoxTypingEffectDropdown(true);
         return;
       }
       const extensionsBrowse = target?.closest("[data-codex-extensions-browse]");
       if (extensionsBrowse) {
-        chatgptxExtensionsFilter = extensionsBrowse.dataset.codexExtensionsBrowse === "installed" ? "installed" : "market";
-        chatgptxExtensionsSelected = null;
-        refreshChatGPTXExtensionsView();
+        swivoxExtensionsFilter = extensionsBrowse.dataset.codexExtensionsBrowse === "installed" ? "installed" : "market";
+        swivoxExtensionsSelected = null;
+        refreshSwivoxExtensionsView();
         return;
       }
       // 左面板的分组导航（仅拓展页有左面板）。
-      const pageNav = target?.closest("[data-chatgptx-page-nav]");
+      const pageNav = target?.closest("[data-swivox-page-nav]");
       if (pageNav) {
-        selectChatGPTXTab(pageNav.getAttribute("data-chatgptx-page-nav"));
+        selectSwivoxTab(pageNav.getAttribute("data-swivox-page-nav"));
         return;
       }
       if (target?.closest("[data-codex-open-devtools]")) {
@@ -6937,26 +6937,26 @@
       // 推荐卡片用 window.open 而非原生 <a target="_blank">：Codex 是 Electron
       // 应用，原生新窗口跳转在它的 webview 里不会交给系统浏览器（同页的
       // Discord / Telegram / Issues 按钮也一律走 window.open）。
-      const adCard = target?.closest("[data-chatgptx-ad-url]");
+      const adCard = target?.closest("[data-swivox-ad-url]");
       if (adCard) {
-        const adUrl = adCard.getAttribute("data-chatgptx-ad-url") || "";
+        const adUrl = adCard.getAttribute("data-swivox-ad-url") || "";
         if (/^https?:\/\//i.test(adUrl)) {
           event.preventDefault();
           window.open(adUrl, "_blank", "noopener,noreferrer");
         }
         return;
       }
-      if (target?.closest("[data-chatgptx-discord]")) {
+      if (target?.closest("[data-swivox-discord]")) {
         window.open("https://discord.gg/y96kX7A76v", "_blank");
         return;
       }
-      if (target?.closest("[data-chatgptx-telegram]")) {
-        window.open("https://t.me/ChatGPTX", "_blank");
+      if (target?.closest("[data-swivox-telegram]")) {
+        window.open("https://t.me/Swivox", "_blank");
         return;
       }
-      const issueButton = target?.closest("[data-chatgptx-issue]");
+      const issueButton = target?.closest("[data-swivox-issue]");
       if (issueButton) {
-        const issueUrl = "https://github.com/aurorax-neo/chatgptx/issues";
+        const issueUrl = "https://github.com/aurorax-neo/swivox/issues";
         window.open(issueUrl, "_blank");
         return;
       }
@@ -7014,41 +7014,41 @@
       const extensionsSelect = target?.closest("[data-codex-extensions-select]");
       if (extensionsSelect) {
         const [kind, ...rest] = extensionsSelect.getAttribute("data-codex-extensions-select").split(":");
-        chatgptxExtensionsSelected = { kind, key: rest.join(":") };
-        refreshChatGPTXExtensionsView();
-        overlay.querySelector(".chatgptx-extensions-back")?.focus({ preventScroll: true });
+        swivoxExtensionsSelected = { kind, key: rest.join(":") };
+        refreshSwivoxExtensionsView();
+        overlay.querySelector(".swivox-extensions-back")?.focus({ preventScroll: true });
         return;
       }
-      const toggle = target?.closest("[data-chatgptx-setting]");
+      const toggle = target?.closest("[data-swivox-setting]");
       if (toggle) {
         if (toggle.disabled || toggle.dataset.pending === "true") return;
-        const key = toggle.getAttribute("data-chatgptx-setting");
-        setChatGPTXSetting(key, !chatgptxSettings()[key]);
+        const key = toggle.getAttribute("data-swivox-setting");
+        setSwivoxSetting(key, !swivoxSettings()[key]);
         return;
       }
       const backendToggle = target?.closest("[data-codex-backend-setting]");
       if (backendToggle) {
         const key = backendToggle.getAttribute("data-codex-backend-setting");
-        setBackendSetting(key, !chatgptxBackendSettings[key]);
+        setBackendSetting(key, !swivoxBackendSettings[key]);
         return;
       }
     }, true);
     overlay.addEventListener("keydown", (event) => {
       const target = event.target instanceof Element ? event.target : event.target?.parentElement;
-      if (target?.closest("[data-chatgptx-typing-effect-trigger]") && ["ArrowDown", "ArrowUp"].includes(event.key)) {
+      if (target?.closest("[data-swivox-typing-effect-trigger]") && ["ArrowDown", "ArrowUp"].includes(event.key)) {
         event.preventDefault();
-        openChatGPTXTypingEffectDropdown(overlay, event.key === "ArrowUp");
+        openSwivoxTypingEffectDropdown(overlay, event.key === "ArrowUp");
         return;
       }
-      const menu = target?.closest("[data-chatgptx-typing-effect-menu]");
+      const menu = target?.closest("[data-swivox-typing-effect-menu]");
       if (!menu || menu.hidden) return;
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
-        closeChatGPTXTypingEffectDropdown(true);
+        closeSwivoxTypingEffectDropdown(true);
       } else if (event.key === "Tab") {
         // 回到触发器后让浏览器处理 Tab，焦点会自然进入下一项而不会停在隐藏菜单里。
-        closeChatGPTXTypingEffectDropdown(true);
+        closeSwivoxTypingEffectDropdown(true);
       } else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
         event.preventDefault();
         const options = Array.from(menu.querySelectorAll("[role=option]"));
@@ -7063,65 +7063,65 @@
     overlay.addEventListener("error", handleExtensionIconError, true);
     document.body.appendChild(overlay);
     if (pageMode) {
-      observeChatGPTXPageLayout(overlay);
-      // 必须在 selectChatGPTXTab 之前建好两栏，否则刷新左面板时找不到容器。
-      installChatGPTXPageLayout(overlay, initialTab);
+      observeSwivoxPageLayout(overlay);
+      // 必须在 selectSwivoxTab 之前建好两栏，否则刷新左面板时找不到容器。
+      installSwivoxPageLayout(overlay, initialTab);
     }
-    selectChatGPTXTab(initialTab);
-    // 必须在 selectChatGPTXTab 之后：激活态要靠 data-chatgptx-active-tab
-    // 判断当前是 ChatGPTX 还是「拓展」，提前调用会永远落到 home 上。
-    if (pageMode) setChatGPTXSidebarNavActive(true, chatgptxActiveEntry() || "home");
-    renderChatGPTXMenu();
-    refreshChatGPTXBackendToggles();
+    selectSwivoxTab(initialTab);
+    // 必须在 selectSwivoxTab 之后：激活态要靠 data-swivox-active-tab
+    // 判断当前是 Swivox 还是「拓展」，提前调用会永远落到 home 上。
+    if (pageMode) setSwivoxSidebarNavActive(true, swivoxActiveEntry() || "home");
+    renderSwivoxMenu();
+    refreshSwivoxBackendToggles();
     renderBackendStatus();
     void loadCodexServiceTierState();
     loadUserScripts();
   }
 
-  function openChatGPTXPage() {
-    openChatGPTXModal({ page: true });
+  function openSwivoxPage() {
+    openSwivoxModal({ page: true });
   }
 
   /** 「拓展」页面：从弹窗里拆出来的用户脚本，形态对齐 VSCode 的扩展面板。 */
-  function openChatGPTXExtensions() {
-    chatgptxExtensionsSelected = null;
-    openChatGPTXModal({ page: true, tab: chatgptxExtensionsTab });
+  function openSwivoxExtensions() {
+    swivoxExtensionsSelected = null;
+    openSwivoxModal({ page: true, tab: swivoxExtensionsTab });
   }
 
 
-  function closeChatGPTXPage() {
-    closeChatGPTXTypingEffectDropdown();
-    window.removeEventListener("resize", window.__chatgptxPageResizeHandler);
-    window.__chatgptxPageResizeHandler = null;
-    window.__chatgptxPageLayoutObserver?.disconnect();
-    window.__chatgptxPageLayoutObserver = null;
-    window.__chatgptxPageLayoutTargets = null;
-    document.querySelectorAll(`.${chatgptxPageClass}`).forEach((node) => node.remove());
-    setChatGPTXSidebarNavActive(false);
+  function closeSwivoxPage() {
+    closeSwivoxTypingEffectDropdown();
+    window.removeEventListener("resize", window.__swivoxPageResizeHandler);
+    window.__swivoxPageResizeHandler = null;
+    window.__swivoxPageLayoutObserver?.disconnect();
+    window.__swivoxPageLayoutObserver = null;
+    window.__swivoxPageLayoutTargets = null;
+    document.querySelectorAll(`.${swivoxPageClass}`).forEach((node) => node.remove());
+    setSwivoxSidebarNavActive(false);
   }
 
-  function closeChatGPTXPageAfterNativeNavigation() {
-    clearTimeout(window.__chatgptxPageNavigationCloseTimer);
-    window.__chatgptxPageNavigationCloseTimer = setTimeout(() => {
-      window.__chatgptxPageNavigationCloseTimer = null;
-      closeChatGPTXPage();
+  function closeSwivoxPageAfterNativeNavigation() {
+    clearTimeout(window.__swivoxPageNavigationCloseTimer);
+    window.__swivoxPageNavigationCloseTimer = setTimeout(() => {
+      window.__swivoxPageNavigationCloseTimer = null;
+      closeSwivoxPage();
     }, 0);
   }
 
-  function installChatGPTXPageNavigationCloseHandler() {
-    document.removeEventListener("click", window.__chatgptxPageNavigationCloseHandler, true);
-    window.__chatgptxPageNavigationCloseHandler = (event) => {
-      if (!document.querySelector(`.${chatgptxPageClass}`)) return;
+  function installSwivoxPageNavigationCloseHandler() {
+    document.removeEventListener("click", window.__swivoxPageNavigationCloseHandler, true);
+    window.__swivoxPageNavigationCloseHandler = (event) => {
+      if (!document.querySelector(`.${swivoxPageClass}`)) return;
       const target = event.target instanceof Element ? event.target : event.target?.parentElement;
       if (!target?.closest(selectors.sidebarThread)) return;
       // Let Codex's own click handler update its route before removing our page.
-      closeChatGPTXPageAfterNativeNavigation();
+      closeSwivoxPageAfterNativeNavigation();
     };
-    document.addEventListener("click", window.__chatgptxPageNavigationCloseHandler, true);
+    document.addEventListener("click", window.__swivoxPageNavigationCloseHandler, true);
   }
 
-  function installChatGPTXSidebarNavigation() {
-    document.querySelectorAll(`#${chatgptxMenuId}, [data-chatgptx-menu="true"]`).forEach((node) => node.remove());
+  function installSwivoxSidebarNavigation() {
+    document.querySelectorAll(`#${swivoxMenuId}, [data-swivox-menu="true"]`).forEach((node) => node.remove());
     // 旧版的侧边栏会话列表在 aside 里带 role="navigation"。新版把这个 role 挪去了
     // 缩略图面板/演示目录，所以留一条限定在 aside 内的兜底。
     // 注意：新版图标栏也是 aside 里的 <nav>，且文档顺序在前，而 querySelector 的选择器
@@ -7141,21 +7141,21 @@
       const label = (button.getAttribute("aria-label") || button.textContent || "").replace(/\s+/g, " ").trim();
       return /^(已安排|Scheduled|拉取请求|Pull requests|新对话|New chat)$/i.test(label);
     });
-    if (navigation.dataset.chatgptxSidebarNavigationListener !== "true") {
-      navigation.dataset.chatgptxSidebarNavigationListener = "true";
+    if (navigation.dataset.swivoxSidebarNavigationListener !== "true") {
+      navigation.dataset.swivoxSidebarNavigationListener = "true";
       navigation.addEventListener("click", (event) => {
         const target = event.target instanceof Element ? event.target : event.target?.parentElement;
-        if (target?.closest(`#${chatgptxSidebarNavId}`)) return;
-        if (target?.closest("button, a")) closeChatGPTXPageAfterNativeNavigation();
+        if (target?.closest(`#${swivoxSidebarNavId}`)) return;
+        if (target?.closest("button, a")) closeSwivoxPageAfterNativeNavigation();
       }, true);
     }
-    let wrapper = document.getElementById(chatgptxSidebarNavId);
+    let wrapper = document.getElementById(swivoxSidebarNavId);
     const parent = insertionButton?.parentElement || navigation;
     if (!wrapper || wrapper.parentElement !== parent) {
       wrapper?.remove();
       wrapper = document.createElement("div");
-      wrapper.id = chatgptxSidebarNavId;
-      wrapper.dataset.chatgptxSidebarNav = "true";
+      wrapper.id = swivoxSidebarNavId;
+      wrapper.dataset.swivoxSidebarNav = "true";
       const button = (insertionButton || document.createElement("button")).cloneNode(true);
       if (!(button instanceof HTMLElement)) return;
       if (!button.className) button.className = "h-token-nav-row w-full flex items-center gap-2 px-3 py-2 text-sm";
@@ -7164,13 +7164,13 @@
       button.removeAttribute("aria-current");
       button.removeAttribute("disabled");
       button.removeAttribute("aria-disabled");
-      button.setAttribute("aria-label", "ChatGPTX");
+      button.setAttribute("aria-label", "Swivox");
       button.textContent = "";
-      button.innerHTML = `<span class="chatgptx-sidebar-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M5.5 5.5l13 13M18.5 5.5l-13 13"/></svg></span><span class="truncate">ChatGPTX</span><span class="chatgptx-sidebar-nav-status" data-status="${chatgptxBackendStatus.status || "checking"}" aria-hidden="true"></span>`;
+      button.innerHTML = `<span class="swivox-sidebar-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M5.5 5.5l13 13M18.5 5.5l-13 13"/></svg></span><span class="truncate">Swivox</span><span class="swivox-sidebar-nav-status" data-status="${swivoxBackendStatus.status || "checking"}" aria-hidden="true"></span>`;
       button.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        openChatGPTXPage();
+        openSwivoxPage();
       }, true);
       wrapper.appendChild(button);
       if (insertionButton?.nextSibling) {
@@ -7179,19 +7179,19 @@
         parent.appendChild(wrapper);
       }
     }
-    const status = wrapper.querySelector(".chatgptx-sidebar-nav-status");
-    if (status) status.dataset.status = chatgptxBackendStatus.status || "checking";
-    const active = !!document.querySelector(`.${chatgptxPageClass}`);
-    setChatGPTXSidebarNavActive(active, chatgptxActiveEntry() || "home");
+    const status = wrapper.querySelector(".swivox-sidebar-nav-status");
+    if (status) status.dataset.status = swivoxBackendStatus.status || "checking";
+    const active = !!document.querySelector(`.${swivoxPageClass}`);
+    setSwivoxSidebarNavActive(active, swivoxActiveEntry() || "home");
   }
 
-  function removeChatGPTXRailNavigation() {
-    [chatgptxRailNavId, chatgptxRailExtensionsId, chatgptxRailSponsorId, chatgptxRailPluginMarketId].forEach((id) => document.getElementById(id)?.remove());
+  function removeSwivoxRailNavigation() {
+    [swivoxRailNavId, swivoxRailExtensionsId, swivoxRailSponsorId, swivoxRailPluginMarketId].forEach((id) => document.getElementById(id)?.remove());
   }
 
-  function detachChatGPTXSidebarNavigation() {
-    document.getElementById(chatgptxSidebarNavId)?.remove();
-    document.getElementById(chatgptxSidebarPluginMarketId)?.remove();
+  function detachSwivoxSidebarNavigation() {
+    document.getElementById(swivoxSidebarNavId)?.remove();
+    document.getElementById(swivoxSidebarPluginMarketId)?.remove();
   }
 
   /**
@@ -7200,10 +7200,10 @@
    * 优先 builtin:projects——它在 primary 区，且不像 builtin:library 那样会走
    * tooltip/triggerRef 的特殊分支。找不到就退回第一个可见 destination。
    */
-  function chatgptxRailTemplateButton(rail) {
-    const preferred = rail.querySelector(`${chatgptxRailDestinationSelector}[data-sidebar-destination="builtin:projects"]`);
+  function swivoxRailTemplateButton(rail) {
+    const preferred = rail.querySelector(`${swivoxRailDestinationSelector}[data-sidebar-destination="builtin:projects"]`);
     if (preferred) return preferred;
-    const candidates = Array.from(rail.querySelectorAll(chatgptxRailDestinationSelector))
+    const candidates = Array.from(rail.querySelectorAll(swivoxRailDestinationSelector))
       .filter((node) => node.closest("nav") === rail);
     // 优先挑未选中的：clone 会把选中态的属性和配色一起带过来，
     // 表现为入口在没有任何页面打开时也显示成选中。
@@ -7211,22 +7211,22 @@
     return candidates.find((node) => !isSelected(node)) || candidates[0] || null;
   }
 
-  function chatgptxRailPrimaryAnchor(rail) {
+  function swivoxRailPrimaryAnchor(rail) {
     const fixedIds = [
       'builtin:home',
       'builtin:customize',
     ];
-    const buttons = Array.from(rail.querySelectorAll(chatgptxRailDestinationSelector));
+    const buttons = Array.from(rail.querySelectorAll(swivoxRailDestinationSelector));
     return buttons.find((node) => {
       const id = node.getAttribute("data-sidebar-destination") || "";
       return id && !fixedIds.includes(id);
     }) || null;
   }
 
-  function createChatGPTXRailButton({ id, template, label, iconMarkup, withStatus, onActivate }) {
+  function createSwivoxRailButton({ id, template, label, iconMarkup, withStatus, onActivate }) {
     const wrapper = document.createElement("div");
     wrapper.id = id;
-    wrapper.dataset.chatgptxRail = id === chatgptxRailExtensionsId ? "extensions" : "home";
+    wrapper.dataset.swivoxRail = id === swivoxRailExtensionsId ? "extensions" : "home";
     // 模板拿不到时不回退到旧模式，而是自建一个按钮：rail 上 destination 可能在
     // 登录态/接口就绪前还是空的，那只是暂时状态，不该让入口整个消失。
     const button = template
@@ -7243,16 +7243,16 @@
     // 模板若是未选中的按钮，会带着 suppress 过来，压制掉我们的选中样式——
     // 必须移除，否则按钮永远停在未选中的暗色。
     button.removeAttribute("data-suppress-active-style");
-    // 起始为未选中；激活态由 setChatGPTXSidebarNavActive 切换 data-selected。
+    // 起始为未选中；激活态由 setSwivoxSidebarNavActive 切换 data-selected。
     button.removeAttribute("data-selected");
     button.removeAttribute("aria-current");
     button.setAttribute("aria-label", label);
     button.setAttribute("title", label);
     button.textContent = "";
     // 原生 rail 按钮是纯图标，没有文字标签，所以只放图标 + 状态点。
-    button.innerHTML = `<span class="chatgptx-rail-icon" aria-hidden="true">${iconMarkup}</span>`
+    button.innerHTML = `<span class="swivox-rail-icon" aria-hidden="true">${iconMarkup}</span>`
       + (withStatus
-        ? `<span class="chatgptx-sidebar-nav-status" data-status="${chatgptxBackendStatus.status || "checking"}" aria-hidden="true"></span>`
+        ? `<span class="swivox-sidebar-nav-status" data-status="${swivoxBackendStatus.status || "checking"}" aria-hidden="true"></span>`
         : "");
     button.addEventListener("click", (event) => {
       event.preventDefault();
@@ -7264,29 +7264,29 @@
   }
 
   /**
-   * 把 ChatGPTX / 拓展两个入口挂到新版图标栏。
+   * 把 Swivox / 拓展两个入口挂到新版图标栏。
    *
    * Codex 的 rail 渲染晚于注入，所以这里每次 scan 都会被调用；靠 id 判存避免重复插入。
    */
-  function installChatGPTXRailNavigation() {
-    document.querySelectorAll(`#${chatgptxMenuId}, [data-chatgptx-menu="true"]`).forEach((node) => node.remove());
-    const rail = document.querySelector(chatgptxRailSelector);
+  function installSwivoxRailNavigation() {
+    document.querySelectorAll(`#${swivoxMenuId}, [data-swivox-menu="true"]`).forEach((node) => node.remove());
+    const rail = document.querySelector(swivoxRailSelector);
     if (!rail) return false;
     // 注意：模板按钮可能在 rail 还没渲染出 destination 时拿不到（登录态/接口未就绪）。
     // 那只是暂时状态，不能因此判定"没有 rail"而回退旧模式，否则入口会整个消失。
-    const template = chatgptxRailTemplateButton(rail);
+    const template = swivoxRailTemplateButton(rail);
 
-    // 旧逻辑把"点原生导航就关掉 ChatGPTX 页面"的监听挂在侧边栏的 navigation 上，
+    // 旧逻辑把"点原生导航就关掉 Swivox 页面"的监听挂在侧边栏的 navigation 上，
     // 但 rail 模式下那个函数会提前 return，监听压根装不上，所以这里补一份。
-    if (rail.dataset.chatgptxRailNavigationListener !== "true") {
-      rail.dataset.chatgptxRailNavigationListener = "true";
+    if (rail.dataset.swivoxRailNavigationListener !== "true") {
+      rail.dataset.swivoxRailNavigationListener = "true";
       rail.addEventListener("click", (event) => {
         const target = event.target instanceof Element ? event.target : event.target?.parentElement;
-        if (target?.closest(`#${chatgptxRailNavId}, #${chatgptxRailExtensionsId}, #${chatgptxRailSponsorId}`)) return;
+        if (target?.closest(`#${swivoxRailNavId}, #${swivoxRailExtensionsId}, #${swivoxRailSponsorId}`)) return;
         // 拓展入口的 id 是动态生成的，不在上面三个之内。不排除它，点拓展入口会被
         // 当成「点了原生导航按钮」，刚打开的拓展页面立刻被关掉。
-        if (target?.closest(`[${chatgptxExtensionConstants.extensionAttribute}]`)) return;
-        if (target?.closest("button, a")) closeChatGPTXPageAfterNativeNavigation();
+        if (target?.closest(`[${swivoxExtensionConstants.extensionAttribute}]`)) return;
+        if (target?.closest("button, a")) closeSwivoxPageAfterNativeNavigation();
       }, true);
     }
 
@@ -7294,15 +7294,15 @@
       home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M5.5 5.5l13 13M18.5 5.5l-13 13"/></svg>',
       // 「拓展」直接用 VSCode 的扩展字形（就是列表里默认图标那一份），
       // 和页面内部保持同一个符号，不再另画一个近似图形。
-      extensions: `<svg viewBox="0 0 16 16" fill="currentColor"><path d="${chatgptxDefaultExtensionIconPath}"/></svg>`,
+      extensions: `<svg viewBox="0 0 16 16" fill="currentColor"><path d="${swivoxDefaultExtensionIconPath}"/></svg>`,
     };
 
     const specs = [
-      { id: chatgptxRailNavId, label: "ChatGPTX", iconMarkup: icons.home, withStatus: true, onActivate: openChatGPTXPage },
-      { id: chatgptxRailExtensionsId, label: "拓展", iconMarkup: icons.extensions, withStatus: false, onActivate: openChatGPTXExtensions },
+      { id: swivoxRailNavId, label: "Swivox", iconMarkup: icons.home, withStatus: true, onActivate: openSwivoxPage },
+      { id: swivoxRailExtensionsId, label: "拓展", iconMarkup: icons.extensions, withStatus: false, onActivate: openSwivoxExtensions },
     ];
 
-    const anchor = chatgptxRailPrimaryAnchor(rail);
+    const anchor = swivoxRailPrimaryAnchor(rail);
     // 插到锚点所在的父容器里，而不是 nav 顶层：原生按钮可能嵌在 nav 内部的分组 div 中，
     // 直接插顶层会破坏它的 flex 布局。
     const host = anchor?.parentElement || rail;
@@ -7311,10 +7311,10 @@
       let wrapper = document.getElementById(spec.id);
       if (!wrapper || wrapper.parentElement !== host) {
         wrapper?.remove();
-        wrapper = createChatGPTXRailButton({ ...spec, template });
+        wrapper = createSwivoxRailButton({ ...spec, template });
         if (!wrapper) return;
       }
-      // 顺序：ChatGPTX 在前，「拓展」在后；紧跟在 primary 区锚点后面。
+      // 顺序：Swivox 在前，「拓展」在后；紧跟在 primary 区锚点后面。
       if (cursor?.nextSibling) {
         host.insertBefore(wrapper, cursor.nextSibling);
       } else if (cursor) {
@@ -7325,22 +7325,22 @@
       cursor = wrapper;
     });
 
-    const status = document.getElementById(chatgptxRailNavId)?.querySelector(".chatgptx-sidebar-nav-status");
-    if (status) status.dataset.status = chatgptxBackendStatus.status || "checking";
+    const status = document.getElementById(swivoxRailNavId)?.querySelector(".swivox-sidebar-nav-status");
+    if (status) status.dataset.status = swivoxBackendStatus.status || "checking";
     return true;
   }
 
   /** 图标栏存在时走它，否则回退到旧版宽面板侧边栏入口。两条路径互斥，不会重复出现。 */
-  function installChatGPTXNavigationEntries() {
+  function installSwivoxNavigationEntries() {
     // 插件入口沿用原生按钮，清理旧注入留下的重复商店入口。
-    document.getElementById(chatgptxRailPluginMarketId)?.remove();
-    document.getElementById(chatgptxSidebarPluginMarketId)?.remove();
-    if (installChatGPTXRailNavigation()) {
-      detachChatGPTXSidebarNavigation();
+    document.getElementById(swivoxRailPluginMarketId)?.remove();
+    document.getElementById(swivoxSidebarPluginMarketId)?.remove();
+    if (installSwivoxRailNavigation()) {
+      detachSwivoxSidebarNavigation();
       return;
     }
-    removeChatGPTXRailNavigation();
-    installChatGPTXSidebarNavigation();
+    removeSwivoxRailNavigation();
+    installSwivoxSidebarNavigation();
   }
 
   const codexPluginRemoteOnlyMarketplaceKinds = new Set(["created-by-me-remote", "shared-with-me"]);
@@ -7382,7 +7382,7 @@
       && (!hadMarketplaceKinds || next.marketplaceKinds == null);
     const remoteCatalogUnavailable = pluginMarketplaceRemoteCatalogUnavailable();
     if (broadCatalogRequest && !remoteCatalogUnavailable) {
-      sendChatGPTXDiagnostic("plugin_marketplace_request_expanded", {
+      sendSwivoxDiagnostic("plugin_marketplace_request_expanded", {
         hadMarketplaceKinds,
         marketplaceKinds: hadMarketplaceKinds ? next.marketplaceKinds : null,
         broadCatalogPreserved: true,
@@ -7404,7 +7404,7 @@
       if (!nextKinds.includes("vertical")) nextKinds.push("vertical");
     }
     next.marketplaceKinds = Array.from(new Set(nextKinds));
-    sendChatGPTXDiagnostic("plugin_marketplace_request_expanded", {
+    sendSwivoxDiagnostic("plugin_marketplace_request_expanded", {
       hadMarketplaceKinds,
       marketplaceKinds: next.marketplaceKinds,
       broadCatalogPreserved: false,
@@ -7417,19 +7417,19 @@
   }
 
   function displayNameForPluginMarketplaceName(name, fallback) {
-    if (name === "openai-bundled") return "OpenAI插件1(ChatGPTX)";
-    if (name === "openai-curated") return "OpenAI插件2(ChatGPTX)";
-    if (name === "openai-primary-runtime") return "OpenAI插件3(ChatGPTX)";
-    if (name === "openai-api-curated") return "OpenAI插件4(ChatGPTX)";
+    if (name === "openai-bundled") return "OpenAI插件1(Swivox)";
+    if (name === "openai-curated") return "OpenAI插件2(Swivox)";
+    if (name === "openai-primary-runtime") return "OpenAI插件3(Swivox)";
+    if (name === "openai-api-curated") return "OpenAI插件4(Swivox)";
     // 兼容原生返回的既有旧配置名称；这里不会注入、缓存或注册插件市场。
-    if (name === "chatgptx-curated" || name === "openai-curated-remote") return "OpenAI插件5(ChatGPTX)";
+    if (name === "swivox-curated" || name === "openai-curated-remote") return "OpenAI插件5(Swivox)";
     return fallback;
   }
 
   function patchPluginMarketplaceObject(marketplace) {
-    if (!marketplace || typeof marketplace !== "object" || marketplace.__chatgptxMarketplaceUnlockPatched) return false;
+    if (!marketplace || typeof marketplace !== "object" || marketplace.__swivoxMarketplaceUnlockPatched) return false;
     // 上游已经给了显示名就用上游的（issue #692：此前无条件用上面的中文编号覆盖，
-    // 用户看到的是「OpenAI插件1(ChatGPTX)」而不是市场真实名字）。
+    // 用户看到的是「OpenAI插件1(Swivox)」而不是市场真实名字）。
     // 编号映射只在市场上游确实没给显示名时兜底；去重仍走 restorePluginMarketplaceName，
     // 与显示名无关，所以不会因此退回重复条目。
     const upstreamDisplayName = marketplace.displayName || marketplace.title || marketplace.label || "";
@@ -7450,16 +7450,16 @@
     } else {
       marketplace.interface = { displayName, name: displayName, title: displayName, label: displayName };
     }
-    marketplace.__chatgptxMarketplaceUnlockPatched = true;
+    marketplace.__swivoxMarketplaceUnlockPatched = true;
     return true;
   }
 
   function restorePluginMarketplaceName(name) {
-    if (name === "chatgptx-openai-bundled") return "openai-bundled";
-    if (name === "chatgptx-openai-curated") return "openai-curated";
-    if (name === "chatgptx-openai-primary-runtime") return "openai-primary-runtime";
-    if (name === "chatgptx-openai-api-curated") return "openai-api-curated";
-    if (name === "chatgptx-openai-curated-remote") return "openai-curated-remote";
+    if (name === "swivox-openai-bundled") return "openai-bundled";
+    if (name === "swivox-openai-curated") return "openai-curated";
+    if (name === "swivox-openai-primary-runtime") return "openai-primary-runtime";
+    if (name === "swivox-openai-api-curated") return "openai-api-curated";
+    if (name === "swivox-openai-curated-remote") return "openai-curated-remote";
     return name;
   }
 
@@ -7555,15 +7555,15 @@
       const filtered = originalFilter.call(this, callback, thisArg);
       if (filtered.length === this.length) return filtered;
       if (isCodexPluginBuildFlavorFilter(callback, this, filtered)) {
-        sendChatGPTXDiagnostic("plugin_build_flavor_filter_bypassed", { pluginCount: this.length });
+        sendSwivoxDiagnostic("plugin_build_flavor_filter_bypassed", { pluginCount: this.length });
         return Array.from(this);
       }
       if (isCodexPluginMarketplaceHiddenFilter(callback, this, filtered)) {
-        sendChatGPTXDiagnostic("plugin_marketplace_hidden_filter_bypassed", { marketplaceCount: this.length });
+        sendSwivoxDiagnostic("plugin_marketplace_hidden_filter_bypassed", { marketplaceCount: this.length });
         return Array.from(this);
       }
       if (isCodexPluginFeaturedFilter(callback, this, filtered)) {
-        sendChatGPTXDiagnostic("plugin_featured_filter_bypassed", { featuredCount: this.length });
+        sendSwivoxDiagnostic("plugin_featured_filter_bypassed", { featuredCount: this.length });
         return Array.from(this);
       }
       return filtered;
@@ -7571,7 +7571,7 @@
     patchedFilter.__codexPluginBuildFlavorPatched = codexPluginMarketplaceUnlockVersion;
     Array.prototype.filter = patchedFilter;
     window.__codexPluginBuildFlavorFilterPatch = codexPluginMarketplaceUnlockVersion;
-    sendChatGPTXDiagnostic("plugin_build_flavor_filter_patch_installed", {});
+    sendSwivoxDiagnostic("plugin_build_flavor_filter_patch_installed", {});
   }
 
   function restorePluginMarketplaceRequestParams(params, method = "") {
@@ -7611,7 +7611,7 @@
           }
           if (patchPluginMarketplaceObject(marketplace)) patchedCount += 1;
         });
-        sendChatGPTXDiagnostic("plugin_marketplace_response_debug", {
+        sendSwivoxDiagnostic("plugin_marketplace_response_debug", {
           marketplaces: result.marketplaces.map((marketplace) => ({
             name: marketplace?.name || "",
             path: marketplace?.path || null,
@@ -7623,10 +7623,10 @@
         });
       }
       if (patchedCount > 0) {
-        sendChatGPTXDiagnostic("plugin_marketplace_response_expanded", { patchedCount });
+        sendSwivoxDiagnostic("plugin_marketplace_response_expanded", { patchedCount });
       }
     } catch (error) {
-      sendChatGPTXDiagnostic("plugin_marketplace_response_patch_failed", {
+      sendSwivoxDiagnostic("plugin_marketplace_response_patch_failed", {
         errorName: error?.name || "",
         errorMessage: error?.message || String(error),
       });
@@ -7677,7 +7677,7 @@
   function markPluginMarketplaceRemoteCatalogUnavailable(error) {
     window.__codexPluginMarketplaceRemoteCatalogUnavailable = true;
     window.__codexPluginMarketplaceRemoteCatalogRejectedAt = Date.now();
-    sendChatGPTXDiagnostic("plugin_marketplace_remote_auth_fallback", {
+    sendSwivoxDiagnostic("plugin_marketplace_remote_auth_fallback", {
       errorMessage: pluginMarketplaceErrorText(error),
       rememberedCwdCount: Array.isArray(window.__codexPluginMarketplaceLastCwds)
         ? window.__codexPluginMarketplaceLastCwds.length
@@ -7707,7 +7707,7 @@
     const originalSendRequest = client.__codexPluginMarketplaceOriginalSendRequest || client.sendRequest.bind(client);
     client.__codexPluginMarketplaceOriginalSendRequest = originalSendRequest;
     client.sendRequest = async function codexPluginMarketplacePatchedSendRequest(method, params, options) {
-      const managed = chatgptxPluginNativeInterceptClient(method, params, options,
+      const managed = swivoxPluginNativeInterceptClient(method, params, options,
         (nextOptions) => originalSendRequest(method, params, nextOptions), client.hostId);
       if (managed) return await managed;
       const requestMethod = appServerModelRequestMethod(String(method || ""), params);
@@ -7715,7 +7715,7 @@
       const requestProfile = pluginMarketplaceRequestProfile(restoredRequestParams);
       const requestParams = patchPluginMarketplaceRequestParams(requestMethod, restoredRequestParams);
       if (requestMethod === "install-plugin") {
-        sendChatGPTXDiagnostic("plugin_install_request_debug", {
+        sendSwivoxDiagnostic("plugin_install_request_debug", {
           method: String(method || ""),
           requestMethod,
           originalMarketplacePath: params?.marketplacePath || null,
@@ -7737,7 +7737,7 @@
             : localPluginMarketplaceFallbackResult();
         }
         if (requestMethod === "install-plugin") {
-          sendChatGPTXDiagnostic("plugin_install_request_failed", {
+          sendSwivoxDiagnostic("plugin_install_request_failed", {
             method: String(method || ""),
             requestMethod,
             requestMarketplacePath: requestParams?.marketplacePath || null,
@@ -7782,7 +7782,7 @@
       }
       if (requestParams === params) return message;
       if (requestMethod === "install-plugin") {
-        sendChatGPTXDiagnostic("plugin_install_request_debug", {
+        sendSwivoxDiagnostic("plugin_install_request_debug", {
           method: message.url,
           requestMethod,
           originalMarketplacePath: params?.marketplacePath || null,
@@ -7813,7 +7813,7 @@
       }
       if (requestParams === message.request.params) return message;
       if (requestMethod === "install-plugin") {
-        sendChatGPTXDiagnostic("plugin_install_request_debug", {
+        sendSwivoxDiagnostic("plugin_install_request_debug", {
           method: String(message.request.method || ""),
           requestMethod,
           originalMarketplacePath: message.request.params?.marketplacePath || null,
@@ -7861,7 +7861,7 @@
         data.bodyJsonString = JSON.stringify(result);
         return true;
       } catch (error) {
-        sendChatGPTXDiagnostic("plugin_marketplace_fetch_response_patch_failed", {
+        sendSwivoxDiagnostic("plugin_marketplace_fetch_response_patch_failed", {
           errorName: error?.name || "",
           errorMessage: error?.message || String(error),
         });
@@ -7898,8 +7898,8 @@
     return true;
   }
 
-  if (window.__CHATGPTX_TEST_PLUGIN_MARKETPLACE__) {
-    window.__chatgptxPluginMarketplaceTest = {
+  if (window.__SWIVOX_TEST_PLUGIN_MARKETPLACE__) {
+    window.__swivoxPluginMarketplaceTest = {
       patchRequestParams: patchPluginMarketplaceRequestParams,
       patchRequestMessage: patchPluginMarketplaceRequestMessage,
       patchResponseData: patchPluginMarketplaceResponseData,
@@ -7910,7 +7910,7 @@
       isBuildFlavorFilter: isCodexPluginBuildFlavorFilter,
       isHiddenMarketplaceFilter: isCodexPluginMarketplaceHiddenFilter,
       setCodexAppVersion: (version) => {
-        chatgptxBackendSettings.codexAppVersion = String(version || "");
+        swivoxBackendSettings.codexAppVersion = String(version || "");
       },
       remoteCatalogUnavailable: pluginMarketplaceRemoteCatalogUnavailable,
       reset: () => {
@@ -7937,25 +7937,25 @@
   }
 
   function installPluginMarketplaceBridgePatch() {
-    ensureChatGPTXPluginNativeTransportReinjection();
+    ensureSwivoxPluginNativeTransportReinjection();
     if (window.__codexPluginMarketplaceBridgePatch === codexPluginMarketplaceUnlockVersion) return;
     if (!codexPluginMarketplacePatchEnabled()) return;
-    installChatGPTXPluginNativeTransportListener();
+    installSwivoxPluginNativeTransportListener();
     installPluginMarketplaceWindowEventPatchOnly();
     const bridge = window.electronBridge;
     if (!bridge || typeof bridge.sendMessageFromView !== "function") {
-      sendChatGPTXDiagnostic("plugin_marketplace_bridge_patch_not_found", {});
+      sendSwivoxDiagnostic("plugin_marketplace_bridge_patch_not_found", {});
       return;
     }
     if (!bridge.__codexPluginMarketplaceOriginalSendMessageFromView) {
       bridge.__codexPluginMarketplaceOriginalSendMessageFromView = bridge.sendMessageFromView.bind(bridge);
       bridge.sendMessageFromView = function codexPluginMarketplacePatchedSendMessageFromView(message) {
-        if (chatgptxPluginNativeInterceptOutgoing(message)) return Promise.resolve();
+        if (swivoxPluginNativeInterceptOutgoing(message)) return Promise.resolve();
         let nextMessage = message;
         try {
           nextMessage = patchPluginMarketplaceRequestMessage(message);
         } catch (error) {
-          sendChatGPTXDiagnostic("plugin_marketplace_bridge_request_patch_failed", {
+          sendSwivoxDiagnostic("plugin_marketplace_bridge_request_patch_failed", {
             errorName: error?.name || "",
             errorMessage: error?.message || String(error),
           });
@@ -7965,7 +7965,7 @@
     }
     bridge.__codexPluginMarketplaceBridgePatch = codexPluginMarketplaceUnlockVersion;
     window.__codexPluginMarketplaceBridgePatch = codexPluginMarketplaceUnlockVersion;
-    sendChatGPTXDiagnostic("plugin_marketplace_bridge_patch_installed", {});
+    sendSwivoxDiagnostic("plugin_marketplace_bridge_patch_installed", {});
   }
 
   function installPluginMarketplaceWindowEventPatchOnly() {
@@ -7978,10 +7978,10 @@
         try {
           const detail = event?.detail;
           if (event?.type === "codex-message-from-view" && event.__codexForwardedViaBridge
-              && chatgptxPluginNativeSuppressForwarded(detail)) return true;
+              && swivoxPluginNativeSuppressForwarded(detail)) return true;
           if (event?.type === "codex-message-from-view" && !event.__codexForwardedViaBridge
-              && chatgptxPluginNativeInterceptOutgoing(detail)) return true;
-          if (event?.type === "message" && chatgptxPluginNativeInterceptIncoming(event.data)) return true;
+              && swivoxPluginNativeInterceptOutgoing(detail)) return true;
+          if (event?.type === "message" && swivoxPluginNativeInterceptIncoming(event.data)) return true;
           if (event?.type === "codex-message-from-view" && detail?.type === "mcp-request") {
             const patched = patchPluginMarketplaceRequestMessage(detail);
             if (patched !== detail) {
@@ -7991,7 +7991,7 @@
           }
           if (event?.type === "message") patchPluginMarketplaceResponseData(event.data);
         } catch (error) {
-          sendChatGPTXDiagnostic("plugin_marketplace_dispatch_event_patch_failed", {
+          sendSwivoxDiagnostic("plugin_marketplace_dispatch_event_patch_failed", {
             errorName: error?.name || "",
             errorMessage: error?.message || String(error),
           });
@@ -8005,7 +8005,7 @@
         try {
           patchPluginMarketplaceResponseData(event?.data);
         } catch (error) {
-          sendChatGPTXDiagnostic("plugin_marketplace_response_message_patch_failed", {
+          sendSwivoxDiagnostic("plugin_marketplace_response_message_patch_failed", {
             errorName: error?.name || "",
             errorMessage: error?.message || String(error),
           });
@@ -8031,14 +8031,14 @@
     // 首次 miss 仍然上报,保证 telemetry 能定位原因,之后噤声;连续失败够多次就停掉这一层。
     // 这是优雅降级:插件市场解锁还有 bridge / window-event 两层补丁各自独立工作。
     if (pluginMarketplaceRequestPatchMissCount === 1) {
-      sendChatGPTXDiagnostic(event, detail);
+      sendSwivoxDiagnostic(event, detail);
     }
     if (
       pluginMarketplaceRequestPatchMissCount >= pluginMarketplaceRequestPatchMaxMisses
       && !pluginMarketplaceRequestPatchDisabled
     ) {
       pluginMarketplaceRequestPatchDisabled = true;
-      sendChatGPTXDiagnostic("plugin_marketplace_request_patch_skipped", {
+      sendSwivoxDiagnostic("plugin_marketplace_request_patch_skipped", {
         misses: pluginMarketplaceRequestPatchMissCount,
         lastEvent: event,
       });
@@ -8062,7 +8062,7 @@
         if (patchedCount > 0) {
           window.__codexPluginMarketplaceUnlockInstalled = codexPluginMarketplaceUnlockVersion;
           pluginMarketplaceRequestPatchMissCount = 0;
-          sendChatGPTXDiagnostic("plugin_marketplace_request_patch_installed", {
+          sendSwivoxDiagnostic("plugin_marketplace_request_patch_installed", {
             moduleCount: modules.length,
             candidateCount: candidates.length,
             patchedCount,
@@ -8090,7 +8090,7 @@
   }
 
   function codexPluginMarketplacePatchEnabled() {
-    return chatgptxBackendSettingsLoaded && !!chatgptxSettings().pluginMarketplaceUnlock;
+    return swivoxBackendSettingsLoaded && !!swivoxSettings().pluginMarketplaceUnlock;
   }
 
   let cachedSessionRows = [];
@@ -8267,16 +8267,16 @@
     };
   }
 
-  if (window.__CHATGPTX_TEST_SESSION_REF__) {
-    window.__chatgptxSessionRefTest = {
+  if (window.__SWIVOX_TEST_SESSION_REF__) {
+    window.__swivoxSessionRefTest = {
       fromRow: sessionRefFromRow,
     };
   }
 
   // 注册数据跨重注入保留；只存弱引用，不缓存会重建的 sidebar DOM。
-  const codexNativeHostClients = window.__chatgptxNativeHostClients instanceof Map
-    ? window.__chatgptxNativeHostClients
-    : (window.__chatgptxNativeHostClients = new Map());
+  const codexNativeHostClients = window.__swivoxNativeHostClients instanceof Map
+    ? window.__swivoxNativeHostClients
+    : (window.__swivoxNativeHostClients = new Map());
   const codexNativeHostClientLimit = 32;
 
   function bindNativeHostClient(hostId, client, getterBound = false) {
@@ -8378,8 +8378,8 @@
     }
   }
 
-  if (window.__CHATGPTX_TEST_SESSION_REF__) {
-    Object.assign(window.__chatgptxSessionRefTest, {
+  if (window.__SWIVOX_TEST_SESSION_REF__) {
+    Object.assign(window.__swivoxSessionRefTest, {
       registerNativeHostClient, deleteRemoteSession, deletePayloadHost,
     });
   }
@@ -8491,7 +8491,7 @@
   }
 
   function refreshThreadIdBadges() {
-    if (!chatgptxSettings().threadIdBadge) {
+    if (!swivoxSettings().threadIdBadge) {
       if (threadIdBadgeActive) {
         removeThreadIdBadges();
         threadIdBadgeActive = false;
@@ -8502,7 +8502,7 @@
     sessionRows().forEach(installThreadIdBadge);
   }
 
-  function chatgptxDiagnosticPayload(event, detail) {
+  function swivoxDiagnosticPayload(event, detail) {
     return {
       event,
       detail: detail || {},
@@ -8514,11 +8514,11 @@
     };
   }
 
-  function sendChatGPTXDiagnostic(event, detail) {
-    const payload = chatgptxDiagnosticPayload(event, detail);
-    if (window.__CHATGPTX_TEST_SERVICE_TIER__) {
-      window.__chatgptxServiceTierTestDiagnostics = window.__chatgptxServiceTierTestDiagnostics || [];
-      window.__chatgptxServiceTierTestDiagnostics.push(payload);
+  function sendSwivoxDiagnostic(event, detail) {
+    const payload = swivoxDiagnosticPayload(event, detail);
+    if (window.__SWIVOX_TEST_SERVICE_TIER__) {
+      window.__swivoxServiceTierTestDiagnostics = window.__swivoxServiceTierTestDiagnostics || [];
+      window.__swivoxServiceTierTestDiagnostics.push(payload);
       return;
     }
     if (window.__codexSessionDeleteBridge) {
@@ -8539,9 +8539,9 @@
     }).catch(() => {});
   }
 
-  sendChatGPTXDiagnostic("script_loaded", {
-    version: chatgptxVersion,
-    build: chatgptxBuild,
+  sendSwivoxDiagnostic("script_loaded", {
+    version: swivoxVersion,
+    build: swivoxBuild,
   });
 
   function locationThreadId() {
@@ -8775,7 +8775,7 @@
   function shouldBlockThreadScrollAutobottom(scroller, top) {
     const runtime = threadScrollRuntime();
     const lock = currentThreadScrollRestoreLock();
-    if (!lock || !chatgptxSettings().threadScrollRestore) return false;
+    if (!lock || !swivoxSettings().threadScrollRestore) return false;
     const guardScroller = threadScrollGuardScroller(scroller);
     if (runtime.applyingRestore || !guardScroller) return false;
     const targetTop = threadScrollTargetTop(guardScroller, lock.targetTop);
@@ -8901,13 +8901,13 @@
     }
     runtime.activeScroller = scroller;
     runtime.scrollListenerUsesWindow = nextUsesWindow;
-    if (!scroller || !chatgptxSettings().threadScrollRestore) return;
+    if (!scroller || !swivoxSettings().threadScrollRestore) return;
     const target = nextUsesWindow ? window : scroller;
     target.addEventListener("scroll", runtime.scrollListener, true);
   }
 
   function saveThreadScrollPositionNow(sessionId = threadScrollRuntime().activeSessionId, scroller = threadScrollRuntime().activeScroller) {
-    if (!chatgptxSettings().threadScrollRestore) return;
+    if (!swivoxSettings().threadScrollRestore) return;
     const runtime = threadScrollRuntime();
     const key = validThreadScrollSessionKey(sessionId);
     if (!key || !scroller) return;
@@ -8928,7 +8928,7 @@
   }
 
   function scheduleThreadScrollSave() {
-    if (!chatgptxSettings().threadScrollRestore || window.__codexThreadScrollSaveTimer) return;
+    if (!swivoxSettings().threadScrollRestore || window.__codexThreadScrollSaveTimer) return;
     window.__codexThreadScrollSaveTimer = setTimeout(() => {
       window.__codexThreadScrollSaveTimer = null;
       saveThreadScrollPositionNow();
@@ -8938,7 +8938,7 @@
   function restoreThreadScrollPosition(sessionId) {
     const runtime = threadScrollRuntime();
     const key = validThreadScrollSessionKey(sessionId);
-    if (!chatgptxSettings().threadScrollRestore || !key || runtime.activeSessionId !== key || userScrollIntentActive() || threadScrollRestoreCancelledForSession(key)) return;
+    if (!swivoxSettings().threadScrollRestore || !key || runtime.activeSessionId !== key || userScrollIntentActive() || threadScrollRestoreCancelledForSession(key)) return;
     const lock = activeThreadScrollRestoreLock(key);
     const entry = lock || readThreadScrollEntries()[key];
     if (!entry) return;
@@ -8965,7 +8965,7 @@
   function scheduleThreadScrollRestore(sessionId) {
     clearThreadScrollRestoreTimers();
     const key = validThreadScrollSessionKey(sessionId);
-    if (!chatgptxSettings().threadScrollRestore || !key || userScrollIntentActive() || threadScrollRestoreCancelledForSession(key)) return;
+    if (!swivoxSettings().threadScrollRestore || !key || userScrollIntentActive() || threadScrollRestoreCancelledForSession(key)) return;
     const entry = readThreadScrollEntries()[key];
     if (!entry) {
       clearThreadScrollRestoreLock();
@@ -8985,7 +8985,7 @@
     const currentRef = currentSessionRef();
     const nextSessionId = validThreadScrollSessionKey(currentRef.session_id);
     if (!nextSessionId) return;
-    if (!chatgptxSettings().threadScrollRestore) {
+    if (!swivoxSettings().threadScrollRestore) {
       bindThreadScrollListener(null);
       clearThreadScrollRestoreTimers();
       clearThreadScrollRestoreLock();
@@ -9024,7 +9024,7 @@
   }
 
   function captureThreadScrollNavigation(targetSessionId) {
-    if (!chatgptxSettings().threadScrollRestore) return;
+    if (!swivoxSettings().threadScrollRestore) return;
     const runtime = threadScrollRuntime();
     const targetKey = validThreadScrollSessionKey(targetSessionId);
     const sessionChanged = !!targetKey && targetKey !== runtime.activeSessionId;
@@ -9056,7 +9056,7 @@
   }
 
   function markThreadScrollUserIntent(event) {
-    if (!chatgptxSettings().threadScrollRestore || !eventTargetsActiveThreadScroller(event)) return;
+    if (!swivoxSettings().threadScrollRestore || !eventTargetsActiveThreadScroller(event)) return;
     cancelThreadScrollRestoreForUserIntent();
   }
 
@@ -9107,19 +9107,19 @@
     document.removeEventListener("click", window.__codexThreadScrollClickNavigationHandler, true);
     document.removeEventListener("keydown", window.__codexThreadScrollKeyboardHandler, true);
     const navigationHandler = (event) => {
-      if (!chatgptxSettings().threadScrollRestore) return;
+      if (!swivoxSettings().threadScrollRestore) return;
       const row = event.target?.closest?.(selectors.sidebarThread);
       if (!row) return;
       window.__codexThreadScrollHandlers?.captureNavigation?.(sessionRefFromRow(row).session_id);
     };
     const clickHandler = (event) => {
-      if (!chatgptxSettings().threadScrollRestore) return;
+      if (!swivoxSettings().threadScrollRestore) return;
       const row = event.target?.closest?.(selectors.sidebarThread);
       if (!row) return;
       window.__codexThreadScrollHandlers?.captureNavigation?.(sessionRefFromRow(row).session_id);
     };
     const keyboardHandler = (event) => {
-      if (!chatgptxSettings().threadScrollRestore) return;
+      if (!swivoxSettings().threadScrollRestore) return;
       if (event.key !== "Enter" && event.key !== " ") return;
       const row = event.target?.closest?.(selectors.sidebarThread);
       if (!row) return;
@@ -9206,11 +9206,11 @@
       }
     }
     if (!window.__codexSessionDeleteBridge) {
-      recordChatGPTXBridgeFailure();
+      recordSwivoxBridgeFailure();
       if (path === "/backend/status") {
         return await fetchBackendStatusFromHelper(path, payload);
       }
-      sendChatGPTXDiagnostic("bridge_missing_for_route", { path });
+      sendSwivoxDiagnostic("bridge_missing_for_route", { path });
       return { status: "failed", message: "桥接不可用，请重启启动器" };
     }
     function bridgeWithBackendTimeout(path, payload) {
@@ -9218,7 +9218,7 @@
       try {
         request = window.__codexSessionDeleteBridge(path, payload);
       } catch (error) {
-        recordChatGPTXBridgeFailure();
+        recordSwivoxBridgeFailure();
         return Promise.resolve({ status: "failed", message: error?.message || "未连接" });
       }
       return withBackendTimeout(request);
@@ -9227,26 +9227,26 @@
       if (path === "/backend/status") {
         const result = await bridgeWithBackendTimeout(path, payload);
         if (result?.status === "ok") {
-          recordChatGPTXBridgeSuccess();
+          recordSwivoxBridgeSuccess();
           return result;
         }
-        recordChatGPTXBridgeFailure();
+        recordSwivoxBridgeFailure();
         if (result?.timeout) {
           // 超时也要记 lastAttemptAt：15 秒内的尝试视为桥还活着，
           // 避免页面忙碌时被看门狗误判为桥已死而重复注入整份脚本（issue #2169 / #2274）。
-          recordChatGPTXBridgeAttempt();
-          sendChatGPTXDiagnostic("backend_bridge_timeout", { path });
+          recordSwivoxBridgeAttempt();
+          sendSwivoxDiagnostic("backend_bridge_timeout", { path });
         }
         const fallback = await fetchBackendStatusFromHelper(path, payload);
         if (fallback?.status === "ok") {
-          sendChatGPTXDiagnostic("backend_status_bridge_failed_http_fallback_ok", {
+          sendSwivoxDiagnostic("backend_status_bridge_failed_http_fallback_ok", {
             path,
             httpStatus: 200,
             responseStatus: fallback.status || "",
           });
           return fallback;
         }
-        sendChatGPTXDiagnostic("backend_status_bridge_and_http_failed", {
+        sendSwivoxDiagnostic("backend_status_bridge_and_http_failed", {
           path,
           errorName: "",
           errorMessage: "",
@@ -9254,11 +9254,11 @@
         return fallback;
       }
       const bridgeResult = await window.__codexSessionDeleteBridge(path, payload);
-      recordChatGPTXBridgeSuccess();
+      recordSwivoxBridgeSuccess();
       return bridgeResult;
     } catch (error) {
-      recordChatGPTXBridgeFailure();
-      sendChatGPTXDiagnostic("bridge_call_failed", {
+      recordSwivoxBridgeFailure();
+      sendSwivoxDiagnostic("bridge_call_failed", {
         path,
         errorName: error?.name || "",
         errorMessage: error?.message || String(error),
@@ -9266,14 +9266,14 @@
       if (path === "/backend/status") {
         const fallback = await fetchBackendStatusFromHelper(path, payload);
         if (fallback?.status === "ok") {
-          sendChatGPTXDiagnostic("backend_status_bridge_failed_http_fallback_ok", {
+          sendSwivoxDiagnostic("backend_status_bridge_failed_http_fallback_ok", {
             path,
             httpStatus: 200,
             responseStatus: fallback.status || "",
           });
           return fallback;
         }
-        sendChatGPTXDiagnostic("backend_status_bridge_and_http_failed", {
+        sendSwivoxDiagnostic("backend_status_bridge_and_http_failed", {
           path,
           errorName: error?.name || "",
           errorMessage: error?.message || String(error),
@@ -9398,34 +9398,34 @@
    * 不调用 Codex 的 plugin/install，避免在浏览目录时触发服务连接或 OAuth。
    * 状态存数据，页面每次打开重建；请求结果通过来源/序号校验后才刷新当前页面。
    */
-  const chatgptxPluginMarketState = window.__chatgptxPluginMarketState || {
+  const swivoxPluginMarketState = window.__swivoxPluginMarketState || {
     source: "public", query: "", installedOnly: false, page: 1,
     catalogs: {}, jobs: {},
   };
-  window.__chatgptxPluginMarketState = chatgptxPluginMarketState;
-  Object.values(chatgptxPluginMarketState.jobs).forEach((job) => {
+  window.__swivoxPluginMarketState = swivoxPluginMarketState;
+  Object.values(swivoxPluginMarketState.jobs).forEach((job) => {
     clearTimeout(job.timer);
     job.timer = null;
   });
-  const chatgptxPluginMarketPageSize = 50;
+  const swivoxPluginMarketPageSize = 50;
 
-  function chatgptxPluginMarketCatalog(source = chatgptxPluginMarketState.source) {
-    if (!chatgptxPluginMarketState.catalogs[source]) {
-      chatgptxPluginMarketState.catalogs[source] = {
+  function swivoxPluginMarketCatalog(source = swivoxPluginMarketState.source) {
+    if (!swivoxPluginMarketState.catalogs[source]) {
+      swivoxPluginMarketState.catalogs[source] = {
         plugins: [], loaded: false, loading: false, message: "", revision: 0, cached: false,
       };
     }
-    return chatgptxPluginMarketState.catalogs[source];
+    return swivoxPluginMarketState.catalogs[source];
   }
 
-  function chatgptxPluginMarketPanel() {
+  function swivoxPluginMarketPanel() {
     return document.querySelector('[data-codex-plugin-market-panel="true"]');
   }
 
-  function chatgptxPluginMarketFilteredPlugins() {
-    const state = chatgptxPluginMarketState;
+  function swivoxPluginMarketFilteredPlugins() {
+    const state = swivoxPluginMarketState;
     const query = state.query.trim().toLocaleLowerCase();
-    return chatgptxPluginMarketCatalog().plugins.filter((plugin) => {
+    return swivoxPluginMarketCatalog().plugins.filter((plugin) => {
       if (state.installedOnly && !plugin.installed) return false;
       if (!query) return true;
       const text = [plugin.displayName, plugin.name, plugin.description, ...(Array.isArray(plugin.tags) ? plugin.tags : [])].join(" ").toLocaleLowerCase();
@@ -9433,44 +9433,44 @@
     });
   }
 
-  function chatgptxPluginMarketBytes(bytes) {
+  function swivoxPluginMarketBytes(bytes) {
     const value = Number(bytes);
     if (!Number.isFinite(value) || value <= 0) return "";
     if (value < 1024 * 1024) return `${Math.ceil(value / 1024)} KB`;
     return `${(value / (1024 * 1024)).toFixed(1)} MB`;
   }
 
-  function chatgptxPluginMarketStage(stage) {
+  function swivoxPluginMarketStage(stage) {
     return ({ queued: "等待下载", downloading: "下载中", extracting: "解压中", installing: "安装中", validating: "校验中", complete: "安装完成" })[stage] || "正在安装";
   }
 
-  function chatgptxPluginMarketCard(plugin, source) {
-    const job = chatgptxPluginMarketState.jobs[`${source}:${plugin.id}`];
+  function swivoxPluginMarketCard(plugin, source) {
+    const job = swivoxPluginMarketState.jobs[`${source}:${plugin.id}`];
     const busy = job?.busy === true;
     const installed = plugin.installed === true;
-    const label = busy ? `${chatgptxPluginMarketStage(job.stage)}…` : plugin.updateAvailable ? "更新" : installed ? "已安装" : "下载安装";
-    const meta = [plugin.version ? `v${plugin.version}` : "", plugin.author || "", chatgptxPluginMarketBytes(plugin.bytes), Number(plugin.skills) > 0 ? `${plugin.skills} 个技能` : ""].filter(Boolean).join(" · ");
+    const label = busy ? `${swivoxPluginMarketStage(job.stage)}…` : plugin.updateAvailable ? "更新" : installed ? "已安装" : "下载安装";
+    const meta = [plugin.version ? `v${plugin.version}` : "", plugin.author || "", swivoxPluginMarketBytes(plugin.bytes), Number(plugin.skills) > 0 ? `${plugin.skills} 个技能` : ""].filter(Boolean).join(" · ");
     const tags = (Array.isArray(plugin.tags) ? plugin.tags : []).slice(0, 4);
-    return `<article class="chatgptx-plugin-card" role="listitem">
-      <div class="chatgptx-plugin-card-info">
-        <div class="chatgptx-plugin-name">${escapeHtml(plugin.displayName || plugin.name || plugin.id)}</div>
-        <div class="chatgptx-plugin-id">${escapeHtml(plugin.name || plugin.id)}</div>
-        <div class="chatgptx-plugin-description">${escapeHtml(plugin.description || "暂无介绍")}</div>
-        <div class="chatgptx-plugin-meta">${escapeHtml(meta)}</div>
-        <div class="chatgptx-plugin-tags">${tags.map((tag) => `<span>${escapeHtml(String(tag))}</span>`).join("")}${plugin.requiresAuth ? "<span>需要服务授权</span>" : ""}${plugin.license ? `<span>${escapeHtml(plugin.license)}</span>` : ""}</div>
-        ${job?.message ? `<div class="chatgptx-plugin-job-message" data-status="${job.failed ? "failed" : "ok"}">${escapeHtml(job.message)}</div>` : ""}
+    return `<article class="swivox-plugin-card" role="listitem">
+      <div class="swivox-plugin-card-info">
+        <div class="swivox-plugin-name">${escapeHtml(plugin.displayName || plugin.name || plugin.id)}</div>
+        <div class="swivox-plugin-id">${escapeHtml(plugin.name || plugin.id)}</div>
+        <div class="swivox-plugin-description">${escapeHtml(plugin.description || "暂无介绍")}</div>
+        <div class="swivox-plugin-meta">${escapeHtml(meta)}</div>
+        <div class="swivox-plugin-tags">${tags.map((tag) => `<span>${escapeHtml(String(tag))}</span>`).join("")}${plugin.requiresAuth ? "<span>需要服务授权</span>" : ""}${plugin.license ? `<span>${escapeHtml(plugin.license)}</span>` : ""}</div>
+        ${job?.message ? `<div class="swivox-plugin-job-message" data-status="${job.failed ? "failed" : "ok"}">${escapeHtml(job.message)}</div>` : ""}
       </div>
-      <button type="button" class="chatgptx-button chatgptx-plugin-install" data-codex-plugin-install="${escapeHtml(plugin.id)}" aria-label="${escapeHtml(`${label} ${plugin.displayName || plugin.name || plugin.id}`)}" ${busy || (installed && !plugin.updateAvailable) ? "disabled" : ""}>${label}</button>
+      <button type="button" class="swivox-button swivox-plugin-install" data-codex-plugin-install="${escapeHtml(plugin.id)}" aria-label="${escapeHtml(`${label} ${plugin.displayName || plugin.name || plugin.id}`)}" ${busy || (installed && !plugin.updateAvailable) ? "disabled" : ""}>${label}</button>
     </article>`;
   }
 
-  function renderChatGPTXPluginMarket() {
-    const panel = chatgptxPluginMarketPanel();
+  function renderSwivoxPluginMarket() {
+    const panel = swivoxPluginMarketPanel();
     if (!panel) return;
-    const state = chatgptxPluginMarketState;
-    const catalog = chatgptxPluginMarketCatalog();
-    const filtered = chatgptxPluginMarketFilteredPlugins();
-    const pages = Math.max(1, Math.ceil(filtered.length / chatgptxPluginMarketPageSize));
+    const state = swivoxPluginMarketState;
+    const catalog = swivoxPluginMarketCatalog();
+    const filtered = swivoxPluginMarketFilteredPlugins();
+    const pages = Math.max(1, Math.ceil(filtered.length / swivoxPluginMarketPageSize));
     state.page = Math.max(1, Math.min(pages, state.page));
     panel.querySelectorAll("[data-codex-plugin-source]").forEach((button) => {
       const active = button.dataset.codexPluginSource === state.source;
@@ -9488,8 +9488,8 @@
     if (status) status.textContent = catalog.loading ? "正在加载插件目录…" : catalog.message || `${catalog.plugins.length.toLocaleString()} 个插件${catalog.cached ? " · 使用缓存目录" : ""}`;
     const results = panel.querySelector("[data-codex-plugin-results]");
     if (results) results.innerHTML = filtered.length
-      ? filtered.slice((state.page - 1) * chatgptxPluginMarketPageSize, state.page * chatgptxPluginMarketPageSize).map((plugin) => chatgptxPluginMarketCard(plugin, state.source)).join("")
-      : `<div class="chatgptx-plugin-empty">${catalog.loading ? "正在加载…" : !catalog.loaded ? "目录尚未加载，请刷新重试。" : catalog.plugins.length ? "没有找到符合条件的插件。" : "此来源暂无可显示的插件。"}</div>`;
+      ? filtered.slice((state.page - 1) * swivoxPluginMarketPageSize, state.page * swivoxPluginMarketPageSize).map((plugin) => swivoxPluginMarketCard(plugin, state.source)).join("")
+      : `<div class="swivox-plugin-empty">${catalog.loading ? "正在加载…" : !catalog.loaded ? "目录尚未加载，请刷新重试。" : catalog.plugins.length ? "没有找到符合条件的插件。" : "此来源暂无可显示的插件。"}</div>`;
     const count = panel.querySelector("[data-codex-plugin-result-count]");
     if (count) count.textContent = `${filtered.length.toLocaleString()} 个结果 · 第 ${state.page} / ${pages} 页`;
     const previous = panel.querySelector('[data-codex-plugin-page="previous"]');
@@ -9498,16 +9498,16 @@
     if (next) next.disabled = state.page >= pages;
   }
 
-  async function loadChatGPTXPluginMarket(source, refresh = false) {
-    const catalog = chatgptxPluginMarketCatalog(source);
+  async function loadSwivoxPluginMarket(source, refresh = false) {
+    const catalog = swivoxPluginMarketCatalog(source);
     if (catalog.loading || (catalog.loaded && !refresh)) {
-      renderChatGPTXPluginMarket();
+      renderSwivoxPluginMarket();
       return;
     }
     const revision = ++catalog.revision;
     catalog.loading = true;
     catalog.message = "";
-    renderChatGPTXPluginMarket();
+    renderSwivoxPluginMarket();
     let result;
     try {
       result = await postJson("/plugin-market/list", { source, refresh });
@@ -9525,12 +9525,12 @@
       catalog.message = result?.message || "插件目录加载失败，请刷新重试。";
     }
     // 切换来源后，旧请求只更新自己的数据；当前页面始终按当前来源重绘。
-    if (chatgptxPluginMarketState.source === source) renderChatGPTXPluginMarket();
+    if (swivoxPluginMarketState.source === source) renderSwivoxPluginMarket();
   }
 
-  function updateChatGPTXPluginMarketInstalled(source, plugin) {
+  function updateSwivoxPluginMarketInstalled(source, plugin) {
     if (!plugin || typeof plugin.id !== "string") return;
-    const catalog = chatgptxPluginMarketCatalog(source);
+    const catalog = swivoxPluginMarketCatalog(source);
     // 安装以 source + id 隔离，另一来源即使同 id 也不能被标为已安装。
     // 丢弃此前发出的本来源清单请求，避免旧 installed 状态覆盖新结果。
     catalog.revision += 1;
@@ -9542,17 +9542,17 @@
     });
   }
 
-  function scheduleChatGPTXPluginMarketInstallPoll(source, id, delay = 1200) {
-    const job = chatgptxPluginMarketState.jobs[`${source}:${id}`];
-    if (!job?.busy || job.polling || job.timer || !chatgptxPluginMarketPanel()) return;
+  function scheduleSwivoxPluginMarketInstallPoll(source, id, delay = 1200) {
+    const job = swivoxPluginMarketState.jobs[`${source}:${id}`];
+    if (!job?.busy || job.polling || job.timer || !swivoxPluginMarketPanel()) return;
     job.timer = setTimeout(() => {
       job.timer = null;
-      void pollChatGPTXPluginMarketInstall(source, id);
+      void pollSwivoxPluginMarketInstall(source, id);
     }, delay);
   }
 
-  async function pollChatGPTXPluginMarketInstall(source, id) {
-    const job = chatgptxPluginMarketState.jobs[`${source}:${id}`];
+  async function pollSwivoxPluginMarketInstall(source, id) {
+    const job = swivoxPluginMarketState.jobs[`${source}:${id}`];
     if (!job?.busy || job.polling) return;
     job.polling = true;
     let result;
@@ -9571,23 +9571,23 @@
       job.busy = false;
       job.failed = !completed;
       job.message = result.message || (job.failed ? "安装未完成，请重试。" : "安装完成，重启 Codex 后加载插件。");
-      if (completed) updateChatGPTXPluginMarketInstalled(source, result.plugin || { id, installedVersion: result.installedVersion });
+      if (completed) updateSwivoxPluginMarketInstalled(source, result.plugin || { id, installedVersion: result.installedVersion });
     } else {
       // 桥接超时不能重新发起安装；持续查询原任务，防止并发写同一插件。
       job.message = result?.message || "正在等待安装状态，可稍后重新打开此页查看。";
     }
-    renderChatGPTXPluginMarket();
-    scheduleChatGPTXPluginMarketInstallPoll(source, id, result?.timeout ? 4000 : 1200);
+    renderSwivoxPluginMarket();
+    scheduleSwivoxPluginMarketInstallPoll(source, id, result?.timeout ? 4000 : 1200);
   }
 
-  async function installChatGPTXPluginMarketPlugin(source, id) {
+  async function installSwivoxPluginMarketPlugin(source, id) {
     const key = `${source}:${id}`;
-    if (chatgptxPluginMarketState.jobs[key]?.busy) return;
-    const plugin = chatgptxPluginMarketCatalog(source).plugins.find((item) => item.id === id);
+    if (swivoxPluginMarketState.jobs[key]?.busy) return;
+    const plugin = swivoxPluginMarketCatalog(source).plugins.find((item) => item.id === id);
     if (!plugin || (plugin.installed && !plugin.updateAvailable)) return;
     const job = { busy: true, stage: "downloading", message: "正在下载所选插件…", failed: false, timer: null, polling: false };
-    chatgptxPluginMarketState.jobs[key] = job;
-    renderChatGPTXPluginMarket();
+    swivoxPluginMarketState.jobs[key] = job;
+    renderSwivoxPluginMarket();
     let result;
     try {
       result = await postJson("/plugin-market/install", { source, id });
@@ -9597,7 +9597,7 @@
     if (result?.status === "ok" && result?.plugin && result?.busy !== true) {
       job.busy = false;
       job.message = result.message || "安装完成，重启 Codex 后加载插件。";
-      updateChatGPTXPluginMarketInstalled(source, result.plugin);
+      updateSwivoxPluginMarketInstalled(source, result.plugin);
     } else if (result?.status === "failed" && !result?.timeout && result?.busy !== true && !/超时|timeout/i.test(result.message || "")) {
       job.busy = false;
       job.failed = true;
@@ -9605,46 +9605,46 @@
     } else {
       job.stage = result?.stage || job.stage;
       job.message = result?.message || "正在等待下载完成…";
-      scheduleChatGPTXPluginMarketInstallPoll(source, id);
+      scheduleSwivoxPluginMarketInstallPoll(source, id);
     }
-    renderChatGPTXPluginMarket();
+    renderSwivoxPluginMarket();
   }
 
-  function openChatGPTXPluginMarket() {
-    closeChatGPTXPage();
-    document.querySelectorAll('.chatgptx-modal-overlay, [data-chatgptx-dialog="true"]').forEach((node) => node.remove());
+  function openSwivoxPluginMarket() {
+    closeSwivoxPage();
+    document.querySelectorAll('.swivox-modal-overlay, [data-swivox-dialog="true"]').forEach((node) => node.remove());
     const overlay = document.createElement("div");
-    overlay.className = `${chatgptxPageClass} chatgptx-plugin-market-page`;
-    overlay.dataset.chatgptxPage = "true";
-    markChatGPTXExtensionNode(overlay, "builtin-plugin-market");
-    applyChatGPTXTheme(overlay);
-    applyChatGPTXZoom(overlay);
-    const state = chatgptxPluginMarketState;
-    overlay.innerHTML = `<div class="chatgptx-modal-content" role="region" aria-label="Codex 插件市场" data-chatgptx-active-tab="${chatgptxPluginMarketTab}">
-      <div class="chatgptx-modal-header"><div class="chatgptx-modal-title">Codex 插件市场</div></div>
-      <div class="chatgptx-modal-body"><div class="chatgptx-panel chatgptx-plugin-market-panel" data-codex-plugin-market-panel="true">
-        <p class="chatgptx-plugin-intro">检索插件目录，选中后下载并安装。目录浏览仅获取索引，插件文件按需下载。</p>
-        <div class="chatgptx-plugin-toolbar">
-          <div class="chatgptx-plugin-sources" role="group" aria-label="插件来源"><button type="button" data-codex-plugin-source="public" aria-pressed="false">公开市场</button><button type="button" data-codex-plugin-source="full" aria-pressed="false">完整市场</button></div>
-          <button type="button" class="chatgptx-button" data-codex-plugin-refresh="true">刷新目录</button>
+    overlay.className = `${swivoxPageClass} swivox-plugin-market-page`;
+    overlay.dataset.swivoxPage = "true";
+    markSwivoxExtensionNode(overlay, "builtin-plugin-market");
+    applySwivoxTheme(overlay);
+    applySwivoxZoom(overlay);
+    const state = swivoxPluginMarketState;
+    overlay.innerHTML = `<div class="swivox-modal-content" role="region" aria-label="Codex 插件市场" data-swivox-active-tab="${swivoxPluginMarketTab}">
+      <div class="swivox-modal-header"><div class="swivox-modal-title">Codex 插件市场</div></div>
+      <div class="swivox-modal-body"><div class="swivox-panel swivox-plugin-market-panel" data-codex-plugin-market-panel="true">
+        <p class="swivox-plugin-intro">检索插件目录，选中后下载并安装。目录浏览仅获取索引，插件文件按需下载。</p>
+        <div class="swivox-plugin-toolbar">
+          <div class="swivox-plugin-sources" role="group" aria-label="插件来源"><button type="button" data-codex-plugin-source="public" aria-pressed="false">公开市场</button><button type="button" data-codex-plugin-source="full" aria-pressed="false">完整市场</button></div>
+          <button type="button" class="swivox-button" data-codex-plugin-refresh="true">刷新目录</button>
         </div>
-        <div class="chatgptx-plugin-status" data-codex-plugin-source-note="true" hidden></div>
-        <div class="chatgptx-plugin-toolbar"><input type="search" class="chatgptx-plugin-search" data-codex-plugin-query="true" aria-label="搜索插件" placeholder="搜索插件名称、简介或标签" value="${escapeHtml(state.query)}"><label class="chatgptx-plugin-filter"><input type="checkbox" data-codex-plugin-installed="true" ${state.installedOnly ? "checked" : ""}>仅已安装</label></div>
-        <div class="chatgptx-plugin-status" data-codex-plugin-market-status="true" role="status" aria-live="polite"></div>
-        <div class="chatgptx-plugin-results" data-codex-plugin-results="true" role="list" aria-label="插件结果"></div>
-        <div class="chatgptx-plugin-pagination"><span data-codex-plugin-result-count="true"></span><button type="button" class="chatgptx-button" data-codex-plugin-page="previous">上一页</button><button type="button" class="chatgptx-button" data-codex-plugin-page="next">下一页</button></div>
+        <div class="swivox-plugin-status" data-codex-plugin-source-note="true" hidden></div>
+        <div class="swivox-plugin-toolbar"><input type="search" class="swivox-plugin-search" data-codex-plugin-query="true" aria-label="搜索插件" placeholder="搜索插件名称、简介或标签" value="${escapeHtml(state.query)}"><label class="swivox-plugin-filter"><input type="checkbox" data-codex-plugin-installed="true" ${state.installedOnly ? "checked" : ""}>仅已安装</label></div>
+        <div class="swivox-plugin-status" data-codex-plugin-market-status="true" role="status" aria-live="polite"></div>
+        <div class="swivox-plugin-results" data-codex-plugin-results="true" role="list" aria-label="插件结果"></div>
+        <div class="swivox-plugin-pagination"><span data-codex-plugin-result-count="true"></span><button type="button" class="swivox-button" data-codex-plugin-page="previous">上一页</button><button type="button" class="swivox-button" data-codex-plugin-page="next">下一页</button></div>
       </div></div></div>`;
     overlay.addEventListener("input", (event) => {
       if (!event.target?.matches?.("[data-codex-plugin-query]")) return;
       state.query = event.target.value;
       state.page = 1;
-      renderChatGPTXPluginMarket();
+      renderSwivoxPluginMarket();
     });
     overlay.addEventListener("change", (event) => {
       if (!event.target?.matches?.("[data-codex-plugin-installed]")) return;
       state.installedOnly = event.target.checked;
       state.page = 1;
-      renderChatGPTXPluginMarket();
+      renderSwivoxPluginMarket();
     });
     overlay.addEventListener("click", (event) => {
       const target = event.target instanceof Element ? event.target : event.target?.parentElement;
@@ -9652,45 +9652,45 @@
       if (source) {
         state.source = source.dataset.codexPluginSource === "full" ? "full" : "public";
         state.page = 1;
-        void loadChatGPTXPluginMarket(state.source);
+        void loadSwivoxPluginMarket(state.source);
         return;
       }
       if (target?.closest("[data-codex-plugin-refresh]")) {
-        void loadChatGPTXPluginMarket(state.source, true);
+        void loadSwivoxPluginMarket(state.source, true);
         return;
       }
       const install = target?.closest("[data-codex-plugin-install]");
       if (install && !install.disabled) {
-        void installChatGPTXPluginMarketPlugin(state.source, install.dataset.codexPluginInstall);
+        void installSwivoxPluginMarketPlugin(state.source, install.dataset.codexPluginInstall);
         return;
       }
       const page = target?.closest("[data-codex-plugin-page]");
       if (page && !page.disabled) {
         state.page += page.dataset.codexPluginPage === "next" ? 1 : -1;
-        renderChatGPTXPluginMarket();
-        overlay.querySelector(".chatgptx-modal-body")?.scrollTo?.({ top: 0 });
+        renderSwivoxPluginMarket();
+        overlay.querySelector(".swivox-modal-body")?.scrollTo?.({ top: 0 });
       }
     });
     document.body.appendChild(overlay);
-    positionChatGPTXPage(overlay);
-    document.querySelectorAll('[data-chatgptx-ext-rail-active="true"]').forEach((node) => {
-      node.removeAttribute("data-chatgptx-ext-rail-active");
+    positionSwivoxPage(overlay);
+    document.querySelectorAll('[data-swivox-ext-rail-active="true"]').forEach((node) => {
+      node.removeAttribute("data-swivox-ext-rail-active");
       const button = node.querySelector("button") || node;
       button.dataset.active = "false";
       button.removeAttribute("data-selected");
       button.removeAttribute("aria-current");
     });
-    setChatGPTXSidebarNavActive(true, "plugin-market");
+    setSwivoxSidebarNavActive(true, "plugin-market");
     // 拓展页面可能留下捕获旧 overlay 的 resize 回调，重开后必须改为查询当前 DOM。
-    window.removeEventListener("resize", window.__chatgptxPageResizeHandler);
-    window.__chatgptxPageResizeHandler = () => positionChatGPTXPage(document.querySelector(`.${chatgptxPageClass}`));
-    window.addEventListener("resize", window.__chatgptxPageResizeHandler);
-    renderChatGPTXPluginMarket();
-    void loadChatGPTXPluginMarket(state.source);
+    window.removeEventListener("resize", window.__swivoxPageResizeHandler);
+    window.__swivoxPageResizeHandler = () => positionSwivoxPage(document.querySelector(`.${swivoxPageClass}`));
+    window.addEventListener("resize", window.__swivoxPageResizeHandler);
+    renderSwivoxPluginMarket();
+    void loadSwivoxPluginMarket(state.source);
     Object.entries(state.jobs).forEach(([key, job]) => {
       if (!job.busy) return;
       const colon = key.indexOf(":");
-      scheduleChatGPTXPluginMarketInstallPoll(key.slice(0, colon), key.slice(colon + 1));
+      scheduleSwivoxPluginMarketInstallPoll(key.slice(0, colon), key.slice(colon + 1));
     });
   }
   /**
@@ -9698,20 +9698,20 @@
    * 当前验证的传输有 client.sendRequest、fetch envelope 和 mcp-request envelope。
    * 安装请求只发一次；桥接超时后查询后台任务，不能回落到原生 plugin/install。
    */
-  const chatgptxPluginNativeVersion = "1";
-  const chatgptxPluginNativeState = window.__chatgptxPluginNativeState || {
-    bypass: Symbol("chatgptx-plugin-native-bypass"), requests: new Map(), synthetic: new WeakSet(),
+  const swivoxPluginNativeVersion = "1";
+  const swivoxPluginNativeState = window.__swivoxPluginNativeState || {
+    bypass: Symbol("swivox-plugin-native-bypass"), requests: new Map(), synthetic: new WeakSet(),
     ids: new Map(), catalogs: new Map(), installJobs: new Map(),
   };
-  window.__chatgptxPluginNativeState = chatgptxPluginNativeState;
-  const chatgptxPluginNativeBypass = chatgptxPluginNativeState.bypass;
-  const chatgptxPluginNativeRequests = chatgptxPluginNativeState.requests;
-  const chatgptxPluginNativeSyntheticMessages = chatgptxPluginNativeState.synthetic;
-  const chatgptxPluginNativeIds = chatgptxPluginNativeState.ids;
-  const chatgptxPluginNativeCatalogs = chatgptxPluginNativeState.catalogs;
-  const chatgptxPluginNativeInstallJobs = chatgptxPluginNativeState.installJobs;
+  window.__swivoxPluginNativeState = swivoxPluginNativeState;
+  const swivoxPluginNativeBypass = swivoxPluginNativeState.bypass;
+  const swivoxPluginNativeRequests = swivoxPluginNativeState.requests;
+  const swivoxPluginNativeSyntheticMessages = swivoxPluginNativeState.synthetic;
+  const swivoxPluginNativeIds = swivoxPluginNativeState.ids;
+  const swivoxPluginNativeCatalogs = swivoxPluginNativeState.catalogs;
+  const swivoxPluginNativeInstallJobs = swivoxPluginNativeState.installJobs;
 
-  function chatgptxPluginNativeOperation(method, params, hostId) {
+  function swivoxPluginNativeOperation(method, params, hostId) {
     const wrapped = String(method || "") === "send-cli-request-for-host";
     const requestParams = wrapped ? params?.params || {} : params || {};
     const hosts = [hostId, params?.hostId, wrapped ? requestParams?.hostId : null].filter((value) => value != null);
@@ -9722,42 +9722,42 @@
     };
   }
 
-  function chatgptxPluginNativeSource(params) {
+  function swivoxPluginNativeSource(params) {
     const path = String(params?.marketplacePath || "").replace(/\\/g, "/");
-    const pathMatch = /(?:^|\/)chatgptx-plugin-market\/virtual-(public|full)\/\.agents\/plugins\/marketplace\.json$/.exec(path);
+    const pathMatch = /(?:^|\/)swivox-plugin-market\/virtual-(public|full)\/\.agents\/plugins\/marketplace\.json$/.exec(path);
     if (pathMatch) return pathMatch[1];
     const name = String(params?.remoteMarketplaceName || params?.localMarketplaceName || "");
-    const nameMatch = /^chatgptx-index-(public|full)$/.exec(name);
+    const nameMatch = /^swivox-index-(public|full)$/.exec(name);
     return nameMatch ? nameMatch[1] : "";
   }
 
-  function chatgptxPluginNativeLocal(operation) {
+  function swivoxPluginNativeLocal(operation) {
     return operation.hostId == null || operation.hostId === "local";
   }
 
-  function chatgptxPluginNativeListAllowed(operation) {
-    if (!chatgptxPluginNativeLocal(operation)) return false;
+  function swivoxPluginNativeListAllowed(operation) {
+    if (!swivoxPluginNativeLocal(operation)) return false;
     if (operation.method === "installed-plugins") return true;
     if (operation.method !== "list-plugins") return false;
     const kinds = operation.params?.marketplaceKinds;
     return !Array.isArray(kinds) || kinds.length === 0 || kinds.includes("local");
   }
 
-  function chatgptxPluginNativeRemember(result) {
+  function swivoxPluginNativeRemember(result) {
     const marketplaces = result?.marketplaces;
     if (!Array.isArray(marketplaces)) return;
     marketplaces.forEach((market) => {
-      const source = chatgptxPluginNativeSource({ marketplacePath: market.path, localMarketplaceName: market.name });
+      const source = swivoxPluginNativeSource({ marketplacePath: market.path, localMarketplaceName: market.name });
       if (!source || !Array.isArray(market.plugins)) return;
       market.plugins.forEach((plugin) => {
-        if (typeof plugin?.name === "string" && typeof plugin?.chatgptxIndexId === "string") {
-          chatgptxPluginNativeIds.set(`${source}:${plugin.name}`, plugin.chatgptxIndexId);
+        if (typeof plugin?.name === "string" && typeof plugin?.swivoxIndexId === "string") {
+          swivoxPluginNativeIds.set(`${source}:${plugin.name}`, plugin.swivoxIndexId);
         }
       });
     });
   }
 
-  async function chatgptxPluginNativeBackend(method, params, source) {
+  async function swivoxPluginNativeBackend(method, params, source) {
     let result;
     try {
       result = await postJson("/plugin-market/native", { method, params: params || {}, ...(source ? { source } : {}) });
@@ -9776,35 +9776,35 @@
     return result;
   }
 
-  async function chatgptxPluginNativeCatalog(operation) {
+  async function swivoxPluginNativeCatalog(operation) {
     const key = operation.method;
     const now = Date.now();
-    const cached = chatgptxPluginNativeCatalogs.get(key);
+    const cached = swivoxPluginNativeCatalogs.get(key);
     const ttl = key === "installed-plugins" ? 1000 : 60_000;
     if (cached?.promise) return JSON.parse(JSON.stringify(await cached.promise));
     if (cached?.value && !operation.params?.forceRefetch && now - cached.at < ttl) {
       return JSON.parse(JSON.stringify(cached.value));
     }
     const entry = { at: now, value: null, promise: null };
-    const promise = chatgptxPluginNativeBackend(operation.method, operation.params).then((result) => {
+    const promise = swivoxPluginNativeBackend(operation.method, operation.params).then((result) => {
       if (!Array.isArray(result.marketplaces)) throw new Error("Codex 插件市场列表格式错误");
-      chatgptxPluginNativeRemember(result);
+      swivoxPluginNativeRemember(result);
       entry.value = result;
       entry.at = Date.now();
       return result;
     }).finally(() => { entry.promise = null; });
     entry.promise = promise;
-    chatgptxPluginNativeCatalogs.set(key, entry);
+    swivoxPluginNativeCatalogs.set(key, entry);
     return JSON.parse(JSON.stringify(await promise));
   }
 
-  function chatgptxPluginNativeMerge(original, extra, method) {
+  function swivoxPluginNativeMerge(original, extra, method) {
     const base = original && typeof original === "object" ? original : {};
     const managedIds = new Set((extra?.marketplaces || []).flatMap((market) =>
-      chatgptxPluginNativeSource({ marketplacePath: market.path, localMarketplaceName: market.name })
+      swivoxPluginNativeSource({ marketplacePath: market.path, localMarketplaceName: market.name })
         ? (market.plugins || []).map((plugin) => plugin.id) : []));
     const markets = Array.isArray(base.marketplaces) ? base.marketplaces.map((market) => {
-      if (!/^chatgptx-plugin-market-[a-f0-9]{12}$/.test(market.name || "") || !Array.isArray(market.plugins)) return market;
+      if (!/^swivox-plugin-market-[a-f0-9]{12}$/.test(market.name || "") || !Array.isArray(market.plugins)) return market;
       // 已安装目录也会从原生本地市场返回；只消除我们自己 namespace 内同 id 的重复。
       return { ...market, plugins: market.plugins.filter((plugin) => !managedIds.has(plugin.id)) };
     }) : [];
@@ -9820,53 +9820,53 @@
     const result = {
       ...base, marketplaces: markets,
       marketplaceLoadErrors: [...(Array.isArray(base.marketplaceLoadErrors) ? base.marketplaceLoadErrors : []), ...(extra?.marketplaceLoadErrors || [])],
-      __chatgptxIndexMerged: true,
+      __swivoxIndexMerged: true,
     };
     if (method === "list-plugins") result.featuredPluginIds = [...new Set([...(base.featuredPluginIds || []), ...(extra?.featuredPluginIds || [])])];
-    chatgptxPluginNativeRemember(result);
+    swivoxPluginNativeRemember(result);
     return result;
   }
 
-  async function chatgptxPluginNativeExtend(operation, original) {
-    if (original?.__chatgptxIndexMerged) return original;
+  async function swivoxPluginNativeExtend(operation, original) {
+    if (original?.__swivoxIndexMerged) return original;
     try {
-      return chatgptxPluginNativeMerge(original, await chatgptxPluginNativeCatalog(operation), operation.method);
+      return swivoxPluginNativeMerge(original, await swivoxPluginNativeCatalog(operation), operation.method);
     } catch (error) {
       // 自定义市场暂时离线时保留原生列表，不能把系统插件清空。
-      const fallbackPath = chatgptxIsWindowsPlatform ? "C:\\chatgptx-plugin-market" : "/chatgptx-plugin-market";
-      return chatgptxPluginNativeMerge(original, { marketplaceLoadErrors: [{ marketplacePath: fallbackPath, message: error?.message || "Codex 插件市场暂时不可用" }] }, operation.method);
+      const fallbackPath = swivoxIsWindowsPlatform ? "C:\\swivox-plugin-market" : "/swivox-plugin-market";
+      return swivoxPluginNativeMerge(original, { marketplaceLoadErrors: [{ marketplacePath: fallbackPath, message: error?.message || "Codex 插件市场暂时不可用" }] }, operation.method);
     }
   }
 
-  function chatgptxPluginNativeInvalidate() {
-    chatgptxPluginNativeCatalogs.clear();
+  function swivoxPluginNativeInvalidate() {
+    swivoxPluginNativeCatalogs.clear();
     clearPluginMarketplaceQueryCache();
     showToast("插件已安装，新开聊天或重启 Codex 后加载。");
   }
 
-  async function chatgptxPluginNativeManaged(operation, source) {
-    if (!chatgptxPluginNativeLocal(operation)) throw new Error("Codex 插件市场目前仅支持本机安装，请切换到本机。");
+  async function swivoxPluginNativeManaged(operation, source) {
+    if (!swivoxPluginNativeLocal(operation)) throw new Error("Codex 插件市场目前仅支持本机安装，请切换到本机。");
     if (operation.method === "read-plugin") {
-      const result = await chatgptxPluginNativeBackend(operation.method, operation.params, source);
+      const result = await swivoxPluginNativeBackend(operation.method, operation.params, source);
       const summary = result?.plugin?.summary;
-      if (typeof summary?.chatgptxIndexId === "string") chatgptxPluginNativeIds.set(`${source}:${operation.params.pluginName}`, summary.chatgptxIndexId);
+      if (typeof summary?.swivoxIndexId === "string") swivoxPluginNativeIds.set(`${source}:${operation.params.pluginName}`, summary.swivoxIndexId);
       return result;
     }
     const key = `${source}:${operation.params.pluginName || ""}`;
-    if (chatgptxPluginNativeInstallJobs.has(key)) return await chatgptxPluginNativeInstallJobs.get(key);
+    if (swivoxPluginNativeInstallJobs.has(key)) return await swivoxPluginNativeInstallJobs.get(key);
     const promise = (async () => {
-      let id = chatgptxPluginNativeIds.get(key);
+      let id = swivoxPluginNativeIds.get(key);
       if (!id) {
         // 未浏览列表也可能直接进入详情，先获取真实索引 id；这一步不会下载插件文件。
-        const detail = await chatgptxPluginNativeBackend("read-plugin", operation.params, source);
-        id = detail?.plugin?.summary?.chatgptxIndexId;
+        const detail = await swivoxPluginNativeBackend("read-plugin", operation.params, source);
+        id = detail?.plugin?.summary?.swivoxIndexId;
         if (typeof id !== "string" || !id) throw new Error("插件索引缺少安装标识，请刷新目录后重试。");
-        chatgptxPluginNativeIds.set(key, id);
+        swivoxPluginNativeIds.set(key, id);
       }
       try {
-        const result = await chatgptxPluginNativeBackend("install-plugin", operation.params, source);
+        const result = await swivoxPluginNativeBackend("install-plugin", operation.params, source);
         if (result?.authPolicy && Array.isArray(result.appsNeedingAuth)) {
-          chatgptxPluginNativeInvalidate();
+          swivoxPluginNativeInvalidate();
           return result;
         }
         throw new Error("正在等待插件安装结果");
@@ -9886,44 +9886,44 @@
         }
         if (status?.busy === true) { communicationFailures = 0; continue; }
         if (status?.busy === false && status.stage === "complete" && status.nativeResult?.authPolicy && Array.isArray(status.nativeResult.appsNeedingAuth)) {
-          chatgptxPluginNativeInvalidate();
+          swivoxPluginNativeInvalidate();
           return status.nativeResult;
         }
         if (status?.busy === false) throw new Error(status.message || "插件安装未完成，请重试。");
         if (++communicationFailures >= 5) throw outcomeUnknown();
       }
       throw outcomeUnknown();
-    })().finally(() => { chatgptxPluginNativeInstallJobs.delete(key); });
-    chatgptxPluginNativeInstallJobs.set(key, promise);
+    })().finally(() => { swivoxPluginNativeInstallJobs.delete(key); });
+    swivoxPluginNativeInstallJobs.set(key, promise);
     return await promise;
   }
 
   /** 返回 null 表示原接口继续执行；返回 Promise 表示已由本层接管。 */
-  function chatgptxPluginNativeInterceptClient(method, params, options, original, hostId) {
-    if (!codexPluginMarketplacePatchEnabled() || options?.[chatgptxPluginNativeBypass]) return null;
-    const operation = chatgptxPluginNativeOperation(method, params, hostId);
-    const source = chatgptxPluginNativeSource(operation.params);
-    if (source && ["read-plugin", "install-plugin"].includes(operation.method)) return chatgptxPluginNativeManaged(operation, source);
-    if (!chatgptxPluginNativeListAllowed(operation)) return null;
+  function swivoxPluginNativeInterceptClient(method, params, options, original, hostId) {
+    if (!codexPluginMarketplacePatchEnabled() || options?.[swivoxPluginNativeBypass]) return null;
+    const operation = swivoxPluginNativeOperation(method, params, hostId);
+    const source = swivoxPluginNativeSource(operation.params);
+    if (source && ["read-plugin", "install-plugin"].includes(operation.method)) return swivoxPluginNativeManaged(operation, source);
+    if (!swivoxPluginNativeListAllowed(operation)) return null;
     return (async () => {
       let result;
       try {
-        result = await original({ ...(options || {}), [chatgptxPluginNativeBypass]: true });
+        result = await original({ ...(options || {}), [swivoxPluginNativeBypass]: true });
       } catch (error) {
         if (!pluginMarketplaceRemoteAuthError(error)) throw error;
         result = { marketplaces: [], marketplaceLoadErrors: [], featuredPluginIds: [] };
       }
-      return await chatgptxPluginNativeExtend(operation, result);
+      return await swivoxPluginNativeExtend(operation, result);
     })();
   }
 
-  function chatgptxPluginNativeEnvelope(message) {
+  function swivoxPluginNativeEnvelope(message) {
     if (!message || typeof message !== "object") return null;
     if (message.type === "mcp-request" && message.request?.id != null) {
       return {
         transport: "mcp", id: message.request.id,
         key: `mcp:${message.hostId || "local"}:${message.request.id}`,
-        operation: chatgptxPluginNativeOperation(message.request.method, message.request.params, message.hostId),
+        operation: swivoxPluginNativeOperation(message.request.method, message.request.params, message.hostId),
         request: message,
       };
     }
@@ -9934,62 +9934,62 @@
       }
       return {
         transport: "fetch", id: message.requestId, key: `fetch:${message.requestId}`,
-        operation: chatgptxPluginNativeOperation(message.url, params, message.hostId), request: message,
+        operation: swivoxPluginNativeOperation(message.url, params, message.hostId), request: message,
       };
     }
     return null;
   }
 
-  function chatgptxPluginNativeDeliver(data) {
-    chatgptxPluginNativeSyntheticMessages.add(data);
+  function swivoxPluginNativeDeliver(data) {
+    swivoxPluginNativeSyntheticMessages.add(data);
     window.dispatchEvent(new MessageEvent("message", { data, source: window, origin: window.location.origin }));
   }
 
-  function chatgptxPluginNativeReply(envelope, result, error) {
+  function swivoxPluginNativeReply(envelope, result, error) {
     if (envelope.transport === "fetch") {
-      chatgptxPluginNativeDeliver({ type: "fetch-response", requestId: envelope.id, responseType: error ? "error" : "success", status: error ? 500 : 200,
+      swivoxPluginNativeDeliver({ type: "fetch-response", requestId: envelope.id, responseType: error ? "error" : "success", status: error ? 500 : 200,
         headers: { "content-type": "application/json" }, ...(error ? { error: error.message || String(error) } : { bodyJsonString: JSON.stringify(result) }) });
     } else {
-      chatgptxPluginNativeDeliver({ type: "mcp-response", hostId: envelope.request.hostId || "local", message: { id: envelope.id,
+      swivoxPluginNativeDeliver({ type: "mcp-response", hostId: envelope.request.hostId || "local", message: { id: envelope.id,
         ...(error ? { error: { code: -32000, message: error.message || String(error) } } : { result }) } });
     }
   }
 
-  function chatgptxPluginNativeInterceptOutgoing(message) {
+  function swivoxPluginNativeInterceptOutgoing(message) {
     if (!codexPluginMarketplacePatchEnabled()) return false;
-    const envelope = chatgptxPluginNativeEnvelope(message);
+    const envelope = swivoxPluginNativeEnvelope(message);
     if (!envelope) return false;
-    const source = chatgptxPluginNativeSource(envelope.operation.params);
+    const source = swivoxPluginNativeSource(envelope.operation.params);
     if (source && ["read-plugin", "install-plugin"].includes(envelope.operation.method)) {
-      void chatgptxPluginNativeManaged(envelope.operation, source).then(
-        (result) => chatgptxPluginNativeReply(envelope, result),
-        (error) => chatgptxPluginNativeReply(envelope, null, error));
+      void swivoxPluginNativeManaged(envelope.operation, source).then(
+        (result) => swivoxPluginNativeReply(envelope, result),
+        (error) => swivoxPluginNativeReply(envelope, null, error));
       return true;
     }
-    if (chatgptxPluginNativeListAllowed(envelope.operation)) {
-      chatgptxPluginNativeRequests.set(envelope.key, envelope);
+    if (swivoxPluginNativeListAllowed(envelope.operation)) {
+      swivoxPluginNativeRequests.set(envelope.key, envelope);
       // 只跟踪当前原生请求；超时不自发重发任何请求。
-      setTimeout(() => chatgptxPluginNativeRequests.delete(envelope.key), 90_000);
+      setTimeout(() => swivoxPluginNativeRequests.delete(envelope.key), 90_000);
     }
     return false;
   }
 
-  function chatgptxPluginNativeSuppressForwarded(message) {
+  function swivoxPluginNativeSuppressForwarded(message) {
     if (!codexPluginMarketplacePatchEnabled()) return false;
-    const envelope = chatgptxPluginNativeEnvelope(message);
-    return Boolean(envelope && chatgptxPluginNativeSource(envelope.operation.params)
+    const envelope = swivoxPluginNativeEnvelope(message);
+    return Boolean(envelope && swivoxPluginNativeSource(envelope.operation.params)
       && ["read-plugin", "install-plugin"].includes(envelope.operation.method));
   }
 
-  function chatgptxPluginNativeInterceptIncoming(data) {
-    if (!data || chatgptxPluginNativeSyntheticMessages.has(data)) return false;
+  function swivoxPluginNativeInterceptIncoming(data) {
+    if (!data || swivoxPluginNativeSyntheticMessages.has(data)) return false;
     const fetchResponse = data.type === "fetch-response";
     const mcpResponse = data.type === "mcp-response";
     if (!fetchResponse && !mcpResponse) return false;
     const key = fetchResponse ? `fetch:${data.requestId}` : `mcp:${data.hostId || "local"}:${data.message?.id}`;
-    const envelope = chatgptxPluginNativeRequests.get(key);
+    const envelope = swivoxPluginNativeRequests.get(key);
     if (!envelope) return false;
-    chatgptxPluginNativeRequests.delete(key);
+    swivoxPluginNativeRequests.delete(key);
     void (async () => {
       let payload;
       let nativeError;
@@ -9997,7 +9997,7 @@
       if (fetchResponse) {
         if (data.responseType === "error" || Number(data.status) >= 400) nativeError = data.error || data.bodyJsonString || "原生插件接口请求失败";
         try { payload = "body" in data ? data.body : JSON.parse(data.bodyJsonString || "{}"); } catch {
-          chatgptxPluginNativeDeliver(data);
+          swivoxPluginNativeDeliver(data);
           return;
         }
         if (payload?.error) nativeError = payload.error;
@@ -10007,70 +10007,70 @@
         nativeError = data.message?.error;
       }
       if (nativeError && !pluginMarketplaceRemoteAuthError(nativeError)) {
-        chatgptxPluginNativeDeliver(data);
+        swivoxPluginNativeDeliver(data);
         return;
       }
       const original = nativeError ? {} : wrapped ? payload.result : payload;
-      const merged = await chatgptxPluginNativeExtend(envelope.operation, original);
+      const merged = await swivoxPluginNativeExtend(envelope.operation, original);
       if (fetchResponse) {
         const response = wrapped ? { ...payload, result: merged } : merged;
         if (wrapped) delete response.error;
         const next = { ...data, responseType: "success", status: 200, bodyJsonString: JSON.stringify(response) };
         delete next.body;
         delete next.error;
-        chatgptxPluginNativeDeliver(next);
+        swivoxPluginNativeDeliver(next);
       } else {
         const message = { ...data.message, result: merged };
         delete message.error;
-        chatgptxPluginNativeDeliver({ ...data, message });
+        swivoxPluginNativeDeliver({ ...data, message });
       }
-    })().catch((error) => chatgptxPluginNativeReply(envelope, null, error));
+    })().catch((error) => swivoxPluginNativeReply(envelope, null, error));
     return true;
   }
 
-  function installChatGPTXPluginNativeTransportListener() {
-    if (window.__chatgptxPluginNativeResponseListener) window.removeEventListener("message", window.__chatgptxPluginNativeResponseListener, true);
-    window.__chatgptxPluginNativeResponseListener = (event) => {
+  function installSwivoxPluginNativeTransportListener() {
+    if (window.__swivoxPluginNativeResponseListener) window.removeEventListener("message", window.__swivoxPluginNativeResponseListener, true);
+    window.__swivoxPluginNativeResponseListener = (event) => {
       if (event.source != null && event.source !== window) return;
-      if (chatgptxPluginNativeInterceptIncoming(event.data)) event.stopImmediatePropagation();
+      if (swivoxPluginNativeInterceptIncoming(event.data)) event.stopImmediatePropagation();
     };
-    window.addEventListener("message", window.__chatgptxPluginNativeResponseListener, true);
+    window.addEventListener("message", window.__swivoxPluginNativeResponseListener, true);
   }
 
-  function ensureChatGPTXPluginNativeTransportReinjection() {
+  function ensureSwivoxPluginNativeTransportReinjection() {
     if (!codexPluginMarketplacePatchEnabled()) return;
     const bridge = window.electronBridge;
     if (bridge?.__codexPluginMarketplaceOriginalSendMessageFromView
         && bridge.__codexPluginMarketplaceBridgePatch !== codexPluginMarketplaceUnlockVersion
-        && bridge.sendMessageFromView?.__chatgptxPluginNativeTransport !== chatgptxPluginNativeVersion) {
+        && bridge.sendMessageFromView?.__swivoxPluginNativeTransport !== swivoxPluginNativeVersion) {
       const original = bridge.sendMessageFromView.bind(bridge);
-      const patched = (message) => chatgptxPluginNativeInterceptOutgoing(message) ? Promise.resolve() : original(message);
-      patched.__chatgptxPluginNativeTransport = chatgptxPluginNativeVersion;
+      const patched = (message) => swivoxPluginNativeInterceptOutgoing(message) ? Promise.resolve() : original(message);
+      patched.__swivoxPluginNativeTransport = swivoxPluginNativeVersion;
       bridge.sendMessageFromView = patched;
     }
     if (window.__codexPluginMarketplaceOriginalDispatchEvent
         && window.__codexPluginMarketplaceWindowEventPatch !== codexPluginMarketplaceUnlockVersion
-        && window.dispatchEvent?.__chatgptxPluginNativeTransport !== chatgptxPluginNativeVersion) {
+        && window.dispatchEvent?.__swivoxPluginNativeTransport !== swivoxPluginNativeVersion) {
       const original = window.dispatchEvent.bind(window);
       const patched = (event) => {
         if (event?.type === "codex-message-from-view") {
-          if (event.__codexForwardedViaBridge && chatgptxPluginNativeSuppressForwarded(event.detail)) return true;
-          if (!event.__codexForwardedViaBridge && chatgptxPluginNativeInterceptOutgoing(event.detail)) return true;
+          if (event.__codexForwardedViaBridge && swivoxPluginNativeSuppressForwarded(event.detail)) return true;
+          if (!event.__codexForwardedViaBridge && swivoxPluginNativeInterceptOutgoing(event.detail)) return true;
         }
-        if (event?.type === "message" && chatgptxPluginNativeInterceptIncoming(event.data)) return true;
+        if (event?.type === "message" && swivoxPluginNativeInterceptIncoming(event.data)) return true;
         return original(event);
       };
-      patched.__chatgptxPluginNativeTransport = chatgptxPluginNativeVersion;
+      patched.__swivoxPluginNativeTransport = swivoxPluginNativeVersion;
       window.dispatchEvent = patched;
     }
   }
 
-  function chatgptxNativePluginNavigationEntry() {
+  function swivoxNativePluginNavigationEntry() {
     // 每次重查原生导航；注入入口和第三方 Plugins 按钮不能充当原生目标。
     const destinations = Array.from(document.querySelectorAll('nav [data-sidebar-destination], aside.app-shell-left-panel nav button, nav[data-app-navigation-rail] button'));
     return destinations.find((button) => {
-      if (button.closest('[data-chatgptx-ext], [data-chatgptx-rail]')) return false;
-      if (button.closest(`#${chatgptxSidebarPluginMarketId}, #${chatgptxRailPluginMarketId}`)) return false;
+      if (button.closest('[data-swivox-ext], [data-swivox-rail]')) return false;
+      if (button.closest(`#${swivoxSidebarPluginMarketId}, #${swivoxRailPluginMarketId}`)) return false;
       if (typeof isExtensionUiNode === "function" && isExtensionUiNode(button)) return false;
       if (typeof visibleElement === "function" && !visibleElement(button)) return false;
       const destination = (button.getAttribute("data-sidebar-destination") || "").trim();
@@ -10079,10 +10079,10 @@
     });
   }
 
-  function openChatGPTXNativePluginMarket() {
-    closeChatGPTXPage();
+  function openSwivoxNativePluginMarket() {
+    closeSwivoxPage();
     clearPluginMarketplaceQueryCache();
-    const native = chatgptxNativePluginNavigationEntry();
+    const native = swivoxNativePluginNavigationEntry();
     if (native && !native.disabled && native.getAttribute("aria-disabled") !== "true") {
       native.click();
       return;
@@ -10094,7 +10094,7 @@
     return await codexStateCall("set-global-state", { params: { key, value } });
   }
 
-  function dispatchChatGPTXMessage(dispatcher, type, payload) {
+  function dispatchSwivoxMessage(dispatcher, type, payload) {
     const message = codexServiceTierRequestOverride({ ...(payload || {}), type });
     const nextType = message?.type || type;
     const { type: _type, ...nextPayload } = message || {};
@@ -10117,25 +10117,25 @@
   let codexModelCatalogPromise = null;
   let codexModelWhitelistRefreshTimer = 0;
   let codexModelWhitelistRefreshUntil = 0;
-  const chatgptxModelListRequestIds = new Set();
-  const chatgptxModelListRequestHosts = new Map();
+  const swivoxModelListRequestIds = new Set();
+  const swivoxModelListRequestHosts = new Map();
   // 跨重注入保留原生数据快照；WeakMap 仅持有模型集合，不缓存 DOM。
-  const chatgptxModelCollectionSnapshots = window.__chatgptxModelCollectionSnapshots
-    || (window.__chatgptxModelCollectionSnapshots = new WeakMap());
-  const chatgptxModelDefaultSnapshots = window.__chatgptxModelDefaultSnapshots
-    || (window.__chatgptxModelDefaultSnapshots = new WeakMap());
+  const swivoxModelCollectionSnapshots = window.__swivoxModelCollectionSnapshots
+    || (window.__swivoxModelCollectionSnapshots = new WeakMap());
+  const swivoxModelDefaultSnapshots = window.__swivoxModelDefaultSnapshots
+    || (window.__swivoxModelDefaultSnapshots = new WeakMap());
 
-  if (window.__CHATGPTX_TEST_SERVICE_TIER__) {
-    window.__chatgptxServiceTierTest = {
+  if (window.__SWIVOX_TEST_SERVICE_TIER__) {
+    window.__swivoxServiceTierTest = {
       applyServiceTierOverride: (method, params, threadIdHint = "") => applyCodexServiceTierRequestOverride(method, params, threadIdHint),
       applyProviderOverride: (method, params) => applyCodexRemoteSessionProviderOverride(method, params),
       remoteSessionStartedThreadId: (value) => codexRemoteSessionStartedThreadId(value),
       observeRemoteSessionNotification: (value) => observeCodexRemoteSessionNotification(value),
       installRemoteSessionRecoveryListener: () => installCodexRemoteSessionRecoveryListener(),
       installRemoteSessionDispatcherSubscription: (dispatcher, assetPrefix = "test") => installCodexRemoteSessionDispatcherSubscription(dispatcher, assetPrefix),
-      dispatchMessage: (dispatcher, type, payload) => dispatchChatGPTXMessage(dispatcher, type, payload),
+      dispatchMessage: (dispatcher, type, payload) => dispatchSwivoxMessage(dispatcher, type, payload),
       requestOverride: (message) => codexServiceTierRequestOverride(message),
-      diagnostics: () => [...(window.__chatgptxServiceTierTestDiagnostics || [])],
+      diagnostics: () => [...(window.__swivoxServiceTierTestDiagnostics || [])],
       statusSummary: (state = {}) => {
         const summaryState = { ...codexServiceTierState, ...state };
         return serviceTierStatusMessage(
@@ -10150,7 +10150,7 @@
       resolveInheritedServiceTier: () => resolveInheritedServiceTier(),
       currentModelName: () => codexServiceTierCurrentModelName(),
       fastAvailability: (modelName = codexServiceTierCurrentModelName()) => codexServiceTierFastAvailability(modelName),
-      modelDescriptor: (modelName) => chatgptxModelDescriptor(modelName),
+      modelDescriptor: (modelName) => swivoxModelDescriptor(modelName),
       setModelCatalog: (catalog = {}) => {
         codexModelCatalog = {
           status: "ok",
@@ -10175,8 +10175,8 @@
       patchMcpModelResponseData,
       recordModelListRequest,
       setBackendSettings: (settings = {}) => {
-        chatgptxBackendSettings = { ...chatgptxBackendSettings, ...settings };
-        chatgptxBackendSettingsLoaded = true;
+        swivoxBackendSettings = { ...swivoxBackendSettings, ...settings };
+        swivoxBackendSettingsLoaded = true;
       },
       providerPatchEnabled: () => codexRemoteSessionProviderPatchEnabled(),
       providerNormalizationEnabled: () => codexRemoteSessionProviderNormalizationEnabled(),
@@ -10199,18 +10199,18 @@
       locateAppServerClientBreakpoint: locateCodexAppServerClientBreakpoint,
       installAppServerClientPrototypePatch: installCodexAppServerClientPrototypePatch,
       appServerClientPrototypeState: () => ({
-        hasClass: typeof window.__chatgptxAppServerClientClass === "function",
-        installed: window.__chatgptxAppServerClientPrototypePatchInstalled || null,
+        hasClass: typeof window.__swivoxAppServerClientClass === "function",
+        installed: window.__swivoxAppServerClientPrototypePatchInstalled || null,
       }),
     };
     return;
   }
 
-  function chatgptxModelUnlockEnabled() {
-    return !!chatgptxSettings().modelWhitelistUnlock;
+  function swivoxModelUnlockEnabled() {
+    return !!swivoxSettings().modelWhitelistUnlock;
   }
 
-  function chatgptxModelNames() {
+  function swivoxModelNames() {
     return uniqueValues([
       ...(Array.isArray(codexModelCatalog.models) ? codexModelCatalog.models : []),
       codexModelCatalog.default_model,
@@ -10235,16 +10235,16 @@
                 if (extraModels.length > 0) {
                   codexModelCatalog.models = extraModels;
                   codexModelCatalog.default_model = codexModelCatalog.default_model || extraModels[0];
-                  sendChatGPTXDiagnostic("model_catalog_fallback_applied", { count: extraModels.length });
+                  sendSwivoxDiagnostic("model_catalog_fallback_applied", { count: extraModels.length });
                 }
               }
             }
           } catch (fallbackError) {
-            sendChatGPTXDiagnostic("model_catalog_fallback_error", { error: String(fallbackError?.message || fallbackError) });
+            sendSwivoxDiagnostic("model_catalog_fallback_error", { error: String(fallbackError?.message || fallbackError) });
           }
         }
         codexModelCatalogLoadedAt = Date.now();
-        renderChatGPTXMenu();
+        renderSwivoxMenu();
         scheduleCodexModelWhitelistRefresh();
         return codexModelCatalog;
       })
@@ -10259,7 +10259,7 @@
     return codexModelCatalogPromise;
   }
 
-  function chatgptxModelMetadata(modelName) {
+  function swivoxModelMetadata(modelName) {
     const metadata = codexModelCatalog.modelMetadata || codexModelCatalog.model_metadata;
     const normalizedName = codexServiceTierModelFromValue(modelName);
     const exact = metadata && typeof metadata === "object" ? metadata[normalizedName] : null;
@@ -10271,7 +10271,7 @@
   }
 
   function modelReasoningEfforts(modelName) {
-    const supported = chatgptxModelMetadata(modelName)?.supportedReasoningEfforts;
+    const supported = swivoxModelMetadata(modelName)?.supportedReasoningEfforts;
     if (Array.isArray(supported) && supported.length > 0) {
       const efforts = supported.map((entry) => ({ ...entry }));
       const hasMax = efforts.some((e) => e.reasoningEffort === "max");
@@ -10288,8 +10288,8 @@
     return ["low", "medium", "high", "xhigh", "max", "ultra"].map((reasoningEffort) => ({ reasoningEffort, description: `${reasoningEffort} effort` }));
   }
 
-  function applyChatGPTXModelMetadata(descriptor, modelName) {
-    const metadata = chatgptxModelMetadata(modelName);
+  function applySwivoxModelMetadata(descriptor, modelName) {
+    const metadata = swivoxModelMetadata(modelName);
     if (!descriptor || !metadata) return false;
     let changed = false;
     const targetDisplayName = typeof metadata.displayName === "string" && metadata.displayName.trim()
@@ -10315,8 +10315,8 @@
     return changed;
   }
 
-  function chatgptxModelDescriptor(modelName) {
-    const metadata = chatgptxModelMetadata(modelName);
+  function swivoxModelDescriptor(modelName) {
+    const metadata = swivoxModelMetadata(modelName);
     const displayName = typeof metadata?.displayName === "string" && metadata.displayName.trim()
       ? metadata.displayName.trim()
       : modelName;
@@ -10349,21 +10349,21 @@
     return item && typeof item === "object" && typeof item.model === "string" ? item.model : "";
   }
 
-  /// ChatGPTX 模型列表顺序是纯 API 模式下的权威顺序。
-  /// `chatgptxModelNames()` 为了默认选中会把当前模型提到前面，这里只取目录
+  /// Swivox 模型列表顺序是纯 API 模式下的权威顺序。
+  /// `swivoxModelNames()` 为了默认选中会把当前模型提到前面，这里只取目录
   /// `models` 的原始顺序；目录缺失的模型再按名称清单补到末尾。
-  function chatgptxCatalogOrderedModelNames() {
+  function swivoxCatalogOrderedModelNames() {
     return uniqueValues([
       ...(Array.isArray(codexModelCatalog.models) ? codexModelCatalog.models : []),
-      ...chatgptxModelNames(),
+      ...swivoxModelNames(),
     ]);
   }
 
   /// 原生 app-server 会保留旧缓存顺序，后加入的模型只能追加到末尾，导致 Codex
-  /// 选择器与 ChatGPTX「模型列表」顺序不一致。纯 API 目录是权威快照，命中时整组
+  /// 选择器与 Swivox「模型列表」顺序不一致。纯 API 目录是权威快照，命中时整组
   /// 按目录顺序重排；出现目录外模型时保持原顺序，避免误动官方模型。
   function reorderModelCollectionByCatalog(models) {
-    const order = chatgptxCatalogOrderedModelNames();
+    const order = swivoxCatalogOrderedModelNames();
     if (order.length < 2) return false;
     const rank = new Map(order.map((name, index) => [name, index]));
     const ranked = models.map((item, index) => ({ item, index, rank: rank.get(modelItemName(item)) }));
@@ -10386,7 +10386,7 @@
     if (!stringArrayLooksPatchable(models)) return false;
     const allowed = codexPureApiAllowedModelSet(hostId);
     let changed = prepareModelCollection(models, allowed);
-    const customModels = chatgptxModelNames();
+    const customModels = swivoxModelNames();
     if (!customModels.length) return changed;
     if (allowed) {
       const retained = models.filter((name) => allowed.has(name));
@@ -10416,7 +10416,7 @@
 
   function prepareModelCollection(collection, allowed) {
     const policy = modelFilterPolicy(allowed);
-    const previous = chatgptxModelCollectionSnapshots.get(collection);
+    const previous = swivoxModelCollectionSnapshots.get(collection);
     let current = [...collection];
     let changed = false;
     if (previous && previous.policy !== policy && sameModelCollection(current, previous.patched)) {
@@ -10427,21 +10427,21 @@
         changed = true;
       }
     }
-    if (!allowed) chatgptxModelCollectionSnapshots.delete(collection);
+    if (!allowed) swivoxModelCollectionSnapshots.delete(collection);
     else if (!previous || previous.policy !== policy || !sameModelCollection(current, previous.patched)) {
-      chatgptxModelCollectionSnapshots.set(collection, { policy, original: current, patched: null });
+      swivoxModelCollectionSnapshots.set(collection, { policy, original: current, patched: null });
     }
     return changed;
   }
 
   function finishModelCollection(collection) {
-    const snapshot = chatgptxModelCollectionSnapshots.get(collection);
+    const snapshot = swivoxModelCollectionSnapshots.get(collection);
     if (snapshot) snapshot.patched = [...collection];
   }
 
   function patchModelDefaults(value, allowed) {
     const policy = modelFilterPolicy(allowed);
-    const previous = chatgptxModelDefaultSnapshots.get(value);
+    const previous = swivoxModelDefaultSnapshots.get(value);
     let changed = false;
     if (previous && previous.policy !== policy) {
       for (const [key, state] of Object.entries(previous.fields)) {
@@ -10450,24 +10450,24 @@
           changed = true;
         }
       }
-      chatgptxModelDefaultSnapshots.delete(value);
+      swivoxModelDefaultSnapshots.delete(value);
     }
     if (!allowed) return changed;
-    const snapshot = chatgptxModelDefaultSnapshots.get(value) || { policy, fields: {} };
+    const snapshot = swivoxModelDefaultSnapshots.get(value) || { policy, fields: {} };
     const fallback = [codexModelCatalog.model, codexModelCatalog.default_model, ...allowed]
       .find((name) => typeof name === "string" && allowed.has(name));
     for (const key of ["defaultModel", "default_model"]) {
       const original = value[key];
       const name = typeof original === "string" ? original : original?.model || original?.id || original?.slug;
       if (!name || allowed.has(name)) continue;
-      const patched = typeof original === "string" ? fallback : chatgptxModelDescriptor(fallback);
+      const patched = typeof original === "string" ? fallback : swivoxModelDescriptor(fallback);
       if (!snapshot.fields[key] || original !== snapshot.fields[key].patched) {
         snapshot.fields[key] = { original, patched };
       }
       value[key] = patched;
       changed = true;
     }
-    chatgptxModelDefaultSnapshots.set(value, snapshot);
+    swivoxModelDefaultSnapshots.set(value, snapshot);
     return changed;
   }
 
@@ -10492,13 +10492,13 @@
   function codexPureApiAllowedModelSet(hostId) {
     if (hostId !== "local") return null;
     const profile = codexRemoteSessionActiveProfile();
-    if (!chatgptxModelUnlockEnabled() || !chatgptxBackendSettingsLoaded
+    if (!swivoxModelUnlockEnabled() || !swivoxBackendSettingsLoaded
         || profile?.relayMode !== "pureApi" || codexModelCatalog.status !== "ok") return null;
     const profileId = String(profile.id || "").trim();
     const belongsToProfile = profileId && (codexModelCatalog.model_provider === profileId
       || (Array.isArray(codexModelCatalog.sources)
         && codexModelCatalog.sources.some((source) => source?.id === `relay-profile:${profileId}`)));
-    const names = chatgptxModelNames();
+    const names = swivoxModelNames();
     return belongsToProfile && names.length ? new Set(names) : null;
   }
 
@@ -10506,7 +10506,7 @@
     if (!modelArrayLooksPatchable(models, allowEmpty)) return false;
     const allowed = codexPureApiAllowedModelSet(hostId);
     let changed = prepareModelCollection(models, allowed);
-    const customModels = chatgptxModelNames();
+    const customModels = swivoxModelNames();
     if (!customModels.length) return changed;
     if (allowed) {
       const retained = models.filter((item) => allowed.has(item.model));
@@ -10522,12 +10522,12 @@
           item.hidden = false;
           changed = true;
         }
-        if (applyChatGPTXModelMetadata(item, item.model)) changed = true;
+        if (applySwivoxModelMetadata(item, item.model)) changed = true;
       }
     });
     customModels.forEach((modelName) => {
       if (!existing.has(modelName)) {
-        models.push(chatgptxModelDescriptor(modelName));
+        models.push(swivoxModelDescriptor(modelName));
         changed = true;
       }
     });
@@ -10549,7 +10549,7 @@
     if (patchModelArray(value.result?.models, false, hostId)) changed = true;
     if (patchModelArray(value.message?.result?.data, false, hostId)) changed = true;
     if (patchModelArray(value.message?.result?.models, false, hostId)) changed = true;
-    const names = chatgptxModelNames();
+    const names = swivoxModelNames();
     const allowed = codexPureApiAllowedModelSet(hostId);
     if (value.availableModels instanceof Set) {
       if (prepareModelCollection(value.availableModels, allowed)) changed = true;
@@ -10625,26 +10625,26 @@
   }
 
   async function patchModelJsonResponse(payload) {
-    if (!chatgptxModelUnlockEnabled()) return payload;
-    if (!chatgptxModelNames().length) await loadCodexModelCatalog();
+    if (!swivoxModelUnlockEnabled()) return payload;
+    if (!swivoxModelNames().length) await loadCodexModelCatalog();
     if (!modelJsonResponseLooksPatchable(payload)) return payload;
     try {
       patchModelContainer(payload, modelResponseHostId(payload, payload.result, payload.message));
     } catch (error) {
-      window.__chatgptxModelPatchFailures = window.__chatgptxModelPatchFailures || [];
-      window.__chatgptxModelPatchFailures.push(String(error?.stack || error));
+      window.__swivoxModelPatchFailures = window.__swivoxModelPatchFailures || [];
+      window.__swivoxModelPatchFailures.push(String(error?.stack || error));
     }
     return payload;
   }
 
   function installModelJsonResponsePatch() {
-    if (window.__chatgptxModelJsonResponsePatchInstalled === "3") return;
-    window.__chatgptxModelJsonResponsePatchInstalled = "3";
-    window.__chatgptxModelJsonResponseOriginals = window.__chatgptxModelJsonResponseOriginals || {};
-    const originals = window.__chatgptxModelJsonResponseOriginals;
+    if (window.__swivoxModelJsonResponsePatchInstalled === "3") return;
+    window.__swivoxModelJsonResponsePatchInstalled = "3";
+    window.__swivoxModelJsonResponseOriginals = window.__swivoxModelJsonResponseOriginals || {};
+    const originals = window.__swivoxModelJsonResponseOriginals;
     originals.responseJson = originals.responseJson || Response.prototype.json;
     if (typeof originals.responseJson !== "function") return;
-    Response.prototype.json = async function chatgptxPatchedResponseJson(...args) {
+    Response.prototype.json = async function swivoxPatchedResponseJson(...args) {
       const payload = await originals.responseJson.apply(this, args);
       return await patchModelJsonResponse(payload);
     };
@@ -10654,11 +10654,11 @@
     const value = config?.value;
     if (!value || typeof value !== "object") return config;
     const availableModels = Array.isArray(value.available_models) ? [...value.available_models] : [];
-    const collectionSnapshot = chatgptxModelCollectionSnapshots.get(value.available_models);
-    if (collectionSnapshot) chatgptxModelCollectionSnapshots.set(availableModels, { ...collectionSnapshot });
+    const collectionSnapshot = swivoxModelCollectionSnapshots.get(value.available_models);
+    if (collectionSnapshot) swivoxModelCollectionSnapshots.set(availableModels, { ...collectionSnapshot });
     const nextValue = { ...value, available_models: availableModels };
-    const defaultSnapshot = chatgptxModelDefaultSnapshots.get(value);
-    if (defaultSnapshot) chatgptxModelDefaultSnapshots.set(nextValue, { ...defaultSnapshot, fields: { ...defaultSnapshot.fields } });
+    const defaultSnapshot = swivoxModelDefaultSnapshots.get(value);
+    if (defaultSnapshot) swivoxModelDefaultSnapshots.set(nextValue, { ...defaultSnapshot, fields: { ...defaultSnapshot.fields } });
     hostId = modelResponseHostId(hostId, value);
     const listChanged = patchModelNameArray(availableModels, hostId);
     const defaultsChanged = patchModelDefaults(nextValue, codexPureApiAllowedModelSet(hostId));
@@ -10682,13 +10682,13 @@
   function patchStatsigModelWhitelist() {
     statsigClients().forEach((client) => {
       if (typeof client.getDynamicConfig !== "function") return;
-      if (client.__chatgptxModelWhitelistPatched !== "3") {
+      if (client.__swivoxModelWhitelistPatched !== "3") {
         const originalGetDynamicConfig = client.getDynamicConfig.bind(client);
         client.getDynamicConfig = (name, options) => {
           const result = originalGetDynamicConfig(name, options);
           return String(name) === "107580212" ? patchStatsigModelDynamicConfig(result) : result;
         };
-        client.__chatgptxModelWhitelistPatched = "3";
+        client.__swivoxModelWhitelistPatched = "3";
       }
       try {
         patchStatsigModelDynamicConfig(client.getDynamicConfig("107580212", { disableExposureLog: true }));
@@ -10698,8 +10698,8 @@
   }
 
   function patchAppServerModelMessages() {
-    if (window.__chatgptxModelMessagePatchInstalled === "3") return;
-    window.__chatgptxModelMessagePatchInstalled = "3";
+    if (window.__swivoxModelMessagePatchInstalled === "3") return;
+    window.__swivoxModelMessagePatchInstalled = "3";
     window.addEventListener("codex-message-from-view", (event) => {
       try {
         const detail = event?.detail;
@@ -10712,8 +10712,8 @@
           }
         }
       } catch (error) {
-        window.__chatgptxModelPatchFailures = window.__chatgptxModelPatchFailures || [];
-        window.__chatgptxModelPatchFailures.push(String(error?.stack || error));
+        window.__swivoxModelPatchFailures = window.__swivoxModelPatchFailures || [];
+        window.__swivoxModelPatchFailures.push(String(error?.stack || error));
       }
     }, true);
 
@@ -10721,37 +10721,37 @@
       try {
         patchMcpModelResponseData(event?.data);
       } catch (error) {
-        window.__chatgptxModelPatchFailures = window.__chatgptxModelPatchFailures || [];
-        window.__chatgptxModelPatchFailures.push(String(error?.stack || error));
+        window.__swivoxModelPatchFailures = window.__swivoxModelPatchFailures || [];
+        window.__swivoxModelPatchFailures.push(String(error?.stack || error));
       }
     }, true);
   }
 
   function recordModelListRequest(requestId, hostId) {
-    if (chatgptxModelListRequestIds.has(requestId)
-        && chatgptxModelListRequestHosts.get(requestId) !== hostId) hostId = "";
-    chatgptxModelListRequestIds.add(requestId);
-    chatgptxModelListRequestHosts.set(requestId, hostId);
-    if (chatgptxModelListRequestIds.size > 64) {
-      const oldest = chatgptxModelListRequestIds.values().next().value;
-      chatgptxModelListRequestIds.delete(oldest);
-      chatgptxModelListRequestHosts.delete(oldest);
+    if (swivoxModelListRequestIds.has(requestId)
+        && swivoxModelListRequestHosts.get(requestId) !== hostId) hostId = "";
+    swivoxModelListRequestIds.add(requestId);
+    swivoxModelListRequestHosts.set(requestId, hostId);
+    if (swivoxModelListRequestIds.size > 64) {
+      const oldest = swivoxModelListRequestIds.values().next().value;
+      swivoxModelListRequestIds.delete(oldest);
+      swivoxModelListRequestHosts.delete(oldest);
     }
     window.setTimeout(() => {
-      chatgptxModelListRequestIds.delete(requestId);
-      chatgptxModelListRequestHosts.delete(requestId);
+      swivoxModelListRequestIds.delete(requestId);
+      swivoxModelListRequestHosts.delete(requestId);
     }, 30_000);
   }
 
   function patchMcpModelResponseData(data) {
-    if (!chatgptxModelUnlockEnabled()) return false;
+    if (!swivoxModelUnlockEnabled()) return false;
     if (data?.type !== "mcp-response") return false;
     const message = data.message || data.response;
     const requestId = message?.id != null ? String(message.id) : "";
-    if (chatgptxModelListRequestIds.size === 0 || !chatgptxModelListRequestIds.has(requestId)) return false;
-    const hostId = modelResponseHostId(data, message, chatgptxModelListRequestHosts.get(requestId));
-    chatgptxModelListRequestIds.delete(requestId);
-    chatgptxModelListRequestHosts.delete(requestId);
+    if (swivoxModelListRequestIds.size === 0 || !swivoxModelListRequestIds.has(requestId)) return false;
+    const hostId = modelResponseHostId(data, message, swivoxModelListRequestHosts.get(requestId));
+    swivoxModelListRequestIds.delete(requestId);
+    swivoxModelListRequestHosts.delete(requestId);
     let changed = false;
     if (patchModelArray(message?.result?.data, true, hostId)) changed = true;
     if (patchModelArray(message?.result?.models, true, hostId)) changed = true;
@@ -10778,13 +10778,13 @@
       if (Array.isArray(result)) patchModelArray(result, true, hostId);
       if (Array.isArray(result?.data)) patchModelArray(result.data, true, hostId);
       if (Array.isArray(result?.models)) patchModelArray(result.models, true, hostId);
-      sendChatGPTXDiagnostic("model_app_server_result_patched", {
+      sendSwivoxDiagnostic("model_app_server_result_patched", {
         method,
         modelCount: Array.isArray(result?.data) ? result.data.length : Array.isArray(result?.models) ? result.models.length : Array.isArray(result) ? result.length : null,
       });
     } catch (error) {
-      window.__chatgptxModelPatchFailures = window.__chatgptxModelPatchFailures || [];
-      window.__chatgptxModelPatchFailures.push(String(error?.stack || error));
+      window.__swivoxModelPatchFailures = window.__swivoxModelPatchFailures || [];
+      window.__swivoxModelPatchFailures.push(String(error?.stack || error));
     }
     return result;
   }
@@ -10813,21 +10813,21 @@
     if (String(method || "") !== "turn/start" || !codexPerModelContextEnabled()) return null;
     const { threadId, model } = codexThreadModelRequestState(method, params);
     if (!threadId || !model) return null;
-    const previousModel = client.__chatgptxThreadModels?.get(threadId) || "";
+    const previousModel = client.__swivoxThreadModels?.get(threadId) || "";
     if (!previousModel || previousModel === model) return null;
     let resumeParams = { threadId, model };
     resumeParams = applyCodexRemoteSessionProviderOverride("thread/resume", resumeParams);
     try {
       await originalSendRequest("thread/resume", resumeParams, options);
-      client.__chatgptxThreadModels.set(threadId, model);
-      sendChatGPTXDiagnostic("thread_model_context_refreshed", {
+      client.__swivoxThreadModels.set(threadId, model);
+      sendSwivoxDiagnostic("thread_model_context_refreshed", {
         threadId,
         from: previousModel,
         to: model,
       });
       return true;
     } catch (error) {
-      sendChatGPTXDiagnostic("thread_model_context_refresh_failed", {
+      sendSwivoxDiagnostic("thread_model_context_refresh_failed", {
         threadId,
         from: previousModel,
         to: model,
@@ -10844,10 +10844,10 @@
     try {
       if (!Object.isExtensible(client)) return false;
       for (const key of [
-        "__chatgptxModelRequestPatch",
-        "__chatgptxModelOriginalSendRequest",
-        "__chatgptxThreadModels",
-        "__chatgptxServiceTierOriginalPrewarmThreadStart",
+        "__swivoxModelRequestPatch",
+        "__swivoxModelOriginalSendRequest",
+        "__swivoxThreadModels",
+        "__swivoxServiceTierOriginalPrewarmThreadStart",
         "sendRequest",
         "prewarmThreadStart",
       ]) {
@@ -10857,12 +10857,12 @@
     } catch {
       return false;
     }
-    if (client.__chatgptxModelRequestPatch === codexAppServerModelRequestPatchVersion) return true;
-    const originalSendRequest = client.__chatgptxModelOriginalSendRequest || client.sendRequest.bind(client);
-    client.__chatgptxModelOriginalSendRequest = originalSendRequest;
-    client.__chatgptxThreadModels = client.__chatgptxThreadModels || new Map();
-    client.sendRequest = async function chatgptxModelPatchedSendRequest(method, params, options) {
-      const managed = chatgptxPluginNativeInterceptClient(method, params, options,
+    if (client.__swivoxModelRequestPatch === codexAppServerModelRequestPatchVersion) return true;
+    const originalSendRequest = client.__swivoxModelOriginalSendRequest || client.sendRequest.bind(client);
+    client.__swivoxModelOriginalSendRequest = originalSendRequest;
+    client.__swivoxThreadModels = client.__swivoxThreadModels || new Map();
+    client.sendRequest = async function swivoxModelPatchedSendRequest(method, params, options) {
+      const managed = swivoxPluginNativeInterceptClient(method, params, options,
         (nextOptions) => originalSendRequest(method, params, nextOptions), client.hostId);
       if (managed) return await managed;
       const requestMethod = appServerModelRequestMethod(String(method || ""), params);
@@ -10873,7 +10873,7 @@
         const settingsLoaded = await loadBackendSettingsState(codexAppServerPreparationTimeoutMs);
         providerRefreshFailed = !settingsLoaded;
         if (providerRefreshFailed) {
-          sendChatGPTXDiagnostic("remote_session_provider_refresh_failed", {});
+          sendSwivoxDiagnostic("remote_session_provider_refresh_failed", {});
         }
       } else if (codexRemoteSessionProviderRequestMethod(requestMethod)
           && codexRemoteSessionProviderOverrideEnabled()
@@ -10895,22 +10895,22 @@
       const threadState = codexThreadModelRequestState(requestMethod, nextParams, result);
       if (modelContextRefresh !== false && threadState.threadId && threadState.model
           && ["thread/start", "thread/resume", "turn/start"].includes(threadState.requestMethod)) {
-        client.__chatgptxThreadModels.set(threadState.threadId, threadState.model);
+        client.__swivoxThreadModels.set(threadState.threadId, threadState.model);
       }
-      if (!chatgptxModelUnlockEnabled() || !["list-models-for-host", "model/list"].includes(requestMethod)) return result;
-      if (!chatgptxModelNames().length) await loadCodexModelCatalog();
+      if (!swivoxModelUnlockEnabled() || !["list-models-for-host", "model/list"].includes(requestMethod)) return result;
+      if (!swivoxModelNames().length) await loadCodexModelCatalog();
       return patchAppServerModelResult(requestMethod, result, modelResponseHostId(params, client));
     };
     if (typeof client.prewarmThreadStart === "function"
-        && !client.__chatgptxServiceTierOriginalPrewarmThreadStart) {
+        && !client.__swivoxServiceTierOriginalPrewarmThreadStart) {
       const originalPrewarmThreadStart = client.prewarmThreadStart.bind(client);
-      client.__chatgptxServiceTierOriginalPrewarmThreadStart = originalPrewarmThreadStart;
-      client.prewarmThreadStart = async function chatgptxServiceTierPrewarmThreadStart(params, options) {
+      client.__swivoxServiceTierOriginalPrewarmThreadStart = originalPrewarmThreadStart;
+      client.prewarmThreadStart = async function swivoxServiceTierPrewarmThreadStart(params, options) {
         const nextParams = applyCodexServiceTierRequestOnly("thread/start", params);
         return originalPrewarmThreadStart(nextParams, options);
       };
     }
-    client.__chatgptxModelRequestPatch = codexAppServerModelRequestPatchVersion;
+    client.__swivoxModelRequestPatch = codexAppServerModelRequestPatchVersion;
     return true;
   }
 
@@ -10918,8 +10918,8 @@
   // 渲染层扫描在新版上永远 not_found，直接改写 dispatcher 又会撞上不可写的 RPC stub。
   // 改为两段式接管：这里先用纯文本定位算出 sendRequest 的断点坐标（按 UTF-16 计数，
   // 与 V8 断点坐标语义一致），launcher 侧 bridge.rs 再用 CDP Debugger 按坐标下条件断点，
-  // 命中时把类构造器挂到 window.__chatgptxAppServerClientClass，随后对原型套用与
-  // 实例版完全一致的请求补丁。断点条件 `!window.__chatgptxAppServerClientClass`
+  // 命中时把类构造器挂到 window.__swivoxAppServerClientClass，随后对原型套用与
+  // 实例版完全一致的请求补丁。断点条件 `!window.__swivoxAppServerClientClass`
   // 保证页面重载后自动重新捕获，且每次页面生命周期内只暂停一次。
     function locateCodexAppServerClientBreakpoint(text) {
     if (typeof text !== "string" || !text) return null;
@@ -10999,7 +10999,7 @@
 
     let codexAppServerClientCaptureStarted = false;
   async function installCodexAppServerClientCapture() {
-    if (codexAppServerClientCaptureStarted || window.__chatgptxAppServerClientCapture) return;
+    if (codexAppServerClientCaptureStarted || window.__swivoxAppServerClientCapture) return;
     codexAppServerClientCaptureStarted = true;
     try {
       if (typeof fetch !== "function") return;
@@ -11007,22 +11007,22 @@
       if (!hit) {
         // 区分「一个候选资产都没有」和「有资产但没有类定义」：
         // 前者是页面还没加载完，后者才是 Codex 真的改了产物形状。
-        sendChatGPTXDiagnostic("app_server_client_capture_locate_failed", {
+        sendSwivoxDiagnostic("app_server_client_capture_locate_failed", {
           reason: urls.length === 0 ? "asset_url_missing" : "anchor_missing",
           candidateCount: urls.length,
         });
         return;
       }
       const urlRegex = hit.url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      window.__chatgptxAppServerClientCapture = { urlRegex, ...hit.location };
-      sendChatGPTXDiagnostic("app_server_client_capture_located", {
+      window.__swivoxAppServerClientCapture = { urlRegex, ...hit.location };
+      sendSwivoxDiagnostic("app_server_client_capture_located", {
         lineNumber: hit.location.lineNumber,
         columnNumber: hit.location.columnNumber,
         asset: (hit.url.split("/").pop() || "").split("?")[0],
       });
     } catch (error) {
       codexAppServerClientCaptureStarted = false;
-      sendChatGPTXDiagnostic("app_server_client_capture_locate_failed", {
+      sendSwivoxDiagnostic("app_server_client_capture_locate_failed", {
         errorName: error?.name || "",
         errorMessage: error?.message || String(error),
       });
@@ -11030,38 +11030,38 @@
   }
 
     function installCodexAppServerClientPrototypePatch() {
-    if (window.__chatgptxAppServerClientPrototypePatchInstalled === codexAppServerModelRequestPatchVersion) return true;
-    const wanted = chatgptxModelUnlockEnabled()
+    if (window.__swivoxAppServerClientPrototypePatchInstalled === codexAppServerModelRequestPatchVersion) return true;
+    const wanted = swivoxModelUnlockEnabled()
       || codexPluginMarketplacePatchEnabled()
-      || (chatgptxBackendSettingsLoaded && codexRemoteSessionProviderPatchEnabled())
-      || chatgptxSettings().serviceTierControls
-      || chatgptxSettings().sessionDelete;
+      || (swivoxBackendSettingsLoaded && codexRemoteSessionProviderPatchEnabled())
+      || swivoxSettings().serviceTierControls
+      || swivoxSettings().sessionDelete;
     if (!wanted) return false;
-    const klass = window.__chatgptxAppServerClientClass;
+    const klass = window.__swivoxAppServerClientClass;
     if (!klass || typeof klass !== "function" || !klass.prototype) return false;
     const proto = klass.prototype;
-    if (proto.__chatgptxModelRequestPatch === codexAppServerModelRequestPatchVersion) {
-      window.__chatgptxAppServerClientPrototypePatchInstalled = codexAppServerModelRequestPatchVersion;
+    if (proto.__swivoxModelRequestPatch === codexAppServerModelRequestPatchVersion) {
+      window.__swivoxAppServerClientPrototypePatchInstalled = codexAppServerModelRequestPatchVersion;
       return true;
     }
     try {
       const descriptor = Object.getOwnPropertyDescriptor(proto, "sendRequest");
       if (!descriptor || descriptor.writable === false) {
-        sendChatGPTXDiagnostic("app_server_client_prototype_patch_skipped", {});
-        window.__chatgptxAppServerClientPrototypePatchInstalled = codexAppServerModelRequestPatchVersion;
+        sendSwivoxDiagnostic("app_server_client_prototype_patch_skipped", {});
+        window.__swivoxAppServerClientPrototypePatchInstalled = codexAppServerModelRequestPatchVersion;
         return false;
       }
     } catch {
-      window.__chatgptxAppServerClientPrototypePatchInstalled = codexAppServerModelRequestPatchVersion;
+      window.__swivoxAppServerClientPrototypePatchInstalled = codexAppServerModelRequestPatchVersion;
       return false;
     }
-    const originalSendRequest = proto.__chatgptxModelOriginalSendRequest || proto.sendRequest;
-    proto.__chatgptxModelOriginalSendRequest = originalSendRequest;
-    proto.__chatgptxThreadModels = proto.__chatgptxThreadModels || new Map();
-    proto.sendRequest = async function chatgptxModelPatchedSendRequest(method, params, options) {
+    const originalSendRequest = proto.__swivoxModelOriginalSendRequest || proto.sendRequest;
+    proto.__swivoxModelOriginalSendRequest = originalSendRequest;
+    proto.__swivoxThreadModels = proto.__swivoxThreadModels || new Map();
+    proto.sendRequest = async function swivoxModelPatchedSendRequest(method, params, options) {
       const client = this;
       registerNativeHostClient(client);
-      const managed = chatgptxPluginNativeInterceptClient(method, params, options,
+      const managed = swivoxPluginNativeInterceptClient(method, params, options,
         (nextOptions) => originalSendRequest.call(client, method, params, nextOptions), client.hostId);
       if (managed) return await managed;
       const requestMethod = appServerModelRequestMethod(String(method || ""), params);
@@ -11072,7 +11072,7 @@
         const settingsLoaded = await loadBackendSettingsState(codexAppServerPreparationTimeoutMs);
         providerRefreshFailed = !settingsLoaded;
         if (providerRefreshFailed) {
-          sendChatGPTXDiagnostic("remote_session_provider_refresh_failed", {});
+          sendSwivoxDiagnostic("remote_session_provider_refresh_failed", {});
         }
       } else if (codexRemoteSessionProviderRequestMethod(requestMethod)
           && codexRemoteSessionProviderOverrideEnabled()
@@ -11094,24 +11094,24 @@
       const threadState = codexThreadModelRequestState(requestMethod, nextParams, result);
       if (modelContextRefresh !== false && threadState.threadId && threadState.model
           && ["thread/start", "thread/resume", "turn/start"].includes(threadState.requestMethod)) {
-        client.__chatgptxThreadModels.set(threadState.threadId, threadState.model);
+        client.__swivoxThreadModels.set(threadState.threadId, threadState.model);
       }
-      if (!chatgptxModelUnlockEnabled() || !["list-models-for-host", "model/list"].includes(requestMethod)) return result;
-      if (!chatgptxModelNames().length) await loadCodexModelCatalog();
+      if (!swivoxModelUnlockEnabled() || !["list-models-for-host", "model/list"].includes(requestMethod)) return result;
+      if (!swivoxModelNames().length) await loadCodexModelCatalog();
       return patchAppServerModelResult(requestMethod, result, modelResponseHostId(params, client));
     };
     if (typeof proto.prewarmThreadStart === "function"
-        && !proto.__chatgptxServiceTierOriginalPrewarmThreadStart) {
+        && !proto.__swivoxServiceTierOriginalPrewarmThreadStart) {
       const originalPrewarmThreadStart = proto.prewarmThreadStart;
-      proto.__chatgptxServiceTierOriginalPrewarmThreadStart = originalPrewarmThreadStart;
-      proto.prewarmThreadStart = async function chatgptxServiceTierPrewarmThreadStart(params, options) {
+      proto.__swivoxServiceTierOriginalPrewarmThreadStart = originalPrewarmThreadStart;
+      proto.prewarmThreadStart = async function swivoxServiceTierPrewarmThreadStart(params, options) {
         const nextParams = applyCodexServiceTierRequestOnly("thread/start", params);
         return originalPrewarmThreadStart.call(this, nextParams, options);
       };
     }
-    proto.__chatgptxModelRequestPatch = codexAppServerModelRequestPatchVersion;
-    window.__chatgptxAppServerClientPrototypePatchInstalled = codexAppServerModelRequestPatchVersion;
-    sendChatGPTXDiagnostic("app_server_client_prototype_patch_installed", {});
+    proto.__swivoxModelRequestPatch = codexAppServerModelRequestPatchVersion;
+    window.__swivoxAppServerClientPrototypePatchInstalled = codexAppServerModelRequestPatchVersion;
+    sendSwivoxDiagnostic("app_server_client_prototype_patch_installed", {});
     return true;
   }
 
@@ -11147,7 +11147,7 @@
     // config / React state / response JSON patch) keep injecting the custom
     // models on their own.
     if (appServerModelRequestPatchMissCount === 1) {
-      sendChatGPTXDiagnostic(event, detail);
+      sendSwivoxDiagnostic(event, detail);
     }
     // issue #2256：provider 重试路径以前在这里提前 return，绕过下面的 maxMisses
     // 熔断，失败变成 250ms 无限重试（每轮全量 rescan 全部 app assets）。
@@ -11156,7 +11156,7 @@
       appServerModelRequestPatchDisabled = true;
       clearTimeout(appServerModelRequestPatchRetryTimer);
       appServerModelRequestPatchRetryTimer = 0;
-      sendChatGPTXDiagnostic("model_app_server_request_patch_skipped", {
+      sendSwivoxDiagnostic("model_app_server_request_patch_skipped", {
         misses: appServerModelRequestPatchMissCount,
         lastEvent: event,
       });
@@ -11168,7 +11168,7 @@
   }
 
   function installAppServerModelRequestPatch() {
-    if (window.__chatgptxAppServerModelRequestPatchInstalled === codexAppServerModelRequestPatchVersion) return;
+    if (window.__swivoxAppServerModelRequestPatchInstalled === codexAppServerModelRequestPatchVersion) return;
     if (appServerModelRequestPatchDisabled) return;
     if (appServerModelRequestPatchPromise) return;
     const patch = async () => {
@@ -11189,8 +11189,8 @@
           appServerModelRequestPatchRetryTimer = 0;
           appServerModelRequestPatchMissCount = 0;
           appServerModelRequestPatchRetryDelayMs = 250;
-          window.__chatgptxAppServerModelRequestPatchInstalled = codexAppServerModelRequestPatchVersion;
-          sendChatGPTXDiagnostic("model_app_server_request_patch_installed", {
+          window.__swivoxAppServerModelRequestPatchInstalled = codexAppServerModelRequestPatchVersion;
+          sendSwivoxDiagnostic("model_app_server_request_patch_installed", {
             moduleCount: modules.length,
             candidateCount: candidates.length,
             patchedCount,
@@ -11219,37 +11219,37 @@
   }
 
   function ensureCodexModelWhitelistInstalls() {
-    if (chatgptxModelUnlockEnabled()
+    if (swivoxModelUnlockEnabled()
         || codexPluginMarketplacePatchEnabled()
-        || (chatgptxBackendSettingsLoaded && codexRemoteSessionProviderPatchEnabled())
-        || chatgptxSettings().serviceTierControls
-        || chatgptxSettings().sessionDelete) {
+        || (swivoxBackendSettingsLoaded && codexRemoteSessionProviderPatchEnabled())
+        || swivoxSettings().serviceTierControls
+        || swivoxSettings().sessionDelete) {
       installAppServerModelRequestPatch();
       void installCodexAppServerClientCapture().catch(() => {});
     }
     void installDictationSupportPatch();
-    if (!chatgptxModelUnlockEnabled()) return;
+    if (!swivoxModelUnlockEnabled()) return;
     installModelJsonResponsePatch();
     patchAppServerModelMessages();
   }
 
   function runCodexModelWhitelistRefreshPass() {
-    if (!chatgptxModelUnlockEnabled() || !chatgptxModelNames().length) return false;
+    if (!swivoxModelUnlockEnabled() || !swivoxModelNames().length) return false;
     try {
       patchStatsigModelWhitelist();
       installAppServerModelRequestPatch();
     } catch (error) {
-      window.__chatgptxModelPatchFailures = window.__chatgptxModelPatchFailures || [];
-      window.__chatgptxModelPatchFailures.push(String(error?.stack || error));
+      window.__swivoxModelPatchFailures = window.__swivoxModelPatchFailures || [];
+      window.__swivoxModelPatchFailures.push(String(error?.stack || error));
     }
     return false;
   }
 
   function scheduleCodexModelWhitelistRefresh(durationMs = 2500) {
-    if (!chatgptxModelUnlockEnabled()) return;
+    if (!swivoxModelUnlockEnabled()) return;
     codexModelWhitelistRefreshUntil = Math.max(codexModelWhitelistRefreshUntil, Date.now() + durationMs);
     if (codexModelWhitelistRefreshTimer) return;
-    sendChatGPTXDiagnostic("model_whitelist_refresh_scheduled", { durationMs });
+    sendSwivoxDiagnostic("model_whitelist_refresh_scheduled", { durationMs });
     const tick = () => {
       codexModelWhitelistRefreshTimer = 0;
       runCodexModelWhitelistRefreshPass();
@@ -11262,7 +11262,7 @@
 
   function refreshCodexModelWhitelistFromScan(mutations) {
     ensureCodexModelWhitelistInstalls();
-    if (!chatgptxModelNames().length) {
+    if (!swivoxModelNames().length) {
       loadCodexModelCatalog();
       return;
     }
@@ -11298,7 +11298,7 @@
    * 做法（不改模型数据、不接管点击）：
    *   1. 找到原生面板（挂在 popper 里、可见的 `[data-model-picker-view]`，宫格视图跳过），
    *      从行文本尾部的 `（供应商）` 解析归属；解析不到时回退去 `/codex-model-catalog`
-   *      的 `modelMetadata[slug]`（聚合目录发布的 `chatgptx_group`，或 `description`
+   *      的 `modelMetadata[slug]`（聚合目录发布的 `swivox_group`，或 `description`
    *      里的 `上游 · 供应商`）取权威归属。已知归属会在会话内累积，目录快照被整体替换
    *      也不会把默认成员那一组变成空标题。
    *   2. 在每组第一行前插一个自己的分组标题按钮，点它只折叠/展开这一组；
@@ -11308,45 +11308,45 @@
    *      不增删原生节点，所以不会把原生列表搞崩。
    *
    * 只在"确实有多个供应商分组"时接管；单供应商（直连供应商）时完全不动原生列表。
-   * 分组标题带 `data-chatgptx-ext`，扫描调度器会把它排除在自喂循环之外
+   * 分组标题带 `data-swivox-ext`，扫描调度器会把它排除在自喂循环之外
    * （issue #1960）。折叠状态与供应商归属存 localStorage。
    */
-  registerChatGPTXExtensionSelector('[data-chatgptx-ext="builtin-model-picker-groups"]');
+  registerSwivoxExtensionSelector('[data-swivox-ext="builtin-model-picker-groups"]');
   // 重注入时先与上一个实例交接：停掉它的轮询与观察器，但**不**让它清理 DOM 补丁。
   // 旧实例的清理会先把标题/标签拆掉、再等自己下一轮扫描重建，而它已经被 dispose，
   // 结果是"标题一闪一闪"。DOM 由下面这个新实例在同一个 list 上重建，幂等。
-  window.__chatgptxModelPickerGroupsRuntime?.dispose?.();
+  window.__swivoxModelPickerGroupsRuntime?.dispose?.();
 
   /** 折叠状态存储键，改结构要换版本号。 */
-  const chatgptxModelPickerGroupsStoreKey = "chatgptx.modelPicker.collapsedGroups.v1";
+  const swivoxModelPickerGroupsStoreKey = "swivox.modelPicker.collapsedGroups.v1";
   /** 分组标题与工具条节点上的归属标记。 */
-  const chatgptxModelPickerGroupsExtMark = "builtin-model-picker-groups";
+  const swivoxModelPickerGroupsExtMark = "builtin-model-picker-groups";
   /** 样式表节点 id。 */
-  const chatgptxModelPickerGroupsStyleId = "chatgptx-model-picker-groups-style";
+  const swivoxModelPickerGroupsStyleId = "swivox-model-picker-groups-style";
   /** 原生行上由我们添加的类名，卸载时要摘干净。 */
-  const chatgptxModelPickerItemClass = "chatgptx-model-group-item";
+  const swivoxModelPickerItemClass = "swivox-model-group-item";
   /** 行内被我们替换掉的原生标签类名（恢复时要用）。 */
-  const chatgptxModelPickerNativeLabelClass = "chatgptx-model-group-native-label";
+  const swivoxModelPickerNativeLabelClass = "swivox-model-group-native-label";
   /** 我们自己插入的模型标签类名。 */
-  const chatgptxModelPickerOwnLabelClass = "chatgptx-model-group-own-label";
+  const swivoxModelPickerOwnLabelClass = "swivox-model-group-own-label";
   /** 行上的分组标记属性。 */
-  const chatgptxModelPickerGroupAttr = "data-chatgptx-model-group";
+  const swivoxModelPickerGroupAttr = "data-swivox-model-group";
   /** 分组标题上的分组 id 属性。 */
-  const chatgptxModelPickerGroupIdAttr = "data-chatgptx-model-group-id";
+  const swivoxModelPickerGroupIdAttr = "data-swivox-model-group-id";
   /** 一行最多解析多少字符的供应商名；超长的一律当成模型名不拆。 */
-  const chatgptxModelPickerGroupNameMaxLength = 24;
+  const swivoxModelPickerGroupNameMaxLength = 24;
   /** 列表 DOM 变化后的合并重扫延迟。 */
-  const chatgptxModelPickerRescanDelayMs = 60;
+  const swivoxModelPickerRescanDelayMs = 60;
   /**
    * 菜单开着的兜底轮询间隔。
    *
    * React 在菜单里做一次重渲染就可能顺手回收我们插的标题节点，而这类删除不会产生
-   * 我们关心的 childList 变更（节点带 data-chatgptx-ext）。所以只在菜单打开期间
+   * 我们关心的 childList 变更（节点带 data-swivox-ext）。所以只在菜单打开期间
    * 以这个间隔自检一次标题是否还在，坏了就地重建；菜单关掉立刻停。
    */
-  const chatgptxModelPickerWatchIntervalMs = 250;
+  const swivoxModelPickerWatchIntervalMs = 250;
 
-  const chatgptxModelPickerGroupsState = {
+  const swivoxModelPickerGroupsState = {
     disposed: false,
     /** 已打补丁的列表根节点（WeakSet，不缓存 DOM 生命周期）。 */
     patchedLists: new WeakSet(),
@@ -11373,7 +11373,7 @@
     stored: false,
   };
 
-  function chatgptxModelPickerText() {
+  function swivoxModelPickerText() {
     const language = (document.documentElement?.lang || navigator.language || "").toLowerCase();
     return language.startsWith("zh")
       ? {
@@ -11394,44 +11394,44 @@
         };
   }
 
-  function chatgptxModelPickerStore() {
-    if (chatgptxModelPickerGroupsState.stored) return;
-    chatgptxModelPickerGroupsState.stored = true;
+  function swivoxModelPickerStore() {
+    if (swivoxModelPickerGroupsState.stored) return;
+    swivoxModelPickerGroupsState.stored = true;
     try {
-      const raw = window.localStorage?.getItem(chatgptxModelPickerGroupsStoreKey);
+      const raw = window.localStorage?.getItem(swivoxModelPickerGroupsStoreKey);
       const parsed = raw ? JSON.parse(raw) : null;
       if (Array.isArray(parsed?.collapsed)) {
-        parsed.collapsed.filter((id) => typeof id === "string").forEach((id) => chatgptxModelPickerGroupsState.collapsed.add(id));
+        parsed.collapsed.filter((id) => typeof id === "string").forEach((id) => swivoxModelPickerGroupsState.collapsed.add(id));
       }
       if (Array.isArray(parsed?.touched)) {
-        parsed.touched.filter((id) => typeof id === "string").forEach((id) => chatgptxModelPickerGroupsState.touched.add(id));
+        parsed.touched.filter((id) => typeof id === "string").forEach((id) => swivoxModelPickerGroupsState.touched.add(id));
       }
       if (typeof parsed?.defaultGroupId === "string") {
-        chatgptxModelPickerGroupsState.defaultGroupId = parsed.defaultGroupId;
+        swivoxModelPickerGroupsState.defaultGroupId = parsed.defaultGroupId;
       }
       if (parsed?.providers && typeof parsed.providers === "object") {
         for (const [key, value] of Object.entries(parsed.providers)) {
           if (typeof key === "string" && typeof value === "string" && key && value) {
-            chatgptxModelPickerGroupsState.providerNames.set(key, value);
+            swivoxModelPickerGroupsState.providerNames.set(key, value);
           }
         }
       }
     } catch {}
   }
 
-  function chatgptxModelPickerPersist() {
+  function swivoxModelPickerPersist() {
     try {
       const providers = {};
-      chatgptxModelPickerGroupsState.providerNames.forEach((value, key) => {
+      swivoxModelPickerGroupsState.providerNames.forEach((value, key) => {
         providers[key] = value;
       });
       window.localStorage?.setItem(
-        chatgptxModelPickerGroupsStoreKey,
+        swivoxModelPickerGroupsStoreKey,
         JSON.stringify({
-          collapsed: [...chatgptxModelPickerGroupsState.collapsed],
-          touched: [...chatgptxModelPickerGroupsState.touched],
+          collapsed: [...swivoxModelPickerGroupsState.collapsed],
+          touched: [...swivoxModelPickerGroupsState.touched],
           providers,
-          defaultGroupId: chatgptxModelPickerGroupsState.defaultGroupId || "",
+          defaultGroupId: swivoxModelPickerGroupsState.defaultGroupId || "",
         }),
       );
     } catch {}
@@ -11441,27 +11441,27 @@
    * 记一条"模型名 -> 供应商"。
    *
    * `parsed` 表示这条是从行末尾 `（供应商）` 猜出来的；权威来源（目录侧
-   * `chatgptx_group` / `description`）可以覆盖它，反过来不行。
+   * `swivox_group` / `description`）可以覆盖它，反过来不行。
    */
-  function chatgptxModelPickerRememberProvider(displayName, provider, parsed) {
-    const key = chatgptxModelPickerNormalize(displayName);
+  function swivoxModelPickerRememberProvider(displayName, provider, parsed) {
+    const key = swivoxModelPickerNormalize(displayName);
     if (!key || !provider) return;
-    const existing = chatgptxModelPickerGroupsState.providerNames.get(key);
+    const existing = swivoxModelPickerGroupsState.providerNames.get(key);
     if (existing && !existing.parsed && parsed) return;
     if (existing && existing.name === provider && existing.parsed === !!parsed) return;
-    chatgptxModelPickerGroupsState.providerNames.set(key, { name: provider, parsed: !!parsed });
-    chatgptxModelPickerGroupsState.providerDirty = true;
+    swivoxModelPickerGroupsState.providerNames.set(key, { name: provider, parsed: !!parsed });
+    swivoxModelPickerGroupsState.providerDirty = true;
   }
 
   /**
    * 需要时补一次目录快照。
    *
-   * 默认身份（`chatgptx_default_group_id` / 条目上的 `chatgptx_default`）只在
+   * 默认身份（`swivox_default_group_id` / 条目上的 `swivox_default`）只在
    * 目录快照里，而这份快照不一定已经被别的分片拉过（用户可能一直没打开过相关页面）。
    * 拿到后下一次扫描就会补上「默认」标志。单飞 + 冷却，避免菜单开着时反复打后端。
    */
-  function chatgptxModelPickerEnsureCatalog() {
-    const state = chatgptxModelPickerGroupsState;
+  function swivoxModelPickerEnsureCatalog() {
+    const state = swivoxModelPickerGroupsState;
     if (state.defaultGroupId) return;
     if (state.catalogPending) return;
     if (Date.now() < state.catalogRetryAt) return;
@@ -11482,14 +11482,14 @@
    * 默认成员（聚合里的"默认供应商"）是哪一个分组。
    *
    * 三个来源，按可靠性排序：
-   *   1. `/codex-model-catalog` 的 `chatgptx_default_group_id`（聚合配置里的
+   *   1. `/codex-model-catalog` 的 `swivox_default_group_id`（聚合配置里的
    *      `default_relay_id`，最权威）；
-   *   2. 目录里标了 `chatgptx_default` 的模型所属分组（老版本后端的兜底）；
+   *   2. 目录里标了 `swivox_default` 的模型所属分组（老版本后端的兜底）；
    *   3. 会话内记下来的结果 —— 目录快照会被整体替换，记下来才不会丢标志。
    */
-  function chatgptxModelPickerDefaultGroupId() {
-    const state = chatgptxModelPickerGroupsState;
-    const direct = codexModelCatalog?.chatgptx_default_group_id;
+  function swivoxModelPickerDefaultGroupId() {
+    const state = swivoxModelPickerGroupsState;
+    const direct = codexModelCatalog?.swivox_default_group_id;
     if (typeof direct === "string" && direct.trim()) {
       if (state.defaultGroupId !== direct.trim()) {
         state.defaultGroupId = direct.trim();
@@ -11501,11 +11501,11 @@
     if (modelMetadata && typeof modelMetadata === "object") {
       for (const entry of Object.values(modelMetadata)) {
         if (!entry || typeof entry !== "object") continue;
-        if (entry.chatgptx_default !== true) continue;
-        const groupId = typeof entry.chatgptx_group_id === "string" ? entry.chatgptx_group_id.trim() : "";
+        if (entry.swivox_default !== true) continue;
+        const groupId = typeof entry.swivox_group_id === "string" ? entry.swivox_group_id.trim() : "";
         if (!groupId) continue;
         const displayName = entry.displayName || entry.display_name || "";
-        chatgptxModelPickerRememberProvider(displayName, providerNameOf(entry), false);
+        swivoxModelPickerRememberProvider(displayName, providerNameOf(entry), false);
         if (state.defaultGroupId !== groupId) {
           state.defaultGroupId = groupId;
           state.providerDirty = true;
@@ -11518,7 +11518,7 @@
 
   /** 目录条目里的供应商展示名；没有分组键就退回 description 的「上游 · 供应商」。 */
   function providerNameOf(entry) {
-    const direct = typeof entry.chatgptx_group === "string" ? entry.chatgptx_group.trim() : "";
+    const direct = typeof entry.swivox_group === "string" ? entry.swivox_group.trim() : "";
     if (direct) return direct;
     const description = typeof entry.description === "string" ? entry.description : "";
     const separator = description.lastIndexOf(" · ");
@@ -11532,7 +11532,7 @@
    * 直接找挂在 popper 里、可见的 `[data-model-picker-view]`：菜单一关它就从 DOM 里
    * 消失，天然就是"开着/关着"的判据。同时排除宫格视图——宫格下折叠没有意义。
    */
-  function chatgptxModelPickerMenu() {
+  function swivoxModelPickerMenu() {
     const roots = document.querySelectorAll("[data-model-picker-view]");
     for (const root of roots) {
       // 实测列表视图的值是 `simple`；只排除宫格。
@@ -11547,7 +11547,7 @@
     return null;
   }
 
-  function chatgptxModelPickerList(menu) {
+  function swivoxModelPickerList(menu) {
     const root = menu?.matches?.("[data-model-picker-view]") ? menu : menu?.querySelector?.("[data-model-picker-view]");
     if (!root) return null;
     const list = root.querySelector('[class*="_ModelList_"]');
@@ -11560,14 +11560,14 @@
    * 拆 `DeepSeek-V4-Pro（DeepSeek）` 这种"展示名（供应商）"。
    * 返回 `{ name, provider }`；没有后缀或后缀不像供应商名时 `provider` 为空。
    */
-  function chatgptxModelPickerSplitLabel(text) {
+  function swivoxModelPickerSplitLabel(text) {
     const value = String(text || "").replace(/\s+/g, " ").trim();
     if (!value) return { name: "", provider: "" };
     const match = value.match(/^(.*\S)\s*[（(]([^（()）]{1,64})[)）]$/u);
     if (!match) return { name: value, provider: "" };
     const name = match[1].trim();
     const provider = match[2].trim();
-    if (!name || !provider || provider.length > chatgptxModelPickerGroupNameMaxLength) {
+    if (!name || !provider || provider.length > swivoxModelPickerGroupNameMaxLength) {
       return { name: value, provider: "" };
     }
     // 分组标题也是我们自己插的按钮，文本里可能带 `· 计数`，别把它当成模型名。
@@ -11575,13 +11575,13 @@
   }
 
   /** 严格归一化：只去空白 + 小写，保留 `gpt-` 前缀。 */
-  function chatgptxModelPickerNormalizeStrict(value) {
+  function swivoxModelPickerNormalizeStrict(value) {
     return String(value || "").replace(/\s+/g, "").trim().toLowerCase();
   }
 
   /** 归一化：比较时忽略大小写、`gpt-` 前缀和空白。 */
-  function chatgptxModelPickerNormalize(value) {
-    return chatgptxModelPickerNormalizeStrict(value).replace(/^gpt-/u, "");
+  function swivoxModelPickerNormalize(value) {
+    return swivoxModelPickerNormalizeStrict(value).replace(/^gpt-/u, "");
   }
 
   /**
@@ -11592,12 +11592,12 @@
    * 所以给每个目录条目登记它所有已知写法（去掉前缀的 displayName、slug、去掉
    * `cpx-<成员>/` 之后的裸 slug），前端才可能把"行"和"目录归属"对上。
    */
-  function chatgptxModelPickerCatalogAliases(displayName, entry, slug) {
+  function swivoxModelPickerCatalogAliases(displayName, entry, slug) {
     const aliases = new Set();
     const add = (value) => {
-      const key = chatgptxModelPickerNormalize(value);
+      const key = swivoxModelPickerNormalize(value);
       if (key) aliases.add(key);
-      const strict = chatgptxModelPickerNormalizeStrict(value);
+      const strict = swivoxModelPickerNormalizeStrict(value);
       if (strict && strict !== key) aliases.add(strict);
     };
     add(displayName);
@@ -11615,11 +11615,11 @@
    * 权威归属：聚合目录里每个模型的 `description` 是 `上游 · 供应商`。
    * 命中后可以拿到聚合成员的真名（而不是从展示名尾部猜出来的供应商名）。
    */
-  function chatgptxModelPickerCatalogProviderMap() {
+  function swivoxModelPickerCatalogProviderMap() {
     const modelMetadata = codexModelCatalog?.modelMetadata || codexModelCatalog?.model_metadata;
     // 会话内已记下的归属先铺一层：目录快照可能被整体替换（重连 / 重新生成），
     // 只认当前快照会让默认供应商的分组名在某一刻变空。
-    const map = new Map(chatgptxModelPickerGroupsState.providerNames);
+    const map = new Map(swivoxModelPickerGroupsState.providerNames);
     if (!modelMetadata || typeof modelMetadata !== "object") return map;
     const slugList = Array.isArray(codexModelCatalog?.models)
       ? codexModelCatalog.models.filter((slug) => typeof slug === "string" && slug)
@@ -11634,14 +11634,14 @@
       const displayName = entry.displayName || entry.display_name;
       if (typeof displayName !== "string" || !displayName) return;
       const provider = providerNameOf(entry);
-      const groupId = typeof entry.chatgptx_group_id === "string" ? entry.chatgptx_group_id.trim() : "";
+      const groupId = typeof entry.swivox_group_id === "string" ? entry.swivox_group_id.trim() : "";
       if (!provider || !groupId) return;
-      for (const key of chatgptxModelPickerCatalogAliases(displayName, entry, slug)) {
+      for (const key of swivoxModelPickerCatalogAliases(displayName, entry, slug)) {
         const remembered = map.get(key);
         // 权威来源可以覆盖行文本猜出来的；已经有权威值就不动。
         if (!remembered || remembered.parsed) map.set(key, { provider, groupId, parsed: false });
       }
-      chatgptxModelPickerRememberProvider(displayName, provider, false);
+      swivoxModelPickerRememberProvider(displayName, provider, false);
     };
     const bySlug = new Map(entries);
     for (const slug of slugList) registerEntry(bySlug.get(slug), slug);
@@ -11657,11 +11657,11 @@
    * "默认 / 推荐模型集"这类入口是同一个骨架多一个副标题 span，必须排除，
    * 否则会被当成一个没有供应商的模型。
    */
-  function chatgptxModelPickerRowIdentity(row) {
+  function swivoxModelPickerRowIdentity(row) {
     const content = row.querySelector("[data-menu-row-content]");
     if (!content) return null;
-    const native = content.querySelector(`.${chatgptxModelPickerNativeLabelClass}`);
-    const own = content.querySelector(`.${chatgptxModelPickerOwnLabelClass}`);
+    const native = content.querySelector(`.${swivoxModelPickerNativeLabelClass}`);
+    const own = content.querySelector(`.${swivoxModelPickerOwnLabelClass}`);
     const outer = content.querySelector("span.flex-1, span[class*='flex-1']");
     const inner = outer?.firstElementChild;
     // 原始标签优先；没打过补丁时就是 inner 里的第一个 span。
@@ -11671,11 +11671,11 @@
     // 早期版本没排除自己，补丁装完后每一行都被判成"双行入口"，于是每次扫描都
     // 判定分组只剩 0 组、重建一遍 —— 表现出来就是标题一闪一闪。
     const nativeSpans = inner
-      ? [...inner.children].filter((node) => !node.classList.contains(chatgptxModelPickerOwnLabelClass)
-        && node.getAttribute("data-chatgptx-ext") !== chatgptxModelPickerGroupsExtMark)
+      ? [...inner.children].filter((node) => !node.classList.contains(swivoxModelPickerOwnLabelClass)
+        && node.getAttribute("data-swivox-ext") !== swivoxModelPickerGroupsExtMark)
       : [];
     // 已经在补丁里的行直接认账，不再重复判定结构。
-    const patched = row.getAttribute("data-chatgptx-ext") === chatgptxModelPickerGroupsExtMark;
+    const patched = row.getAttribute("data-swivox-ext") === swivoxModelPickerGroupsExtMark;
     return {
       content,
       inner,
@@ -11686,32 +11686,32 @@
     };
   }
 
-  function chatgptxModelPickerRowLabel(row) {
-    return chatgptxModelPickerRowIdentity(row)?.text || "";
+  function swivoxModelPickerRowLabel(row) {
+    return swivoxModelPickerRowIdentity(row)?.text || "";
   }
 
   /**
    * 把行切成 `{ row, label, name, provider, groupId }`。
    * 已打过补丁的行直接读我们留下的标记，避免反复解析。
    */
-  function chatgptxModelPickerRows(list) {
-    const providers = chatgptxModelPickerCatalogProviderMap();
+  function swivoxModelPickerRows(list) {
+    const providers = swivoxModelPickerCatalogProviderMap();
     const rows = [];
     const items = list.querySelectorAll('[role="menuitemradio"]');
     items.forEach((row) => {
-      const identity = chatgptxModelPickerRowIdentity(row);
+      const identity = swivoxModelPickerRowIdentity(row);
       if (!identity?.groupable) return;
-      const split = chatgptxModelPickerSplitLabel(identity.text);
-      if (split.provider) chatgptxModelPickerRememberProvider(split.name, split.provider, true);
+      const split = swivoxModelPickerSplitLabel(identity.text);
+      if (split.provider) swivoxModelPickerRememberProvider(split.name, split.provider, true);
       // 分组键：只信"行上有后缀"和"目录里的权威分组 id"这两个来源。
       // 早期版本拿目录展示名去拟合行文本，别名一多就把模型分到了错的组（同一家被切成
       // 好几段），所以目录查询只用来补 **分组 id**，不用来决定显示成哪一组。
-      const known = providers.get(chatgptxModelPickerNormalizeStrict(split.name))
-        || providers.get(chatgptxModelPickerNormalize(split.name));
+      const known = providers.get(swivoxModelPickerNormalizeStrict(split.name))
+        || providers.get(swivoxModelPickerNormalize(split.name));
       const groupId = known?.groupId
-        || (split.provider ? split.provider : chatgptxModelPickerDefaultGroupId());
+        || (split.provider ? split.provider : swivoxModelPickerDefaultGroupId());
       // 显示名按行文本：有后缀就是那一家；裸名（默认成员的模型）用默认供应商的名字。
-      const provider = split.provider || known?.provider || chatgptxModelPickerDefaultProviderName();
+      const provider = split.provider || known?.provider || swivoxModelPickerDefaultProviderName();
       rows.push({ row, label: identity.text, name: split.name, provider, groupId });
     });
     return rows;
@@ -11721,10 +11721,10 @@
    * 无后缀模型（聚合里的默认成员）该叫什么。
    *
    * 默认成员的模型保持裸名发布，所以行上没有供应商；这里从 catalog 里挑一个
-   * 同样没有后缀的模型，读它的分组归属（`chatgptx_group` 或 `description`
+   * 同样没有后缀的模型，读它的分组归属（`swivox_group` 或 `description`
    * 里的 `上游 · 供应商`）。挑不到就返回空串，调用方用兜底文案。
    */
-  function chatgptxModelPickerDefaultProviderName() {
+  function swivoxModelPickerDefaultProviderName() {
     const modelMetadata = codexModelCatalog?.modelMetadata || codexModelCatalog?.model_metadata;
     if (!modelMetadata || typeof modelMetadata !== "object") return "";
     // 取"裸名模型里出现最多的那个分组"：聚合的默认成员可能有几百个模型，
@@ -11734,8 +11734,8 @@
       if (!entry || typeof entry !== "object") continue;
       const displayName = entry.displayName || entry.display_name;
       if (typeof displayName !== "string" || !displayName) continue;
-      if (chatgptxModelPickerSplitLabel(displayName).provider) continue;
-      const direct = typeof entry.chatgptx_group === "string" ? entry.chatgptx_group.trim() : "";
+      if (swivoxModelPickerSplitLabel(displayName).provider) continue;
+      const direct = typeof entry.swivox_group === "string" ? entry.swivox_group.trim() : "";
       let provider = direct;
       if (!provider) {
         const description = typeof entry.description === "string" ? entry.description : "";
@@ -11744,7 +11744,7 @@
       }
       if (!provider) continue;
       counts.set(provider, (counts.get(provider) || 0) + 1);
-      chatgptxModelPickerRememberProvider(displayName, provider, false);
+      swivoxModelPickerRememberProvider(displayName, provider, false);
     }
     let best = "";
     let bestCount = 0;
@@ -11758,7 +11758,7 @@
   }
 
   /** 连续相同分组归为一组（同成员模型在聚合目录里本来就是连续的）。 */
-  function chatgptxModelPickerGroups(rows, defaultProviderName = "") {
+  function swivoxModelPickerGroups(rows, defaultProviderName = "") {
     const groups = [];
     let current = null;
     for (const entry of rows) {
@@ -11782,9 +11782,9 @@
    * 分组 id 撞车保护：不同分组名共用同一个 id（或都没有 id）时补上序号，
    * 否则折叠状态会串组。
    */
-  function chatgptxModelPickerUniqueGroupIds(groups) {
+  function swivoxModelPickerUniqueGroupIds(groups) {
     const seen = new Map();
-    const defaultGroupId = chatgptxModelPickerDefaultGroupId();
+    const defaultGroupId = swivoxModelPickerDefaultGroupId();
     for (const group of groups) {
       // 默认成员的分组在 id 改写之前先认出来。同一组的行里，有的能查到权威分组 id
       // （裸名发布、行上没有后缀的模型），有的只有显示名，
@@ -11803,7 +11803,7 @@
     return groups;
   }
 
-  function chatgptxModelPickerFingerprint(groups) {
+  function swivoxModelPickerFingerprint(groups) {
     return groups
       .map((group) => `${group.id}:${group.entries.map((entry) => entry.label).join("|")}`)
       .join("||");
@@ -11819,8 +11819,8 @@
    *   - 其他情况（还没有选中模型 / 定位不到）：全部保持展开。信息完整比"整齐"重要，
    *     看不到模型比看到一长串更糟。
    */
-  function chatgptxModelPickerAutoCollapse(list, groups) {
-    const state = chatgptxModelPickerGroupsState;
+  function swivoxModelPickerAutoCollapse(list, groups) {
+    const state = swivoxModelPickerGroupsState;
     if (state.autoCollapsed) return;
     state.autoCollapsed = true;
     if (groups.length < 2) return;
@@ -11828,7 +11828,7 @@
     let keep = "";
     const selected = list.querySelector("[data-model-selected]");
     if (selected) {
-      const split = chatgptxModelPickerSplitLabel(chatgptxModelPickerRowLabel(selected));
+      const split = swivoxModelPickerSplitLabel(swivoxModelPickerRowLabel(selected));
       const desired = split.provider || "";
       const found = groups.find((group) => (group.name || "") === desired);
       if (found) keep = found.id;
@@ -11848,133 +11848,133 @@
         changed = true;
       }
     }
-    if (changed) chatgptxModelPickerPersist();
+    if (changed) swivoxModelPickerPersist();
   }
 
   /**
    * 「默认」徽标：默认身份可能晚于标题创建才知道（目录快照刷新、切分组），
    * 所以每次同步都按 isDefault 补齐或摘掉，而不是只在建标题时决定一次。
    */
-  function chatgptxModelPickerSyncDefaultBadge(header, group, text) {
-    let badge = header.querySelector(".chatgptx-model-group-default");
+  function swivoxModelPickerSyncDefaultBadge(header, group, text) {
+    let badge = header.querySelector(".swivox-model-group-default");
     if (!group.isDefault) {
       badge?.remove();
       return;
     }
     if (!badge) {
       badge = document.createElement("span");
-      badge.className = "chatgptx-model-group-default";
-      const count = header.querySelector(".chatgptx-model-group-count");
+      badge.className = "swivox-model-group-default";
+      const count = header.querySelector(".swivox-model-group-count");
       header.insertBefore(badge, count || null);
     }
     if (badge.textContent !== text.defaultBadge) badge.textContent = text.defaultBadge;
     badge.title = text.defaultTitle;
   }
 
-  function chatgptxModelPickerGroupExpanded(group) {
-    return !chatgptxModelPickerGroupsState.collapsed.has(group.id);
+  function swivoxModelPickerGroupExpanded(group) {
+    return !swivoxModelPickerGroupsState.collapsed.has(group.id);
   }
 
-  function chatgptxModelPickerSyncGroup(list, group) {
-    const text = chatgptxModelPickerText();
-    const expanded = chatgptxModelPickerGroupExpanded(group);
-    const header = list.querySelector(`[${chatgptxModelPickerGroupIdAttr}="${cssEscapeValue(group.id)}"]`);
+  function swivoxModelPickerSyncGroup(list, group) {
+    const text = swivoxModelPickerText();
+    const expanded = swivoxModelPickerGroupExpanded(group);
+    const header = list.querySelector(`[${swivoxModelPickerGroupIdAttr}="${cssEscapeValue(group.id)}"]`);
     group.entries.forEach((entry) => {
-      entry.row.setAttribute(chatgptxModelPickerGroupAttr, group.id);
-      entry.row.classList.toggle("chatgptx-model-group-collapsed", !expanded);
+      entry.row.setAttribute(swivoxModelPickerGroupAttr, group.id);
+      entry.row.classList.toggle("swivox-model-group-collapsed", !expanded);
     });
     if (header) {
       header.setAttribute("aria-expanded", expanded ? "true" : "false");
-      header.classList.toggle("chatgptx-model-group-header-collapsed", !expanded);
-      const label = header.querySelector(".chatgptx-model-group-title");
+      header.classList.toggle("swivox-model-group-header-collapsed", !expanded);
+      const label = header.querySelector(".swivox-model-group-title");
       // 标题只放名字：数量右边有徽标，标题里再来一次就是重复。
       if (label) label.textContent = group.name;
-      chatgptxModelPickerSyncDefaultBadge(header, group, text);
+      swivoxModelPickerSyncDefaultBadge(header, group, text);
       header.setAttribute("aria-label", text.groupAria(group.name, group.entries.length, expanded, group.isDefault));
     }
   }
 
   /** 自己插的标签节点；原生标签留着（隐藏），这样无障碍名称仍然完整。 */
-  function chatgptxModelPickerInstallLabel(entry) {
-    const identity = chatgptxModelPickerRowIdentity(entry.row);
+  function swivoxModelPickerInstallLabel(entry) {
+    const identity = swivoxModelPickerRowIdentity(entry.row);
     const inner = identity?.inner;
     if (!inner) return;
     // 行本身带归属标记：补丁装完后第二次扫描能直接认出这一行，不再重新解析结构。
-    entry.row.setAttribute("data-chatgptx-ext", chatgptxModelPickerGroupsExtMark);
-    const isOurs = (node) => node.classList.contains(chatgptxModelPickerOwnLabelClass)
-      || node.classList.contains(chatgptxModelPickerNativeLabelClass);
-    const native = [...inner.children].find((node) => node.classList.contains(chatgptxModelPickerNativeLabelClass))
+    entry.row.setAttribute("data-swivox-ext", swivoxModelPickerGroupsExtMark);
+    const isOurs = (node) => node.classList.contains(swivoxModelPickerOwnLabelClass)
+      || node.classList.contains(swivoxModelPickerNativeLabelClass);
+    const native = [...inner.children].find((node) => node.classList.contains(swivoxModelPickerNativeLabelClass))
       // 第一次进来时装的是原生标签（单个 span）
       || [...inner.children].find((node) => !isOurs(node));
-    if (native && !native.classList.contains(chatgptxModelPickerNativeLabelClass)) {
-      native.classList.add(chatgptxModelPickerNativeLabelClass);
-      native.setAttribute("data-chatgptx-ext", chatgptxModelPickerGroupsExtMark);
+    if (native && !native.classList.contains(swivoxModelPickerNativeLabelClass)) {
+      native.classList.add(swivoxModelPickerNativeLabelClass);
+      native.setAttribute("data-swivox-ext", swivoxModelPickerGroupsExtMark);
       // 视觉上由我们自己的标签顶上；隐藏原节点时必须同时退出无障碍树，
       // 否则读屏会把同一行念两遍。
       native.setAttribute("aria-hidden", "true");
     }
-    let own = [...inner.children].find((node) => node.classList.contains(chatgptxModelPickerOwnLabelClass));
+    let own = [...inner.children].find((node) => node.classList.contains(swivoxModelPickerOwnLabelClass));
     if (!own) {
       own = document.createElement("span");
-      own.className = `${chatgptxModelPickerOwnLabelClass} truncate whitespace-nowrap`;
-      own.setAttribute("data-chatgptx-ext", chatgptxModelPickerGroupsExtMark);
+      own.className = `${swivoxModelPickerOwnLabelClass} truncate whitespace-nowrap`;
+      own.setAttribute("data-swivox-ext", swivoxModelPickerGroupsExtMark);
       inner.insertBefore(own, native || null);
     }
     if (own.textContent !== entry.name) own.textContent = entry.name;
-    entry.row.classList.add(chatgptxModelPickerItemClass);
+    entry.row.classList.add(swivoxModelPickerItemClass);
   }
 
-  function chatgptxModelPickerRestoreLabel(row) {
+  function swivoxModelPickerRestoreLabel(row) {
     const content = row.querySelector("[data-menu-row-content]") || row;
-    content.querySelector(`.${chatgptxModelPickerOwnLabelClass}`)?.remove();
-    const native = content.querySelector(`.${chatgptxModelPickerNativeLabelClass}`);
+    content.querySelector(`.${swivoxModelPickerOwnLabelClass}`)?.remove();
+    const native = content.querySelector(`.${swivoxModelPickerNativeLabelClass}`);
     if (native) {
-      native.classList.remove(chatgptxModelPickerNativeLabelClass);
-      native.removeAttribute("data-chatgptx-ext");
+      native.classList.remove(swivoxModelPickerNativeLabelClass);
+      native.removeAttribute("data-swivox-ext");
       native.removeAttribute("aria-hidden");
     }
-    row.classList.remove(chatgptxModelPickerItemClass, "chatgptx-model-group-collapsed");
-    row.removeAttribute(chatgptxModelPickerGroupAttr);
-    if (row.getAttribute("data-chatgptx-ext") === chatgptxModelPickerGroupsExtMark) {
-      row.removeAttribute("data-chatgptx-ext");
+    row.classList.remove(swivoxModelPickerItemClass, "swivox-model-group-collapsed");
+    row.removeAttribute(swivoxModelPickerGroupAttr);
+    if (row.getAttribute("data-swivox-ext") === swivoxModelPickerGroupsExtMark) {
+      row.removeAttribute("data-swivox-ext");
     }
   }
 
-  function chatgptxModelPickerToggleGroup(list, group) {
-    const state = chatgptxModelPickerGroupsState;
-    const expanded = chatgptxModelPickerGroupExpanded(group);
+  function swivoxModelPickerToggleGroup(list, group) {
+    const state = swivoxModelPickerGroupsState;
+    const expanded = swivoxModelPickerGroupExpanded(group);
     if (expanded) state.collapsed.add(group.id);
     else state.collapsed.delete(group.id);
     state.touched.add(group.id);
-    chatgptxModelPickerPersist();
-    chatgptxModelPickerSyncGroup(list, group);
-    chatgptxModelPickerSyncToolbar(list);
+    swivoxModelPickerPersist();
+    swivoxModelPickerSyncGroup(list, group);
+    swivoxModelPickerSyncToolbar(list);
   }
 
-  function chatgptxModelPickerSetAll(list, groups, collapsed) {
-    const state = chatgptxModelPickerGroupsState;
+  function swivoxModelPickerSetAll(list, groups, collapsed) {
+    const state = swivoxModelPickerGroupsState;
     for (const group of groups) {
       if (collapsed) state.collapsed.add(group.id);
       else state.collapsed.delete(group.id);
       state.touched.add(group.id);
     }
-    chatgptxModelPickerPersist();
-    groups.forEach((group) => chatgptxModelPickerSyncGroup(list, group));
-    chatgptxModelPickerSyncToolbar(list);
+    swivoxModelPickerPersist();
+    groups.forEach((group) => swivoxModelPickerSyncGroup(list, group));
+    swivoxModelPickerSyncToolbar(list);
   }
 
-  function chatgptxModelPickerGroupHeader(list, group, groups) {
-    const text = chatgptxModelPickerText();
+  function swivoxModelPickerGroupHeader(list, group, groups) {
+    const text = swivoxModelPickerText();
     const header = document.createElement("button");
     header.type = "button";
-    header.className = "chatgptx-model-group-header";
-    header.setAttribute("data-chatgptx-ext", chatgptxModelPickerGroupsExtMark);
-    header.setAttribute(chatgptxModelPickerGroupIdAttr, group.id);
+    header.className = "swivox-model-group-header";
+    header.setAttribute("data-swivox-ext", swivoxModelPickerGroupsExtMark);
+    header.setAttribute(swivoxModelPickerGroupIdAttr, group.id);
     header.setAttribute("aria-expanded", "true");
     const chevron = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     chevron.setAttribute("viewBox", "0 0 12 12");
     chevron.setAttribute("aria-hidden", "true");
-    chevron.setAttribute("class", "chatgptx-model-group-chevron");
+    chevron.setAttribute("class", "swivox-model-group-chevron");
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     path.setAttribute("d", "M4 2.5 8 6 4 9.5");
     path.setAttribute("fill", "none");
@@ -11984,24 +11984,24 @@
     path.setAttribute("stroke-linejoin", "round");
     chevron.appendChild(path);
     const title = document.createElement("span");
-    title.className = "chatgptx-model-group-title";
+    title.className = "swivox-model-group-title";
     header.append(chevron, title);
     if (group.isDefault) {
       const badge = document.createElement("span");
-      badge.className = "chatgptx-model-group-default";
+      badge.className = "swivox-model-group-default";
       badge.textContent = text.defaultBadge;
       badge.title = text.defaultTitle;
       header.appendChild(badge);
     }
     const count = document.createElement("span");
-    count.className = "chatgptx-model-group-count";
+    count.className = "swivox-model-group-count";
     count.textContent = String(group.entries.length);
     header.appendChild(count);
     header.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
       const current = groups.find((item) => item.id === group.id);
-      if (current) chatgptxModelPickerToggleGroup(list, current);
+      if (current) swivoxModelPickerToggleGroup(list, current);
     });
     header.addEventListener("pointerdown", (event) => {
       // 别让指针事件冒到菜单外，否则菜单会被关掉。
@@ -12015,57 +12015,57 @@
     return header;
   }
 
-  function chatgptxModelPickerSyncToolbar(list) {
-    const toolbar = list.querySelector(".chatgptx-model-group-toolbar");
+  function swivoxModelPickerSyncToolbar(list) {
+    const toolbar = list.querySelector(".swivox-model-group-toolbar");
     if (!toolbar) return;
-    const groups = [...list.querySelectorAll(`[${chatgptxModelPickerGroupIdAttr}]`)]
-      .map((node) => node.getAttribute(chatgptxModelPickerGroupIdAttr));
-    const anyExpanded = groups.some((id) => !chatgptxModelPickerGroupsState.collapsed.has(id));
+    const groups = [...list.querySelectorAll(`[${swivoxModelPickerGroupIdAttr}]`)]
+      .map((node) => node.getAttribute(swivoxModelPickerGroupIdAttr));
+    const anyExpanded = groups.some((id) => !swivoxModelPickerGroupsState.collapsed.has(id));
     toolbar.querySelector("button")?.setAttribute("data-all-expanded", anyExpanded ? "true" : "false");
-    const label = toolbar.querySelector(".chatgptx-model-group-toolbar-label");
-    if (label) label.textContent = anyExpanded ? chatgptxModelPickerText().collapseAll : chatgptxModelPickerText().expandAll;
+    const label = toolbar.querySelector(".swivox-model-group-toolbar-label");
+    if (label) label.textContent = anyExpanded ? swivoxModelPickerText().collapseAll : swivoxModelPickerText().expandAll;
   }
 
-  function chatgptxModelPickerToolbar(list, groups) {
-    const text = chatgptxModelPickerText();
+  function swivoxModelPickerToolbar(list, groups) {
+    const text = swivoxModelPickerText();
     const toolbar = document.createElement("div");
-    toolbar.className = "chatgptx-model-group-toolbar";
-    toolbar.setAttribute("data-chatgptx-ext", chatgptxModelPickerGroupsExtMark);
+    toolbar.className = "swivox-model-group-toolbar";
+    toolbar.setAttribute("data-swivox-ext", swivoxModelPickerGroupsExtMark);
     const spacer = document.createElement("span");
-    spacer.className = "chatgptx-model-group-toolbar-title";
+    spacer.className = "swivox-model-group-toolbar-title";
     spacer.textContent = "";
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "chatgptx-model-group-toolbar-button";
+    button.className = "swivox-model-group-toolbar-button";
     button.setAttribute("data-all-expanded", "true");
     const label = document.createElement("span");
-    label.className = "chatgptx-model-group-toolbar-label";
+    label.className = "swivox-model-group-toolbar-label";
     label.textContent = text.collapseAll;
     button.appendChild(label);
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      chatgptxModelPickerSetAll(list, groups, button.getAttribute("data-all-expanded") === "true");
+      swivoxModelPickerSetAll(list, groups, button.getAttribute("data-all-expanded") === "true");
     });
     button.addEventListener("pointerdown", (event) => event.stopPropagation());
     toolbar.append(spacer, button);
     return toolbar;
   }
 
-  function chatgptxModelPickerRemoveOwnNodes(list) {
-    list.querySelectorAll(`[data-chatgptx-ext="${chatgptxModelPickerGroupsExtMark}"]`).forEach((node) => {
+  function swivoxModelPickerRemoveOwnNodes(list) {
+    list.querySelectorAll(`[data-swivox-ext="${swivoxModelPickerGroupsExtMark}"]`).forEach((node) => {
       if (node.closest('[role="menuitemradio"]')) return;
       node.remove();
     });
   }
 
-  function chatgptxModelPickerClear(list) {
+  function swivoxModelPickerClear(list) {
     if (!list) return;
-    chatgptxModelPickerRemoveOwnNodes(list);
-    list.querySelectorAll('[role="menuitemradio"]').forEach((row) => chatgptxModelPickerRestoreLabel(row));
-    list.removeAttribute("data-chatgptx-model-groups");
-    chatgptxModelPickerGroupsState.signature = "";
-    chatgptxModelPickerGroupsState.patchedLists.delete(list);
+    swivoxModelPickerRemoveOwnNodes(list);
+    list.querySelectorAll('[role="menuitemradio"]').forEach((row) => swivoxModelPickerRestoreLabel(row));
+    list.removeAttribute("data-swivox-model-groups");
+    swivoxModelPickerGroupsState.signature = "";
+    swivoxModelPickerGroupsState.patchedLists.delete(list);
   }
 
   /**
@@ -12074,11 +12074,11 @@
    * React 在菜单里做任何一次重渲染都可能顺手回收我们插进去的兄弟节点，
    * 此时指纹没变、但标题已经没了，只靠指纹判等会留下一个"点了没用"的死状态。
    */
-  function chatgptxModelPickerHeadersIntact(list, groups) {
-    const toolbar = list.querySelector(".chatgptx-model-group-toolbar");
+  function swivoxModelPickerHeadersIntact(list, groups) {
+    const toolbar = list.querySelector(".swivox-model-group-toolbar");
     if (!toolbar) return false;
     return groups.every((group) => {
-      const header = list.querySelector(`[${chatgptxModelPickerGroupIdAttr}="${cssEscapeValue(group.id)}"]`);
+      const header = list.querySelector(`[${swivoxModelPickerGroupIdAttr}="${cssEscapeValue(group.id)}"]`);
       const first = group.entries[0]?.row;
       return !!header && !!first && header.nextElementSibling === first;
     });
@@ -12087,50 +12087,50 @@
   /**
    * 打补丁主流程。返回是否改动了原生列表。
    */
-  function chatgptxModelPickerPatch(list) {
-    if (chatgptxModelPickerGroupsState.disposed) return false;
-    chatgptxModelPickerStore();
-    const rows = chatgptxModelPickerRows(list);
-    const groups = chatgptxModelPickerUniqueGroupIds(
-      chatgptxModelPickerGroups(rows, chatgptxModelPickerDefaultProviderName()),
+  function swivoxModelPickerPatch(list) {
+    if (swivoxModelPickerGroupsState.disposed) return false;
+    swivoxModelPickerStore();
+    const rows = swivoxModelPickerRows(list);
+    const groups = swivoxModelPickerUniqueGroupIds(
+      swivoxModelPickerGroups(rows, swivoxModelPickerDefaultProviderName()),
     );
     // 只有一个供应商时不折叠：直连供应商本来就是一组，插标题只是多一层噪音。
     if (groups.length < 2) {
-      if (chatgptxModelPickerGroupsState.patchedLists.has(list)) chatgptxModelPickerClear(list);
-      else chatgptxModelPickerRemoveOwnNodes(list);
+      if (swivoxModelPickerGroupsState.patchedLists.has(list)) swivoxModelPickerClear(list);
+      else swivoxModelPickerRemoveOwnNodes(list);
       return false;
     }
-    const signature = chatgptxModelPickerFingerprint(groups);
-    const patched = chatgptxModelPickerGroupsState.patchedLists.has(list);
+    const signature = swivoxModelPickerFingerprint(groups);
+    const patched = swivoxModelPickerGroupsState.patchedLists.has(list);
     if (
       patched
-      && signature === chatgptxModelPickerGroupsState.signature
+      && signature === swivoxModelPickerGroupsState.signature
       && list.isConnected
-      && chatgptxModelPickerHeadersIntact(list, groups)
+      && swivoxModelPickerHeadersIntact(list, groups)
     ) {
-      groups.forEach((group) => chatgptxModelPickerSyncGroup(list, group));
+      groups.forEach((group) => swivoxModelPickerSyncGroup(list, group));
       return false;
     }
-    chatgptxModelPickerGroupsState.patchedLists.add(list);
-    chatgptxModelPickerGroupsState.signature = signature;
-    list.setAttribute("data-chatgptx-model-groups", "true");
-    chatgptxModelPickerRemoveOwnNodes(list);
-    groups.forEach((group) => group.entries.forEach((entry) => chatgptxModelPickerInstallLabel(entry)));
+    swivoxModelPickerGroupsState.patchedLists.add(list);
+    swivoxModelPickerGroupsState.signature = signature;
+    list.setAttribute("data-swivox-model-groups", "true");
+    swivoxModelPickerRemoveOwnNodes(list);
+    groups.forEach((group) => group.entries.forEach((entry) => swivoxModelPickerInstallLabel(entry)));
     groups.forEach((group) => {
       const first = group.entries[0]?.row;
       if (!first?.parentElement) return;
-      first.parentElement.insertBefore(chatgptxModelPickerGroupHeader(list, group, groups), first);
+      first.parentElement.insertBefore(swivoxModelPickerGroupHeader(list, group, groups), first);
     });
-    chatgptxModelPickerAutoCollapse(list, groups);
-    groups.forEach((group) => chatgptxModelPickerSyncGroup(list, group));
+    swivoxModelPickerAutoCollapse(list, groups);
+    groups.forEach((group) => swivoxModelPickerSyncGroup(list, group));
     const anchor = groups[0]?.entries[0]?.row;
-    if (anchor?.parentElement && !list.querySelector(".chatgptx-model-group-toolbar")) {
-      anchor.parentElement.insertBefore(chatgptxModelPickerToolbar(list, groups), anchor.parentElement.firstChild);
+    if (anchor?.parentElement && !list.querySelector(".swivox-model-group-toolbar")) {
+      anchor.parentElement.insertBefore(swivoxModelPickerToolbar(list, groups), anchor.parentElement.firstChild);
     }
-    chatgptxModelPickerSyncToolbar(list);
-    if (chatgptxModelPickerGroupsState.providerDirty) {
-      chatgptxModelPickerGroupsState.providerDirty = false;
-      chatgptxModelPickerPersist();
+    swivoxModelPickerSyncToolbar(list);
+    if (swivoxModelPickerGroupsState.providerDirty) {
+      swivoxModelPickerGroupsState.providerDirty = false;
+      swivoxModelPickerPersist();
     }
     return true;
   }
@@ -12141,67 +12141,67 @@
     return String(value).replace(/["\\]/g, "\\$&");
   }
 
-  function chatgptxModelPickerInstallStyle() {
-    if (document.getElementById(chatgptxModelPickerGroupsStyleId)) return;
+  function swivoxModelPickerInstallStyle() {
+    if (document.getElementById(swivoxModelPickerGroupsStyleId)) return;
     const style = document.createElement("style");
-    style.id = chatgptxModelPickerGroupsStyleId;
-    style.setAttribute("data-chatgptx-ext", chatgptxModelPickerGroupsExtMark);
+    style.id = swivoxModelPickerGroupsStyleId;
+    style.setAttribute("data-swivox-ext", swivoxModelPickerGroupsExtMark);
     style.textContent = `
       /* 分组标题贴着原生行的左右内边距，视觉上属于同一列。 */
-      .chatgptx-model-group-header{display:flex;align-items:center;gap:6px;width:100%;box-sizing:border-box;margin:2px 0 0;padding:4px 8px;border:0;border-radius:8px;background:none;color:var(--color-token-text-secondary,rgba(205,205,215,.8));font:inherit;font-size:11px;line-height:16px;font-weight:600;letter-spacing:.02em;text-align:left;cursor:pointer;user-select:none;appearance:none}
-      .chatgptx-model-group-header:hover{background:var(--color-token-bg-secondary,rgba(255,255,255,.04));color:var(--color-token-text-primary,#dfdfdf)}
-      .chatgptx-model-group-header:focus-visible{outline:1px solid color-mix(in srgb,var(--color-token-text-primary,#dfdfdf) 35%,transparent);outline-offset:1px}
-      .chatgptx-model-group-chevron{flex:0 0 auto;width:12px;height:12px;opacity:.75;transform:rotate(90deg);transition:transform .15s ease}
-      .chatgptx-model-group-header-collapsed .chatgptx-model-group-chevron{transform:rotate(0deg)}
-      .chatgptx-model-group-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      .chatgptx-model-group-count{flex:0 0 auto;margin-left:auto;padding:0 6px;border-radius:999px;background:var(--color-token-bg-secondary,rgba(255,255,255,.06));color:var(--color-token-text-secondary,rgba(205,205,215,.75));font-size:10px;font-weight:500;font-variant-numeric:tabular-nums}
+      .swivox-model-group-header{display:flex;align-items:center;gap:6px;width:100%;box-sizing:border-box;margin:2px 0 0;padding:4px 8px;border:0;border-radius:8px;background:none;color:var(--color-token-text-secondary,rgba(205,205,215,.8));font:inherit;font-size:11px;line-height:16px;font-weight:600;letter-spacing:.02em;text-align:left;cursor:pointer;user-select:none;appearance:none}
+      .swivox-model-group-header:hover{background:var(--color-token-bg-secondary,rgba(255,255,255,.04));color:var(--color-token-text-primary,#dfdfdf)}
+      .swivox-model-group-header:focus-visible{outline:1px solid color-mix(in srgb,var(--color-token-text-primary,#dfdfdf) 35%,transparent);outline-offset:1px}
+      .swivox-model-group-chevron{flex:0 0 auto;width:12px;height:12px;opacity:.75;transform:rotate(90deg);transition:transform .15s ease}
+      .swivox-model-group-header-collapsed .swivox-model-group-chevron{transform:rotate(0deg)}
+      .swivox-model-group-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .swivox-model-group-count{flex:0 0 auto;margin-left:auto;padding:0 6px;border-radius:999px;background:var(--color-token-bg-secondary,rgba(255,255,255,.06));color:var(--color-token-text-secondary,rgba(205,205,215,.75));font-size:10px;font-weight:500;font-variant-numeric:tabular-nums}
       /* 「默认」标志：默认成员的模型是裸名发布的，跟"另一家没起名的成员"看名字分不出来。
          用主题强调色描边小标签，比再加一句解释文字省地方。 */
-      .chatgptx-model-group-default{flex:0 0 auto;padding:0 5px;border:1px solid color-mix(in srgb,var(--color-token-text-primary,#dfdfdf) 26%,transparent);border-radius:999px;color:var(--color-token-text-primary,#dfdfdf);font-size:10px;line-height:14px;font-weight:500;letter-spacing:.02em}
-      .chatgptx-model-group-default + .chatgptx-model-group-count{margin-left:4px}
-      .chatgptx-model-group-toolbar{display:flex;align-items:center;gap:8px;box-sizing:border-box;padding:2px 8px 4px}
-      .chatgptx-model-group-toolbar-button{margin-left:auto;border:0;border-radius:6px;background:none;padding:2px 6px;color:var(--color-token-text-secondary,rgba(205,205,215,.8));font:inherit;font-size:11px;cursor:pointer;appearance:none}
-      .chatgptx-model-group-toolbar-button:hover{background:var(--color-token-bg-secondary,rgba(255,255,255,.04));color:var(--color-token-text-primary,#dfdfdf)}
+      .swivox-model-group-default{flex:0 0 auto;padding:0 5px;border:1px solid color-mix(in srgb,var(--color-token-text-primary,#dfdfdf) 26%,transparent);border-radius:999px;color:var(--color-token-text-primary,#dfdfdf);font-size:10px;line-height:14px;font-weight:500;letter-spacing:.02em}
+      .swivox-model-group-default + .swivox-model-group-count{margin-left:4px}
+      .swivox-model-group-toolbar{display:flex;align-items:center;gap:8px;box-sizing:border-box;padding:2px 8px 4px}
+      .swivox-model-group-toolbar-button{margin-left:auto;border:0;border-radius:6px;background:none;padding:2px 6px;color:var(--color-token-text-secondary,rgba(205,205,215,.8));font:inherit;font-size:11px;cursor:pointer;appearance:none}
+      .swivox-model-group-toolbar-button:hover{background:var(--color-token-bg-secondary,rgba(255,255,255,.04));color:var(--color-token-text-primary,#dfdfdf)}
       /* 折叠：只隐藏行，不移动行，React 的 child 对账不受影响。 */
-      [role="menuitemradio"].chatgptx-model-group-collapsed{display:none!important}
-      .${chatgptxModelPickerNativeLabelClass}{display:none!important}
-      .${chatgptxModelPickerOwnLabelClass}{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      [role="menuitemradio"].swivox-model-group-collapsed{display:none!important}
+      .${swivoxModelPickerNativeLabelClass}{display:none!important}
+      .${swivoxModelPickerOwnLabelClass}{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     `;
     document.head?.appendChild(style);
   }
 
-  function chatgptxModelPickerNeedsRescan(records) {
+  function swivoxModelPickerNeedsRescan(records) {
     const changed = records.some((record) => {
       const nodes = [...record.addedNodes, ...record.removedNodes];
-      return nodes.some((node) => node.nodeType === 1 && !node.closest?.(`[data-chatgptx-ext="${chatgptxModelPickerGroupsExtMark}"]`));
+      return nodes.some((node) => node.nodeType === 1 && !node.closest?.(`[data-swivox-ext="${swivoxModelPickerGroupsExtMark}"]`));
     });
     if (!changed) return false;
-    const list = chatgptxModelPickerList(chatgptxModelPickerMenu());
+    const list = swivoxModelPickerList(swivoxModelPickerMenu());
     if (!list) return false;
-    const rows = chatgptxModelPickerRows(list);
-    const groups = chatgptxModelPickerUniqueGroupIds(
-      chatgptxModelPickerGroups(rows, chatgptxModelPickerDefaultProviderName()),
+    const rows = swivoxModelPickerRows(list);
+    const groups = swivoxModelPickerUniqueGroupIds(
+      swivoxModelPickerGroups(rows, swivoxModelPickerDefaultProviderName()),
     );
-    if (groups.length < 2) return chatgptxModelPickerGroupsState.patchedLists.has(list);
-    return chatgptxModelPickerFingerprint(groups) !== chatgptxModelPickerGroupsState.signature;
+    if (groups.length < 2) return swivoxModelPickerGroupsState.patchedLists.has(list);
+    return swivoxModelPickerFingerprint(groups) !== swivoxModelPickerGroupsState.signature;
   }
 
-  function chatgptxModelPickerScheduleRescan() {
-    clearTimeout(chatgptxModelPickerGroupsState.rescanTimer);
-    chatgptxModelPickerGroupsState.rescanTimer = setTimeout(() => {
-      chatgptxModelPickerGroupsState.rescanTimer = 0;
-      chatgptxModelPickerScan();
-    }, chatgptxModelPickerRescanDelayMs);
+  function swivoxModelPickerScheduleRescan() {
+    clearTimeout(swivoxModelPickerGroupsState.rescanTimer);
+    swivoxModelPickerGroupsState.rescanTimer = setTimeout(() => {
+      swivoxModelPickerGroupsState.rescanTimer = 0;
+      swivoxModelPickerScan();
+    }, swivoxModelPickerRescanDelayMs);
   }
 
-  function chatgptxModelPickerObserveList(list) {
-    const state = chatgptxModelPickerGroupsState;
+  function swivoxModelPickerObserveList(list) {
+    const state = swivoxModelPickerGroupsState;
     if (state.activeList === list) return;
     state.activeList = list;
     state.observer?.disconnect();
     state.observer = new MutationObserver((records) => {
-      if (!chatgptxModelPickerNeedsRescan(records)) return;
-      chatgptxModelPickerScheduleRescan();
+      if (!swivoxModelPickerNeedsRescan(records)) return;
+      swivoxModelPickerScheduleRescan();
     });
     state.observer.observe(list, { childList: true, subtree: true });
   }
@@ -12212,14 +12212,14 @@
    * 为什么还要轮询：React 复用行节点时不会产生 childList 变更，只靠 MutationObserver
    * 会漏掉"标签变了"这种情况。600ms 一次、且只在菜单开着时跑，开销可以忽略。
    */
-  function chatgptxModelPickerScan() {
-    const state = chatgptxModelPickerGroupsState;
+  function swivoxModelPickerScan() {
+    const state = swivoxModelPickerGroupsState;
     if (state.disposed) return;
-    const menu = chatgptxModelPickerMenu();
-    const list = chatgptxModelPickerList(menu);
+    const menu = swivoxModelPickerMenu();
+    const list = swivoxModelPickerList(menu);
     if (!list) {
       if (state.activeList) {
-        chatgptxModelPickerClear(state.activeList);
+        swivoxModelPickerClear(state.activeList);
         state.activeList = null;
         state.observer?.disconnect();
         state.observer = null;
@@ -12227,55 +12227,55 @@
       }
       return;
     }
-    chatgptxModelPickerEnsureCatalog();
-    chatgptxModelPickerObserveList(list);
+    swivoxModelPickerEnsureCatalog();
+    swivoxModelPickerObserveList(list);
     // 列表被隐藏（用户在推理强度子面板里）时不动结构，只让轮询继续跑；
     // 回到列表立即是分组后的样子。
-    if (list.getClientRects().length === 0 && chatgptxModelPickerGroupsState.patchedLists.has(list)) return;
-    chatgptxModelPickerPatch(list);
+    if (list.getClientRects().length === 0 && swivoxModelPickerGroupsState.patchedLists.has(list)) return;
+    swivoxModelPickerPatch(list);
   }
 
-  function chatgptxModelPickerSchedule(delay) {
-    const state = chatgptxModelPickerGroupsState;
+  function swivoxModelPickerSchedule(delay) {
+    const state = swivoxModelPickerGroupsState;
     if (state.disposed) return;
     clearTimeout(state.timer);
     state.timer = setTimeout(() => {
-      chatgptxModelPickerScan();
-      chatgptxModelPickerSchedule(chatgptxModelPickerWatchIntervalMs);
+      swivoxModelPickerScan();
+      swivoxModelPickerSchedule(swivoxModelPickerWatchIntervalMs);
     }, delay);
   }
 
-  chatgptxModelPickerInstallStyle();
-  chatgptxModelPickerSchedule(300);
-  window.__chatgptxModelPickerGroupsRuntime = {
+  swivoxModelPickerInstallStyle();
+  swivoxModelPickerSchedule(300);
+  window.__swivoxModelPickerGroupsRuntime = {
     version: 1,
-    sync: () => chatgptxModelPickerSchedule(0),
-    scan: () => chatgptxModelPickerScan(),
+    sync: () => swivoxModelPickerSchedule(0),
+    scan: () => swivoxModelPickerScan(),
     /** 测试与调试用：不打开菜单也能验证分组解析。 */
-    splitLabel: (text) => chatgptxModelPickerSplitLabel(text),
+    splitLabel: (text) => swivoxModelPickerSplitLabel(text),
     /** 测试与调试用：内部状态快照。 */
     state: () => ({
-      signature: chatgptxModelPickerGroupsState.signature,
-      hasActiveList: !!chatgptxModelPickerGroupsState.activeList,
-      autoCollapsed: chatgptxModelPickerGroupsState.autoCollapsed,
-      collapsed: [...chatgptxModelPickerGroupsState.collapsed],
-      touched: [...chatgptxModelPickerGroupsState.touched],
-      disposed: chatgptxModelPickerGroupsState.disposed,
+      signature: swivoxModelPickerGroupsState.signature,
+      hasActiveList: !!swivoxModelPickerGroupsState.activeList,
+      autoCollapsed: swivoxModelPickerGroupsState.autoCollapsed,
+      collapsed: [...swivoxModelPickerGroupsState.collapsed],
+      touched: [...swivoxModelPickerGroupsState.touched],
+      disposed: swivoxModelPickerGroupsState.disposed,
     }),
     /** 测试与调试用：默认身份解析结果（徽标取决于它）。 */
     defaultGroup: () => ({
-      id: chatgptxModelPickerGroupsState.defaultGroupId,
-      resolved: chatgptxModelPickerDefaultGroupId(),
+      id: swivoxModelPickerGroupsState.defaultGroupId,
+      resolved: swivoxModelPickerDefaultGroupId(),
       catalogStatus: codexModelCatalog?.status || "",
       catalogModels: codexModelCatalog?.models?.length || 0,
-      catalogDefaultId: codexModelCatalog?.chatgptx_default_group_id ?? null,
+      catalogDefaultId: codexModelCatalog?.swivox_default_group_id ?? null,
       metaEntries: codexModelCatalog?.modelMetadata ? Object.keys(codexModelCatalog.modelMetadata).length : 0,
       loaderVisible: typeof loadCodexModelCatalog === "function",
     }),
     /** 测试与调试用：看某一行被解析成了什么。 */
     describeRow: (row) => {
-      const identity = chatgptxModelPickerRowIdentity(row);
-      const rows = chatgptxModelPickerRows(row.parentElement || row);
+      const identity = swivoxModelPickerRowIdentity(row);
+      const rows = swivoxModelPickerRows(row.parentElement || row);
       const entry = rows.find((item) => item.row === row);
       return {
         identity: identity
@@ -12286,14 +12286,14 @@
       };
     },
     groupsFor: (container = document) => {
-      const list = chatgptxModelPickerList(container.querySelector?.('[data-model-picker-view]') ? container : chatgptxModelPickerMenu() || container);
+      const list = swivoxModelPickerList(container.querySelector?.('[data-model-picker-view]') ? container : swivoxModelPickerMenu() || container);
       if (!list) return [];
-      return chatgptxModelPickerUniqueGroupIds(
-        chatgptxModelPickerGroups(chatgptxModelPickerRows(list), chatgptxModelPickerDefaultProviderName()),
+      return swivoxModelPickerUniqueGroupIds(
+        swivoxModelPickerGroups(swivoxModelPickerRows(list), swivoxModelPickerDefaultProviderName()),
       ).map((group) => ({ id: group.id, name: group.name, count: group.entries.length, isDefault: !!group.isDefault, entryGroupIds: [...new Set(group.entries.map((entry) => entry.groupId))].slice(0, 2) }));
     },
     dispose() {
-      const state = chatgptxModelPickerGroupsState;
+      const state = swivoxModelPickerGroupsState;
       state.disposed = true;
       clearTimeout(state.timer);
       clearTimeout(state.rescanTimer);
@@ -12306,10 +12306,10 @@
       // 先摘后建只会闪一下；真要彻底还原（例如关闭该功能）走 releaseDom()。
     },
     releaseDom() {
-      const state = chatgptxModelPickerGroupsState;
-      if (state.activeList) chatgptxModelPickerClear(state.activeList);
+      const state = swivoxModelPickerGroupsState;
+      if (state.activeList) swivoxModelPickerClear(state.activeList);
       state.activeList = null;
-      document.getElementById(chatgptxModelPickerGroupsStyleId)?.remove();
+      document.getElementById(swivoxModelPickerGroupsStyleId)?.remove();
     },
   };
   function normalizeWorkspacePath(path) {
@@ -12365,9 +12365,9 @@
    * 第三方提示把「删除成功（可撤销）」这类关键反馈挤掉，所以改成有界队列：超出
    * 上限时挤掉最旧的一条，而不是最关键的当前一条。
    */
-  const chatgptxToastLimit = 3;
-  const chatgptxToastLifetimeMs = 10000;
-  const chatgptxToastGapPx = 48;
+  const swivoxToastLimit = 3;
+  const swivoxToastLifetimeMs = 10000;
+  const swivoxToastGapPx = 48;
 
   /**
    * 按当前 DOM 顺序重排所有提示的纵向位置。
@@ -12375,16 +12375,16 @@
    * 必须在每次「新增」和「移除」之后都调用：位置只在插入那一刻算的话，一旦有
    * 人被挤掉或超时消失，剩下几条会停在自己的旧层号上，出现空档和重叠。
    */
-  function layoutChatGPTXToasts() {
+  function layoutSwivoxToasts() {
     document.querySelectorAll(".codex-delete-toast").forEach((node, index) => {
-      node.style.bottom = `${18 + index * chatgptxToastGapPx}px`;
+      node.style.bottom = `${18 + index * swivoxToastGapPx}px`;
     });
   }
 
   /** 移除一条提示并立刻重排剩下的。 */
-  function dismissChatGPTXToast(toast) {
+  function dismissSwivoxToast(toast) {
     toast.remove();
-    layoutChatGPTXToasts();
+    layoutSwivoxToasts();
   }
 
   /**
@@ -12403,9 +12403,9 @@
     const live = document.querySelectorAll(".codex-delete-toast");
     // 队列满时挤掉最旧的（DOM 顺序即插入顺序）。用 dismiss 而不是裸 remove，
     // 它会顺带重排剩下几条的位置。
-    if (live.length >= chatgptxToastLimit) {
-      for (let index = 0; index <= live.length - chatgptxToastLimit; index += 1) {
-        dismissChatGPTXToast(live[index]);
+    if (live.length >= swivoxToastLimit) {
+      for (let index = 0; index <= live.length - swivoxToastLimit; index += 1) {
+        dismissSwivoxToast(live[index]);
       }
     }
     const toast = document.createElement("div");
@@ -12422,15 +12422,15 @@
           const refreshed = await refreshRecentConversationsForHost();
           if (!refreshed) window.location.reload();
         }
-        setTimeout(() => dismissChatGPTXToast(toast), 5000);
+        setTimeout(() => dismissSwivoxToast(toast), 5000);
       });
       toast.appendChild(undo);
     }
     document.body.appendChild(toast);
     // append 之后统一重排：此时这条才进入 DOM，索引才是它真实的层号。
-    layoutChatGPTXToasts();
-    setTimeout(() => dismissChatGPTXToast(toast), chatgptxToastLifetimeMs);
-    return () => dismissChatGPTXToast(toast);
+    layoutSwivoxToasts();
+    setTimeout(() => dismissSwivoxToast(toast), swivoxToastLifetimeMs);
+    return () => dismissSwivoxToast(toast);
   }
 
   function shareBase64Url(bytes) {
@@ -12441,7 +12441,7 @@
 
   function shareTextFromElement(element) {
     const clone = element.cloneNode(true);
-    clone.querySelectorAll?.("button, textarea, input, select, [contenteditable='true'], .codex-delete-toast, .chatgptx-modal-overlay, .chatgptx-page-overlay, .codex-session-share-button").forEach((node) => node.remove());
+    clone.querySelectorAll?.("button, textarea, input, select, [contenteditable='true'], .codex-delete-toast, .swivox-modal-overlay, .swivox-page-overlay, .codex-session-share-button").forEach((node) => node.remove());
     return String(clone.innerText || clone.textContent || "").replace(/\u00a0/g, " ").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   }
 
@@ -12480,7 +12480,7 @@
       fallback.querySelectorAll?.([
         ".composer-footer", ".composer-surface-chrome", "form", "header", "nav", "aside",
         "button", "textarea", "input", "select", "[contenteditable='true']",
-        ".codex-delete-toast", ".chatgptx-modal-overlay", ".chatgptx-page-overlay",
+        ".codex-delete-toast", ".swivox-modal-overlay", ".swivox-page-overlay",
         ".codex-session-share-button",
       ].join(",")).forEach((node) => node.remove());
       content = String(fallback.innerText || fallback.textContent || "")
@@ -12490,7 +12490,7 @@
         .trim();
       if (content) messages.push({ role: "message", label: "会话", text: content });
     }
-    const markdown = `# ${title || "未命名会话"}\n\n- 会话 ID：\`${ref.session_id}\`\n\n${content}`.slice(0, chatgptxShareMaxCharacters);
+    const markdown = `# ${title || "未命名会话"}\n\n- 会话 ID：\`${ref.session_id}\`\n\n${content}`.slice(0, swivoxShareMaxCharacters);
     return {
       ref,
       markdown: content ? markdown : "",
@@ -12549,11 +12549,11 @@
       const encrypted = await encryptSessionShare(JSON.stringify(shareDocument));
       const payload = { ttl: 604800, encrypted: encrypted.encrypted };
       let result;
-      let baseUrl = chatgptxShareBaseUrl;
+      let baseUrl = swivoxShareBaseUrl;
       try {
         result = await postJson("/share/create", payload);
         if (result?.id) {
-          baseUrl = chatgptxShareBaseUrl;
+          baseUrl = swivoxShareBaseUrl;
         } else if (result?.status !== "failed") {
           throw new Error(result?.message || "创建分享失败");
         }
@@ -12565,7 +12565,7 @@
         try {
           response = await fetch(`${baseUrl}/api/shares`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         } catch (_) {
-          baseUrl = chatgptxShareFallbackBaseUrl;
+          baseUrl = swivoxShareFallbackBaseUrl;
           response = await fetch(`${baseUrl}/api/shares`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         }
         result = await response.json().catch(() => ({}));
@@ -12602,23 +12602,23 @@
     // 会话操作锚点唯一时才挂载，不能把右侧审查/浏览器的 header 当作会话栏。
     const headerSelector = 'header, [data-app-shell-header-edge-scroll], [class*="_Header_"]';
     const anchors = Array.from(document.querySelectorAll('[data-testid="app-shell-header-context-menu-surface"]'))
-      .filter((node) => visibleElement(node) && !node.closest('[data-chatgptx-ext]'));
+      .filter((node) => visibleElement(node) && !node.closest('[data-swivox-ext]'));
     if (anchors.length !== 1) return null;
     const header = anchors[0].closest(headerSelector);
     if (!(header instanceof HTMLElement) || !visibleElement(header)) return null;
     const nativeShare = Array.from(header.querySelectorAll('button[aria-label="Share"], button[aria-label="分享"], button[aria-label*="Share"], button[aria-label*="分享"]'))
-      .find((node) => visibleElement(node) && !node.closest('[data-chatgptx-ext]') && !node.classList.contains(sessionShareButtonClass) && node.closest(headerSelector) === header);
+      .find((node) => visibleElement(node) && !node.closest('[data-swivox-ext]') && !node.classList.contains(sessionShareButtonClass) && node.closest(headerSelector) === header);
     const nativeGroup = nativeShare?.closest?.(".ms-auto");
     if (nativeGroup && header.contains(nativeGroup)) return nativeGroup;
     const groups = Array.from(header.querySelectorAll(".ms-auto"))
-      .filter((node) => visibleElement(node) && !node.closest('[data-chatgptx-ext]') && node.closest(headerSelector) === header);
+      .filter((node) => visibleElement(node) && !node.closest('[data-swivox-ext]') && node.closest(headerSelector) === header);
     return groups.length === 1 ? groups[0] : null;
   }
 
   function installSessionShareButton() {
     const existing = document.querySelectorAll(`.${sessionShareButtonClass}`);
     const ref = currentSessionRef();
-    const actionGroup = chatgptxSettings().sessionShare && ref.session_id ? sessionSharePlacement() : null;
+    const actionGroup = swivoxSettings().sessionShare && ref.session_id ? sessionSharePlacement() : null;
     if (!(actionGroup instanceof HTMLElement)) {
       existing.forEach((button) => button.remove());
       return;
@@ -12631,7 +12631,7 @@
       button.className = `${sessionShareButtonClass} ${headerContextButtonClass}`;
       button.textContent = "分享会话";
       button.setAttribute("aria-label", "分享当前会话");
-      button.setAttribute("data-chatgptx-ext", "session-share");
+      button.setAttribute("data-swivox-ext", "session-share");
       button.dataset.codexSessionShareVersion = sessionShareButtonVersion;
       button.addEventListener("click", (event) => {
         event.preventDefault();
@@ -12639,7 +12639,7 @@
         void createSessionShare();
       }, true);
     }
-    button.setAttribute("data-chatgptx-ext", "session-share");
+    button.setAttribute("data-swivox-ext", "session-share");
     button.style.position = "static";
     button.style.pointerEvents = "auto";
     button.style.webkitAppRegion = "no-drag";
@@ -12858,7 +12858,7 @@
     releaseDeleteFocus(row, button);
     if (!ref.host_id) {
       const evidence = sessionHostEvidenceFromRow(row, ref.session_id);
-      sendChatGPTXDiagnostic("delete_session_host_unresolved", {
+      sendSwivoxDiagnostic("delete_session_host_unresolved", {
         reason: evidence.reason, hostCount: evidence.hostCount, matchingMetadata: evidence.matchingMetadata,
         nativeHostAttributePresent: !!row.getAttribute("data-app-action-sidebar-thread-host-id"),
       });
@@ -13026,7 +13026,7 @@
    *
    *   本分片补上的就是这一段：横幅还在、原生又不再自动重试时，替用户点按钮。
    *   节奏默认与手动点击一致——上一轮失败后立刻重试（0 秒间隔，内部有 1 秒地板值
-   *   防热循环），间隔和次数上限都可以在 ChatGPTX 设置里改。
+   *   防热循环），间隔和次数上限都可以在 Swivox 设置里改。
    *
    *   原生那 4 档阶梯（10/30/120/300 秒）不是我们复刻的对象，也不等待：倒计时显示
    *   「10 秒后重试」时本功能同样在下一秒就把按钮点掉，等于把原生那 4 次也压成 0 秒。
@@ -13045,7 +13045,7 @@
    *      倒计时变体是 localConversation.serverOverloaded.retryCountdown
    *      （{seconds} 秒后重试 / Retry in {seconds}s）。
    */
-  const capacityAutoRetryChipId = "chatgptx-capacity-auto-retry";
+  const capacityAutoRetryChipId = "swivox-capacity-auto-retry";
   const capacityAutoRetryIdlePollMs = 2000;
   const capacityAutoRetryWaitingPollMs = 1000;
   const capacityAutoRetryAbsenceTicksBeforeReset = 3;
@@ -13068,7 +13068,7 @@
 
   function capacityAutoRetrySettings() {
     try {
-      return chatgptxSettings() || {};
+      return swivoxSettings() || {};
     } catch {
       return {};
     }
@@ -13100,13 +13100,13 @@
 
   function setCapacityAutoRetryMaxAttempts(value) {
     const next = normalizeCapacityAutoRetryMaxAttempts(value);
-    setChatGPTXSetting("capacityAutoRetryMaxAttempts", next);
+    setSwivoxSetting("capacityAutoRetryMaxAttempts", next);
     return next;
   }
 
   function setCapacityAutoRetryIntervalSeconds(value) {
     const next = normalizeCapacityAutoRetryIntervalSeconds(value);
-    setChatGPTXSetting("capacityAutoRetryIntervalSeconds", next);
+    setSwivoxSetting("capacityAutoRetryIntervalSeconds", next);
     return next;
   }
 
@@ -13158,7 +13158,7 @@
     chip = document.createElement("div");
     chip.id = capacityAutoRetryChipId;
     // 归属标记：扫描调度器据此忽略我们自己插入的节点，避免自喂扫描循环（issue #1960）。
-    chip.setAttribute("data-chatgptx-ext", "capacity-auto-retry");
+    chip.setAttribute("data-swivox-ext", "capacity-auto-retry");
     chip.setAttribute("role", "status");
     chip.style.cssText = [
       "position:fixed",
@@ -13179,15 +13179,15 @@
       "user-select:none",
     ].join(";");
     const text = document.createElement("span");
-    text.setAttribute("data-chatgptx-capacity-retry-text", "true");
+    text.setAttribute("data-swivox-capacity-retry-text", "true");
     const resume = document.createElement("button");
     resume.type = "button";
-    resume.setAttribute("data-chatgptx-capacity-retry-resume", "true");
+    resume.setAttribute("data-swivox-capacity-retry-resume", "true");
     resume.textContent = "继续";
     resume.style.cssText = "display:none;cursor:pointer;color:inherit;background:transparent;border:0;font:inherit;text-decoration:underline;padding:0";
     const stop = document.createElement("button");
     stop.type = "button";
-    stop.setAttribute("data-chatgptx-capacity-retry-stop", "true");
+    stop.setAttribute("data-swivox-capacity-retry-stop", "true");
     stop.textContent = "停止";
     stop.style.cssText = "display:none;cursor:pointer;color:inherit;background:transparent;border:0;font:inherit;text-decoration:underline;padding:0";
     resume.addEventListener("click", () => {
@@ -13221,9 +13221,9 @@
       chip.style.display = "none";
       return;
     }
-    const text = chip.querySelector("[data-chatgptx-capacity-retry-text]");
-    const resume = chip.querySelector("[data-chatgptx-capacity-retry-resume]");
-    const stop = chip.querySelector("[data-chatgptx-capacity-retry-stop]");
+    const text = chip.querySelector("[data-swivox-capacity-retry-text]");
+    const resume = chip.querySelector("[data-swivox-capacity-retry-resume]");
+    const stop = chip.querySelector("[data-swivox-capacity-retry-stop]");
     // 取不到子节点说明浮标被 Codex 的重渲染搬走了；这种情况下宁可只更新容器，
     // 也不要抛错中断整条重试链（注入层任何未捕获异常都会记进 scan 失败列表）。
     if (!text || !resume || !stop) {
@@ -13339,7 +13339,7 @@
    *
    * 幂等：开启时确保有一个定时器在跑，关闭时清干净（含浮标），可以随时重复调用。
    */
-  function syncChatGPTXCapacityAutoRetry() {
+  function syncSwivoxCapacityAutoRetry() {
     if (!capacityAutoRetryEnabled()) {
       clearTimeout(capacityAutoRetryState.timer);
       capacityAutoRetryState.timer = null;
@@ -13353,23 +13353,23 @@
   }
 
   // 诊断/联调入口：出问题时可在控制台直接看状态或强制走一轮。
-  window.__chatgptxCapacityAutoRetry = {
+  window.__swivoxCapacityAutoRetry = {
     state: capacityAutoRetryState,
     tick: capacityAutoRetryTick,
-    sync: syncChatGPTXCapacityAutoRetry,
+    sync: syncSwivoxCapacityAutoRetry,
     find: findCapacityAutoRetryBanner,
     intervalSeconds: capacityAutoRetryIntervalSeconds,
     maxAttempts: capacityAutoRetryMaxAttempts,
   };
 
-  syncChatGPTXCapacityAutoRetry();
+  syncSwivoxCapacityAutoRetry();
   /**
    * Codex 启动壳自救。
    *
    * 现象（本机实测，2026-10-12）：Codex 的原生启动画面有时会一直停住——DOM 里
    * 只剩 splash 容器（`div.flex.items-center.justify-center.relative.size-full`），
    * `#root` 的 innerText 始终为空、`<main>` 始终不出现；而注入层一切正常
-   * （`window.chatgptx` 已挂载、设置浮标在位、零异常），启动器侧
+   * （`window.swivox` 已挂载、设置浮标在位、零异常），启动器侧
    * `latest-status.json` 也一直是 `running` / `progress:100`。
    * 也就是说宿主没有任何信号能发现「页面没渲染出来」，用户只能自己按刷新。
    * 实测手动 reload 一次即恢复。
@@ -13382,7 +13382,7 @@
    *   - 每次加载最多刷一次，且与上次刷新间隔不足冷却时间就不再刷；
    *     写不进 sessionStorage 时宁可不刷，避免退化成刷新循环。
    */
-  const bootShellRecoveryStorageKey = "chatgptx.bootShellRecoveryAt";
+  const bootShellRecoveryStorageKey = "swivox.bootShellRecoveryAt";
   const bootShellRecoveryGraceMs = 20000;
   const bootShellRecoveryCooldownMs = 60000;
   const bootShellRecoveryPollMs = 1000;
@@ -13438,9 +13438,9 @@
       } catch {
         return;
       }
-      // 记一条诊断，事后能从 chatgptx.log 确认它真的触发过、卡了多久。
-      if (typeof sendChatGPTXDiagnostic === "function") {
-        sendChatGPTXDiagnostic("boot_shell_recovery_reload", {
+      // 记一条诊断，事后能从 swivox.log 确认它真的触发过、卡了多久。
+      if (typeof sendSwivoxDiagnostic === "function") {
+        sendSwivoxDiagnostic("boot_shell_recovery_reload", {
           waitedMs: Date.now() - startedAt,
         });
       }
@@ -13455,7 +13455,7 @@
    * 数据全部来自 Codex 自己写的 rollout 记录（`event_msg.token_count`），中文档口径
    * 与 Codex 一致：缓存命中 = cached_input_tokens / input_tokens，上下文占用 =
    * last_token_usage.total_tokens / model_context_window。这里的 model_context_window
-   * 正是 ChatGPTX 注入 model_catalog_json 后 Codex 认到的每模型窗口，所以按模型配置
+   * 正是 Swivox 注入 model_catalog_json 后 Codex 认到的每模型窗口，所以按模型配置
    * 窗口的功能会直接反映在这一项上。
    *
    * 为什么不复用 `/thread-usage-history`：那条路由按会话整读 rollout 并解析全部行，
@@ -13463,26 +13463,26 @@
    * `/thread-usage-live`，宿主只读文件尾部。
    *
    * 节点挂在输入卡片（[data-composer-surface-variant]）之后、同一父容器内，也就是
-   * 「输入框下方、卡片外」。节点带 data-chatgptx-ext，扫描调度器会把它排除在
+   * 「输入框下方、卡片外」。节点带 data-swivox-ext，扫描调度器会把它排除在
    * 自喂循环之外（issue #1960）。
    */
-  registerChatGPTXExtensionSelector('[data-chatgptx-ext="builtin-usage-statusline"]');
-  window.__chatgptxUsageStatusLineRuntime?.dispose?.();
+  registerSwivoxExtensionSelector('[data-swivox-ext="builtin-usage-statusline"]');
+  window.__swivoxUsageStatusLineRuntime?.dispose?.();
 
-  const chatgptxUsageStatusLineId = "chatgptx-usage-statusline";
-  const chatgptxUsageStyleId = "chatgptx-usage-statusline-style";
+  const swivoxUsageStatusLineId = "swivox-usage-statusline";
+  const swivoxUsageStyleId = "swivox-usage-statusline-style";
   /** 空闲轮询间隔；最近有 token 事件时切到活跃间隔。 */
-  const chatgptxUsageIdleIntervalMs = 5000;
+  const swivoxUsageIdleIntervalMs = 5000;
   /** 本轮在跑（最近有事件）时的间隔。 */
-  const chatgptxUsageActiveIntervalMs = 1200;
+  const swivoxUsageActiveIntervalMs = 1200;
   /** 已经拿到会话、但还没写出第一条 token 事件时的间隔。 */
-  const chatgptxUsageWarmupIntervalMs = 2500;
+  const swivoxUsageWarmupIntervalMs = 2500;
   /** 最近一条 token 事件超过这个时间就认为本轮已经结束，速度值转为淡化显示。 */
-  const chatgptxUsageStaleMs = 120000;
+  const swivoxUsageStaleMs = 120000;
   /** 连续失败到这个次数后停掉轮询，避免桥接不可用时每秒写诊断日志。 */
-  const chatgptxUsageFailureLimit = 5;
+  const swivoxUsageFailureLimit = 5;
 
-  const chatgptxUsageState = {
+  const swivoxUsageState = {
     disposed: false,
     timer: 0,
     node: null,
@@ -13493,40 +13493,40 @@
     lastFingerprint: "",
   };
 
-  const chatgptxUsageSvgNs = "http://www.w3.org/2000/svg";
+  const swivoxUsageSvgNs = "http://www.w3.org/2000/svg";
 
-  function chatgptxUsageText() {
+  function swivoxUsageText() {
     const language = (document.documentElement?.lang || navigator.language || "").toLowerCase();
     return language.startsWith("zh")
       ? { speed: (value) => `${value} tok/s`, cache: (value) => `缓存命中 ${value}`, context: (value) => value, aria: "用量状态栏" }
       : { speed: (value) => `${value} tok/s`, cache: (value) => `cache hit ${value}`, context: (value) => value, aria: "Usage status line" };
   }
 
-  function chatgptxUsageInstallStyle() {
-    if (document.getElementById(chatgptxUsageStyleId)) return;
+  function swivoxUsageInstallStyle() {
+    if (document.getElementById(swivoxUsageStyleId)) return;
     const style = document.createElement("style");
-    style.id = chatgptxUsageStyleId;
-    style.dataset.chatgptxExt = "builtin-usage-statusline";
+    style.id = swivoxUsageStyleId;
+    style.dataset.swivoxExt = "builtin-usage-statusline";
     style.textContent = `
       /* 颜色只用一层透明度：主题的 --color-token-text-secondary 本身就是 65% 透明，
          再叠容器 opacity 会掉到 0.3 出头，实测在 #141414 上几乎看不清。
          这里以主文字色取 82%，既够亮又略低于输入框文字。 */
       /* 三项作为一组居中，和 DSH 那条一致；两端对齐会把「上下文占用」甩到最右边，
          和速度、缓存拉得太开，读起来是两段信息。 */
-      #${chatgptxUsageStatusLineId}{display:flex;align-items:center;justify-content:center;gap:24px;box-sizing:border-box;width:100%;margin:6px 0 0;padding:0 10px;font:inherit;font-size:12px;line-height:17px;color:var(--color-token-text-secondary,rgba(205,205,215,.95));color:color-mix(in srgb,var(--color-token-text-primary,#dfdfdf) 82%,transparent);user-select:none;cursor:default}
-      #${chatgptxUsageStatusLineId}[data-hidden="true"]{display:none}
-      #${chatgptxUsageStatusLineId} .chatgptx-usage-item{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;font-variant-numeric:tabular-nums;transition:opacity .2s}
-      #${chatgptxUsageStatusLineId} .chatgptx-usage-value{font-weight:500}
-      #${chatgptxUsageStatusLineId} .chatgptx-usage-item svg{flex:0 0 auto;opacity:.8}
+      #${swivoxUsageStatusLineId}{display:flex;align-items:center;justify-content:center;gap:24px;box-sizing:border-box;width:100%;margin:6px 0 0;padding:0 10px;font:inherit;font-size:12px;line-height:17px;color:var(--color-token-text-secondary,rgba(205,205,215,.95));color:color-mix(in srgb,var(--color-token-text-primary,#dfdfdf) 82%,transparent);user-select:none;cursor:default}
+      #${swivoxUsageStatusLineId}[data-hidden="true"]{display:none}
+      #${swivoxUsageStatusLineId} .swivox-usage-item{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;font-variant-numeric:tabular-nums;transition:opacity .2s}
+      #${swivoxUsageStatusLineId} .swivox-usage-value{font-weight:500}
+      #${swivoxUsageStatusLineId} .swivox-usage-item svg{flex:0 0 auto;opacity:.8}
       /* 本轮结束超过阈值只淡化速度：缓存命中与上下文占用仍然是当前值，不该跟着变灰。 */
-      #${chatgptxUsageStatusLineId}[data-stale="true"] .chatgptx-usage-item[data-usage="speed"]{opacity:.55}
+      #${swivoxUsageStatusLineId}[data-stale="true"] .swivox-usage-item[data-usage="speed"]{opacity:.55}
     `;
     document.head?.appendChild(style);
   }
 
   /** 描边图标，尺寸与颜色都跟随文字，避免在浅色主题下露白。 */
-  function chatgptxUsageIcon(shapes) {
-    const svg = document.createElementNS(chatgptxUsageSvgNs, "svg");
+  function swivoxUsageIcon(shapes) {
+    const svg = document.createElementNS(swivoxUsageSvgNs, "svg");
     svg.setAttribute("viewBox", "0 0 16 16");
     svg.setAttribute("width", "13");
     svg.setAttribute("height", "13");
@@ -13537,7 +13537,7 @@
     svg.setAttribute("stroke-linejoin", "round");
     svg.setAttribute("aria-hidden", "true");
     const created = shapes.map((shape) => {
-      const node = document.createElementNS(chatgptxUsageSvgNs, shape.tag);
+      const node = document.createElementNS(swivoxUsageSvgNs, shape.tag);
       Object.entries(shape.attrs).forEach(([key, value]) => node.setAttribute(key, value));
       svg.appendChild(node);
       return node;
@@ -13546,23 +13546,23 @@
   }
 
   /** 上下文用进度环，环长 2πr；r=6 时周长约 37.7。 */
-  const chatgptxUsageRingCircumference = 37.7;
+  const swivoxUsageRingCircumference = 37.7;
 
-  function chatgptxUsageRingIcon() {
-    const icon = chatgptxUsageIcon([
+  function swivoxUsageRingIcon() {
+    const icon = swivoxUsageIcon([
       { tag: "circle", attrs: { cx: "8", cy: "8", r: "6", "stroke-opacity": ".3" } },
-      { tag: "circle", attrs: { cx: "8", cy: "8", r: "6", "stroke-dasharray": `0 ${chatgptxUsageRingCircumference}`, transform: "rotate(-90 8 8)" } },
+      { tag: "circle", attrs: { cx: "8", cy: "8", r: "6", "stroke-dasharray": `0 ${swivoxUsageRingCircumference}`, transform: "rotate(-90 8 8)" } },
     ]);
     return { svg: icon.svg, ring: icon.created[1] };
   }
 
-  function chatgptxUsageItem(node, key, label, icon) {
+  function swivoxUsageItem(node, key, label, icon) {
     const item = document.createElement("span");
-    item.className = "chatgptx-usage-item";
+    item.className = "swivox-usage-item";
     item.dataset.usage = key;
     item.appendChild(icon);
     const value = document.createElement("span");
-    value.className = "chatgptx-usage-value";
+    value.className = "swivox-usage-value";
     value.textContent = "--";
     item.appendChild(value);
     node.appendChild(item);
@@ -13570,31 +13570,31 @@
   }
 
   /** DOM 只建一次；之后每轮只改文本与环长，避免每秒重建节点触发扫描。 */
-  function chatgptxUsageBuild(node) {
+  function swivoxUsageBuild(node) {
     node.textContent = "";
-    const ring = chatgptxUsageRingIcon();
+    const ring = swivoxUsageRingIcon();
     const parts = {
-      speed: chatgptxUsageItem(node, "speed", "speed", chatgptxUsageIcon([
+      speed: swivoxUsageItem(node, "speed", "speed", swivoxUsageIcon([
         { tag: "path", attrs: { d: "M2 12.5a6 6 0 0 1 12 0" } },
         { tag: "path", attrs: { d: "M8 12.5 10.8 8.6" } },
       ]).svg),
-      cache: chatgptxUsageItem(node, "cache", "cache", chatgptxUsageIcon([
+      cache: swivoxUsageItem(node, "cache", "cache", swivoxUsageIcon([
         { tag: "path", attrs: { d: "M8 2.2c2.5 0 4.5.8 4.5 1.8S10.5 5.8 8 5.8 3.5 5 3.5 4 5.5 2.2 8 2.2Z" } },
         { tag: "path", attrs: { d: "M3.5 4v8c0 1 2 1.8 4.5 1.8s4.5-.8 4.5-1.8V4" } },
         { tag: "path", attrs: { d: "M3.5 8c0 1 2 1.8 4.5 1.8S12.5 9 12.5 8" } },
       ]).svg),
-      context: chatgptxUsageItem(node, "context", "context", ring.svg),
+      context: swivoxUsageItem(node, "context", "context", ring.svg),
       ring: ring.ring,
     };
-    chatgptxUsageState.parts = parts;
+    swivoxUsageState.parts = parts;
     return parts;
   }
 
-  function chatgptxUsageComposerCard() {
+  function swivoxUsageComposerCard() {
     const cards = [...document.querySelectorAll("[data-composer-surface-variant]")];
     let fallback = null;
     for (const card of cards) {
-      if (!visibleElement(card) || card.closest('[data-chatgptx-ext]')) continue;
+      if (!visibleElement(card) || card.closest('[data-swivox-ext]')) continue;
       fallback = card;
       // 首页可能同时挂着多个 composer 外壳；带真实输入框的那个才是当前会话。
       if (card.querySelector('.ProseMirror[contenteditable="true"], textarea:not(:disabled):not([readonly]), [role="textbox"][contenteditable="true"]')) {
@@ -13613,7 +13613,7 @@
    * 仍选中着上一个 thread，兜底会把上一个会话的读数挂到新会话上。
    * 新会话草稿的 id 形如 `local:client-new-thread:<uuid>`，还没有 rollout，直接当作无会话。
    */
-  function chatgptxUsageThreadId(card) {
+  function swivoxUsageThreadId(card) {
     const composerRoot = card?.closest("[data-codex-composer-root]");
     const fromComposer = composerRoot
       ?.querySelector("[data-above-composer-conversation-id]")
@@ -13629,39 +13629,39 @@
     return /^[A-Za-z0-9_.-]{8,128}$/.test(id) ? id : "";
   }
 
-  function chatgptxUsageEnsureNode(card) {
+  function swivoxUsageEnsureNode(card) {
     const host = card?.parentElement;
     if (!host) return null;
-    let node = chatgptxUsageState.node;
+    let node = swivoxUsageState.node;
     if (node?.isConnected && node.previousElementSibling === card) return node;
     if (!node) {
       node = document.createElement("div");
-      node.id = chatgptxUsageStatusLineId;
-      node.setAttribute("data-chatgptx-ext", "builtin-usage-statusline");
+      node.id = swivoxUsageStatusLineId;
+      node.setAttribute("data-swivox-ext", "builtin-usage-statusline");
       node.setAttribute("role", "status");
-      chatgptxUsageState.node = node;
+      swivoxUsageState.node = node;
     }
     card.insertAdjacentElement("afterend", node);
     return node;
   }
 
-  function chatgptxUsageHide() {
-    const node = chatgptxUsageState.node;
+  function swivoxUsageHide() {
+    const node = swivoxUsageState.node;
     if (node) {
       // 只切属性、不摘节点：新会话在第一条 token 事件写出前会反复走空数据路径，
       // 每秒增删一次节点既浪费又会让 Codex 的 MutationObserver 空转。
       node.dataset.hidden = "true";
     }
-    chatgptxUsageState.lastFingerprint = "";
+    swivoxUsageState.lastFingerprint = "";
   }
 
-  function chatgptxUsageShow(node) {
+  function swivoxUsageShow(node) {
     if (node.dataset.hidden !== "true") return;
     node.dataset.hidden = "false";
-    chatgptxUsageState.lastFingerprint = "";
+    swivoxUsageState.lastFingerprint = "";
   }
 
-  function chatgptxUsagePercent(numerator, denominator) {
+  function swivoxUsagePercent(numerator, denominator) {
     if (!(denominator > 0) || !(numerator >= 0)) return null;
     return Math.min(100, Math.max(0, (numerator / denominator) * 100));
   }
@@ -13674,7 +13674,7 @@
    * 相邻事件的累计输出差除以时间差得到区间速度，再取最近几个区间平均，避免单次
    * 抖动。换轮时 turn_output_tokens 会回落，靠这个切段。
    */
-  function chatgptxUsageRate(events) {
+  function swivoxUsageRate(events) {
     const rates = [];
     for (let index = 1; index < events.length; index += 1) {
       const previous = events[index - 1];
@@ -13694,25 +13694,25 @@
     return recent.reduce((total, rate) => total + rate, 0) / recent.length;
   }
 
-  function chatgptxUsageSnapshot(events) {
+  function swivoxUsageSnapshot(events) {
     if (!Array.isArray(events) || !events.length) return null;
     const latest = events[events.length - 1];
     const observedAt = Date.parse(latest.t);
     return {
-      speed: chatgptxUsageRate(events),
-      cache: chatgptxUsagePercent(Number(latest.cached_input_tokens), Number(latest.input_tokens)),
-      context: chatgptxUsagePercent(Number(latest.total_tokens), Number(latest.context_window)),
-      stale: Number.isFinite(observedAt) ? Date.now() - observedAt > chatgptxUsageStaleMs : false,
+      speed: swivoxUsageRate(events),
+      cache: swivoxUsagePercent(Number(latest.cached_input_tokens), Number(latest.input_tokens)),
+      context: swivoxUsagePercent(Number(latest.total_tokens), Number(latest.context_window)),
+      stale: Number.isFinite(observedAt) ? Date.now() - observedAt > swivoxUsageStaleMs : false,
       modelContextWindow: Number(latest.context_window) || 0,
     };
   }
 
   /** `snapshot` 为 null 时渲染占位符：会话已确定但还没有第一条 token 事件。 */
-  function chatgptxUsageRender(snapshot) {
-    const node = chatgptxUsageState.node;
+  function swivoxUsageRender(snapshot) {
+    const node = swivoxUsageState.node;
     if (!node?.isConnected) return;
-    const parts = chatgptxUsageState.parts || chatgptxUsageBuild(node);
-    const text = chatgptxUsageText();
+    const parts = swivoxUsageState.parts || swivoxUsageBuild(node);
+    const text = swivoxUsageText();
     const format = (value) => (value === null || value === undefined || Number.isNaN(value) ? "--" : value);
     const speed = snapshot?.speed == null ? "--" : String(Math.max(0, Math.round(snapshot.speed)));
     const cache = snapshot?.cache == null ? "--" : `${snapshot.cache.toFixed(1)}%`;
@@ -13721,15 +13721,15 @@
     const contextWindow = snapshot?.modelContextWindow || 0;
     // 指纹一样就不写 DOM：每秒一次无意义赋值会让 Codex 的 MutationObserver 空转。
     const fingerprint = [speed, cache, context, stale, contextWindow].join("|");
-    if (fingerprint === chatgptxUsageState.lastFingerprint) return;
-    chatgptxUsageState.lastFingerprint = fingerprint;
+    if (fingerprint === swivoxUsageState.lastFingerprint) return;
+    swivoxUsageState.lastFingerprint = fingerprint;
 
     parts.speed.value.textContent = text.speed(speed);
     parts.cache.value.textContent = text.cache(cache);
     parts.context.value.textContent = text.context(context);
     if (parts.ring) {
-      const filled = snapshot?.context == null ? 0 : (snapshot.context / 100) * chatgptxUsageRingCircumference;
-      parts.ring.setAttribute("stroke-dasharray", `${filled.toFixed(2)} ${chatgptxUsageRingCircumference}`);
+      const filled = snapshot?.context == null ? 0 : (snapshot.context / 100) * swivoxUsageRingCircumference;
+      parts.ring.setAttribute("stroke-dasharray", `${filled.toFixed(2)} ${swivoxUsageRingCircumference}`);
     }
     node.dataset.stale = String(stale);
     node.setAttribute("title", [
@@ -13741,117 +13741,117 @@
     node.setAttribute("aria-label", `${text.aria}：${text.speed(speed)}，${text.cache(cache)}，${context}`);
   }
 
-  function chatgptxUsageSchedule(delay) {
-    if (chatgptxUsageState.disposed) return;
-    clearTimeout(chatgptxUsageState.timer);
-    chatgptxUsageState.timer = window.setTimeout(chatgptxUsageTick, delay);
+  function swivoxUsageSchedule(delay) {
+    if (swivoxUsageState.disposed) return;
+    clearTimeout(swivoxUsageState.timer);
+    swivoxUsageState.timer = window.setTimeout(swivoxUsageTick, delay);
   }
 
-  function chatgptxUsageEnabled() {
-    return !chatgptxUsageState.disposed
-      && chatgptxBackendSettingsLoaded
-      && chatgptxSettings().usageStatusLine === true;
+  function swivoxUsageEnabled() {
+    return !swivoxUsageState.disposed
+      && swivoxBackendSettingsLoaded
+      && swivoxSettings().usageStatusLine === true;
   }
 
-  async function chatgptxUsageRefresh(threadId) {
-    if (chatgptxUsageState.inFlight) return null;
-    chatgptxUsageState.inFlight = true;
+  async function swivoxUsageRefresh(threadId) {
+    if (swivoxUsageState.inFlight) return null;
+    swivoxUsageState.inFlight = true;
     try {
       const result = await postJson("/thread-usage-live", { session_id: threadId });
       if (result?.status !== "ok" || !Array.isArray(result.events)) {
-        chatgptxUsageState.failures += 1;
+        swivoxUsageState.failures += 1;
         return null;
       }
-      chatgptxUsageState.failures = 0;
+      swivoxUsageState.failures = 0;
       return result.events;
     } finally {
-      chatgptxUsageState.inFlight = false;
+      swivoxUsageState.inFlight = false;
     }
   }
 
-  async function chatgptxUsageTick() {
-    if (chatgptxUsageState.disposed) return;
-    if (!chatgptxUsageEnabled()) {
-      chatgptxUsageHide();
-      chatgptxUsageSchedule(chatgptxUsageIdleIntervalMs);
+  async function swivoxUsageTick() {
+    if (swivoxUsageState.disposed) return;
+    if (!swivoxUsageEnabled()) {
+      swivoxUsageHide();
+      swivoxUsageSchedule(swivoxUsageIdleIntervalMs);
       return;
     }
     // 页面不可见时不拉数据，但保留轮询，切回来下一拍就会刷新。
     if (document.hidden) {
-      chatgptxUsageSchedule(chatgptxUsageIdleIntervalMs);
+      swivoxUsageSchedule(swivoxUsageIdleIntervalMs);
       return;
     }
-    const card = chatgptxUsageComposerCard();
-    const threadId = chatgptxUsageThreadId(card);
+    const card = swivoxUsageComposerCard();
+    const threadId = swivoxUsageThreadId(card);
     if (!card || !threadId) {
-      chatgptxUsageHide();
-      chatgptxUsageState.threadId = "";
-      chatgptxUsageSchedule(chatgptxUsageIdleIntervalMs);
+      swivoxUsageHide();
+      swivoxUsageState.threadId = "";
+      swivoxUsageSchedule(swivoxUsageIdleIntervalMs);
       return;
     }
-    chatgptxUsageInstallStyle();
-    const node = chatgptxUsageEnsureNode(card);
+    swivoxUsageInstallStyle();
+    const node = swivoxUsageEnsureNode(card);
     if (!node) {
-      chatgptxUsageSchedule(chatgptxUsageIdleIntervalMs);
+      swivoxUsageSchedule(swivoxUsageIdleIntervalMs);
       return;
     }
     // 换会话时清掉上一个会话的读数，避免把旧数字挂在新会话上。
-    if (chatgptxUsageState.threadId !== threadId && chatgptxUsageState.node === node) {
-      chatgptxUsageState.threadId = threadId;
-      chatgptxUsageState.lastFingerprint = "";
+    if (swivoxUsageState.threadId !== threadId && swivoxUsageState.node === node) {
+      swivoxUsageState.threadId = threadId;
+      swivoxUsageState.lastFingerprint = "";
     }
     let events = null;
     try {
-      events = await chatgptxUsageRefresh(threadId);
+      events = await swivoxUsageRefresh(threadId);
     } catch (error) {
-      chatgptxUsageState.failures += 1;
-      if (chatgptxUsageState.failures === chatgptxUsageFailureLimit) {
-        sendChatGPTXDiagnostic("usage_statusline_bridge_failed", {
+      swivoxUsageState.failures += 1;
+      if (swivoxUsageState.failures === swivoxUsageFailureLimit) {
+        sendSwivoxDiagnostic("usage_statusline_bridge_failed", {
           errorName: error?.name || "",
           errorMessage: error?.message || String(error),
         });
       }
     }
-    if (chatgptxUsageState.disposed) return;
-    const snapshot = events ? chatgptxUsageSnapshot(events) : null;
+    if (swivoxUsageState.disposed) return;
+    const snapshot = events ? swivoxUsageSnapshot(events) : null;
     if (snapshot) {
-      chatgptxUsageShow(node);
-      chatgptxUsageRender(snapshot);
+      swivoxUsageShow(node);
+      swivoxUsageRender(snapshot);
       // 刚有事件说明本轮在跑，加密轮询；本轮已经结束就拉长间隔。
-      chatgptxUsageSchedule(snapshot.stale ? chatgptxUsageIdleIntervalMs : chatgptxUsageActiveIntervalMs);
+      swivoxUsageSchedule(snapshot.stale ? swivoxUsageIdleIntervalMs : swivoxUsageActiveIntervalMs);
       return;
     }
-    if (chatgptxUsageState.failures >= chatgptxUsageFailureLimit) {
+    if (swivoxUsageState.failures >= swivoxUsageFailureLimit) {
       // 桥接连续失败：整条隐藏，退到慢轮询，等宿主恢复。
-      chatgptxUsageHide();
-      chatgptxUsageSchedule(30000);
+      swivoxUsageHide();
+      swivoxUsageSchedule(30000);
       return;
     }
     // 会话已经确定、只是还没写出 token 事件（新会话第一轮）：先显示占位符，
     // 用较慢的间隔等第一条数据，避免空转。
-    chatgptxUsageShow(node);
-    chatgptxUsageRender(null);
-    chatgptxUsageSchedule(chatgptxUsageWarmupIntervalMs);
+    swivoxUsageShow(node);
+    swivoxUsageRender(null);
+    swivoxUsageSchedule(swivoxUsageWarmupIntervalMs);
   }
 
-  chatgptxUsageInstallStyle();
-  chatgptxUsageSchedule(600);
-  window.__chatgptxUsageStatusLineRuntime = {
+  swivoxUsageInstallStyle();
+  swivoxUsageSchedule(600);
+  window.__swivoxUsageStatusLineRuntime = {
     version: 1,
-    sync: () => chatgptxUsageSchedule(0),
+    sync: () => swivoxUsageSchedule(0),
     dispose() {
-      chatgptxUsageState.disposed = true;
-      clearTimeout(chatgptxUsageState.timer);
-      chatgptxUsageState.timer = 0;
+      swivoxUsageState.disposed = true;
+      clearTimeout(swivoxUsageState.timer);
+      swivoxUsageState.timer = 0;
       // 卸载时把节点整个摘掉：注入会被重跑，留一个隐藏节点等于每次重注入多挂一个。
-      chatgptxUsageState.node?.remove();
-      chatgptxUsageState.node = null;
-      chatgptxUsageState.parts = null;
-      chatgptxUsageState.lastFingerprint = "";
-      globalThis.__CHATGPTX_USAGE_STATUSLINE_SYNC__ = undefined;
+      swivoxUsageState.node?.remove();
+      swivoxUsageState.node = null;
+      swivoxUsageState.parts = null;
+      swivoxUsageState.lastFingerprint = "";
+      globalThis.__SWIVOX_USAGE_STATUSLINE_SYNC__ = undefined;
     },
   };
-  globalThis.__CHATGPTX_USAGE_STATUSLINE_SYNC__ = () => chatgptxUsageSchedule(0);
+  globalThis.__SWIVOX_USAGE_STATUSLINE_SYNC__ = () => swivoxUsageSchedule(0);
   function syncActionGroupsLayout(force = false) {
     syncActionGroupLayouts(sessionRows().map(row => ({
       row, group: actionGroupFromRow(row),
@@ -14020,8 +14020,8 @@
   }
 
   function attachButton(row) {
-    const settings = chatgptxSettings();
-    const sessionMenuEnabled = chatgptxBackendSettings.enhancementsEnabled !== false;
+    const settings = swivoxSettings();
+    const sessionMenuEnabled = swivoxBackendSettings.enhancementsEnabled !== false;
     if (!settings.sessionDelete && !settings.markdownExport && !sessionMenuEnabled) {
       removeActionGroups(row);
       row.dataset.codexDeleteRow = "false";
@@ -14069,7 +14069,7 @@
         }));
       }
       if (sessionMenuEnabled) {
-        const sessionCopyItem = createSessionMoreMenuItem("原地复制会话 - ChatGPTX", "⧉", activateSessionCopyMenuItem);
+        const sessionCopyItem = createSessionMoreMenuItem("原地复制会话 - Swivox", "⧉", activateSessionCopyMenuItem);
         sessionCopyItem.dataset.codexSessionCopyMenu = "true";
         sessionCopyItem.dataset.codexSessionCopyVersion = sessionCopyMenuItemVersion;
         sessionCopyItem.__codexSessionCopyRow = row;
@@ -14081,7 +14081,7 @@
       }
       // 拓展注册的会话行操作追加在内置项之后。菜单每次重建（版本号变化）都会
       // 重新走一遍这里，所以拓展项不会因为重建而丢失。
-      appendChatGPTXExtensionRowActions(moreMenu, row, moreButton);
+      appendSwivoxExtensionRowActions(moreMenu, row, moreButton);
       const openMoreMenu = (event) => {
         stopActionButtonEvent(row, moreButton, event);
         hideActionButtonTooltip();
@@ -14174,7 +14174,7 @@
   }
 
   function attachArchivedPageDeleteButton(row) {
-    const settings = chatgptxSettings();
+    const settings = swivoxSettings();
     row.querySelectorAll("[data-codex-archive-row-action]").forEach((button) => button.remove());
     row.dataset.codexArchiveDeleteRow = "false";
     if (!settings.sessionDelete && !settings.markdownExport) return;
@@ -14348,7 +14348,7 @@
   function conversationViewSafeWidthNode(el) {
     if (!el) return false;
     if (["MAIN", "ASIDE", "NAV", "HEADER", "BODY", "HTML"].includes(el.tagName)) return false;
-    if (el.closest?.(`${conversationViewPaneBoundarySelector}, [data-chatgptx-ext]`)) return false;
+    if (el.closest?.(`${conversationViewPaneBoundarySelector}, [data-swivox-ext]`)) return false;
     // CSS 变量可继承给整棵布局树；包含其他 pane 的祖先不能改 width/margin/left。
     // composer 内的状态提示也会用 aside，不能仅按语义标签把它误判为侧栏。
     return !el.querySelector?.(`${conversationViewPaneBoundarySelector}, .thread-scroll-container`);
@@ -14368,14 +14368,14 @@
   function conversationViewFootersFor(scroller) {
     return Array.from(document.querySelectorAll(conversationViewFooterSelector)).filter((footer) => {
       if (typeof visibleElement === "function" && !visibleElement(footer)) return false;
-      return !footer.closest?.(`${conversationViewPaneBoundarySelector}, [data-chatgptx-ext]`) && conversationViewSamePane(scroller, footer);
+      return !footer.closest?.(`${conversationViewPaneBoundarySelector}, [data-swivox-ext]`) && conversationViewSamePane(scroller, footer);
     });
   }
 
   function conversationViewFindNativeComposer(scroller) {
     const roots = Array.from(document.querySelectorAll("[data-codex-composer-root]"))
       .filter((el) => (typeof visibleElement !== "function" || visibleElement(el))
-        && !el.closest?.(`${conversationViewPaneBoundarySelector}, [data-chatgptx-ext]`) && (!scroller || conversationViewSamePane(scroller, el)));
+        && !el.closest?.(`${conversationViewPaneBoundarySelector}, [data-swivox-ext]`) && (!scroller || conversationViewSamePane(scroller, el)));
     if (roots.length !== 1) return null;
     const root = roots[0];
     const accept = (el) => conversationViewLooksLikeThreadWidthBox(el) && conversationViewSafeWidthNode(el)
@@ -14581,7 +14581,7 @@
     const threadComposer = conversationViewFindComposerEl();
     if (threadComposer && codexServiceTierBadgeVisibleElement(threadComposer)) return [threadComposer];
     const footers = codexServiceTierVisibleComposerFooters().filter((footer) =>
-      !footer.closest?.(`${conversationViewPaneBoundarySelector}, [data-chatgptx-ext]`));
+      !footer.closest?.(`${conversationViewPaneBoundarySelector}, [data-swivox-ext]`));
     // 只认唯一的原生 footer；不能爬到页面/侧栏祖先，或把 review 的栏当成输入区。
     return footers.length === 1 ? footers : [];
   }
@@ -14657,7 +14657,7 @@
   }
 
   function installCodexServiceTierBadge() {
-    if (!chatgptxSettings().serviceTierControls) {
+    if (!swivoxSettings().serviceTierControls) {
       removeCodexServiceTierBadges();
       return;
     }
@@ -14703,51 +14703,51 @@
       transform: el.style.transform || "",
       boxSizing: el.style.boxSizing || "",
     };
-    if (!("chatgptxConversationViewOriginalWidth" in el.dataset)) el.dataset.chatgptxConversationViewOriginalWidth = original.width;
-    if (!("chatgptxConversationViewOriginalMaxWidth" in el.dataset)) el.dataset.chatgptxConversationViewOriginalMaxWidth = original.maxWidth;
-    if (!("chatgptxConversationViewOriginalMarginLeft" in el.dataset)) el.dataset.chatgptxConversationViewOriginalMarginLeft = original.marginLeft;
-    if (!("chatgptxConversationViewOriginalMarginRight" in el.dataset)) el.dataset.chatgptxConversationViewOriginalMarginRight = original.marginRight;
-    if (!("chatgptxConversationViewOriginalLeft" in el.dataset)) el.dataset.chatgptxConversationViewOriginalLeft = original.left;
-    if (!("chatgptxConversationViewOriginalTransform" in el.dataset)) el.dataset.chatgptxConversationViewOriginalTransform = original.transform;
-    if (!("chatgptxConversationViewOriginalBoxSizing" in el.dataset)) el.dataset.chatgptxConversationViewOriginalBoxSizing = original.boxSizing;
+    if (!("swivoxConversationViewOriginalWidth" in el.dataset)) el.dataset.swivoxConversationViewOriginalWidth = original.width;
+    if (!("swivoxConversationViewOriginalMaxWidth" in el.dataset)) el.dataset.swivoxConversationViewOriginalMaxWidth = original.maxWidth;
+    if (!("swivoxConversationViewOriginalMarginLeft" in el.dataset)) el.dataset.swivoxConversationViewOriginalMarginLeft = original.marginLeft;
+    if (!("swivoxConversationViewOriginalMarginRight" in el.dataset)) el.dataset.swivoxConversationViewOriginalMarginRight = original.marginRight;
+    if (!("swivoxConversationViewOriginalLeft" in el.dataset)) el.dataset.swivoxConversationViewOriginalLeft = original.left;
+    if (!("swivoxConversationViewOriginalTransform" in el.dataset)) el.dataset.swivoxConversationViewOriginalTransform = original.transform;
+    if (!("swivoxConversationViewOriginalBoxSizing" in el.dataset)) el.dataset.swivoxConversationViewOriginalBoxSizing = original.boxSizing;
   }
 
   function conversationViewRestoreElement(el) {
     if (!el) return;
-    if ("chatgptxConversationViewOriginalWidth" in el.dataset) {
-      el.style.width = el.dataset.chatgptxConversationViewOriginalWidth;
-      delete el.dataset.chatgptxConversationViewOriginalWidth;
+    if ("swivoxConversationViewOriginalWidth" in el.dataset) {
+      el.style.width = el.dataset.swivoxConversationViewOriginalWidth;
+      delete el.dataset.swivoxConversationViewOriginalWidth;
     }
-    if ("chatgptxConversationViewOriginalMaxWidth" in el.dataset) {
-      el.style.maxWidth = el.dataset.chatgptxConversationViewOriginalMaxWidth;
-      delete el.dataset.chatgptxConversationViewOriginalMaxWidth;
+    if ("swivoxConversationViewOriginalMaxWidth" in el.dataset) {
+      el.style.maxWidth = el.dataset.swivoxConversationViewOriginalMaxWidth;
+      delete el.dataset.swivoxConversationViewOriginalMaxWidth;
     }
-    if ("chatgptxConversationViewOriginalMarginLeft" in el.dataset) {
-      el.style.marginLeft = el.dataset.chatgptxConversationViewOriginalMarginLeft;
-      delete el.dataset.chatgptxConversationViewOriginalMarginLeft;
+    if ("swivoxConversationViewOriginalMarginLeft" in el.dataset) {
+      el.style.marginLeft = el.dataset.swivoxConversationViewOriginalMarginLeft;
+      delete el.dataset.swivoxConversationViewOriginalMarginLeft;
     }
-    if ("chatgptxConversationViewOriginalMarginRight" in el.dataset) {
-      el.style.marginRight = el.dataset.chatgptxConversationViewOriginalMarginRight;
-      delete el.dataset.chatgptxConversationViewOriginalMarginRight;
+    if ("swivoxConversationViewOriginalMarginRight" in el.dataset) {
+      el.style.marginRight = el.dataset.swivoxConversationViewOriginalMarginRight;
+      delete el.dataset.swivoxConversationViewOriginalMarginRight;
     }
-    if ("chatgptxConversationViewOriginalLeft" in el.dataset) {
-      el.style.left = el.dataset.chatgptxConversationViewOriginalLeft;
-      delete el.dataset.chatgptxConversationViewOriginalLeft;
+    if ("swivoxConversationViewOriginalLeft" in el.dataset) {
+      el.style.left = el.dataset.swivoxConversationViewOriginalLeft;
+      delete el.dataset.swivoxConversationViewOriginalLeft;
     }
-    if ("chatgptxConversationViewOriginalTransform" in el.dataset) {
-      el.style.transform = el.dataset.chatgptxConversationViewOriginalTransform;
-      delete el.dataset.chatgptxConversationViewOriginalTransform;
+    if ("swivoxConversationViewOriginalTransform" in el.dataset) {
+      el.style.transform = el.dataset.swivoxConversationViewOriginalTransform;
+      delete el.dataset.swivoxConversationViewOriginalTransform;
     }
-    if ("chatgptxConversationViewOriginalBoxSizing" in el.dataset) {
-      el.style.boxSizing = el.dataset.chatgptxConversationViewOriginalBoxSizing;
-      delete el.dataset.chatgptxConversationViewOriginalBoxSizing;
+    if ("swivoxConversationViewOriginalBoxSizing" in el.dataset) {
+      el.style.boxSizing = el.dataset.swivoxConversationViewOriginalBoxSizing;
+      delete el.dataset.swivoxConversationViewOriginalBoxSizing;
     }
   }
 
   function conversationViewResetOwnOffset(el) {
     if (!el) return;
-    const originalTransform = el.dataset.chatgptxConversationViewOriginalTransform || "";
-    const originalLeft = el.dataset.chatgptxConversationViewOriginalLeft || "";
+    const originalTransform = el.dataset.swivoxConversationViewOriginalTransform || "";
+    const originalLeft = el.dataset.swivoxConversationViewOriginalLeft || "";
     if (el.style.left !== originalLeft) el.style.left = originalLeft;
     if (el.style.transform !== originalTransform) el.style.transform = originalTransform;
     const transform = String(el.style.transform || "").trim();
@@ -14837,7 +14837,7 @@
   }
 
   function conversationViewAlignNow() {
-    if (!chatgptxSettings().conversationView) return;
+    if (!swivoxSettings().conversationView) return;
     conversationViewResolveTargets();
     const targets = [
       conversationViewState.contentEl,
@@ -14882,7 +14882,7 @@
     if (conversationViewState.targetsReported) return;
     conversationViewState.targetsReported = true;
     const scroller = conversationViewScrollContainer();
-    sendChatGPTXDiagnostic("conversation_view_target_not_found", {
+    sendSwivoxDiagnostic("conversation_view_target_not_found", {
       hasScrollContainer: !!scroller,
       hasContentAnchor: !!document.querySelector(conversationViewContentAnchorSelector),
       hasFooter: !!document.querySelector(conversationViewFooterSelector),
@@ -14930,38 +14930,38 @@
     conversationViewState.composerEl = null;
   }
 
-  window.__chatgptxConversationViewCleanup = cleanupConversationView;
+  window.__swivoxConversationViewCleanup = cleanupConversationView;
   /**
-   * 对外接口层：window.chatgptx
+   * 对外接口层：window.swivox
    *
-   * 第三方用户脚本不认识 ChatGPTX 内部的闭包函数，只能通过这个对象调用能力。
+   * 第三方用户脚本不认识 Swivox 内部的闭包函数，只能通过这个对象调用能力。
    * 设计要点：
    *
-   *   1. 只挂一个全局名。之前 42 个 window.__chatgptx* 里绝大多数是补丁哨兵，
+   *   1. 只挂一个全局名。之前 42 个 window.__swivox* 里绝大多数是补丁哨兵，
    *      对外没有价值；新能力统一收进这里，避免命名空间继续发散。
    *   2. 注册表持久、DOM 瞬态。每个 register* 只把数据写进注册中心，渲染由消费方
    *      负责。第三方不需要关心宿主何时重建（overlay 重开、会话行重建）。
-   *   3. 失败隔离。第三方回调一律经 runChatGPTXExtensionCallback 包一层，抛错
-   *      记进该脚本的状态通道，不会让 ChatGPTX 自己的 UI 白屏。
+   *   3. 失败隔离。第三方回调一律经 runSwivoxExtensionCallback 包一层，抛错
+   *      记进该脚本的状态通道，不会让 Swivox 自己的 UI 白屏。
    *
    * 这个分片必须在 renderer-inject 内部的所有 UI 消费方之前执行，因为它只做定义、
    * 不读 DOM；实际挂载发生在 99-tail 之前，那时所有依赖函数都已可用。
    */
-  const chatgptxExtensionApiVersion = 1;
-  const chatgptxExtensionAdapterVersion = "1.0.0";
+  const swivoxExtensionApiVersion = 1;
+  const swivoxExtensionAdapterVersion = "1.0.0";
 
   /** 类名与属性契约。一旦发布不再更名，新增用新名字。 */
-  const chatgptxExtensionConstants = {
-    pageClass: chatgptxPageClass,
-    pageNavAttribute: "data-chatgptx-page-nav",
-    railSelector: chatgptxRailSelector,
-    railDestinationSelector: chatgptxRailDestinationSelector,
+  const swivoxExtensionConstants = {
+    pageClass: swivoxPageClass,
+    pageNavAttribute: "data-swivox-page-nav",
+    railSelector: swivoxRailSelector,
+    railDestinationSelector: swivoxRailDestinationSelector,
     actionGroupClass,
     moreMenuClass,
     toastClass: "codex-delete-toast",
     // 拓展自己插入的节点必须带这个属性，值是该脚本的 key。
     // 扫描调度靠它把拓展的写入排除在自喂循环之外（issue #1960）。
-    extensionAttribute: "data-chatgptx-ext",
+    extensionAttribute: "data-swivox-ext",
   };
 
   /**
@@ -14970,7 +14970,7 @@
    * 刻意做成白名单而不是黑名单：新增路由时默认不可用，需要显式决定是否开放，
    * 避免内部路由（例如 `/settings/set`、`/manager/open-transient`）被顺手暴露出去。
    */
-  const chatgptxExtensionRoutes = new Set([
+  const swivoxExtensionRoutes = new Set([
     "/diagnostics/log",
     "/session/export",
     "/thread-usage-history",
@@ -14980,7 +14980,7 @@
   ]);
 
   /** 单次调用的默认超时，略短于桥接自身的 26s，让拓展先拿到可读的错误。 */
-  const chatgptxExtensionCallTimeoutMs = 26000;
+  const swivoxExtensionCallTimeoutMs = 26000;
 
   /**
    * 调用后端。
@@ -14989,15 +14989,15 @@
    * 会话删除）、没有超时、错误风格不统一（路由层返回 {status:"failed"}，浮层面板
    * 返回 {error}）。这里统一成 Promise reject，让拓展用 try/catch。
    */
-  function chatgptxExtensionCall(route, payload = {}, options = {}) {
-    if (typeof route !== "string" || !chatgptxExtensionRoutes.has(route)) {
+  function swivoxExtensionCall(route, payload = {}, options = {}) {
+    if (typeof route !== "string" || !swivoxExtensionRoutes.has(route)) {
       return Promise.reject(new Error(`未开放的路由：${route}`));
     }
     const bridge = window.__codexSessionDeleteBridge;
     if (typeof bridge !== "function") {
       return Promise.reject(new Error("Codex 页面尚未连接，请稍后重试"));
     }
-    const timeout = Number.isFinite(options.timeout) ? Number(options.timeout) : chatgptxExtensionCallTimeoutMs;
+    const timeout = Number.isFinite(options.timeout) ? Number(options.timeout) : swivoxExtensionCallTimeoutMs;
     // 桥接协议没有 cancel 通道，超时只能放弃等待，服务端任务仍会跑完。
     const request = bridge(route, payload);
     return new Promise((resolve, reject) => {
@@ -15027,27 +15027,27 @@
    * 丢失归属，出问题时无法定位到是哪个脚本，扫描调度也认不出它的节点。
    * 这里保留 options.scriptKey 作为显式覆盖，默认回退到 currentKey。
    */
-  function chatgptxCurrentExtensionScriptKey(options) {
-    return options?.scriptKey || window.__chatgptxUserScripts?.currentKey || "";
+  function swivoxCurrentExtensionScriptKey(options) {
+    return options?.scriptKey || window.__swivoxUserScripts?.currentKey || "";
   }
 
   /** 注册一个带 order 的拓展项，统一处理 id 前缀与失败上报。 */
-  function chatgptxRegisterExtensionItem(kind, registry, definition, options = {}) {
-    const scriptKey = chatgptxCurrentExtensionScriptKey(options);
-    const id = `${scriptKey}:${kind}:${options.id || chatgptxExtensionIdSeed()}`;
-    const dispose = registerChatGPTXExtension(kind, registry, id, definition, scriptKey);
+  function swivoxRegisterExtensionItem(kind, registry, definition, options = {}) {
+    const scriptKey = swivoxCurrentExtensionScriptKey(options);
+    const id = `${scriptKey}:${kind}:${options.id || swivoxExtensionIdSeed()}`;
+    const dispose = registerSwivoxExtension(kind, registry, id, definition, scriptKey);
     // 注册后立刻让所有入口重画一次，否则用户要等下一次 scan 才看得到新项。
-    chatgptxRefreshExtensionHosts();
+    swivoxRefreshExtensionHosts();
     return () => {
       dispose();
-      chatgptxRefreshExtensionHosts();
+      swivoxRefreshExtensionHosts();
     };
   }
 
-  let chatgptxExtensionIdCounter = 0;
-  function chatgptxExtensionIdSeed() {
-    chatgptxExtensionIdCounter += 1;
-    return `item-${chatgptxExtensionIdCounter}`;
+  let swivoxExtensionIdCounter = 0;
+  function swivoxExtensionIdSeed() {
+    swivoxExtensionIdCounter += 1;
+    return `item-${swivoxExtensionIdCounter}`;
   }
 
   /**
@@ -15056,12 +15056,12 @@
    * 每个消息都可能有消费方尚未初始化（例如浮层面板按需注入、overlay 未打开），
    * 所以逐项 try/catch，任何一个不存在或抛错都不影响其余。
    */
-  function chatgptxRefreshExtensionHosts() {
+  function swivoxRefreshExtensionHosts() {
     for (const refresh of [
-      refreshChatGPTXPageNav,
-      refreshChatGPTXRailNavigation,
+      refreshSwivoxPageNav,
+      refreshSwivoxRailNavigation,
       refreshExtensionSessionRows,
-      refreshChatGPTXExtensionMenu,
+      refreshSwivoxExtensionMenu,
     ]) {
       try {
         refresh?.();
@@ -15073,16 +15073,16 @@
    * 已打开的菜单里补上／摘掉拓展项。
    *
    * 菜单是打开时一次性构建的 innerHTML，注册发生在它打开之后时不会自动出现。
-   * 这里只处理「已打开」这一种情况：整块替换掉带 data-chatgptx-ext-menu 的容器。
+   * 这里只处理「已打开」这一种情况：整块替换掉带 data-swivox-ext-menu 的容器。
    * 菜单没打开时什么都不做——下次打开自然会带上。
    */
-  function refreshChatGPTXExtensionMenu() {
-    const overlay = document.querySelector(".chatgptx-modal-overlay, .chatgptx-page-overlay");
+  function refreshSwivoxExtensionMenu() {
+    const overlay = document.querySelector(".swivox-modal-overlay, .swivox-page-overlay");
     if (!overlay) return;
-    const panel = overlay.querySelector('[data-chatgptx-panel="home"]');
+    const panel = overlay.querySelector('[data-swivox-panel="home"]');
     if (!panel) return;
-    panel.querySelector("[data-chatgptx-ext-menu]")?.remove();
-    const markup = renderChatGPTXExtensionMenuRows();
+    panel.querySelector("[data-swivox-ext-menu]")?.remove();
+    const markup = renderSwivoxExtensionMenuRows();
     if (markup) panel.insertAdjacentHTML("beforeend", markup);
   }
 
@@ -15102,65 +15102,65 @@
    * 拆成函数而不是直接字面量，是为了让 99-tail 之前的挂载点能按顺序装配：
    * 依赖的函数都已在同一闭包里，此处只做引用。
    */
-  function buildChatGPTXExtensionApi() {
+  function buildSwivoxExtensionApi() {
     return {
-      version: chatgptxExtensionAdapterVersion,
-      apiVersion: chatgptxExtensionApiVersion,
-      constants: chatgptxExtensionConstants,
+      version: swivoxExtensionAdapterVersion,
+      apiVersion: swivoxExtensionApiVersion,
+      constants: swivoxExtensionConstants,
       // 用 getter 而不是快照：脚本初始化结束后再读也能拿到自己的 key。
       get script() {
-        return { key: chatgptxCurrentExtensionScriptKey() };
+        return { key: swivoxCurrentExtensionScriptKey() };
       },
 
       /** 显示提示。type: info | success | warn | error */
       toast(message, options) {
-        return runChatGPTXExtensionCallback(
-          chatgptxCurrentExtensionScriptKey(),
+        return runSwivoxExtensionCallback(
+          swivoxCurrentExtensionScriptKey(),
           "toast",
           () => showToast(String(message ?? ""), options || {}),
         );
       },
 
       /** 调用后端白名单路由，失败时 reject。 */
-      call: chatgptxExtensionCall,
+      call: swivoxExtensionCall,
 
       /** 在会话行「更多操作」里加一项。 */
       registerRowAction(definition, options = {}) {
-        return chatgptxRegisterExtensionItem("rowAction", chatgptxRegistry.rowActions, definition, options);
+        return swivoxRegisterExtensionItem("rowAction", swivoxRegistry.rowActions, definition, options);
       },
 
       /** 加一个图标栏入口（点击后走 registerPage 注册的页面）。 */
       registerNavEntry(definition, options = {}) {
-        return chatgptxRegisterExtensionItem("navEntry", chatgptxRegistry.navEntries, definition, options);
+        return swivoxRegisterExtensionItem("navEntry", swivoxRegistry.navEntries, definition, options);
       },
 
       /**
-       * 在 ChatGPTX 菜单的「主页」面板里加一行。
+       * 在 Swivox 菜单的「主页」面板里加一行。
        *
        * 两种形态，按 definition 里给的字段决定：
        *   - 开关：给 `onChange(next)`，可选 `toggleValue()` 提供当前值
        *   - 按钮：给 `onActivate({ close })`
        *
-       * 这些是 ChatGPTX 自己的设置面板，改动会立刻反映到当前打开的菜单上；
+       * 这些是 Swivox 自己的设置面板，改动会立刻反映到当前打开的菜单上；
        * 菜单重新打开时会从 `toggleValue()` 重新读一次状态。
        */
       registerMenuItem(definition, options = {}) {
-        return chatgptxRegisterExtensionItem("menuItem", chatgptxRegistry.menuItems, definition, options);
+        return swivoxRegisterExtensionItem("menuItem", swivoxRegistry.menuItems, definition, options);
       },
 
       /**
        * 注册一个整页视图。
        *
-       * 同时自动配一个图标栏入口——内置的三个页面（ChatGPTX / 拓展 / 推荐内容）
+       * 同时自动配一个图标栏入口——内置的三个页面（Swivox / 拓展 / 推荐内容）
        * 都是「rail 入口 + 整页」的形态，第三方页面沿用同一种形态，用户才不会
        * 在弹窗里找入口。`options.navLabel` / `options.icon` 控制入口外观。
        *
        * render 每次打开都被重新调用，不要缓存 DOM（见本文件顶部的生命周期约定）。
        */
       registerPage(definition, options = {}) {
-        const scriptKey = chatgptxCurrentExtensionScriptKey(options);
-        const pageId = `${scriptKey}:page:${options.id || chatgptxExtensionIdSeed()}`;
-        const disposePage = registerChatGPTXExtension("page", chatgptxRegistry.pages, pageId, definition, scriptKey);
+        const scriptKey = swivoxCurrentExtensionScriptKey(options);
+        const pageId = `${scriptKey}:page:${options.id || swivoxExtensionIdSeed()}`;
+        const disposePage = registerSwivoxExtension("page", swivoxRegistry.pages, pageId, definition, scriptKey);
         // 入口与页面成对存在：页面没了，入口也该消失，否则点了没有任何反应。
         const entry = {
           ...definition,
@@ -15172,29 +15172,29 @@
         const navId = `${scriptKey}:navEntry:${pageId}`;
         let disposeNav = null;
         try {
-          disposeNav = registerChatGPTXExtension("navEntry", chatgptxRegistry.navEntries, navId, entry, scriptKey);
+          disposeNav = registerSwivoxExtension("navEntry", swivoxRegistry.navEntries, navId, entry, scriptKey);
         } catch {
           // 入口注册失败（配额满）时页面本身仍可用，不要回滚已成功的页面注册。
         }
-        chatgptxRefreshExtensionHosts();
+        swivoxRefreshExtensionHosts();
         return () => {
           try {
             disposeNav?.();
           } catch {}
           disposePage();
-          chatgptxRefreshExtensionHosts();
+          swivoxRefreshExtensionHosts();
         };
       },
 
       /** 注册清理函数，热重载时逆序执行。 */
       onCleanup(cleanup) {
-        return window.__chatgptxUserScripts?.registerCleanup?.(cleanup);
+        return window.__swivoxUserScripts?.registerCleanup?.(cleanup);
       },
 
       /** 主动上报失败，供异步阶段的错误使用（同步阶段由 wrap_script 捕获）。 */
       fail(error) {
-        chatgptxMarkExtensionFailure(
-          window.__chatgptxUserScripts?.currentKey,
+        swivoxMarkExtensionFailure(
+          window.__swivoxUserScripts?.currentKey,
           String(error?.stack || error?.message || error),
         );
       },
@@ -15218,19 +15218,19 @@
    * 注册很多项，按 key 登记会白白吃掉全局选择器配额（上限 64），而扫描调度只需要
    * 知道「这个节点是我们的」——精确到脚本对排除自喂循环没有任何额外价值。
    */
-  function markChatGPTXExtensionNode(node, scriptKey) {
-    node.setAttribute(chatgptxExtensionConstants.extensionAttribute, scriptKey || "");
-    registerChatGPTXExtensionSelector(`[${chatgptxExtensionConstants.extensionAttribute}]`);
+  function markSwivoxExtensionNode(node, scriptKey) {
+    node.setAttribute(swivoxExtensionConstants.extensionAttribute, scriptKey || "");
+    registerSwivoxExtensionSelector(`[${swivoxExtensionConstants.extensionAttribute}]`);
     return node;
   }
 
   /** 取一个拓展项的图标：允许传 SVG 字符串，没给就用默认字形。 */
-  function chatgptxExtensionIconMarkup(definition) {
+  function swivoxExtensionIconMarkup(definition) {
     const icon = definition?.icon;
     if (typeof icon !== "string" || !icon.trim()) return `<span aria-hidden="true">◇</span>`;
     // 只接受 svg 或文本字形：注入任意 HTML 会让拓展有机会破坏内置 UI 结构。
-    if (/^\s*<svg[\s>]/i.test(icon)) return `<span class="chatgptx-ext-icon" aria-hidden="true">${icon}</span>`;
-    return `<span class="chatgptx-ext-icon" aria-hidden="true">${escapeHtml(icon)}</span>`;
+    if (/^\s*<svg[\s>]/i.test(icon)) return `<span class="swivox-ext-icon" aria-hidden="true">${icon}</span>`;
+    return `<span class="swivox-ext-icon" aria-hidden="true">${escapeHtml(icon)}</span>`;
   }
 
   /**
@@ -15239,86 +15239,86 @@
    * 复用内置的页面骨架（rail 高亮同步、缩放跟随、原生选中态压制都白拿），只是把
    * 内容区换掉。注意 overlay 每次打开都重建，所以 render 每次都要重新调用。
    */
-  function openChatGPTXExtensionPage(id) {
-    const definition = chatgptxRegistry.pages.get(id);
+  function openSwivoxExtensionPage(id) {
+    const definition = swivoxRegistry.pages.get(id);
     if (!definition) return false;
-    openChatGPTXModalForExtension(id, definition);
+    openSwivoxModalForExtension(id, definition);
     return true;
   }
 
   /**
    * 渲染拓展页面。
    *
-   * 不走 openChatGPTXModal 是因为那个函数的内容区来自内置模板字符串；这里要的是
+   * 不走 openSwivoxModal 是因为那个函数的内容区来自内置模板字符串；这里要的是
    * 同一套外壳 + 自定义内容，所以单独走一遍，但外壳结构与类名完全对齐。
    */
-  function openChatGPTXModalForExtension(id, definition) {
-    closeChatGPTXPage();
-    document.querySelectorAll(".chatgptx-modal-overlay").forEach((node) => node.remove());
-    document.querySelectorAll(`.${chatgptxPageClass}, [data-chatgptx-dialog="true"]`).forEach((node) => node.remove());
+  function openSwivoxModalForExtension(id, definition) {
+    closeSwivoxPage();
+    document.querySelectorAll(".swivox-modal-overlay").forEach((node) => node.remove());
+    document.querySelectorAll(`.${swivoxPageClass}, [data-swivox-dialog="true"]`).forEach((node) => node.remove());
     const overlay = document.createElement("div");
-    overlay.className = chatgptxPageClass;
-    overlay.dataset.chatgptxPage = "true";
-    overlay.dataset.chatgptxExtensionPage = id;
-    applyChatGPTXTheme(overlay);
+    overlay.className = swivoxPageClass;
+    overlay.dataset.swivoxPage = "true";
+    overlay.dataset.swivoxExtensionPage = id;
+    applySwivoxTheme(overlay);
     // 必须在写 innerHTML 之前设好缩放，否则内部 calc 会先按 1 算一遍（见内置实现注释）。
-    applyChatGPTXZoom(overlay);
+    applySwivoxZoom(overlay);
     overlay.innerHTML = `
-      <div class="chatgptx-modal-content" role="dialog" aria-modal="true" aria-label="${escapeHtml(definition.title || "拓展页面")}">
-        <div class="chatgptx-modal-header">
-          <div class="chatgptx-modal-title"><span class="chatgptx-backend-indicator" data-codex-backend-indicator="true" data-status="checking"></span><span>${escapeHtml(definition.title || "拓展页面")}</span></div>
+      <div class="swivox-modal-content" role="dialog" aria-modal="true" aria-label="${escapeHtml(definition.title || "拓展页面")}">
+        <div class="swivox-modal-header">
+          <div class="swivox-modal-title"><span class="swivox-backend-indicator" data-codex-backend-indicator="true" data-status="checking"></span><span>${escapeHtml(definition.title || "拓展页面")}</span></div>
         </div>
-        <div class="chatgptx-modal-body">
-          <div class="chatgptx-panel" data-chatgptx-panel="extension" data-chatgptx-extension-panel="${id}"></div>
+        <div class="swivox-modal-body">
+          <div class="swivox-panel" data-swivox-panel="extension" data-swivox-extension-panel="${id}"></div>
         </div>
       </div>
     `;
     document.body.appendChild(overlay);
-    observeChatGPTXPageLayout(overlay);
-    // 拓展入口不在内置的三个 id 里，setChatGPTXSidebarNavActive 认不出来，
+    observeSwivoxPageLayout(overlay);
+    // 拓展入口不在内置的三个 id 里，setSwivoxSidebarNavActive 认不出来，
     // 所以自己点亮该入口，再调一次 sync 让原生选中态被压下去。
-    setChatGPTXExtensionNavActive(id);
+    setSwivoxExtensionNavActive(id);
     // 与内置页面一致：点图标栏上的任何原生按钮就关掉这个覆盖层。
     //
     // 注意必须连拓展自己的入口一起排除：拓展入口 id 是动态生成的，不在那三个内置
     // id 里，若只排除内置项，点自己的入口会被当成「点了原生按钮」，页面刚打开就
     // 被这条监听关掉。
-    const rail = document.querySelector(chatgptxRailSelector);
+    const rail = document.querySelector(swivoxRailSelector);
     rail?.addEventListener("click", (event) => {
       const target = event.target instanceof Element ? event.target : event.target?.parentElement;
-      if (target?.closest(`#${chatgptxRailNavId}, #${chatgptxRailExtensionsId}, #${chatgptxRailSponsorId}`)) return;
-      if (target?.closest(`[${chatgptxExtensionConstants.extensionAttribute}]`)) return;
-      if (target?.closest("button, a")) closeChatGPTXPageAfterNativeNavigation();
+      if (target?.closest(`#${swivoxRailNavId}, #${swivoxRailExtensionsId}, #${swivoxRailSponsorId}`)) return;
+      if (target?.closest(`[${swivoxExtensionConstants.extensionAttribute}]`)) return;
+      if (target?.closest("button, a")) closeSwivoxPageAfterNativeNavigation();
     }, true);
 
-    const panel = overlay.querySelector(`[data-chatgptx-extension-panel="${id}"]`);
+    const panel = overlay.querySelector(`[data-swivox-extension-panel="${id}"]`);
     if (!panel) return;
     // 拓展的 render 每次打开都重新调用，禁止缓存 DOM——见 91 顶部的生命周期约定。
-    const outcome = runChatGPTXExtensionCallback(definition.scriptKey, "page.render", () =>
-      definition.render({ container: panel, close: () => closeChatGPTXPage(), script: definition.scriptKey }));
+    const outcome = runSwivoxExtensionCallback(definition.scriptKey, "page.render", () =>
+      definition.render({ container: panel, close: () => closeSwivoxPage(), script: definition.scriptKey }));
     if (!outcome.ok) {
-      panel.innerHTML = `<div class="chatgptx-row"><div><div class="chatgptx-row-title">拓展页面加载失败</div><div class="chatgptx-row-description">${escapeHtml(definition.scriptKey || "")}：${escapeHtml(outcome.error)}</div></div></div>`;
+      panel.innerHTML = `<div class="swivox-row"><div><div class="swivox-row-title">拓展页面加载失败</div><div class="swivox-row-description">${escapeHtml(definition.scriptKey || "")}：${escapeHtml(outcome.error)}</div></div></div>`;
       panel.dataset.extensionError = "true";
     }
-    definition.onCleanup && runChatGPTXExtensionCallback(definition.scriptKey, "page.onCleanup", () => {
-      window.__chatgptxExtensionPageCleanup = definition.onCleanup;
+    definition.onCleanup && runSwivoxExtensionCallback(definition.scriptKey, "page.onCleanup", () => {
+      window.__swivoxExtensionPageCleanup = definition.onCleanup;
     });
   }
 
   /**
    * 点亮某个拓展的图标栏入口。
    *
-   * 内置的 setChatGPTXSidebarNavActive 只认三个固定 id，拓展入口的 id 是动态的，
+   * 内置的 setSwivoxSidebarNavActive 只认三个固定 id，拓展入口的 id 是动态的，
    * 所以这里单独处理：先把内置项全部置为未选中，再点亮目标，最后统一压原生选中态。
    */
-  function setChatGPTXExtensionNavActive(pageId) {
-    setChatGPTXSidebarNavActive(false);
-    const entry = chatgptxExtensionItems(chatgptxRegistry.navEntries)
+  function setSwivoxExtensionNavActive(pageId) {
+    setSwivoxSidebarNavActive(false);
+    const entry = swivoxExtensionItems(swivoxRegistry.navEntries)
       .find((item) => item.pageId === pageId);
-    const elementId = entry ? `chatgptx-ext-rail-${entry.id.replace(/[^\w-]/g, "_")}` : "";
+    const elementId = entry ? `swivox-ext-rail-${entry.id.replace(/[^\w-]/g, "_")}` : "";
     // 先清掉所有拓展入口的选中态，避免两个页面之间切换时残留。
-    document.querySelectorAll('[data-chatgptx-ext-rail-active="true"]').forEach((node) => {
-      node.removeAttribute("data-chatgptx-ext-rail-active");
+    document.querySelectorAll('[data-swivox-ext-rail-active="true"]').forEach((node) => {
+      node.removeAttribute("data-swivox-ext-rail-active");
       const button = node.querySelector("button") || node;
       button?.removeAttribute("data-selected");
       button?.removeAttribute("aria-current");
@@ -15326,90 +15326,90 @@
     if (!elementId) return;
     const wrapper = document.getElementById(elementId);
     if (!wrapper) return;
-    wrapper.setAttribute("data-chatgptx-ext-rail-active", "true");
+    wrapper.setAttribute("data-swivox-ext-rail-active", "true");
     const button = wrapper.querySelector("button") || wrapper;
     button.dataset.active = "true";
     button.setAttribute("aria-current", "page");
     button.setAttribute("data-selected", "");
-    // setChatGPTXSidebarNavActive(false) 内部的 sync 是在还没有选中项时跑的，
+    // setSwivoxSidebarNavActive(false) 内部的 sync 是在还没有选中项时跑的，
     // 这里要再跑一次，否则原生选中态压制会基于过期状态。
-    syncChatGPTXRailNativeSelection();
+    syncSwivoxRailNativeSelection();
   }
 
   /** 关闭当前拓展页面并执行其 onCleanup。 */
-  function closeChatGPTXPage() {
-    const cleanup = window.__chatgptxExtensionPageCleanup;
-    window.__chatgptxExtensionPageCleanup = null;
+  function closeSwivoxPage() {
+    const cleanup = window.__swivoxExtensionPageCleanup;
+    window.__swivoxExtensionPageCleanup = null;
     if (typeof cleanup === "function") {
       try {
         cleanup();
       } catch {}
     }
-    window.removeEventListener("resize", window.__chatgptxPageResizeHandler);
-    window.__chatgptxPageResizeHandler = null;
-    window.__chatgptxPageLayoutObserver?.disconnect();
-    window.__chatgptxPageLayoutObserver = null;
-    window.__chatgptxPageLayoutTargets = null;
-    document.querySelectorAll(`.${chatgptxPageClass}`).forEach((node) => node.remove());
-    setChatGPTXSidebarNavActive(false);
+    window.removeEventListener("resize", window.__swivoxPageResizeHandler);
+    window.__swivoxPageResizeHandler = null;
+    window.__swivoxPageLayoutObserver?.disconnect();
+    window.__swivoxPageLayoutObserver = null;
+    window.__swivoxPageLayoutTargets = null;
+    document.querySelectorAll(`.${swivoxPageClass}`).forEach((node) => node.remove());
+    setSwivoxSidebarNavActive(false);
   }
 
   /** 拓展入口的 DOM 标记：用它反查注册表项，dispose 后据此清理。 */
-  const chatgptxExtensionRailAttribute = "data-chatgptx-ext-rail";
+  const swivoxExtensionRailAttribute = "data-swivox-ext-rail";
 
   /** 拓展入口的稳定 id。用注册表 id 推导，dispose 与重建都能算回同一个值。 */
-  function chatgptxExtensionRailElementId(entry) {
-    return `chatgptx-ext-rail-${String(entry.id).replace(/[^\w-]/g, "_")}`;
+  function swivoxExtensionRailElementId(entry) {
+    return `swivox-ext-rail-${String(entry.id).replace(/[^\w-]/g, "_")}`;
   }
 
   /**
    * 图标栏上的拓展入口。
    *
    * 与内置的三个入口并列插在 primary 锚点之后。内置项由
-   * installChatGPTXRailNavigation 负责，这里只补第三方项，靠 id 幂等。
+   * installSwivoxRailNavigation 负责，这里只补第三方项，靠 id 幂等。
    */
-  function refreshChatGPTXRailNavigation() {
-    const rail = document.querySelector(chatgptxRailSelector);
+  function refreshSwivoxRailNavigation() {
+    const rail = document.querySelector(swivoxRailSelector);
     if (!rail) return false;
-    const entries = chatgptxExtensionItems(chatgptxRegistry.navEntries);
+    const entries = swivoxExtensionItems(swivoxRegistry.navEntries);
     // 注意值域：属性里存的是注册表 id，所以这里也必须用注册表 id 比对。
-    // 若拿元素 id（chatgptx-ext-rail-xxx）去比，两边永远不等，每次刷新都会把
+    // 若拿元素 id（swivox-ext-rail-xxx）去比，两边永远不等，每次刷新都会把
     // 自己的入口当孤儿删掉，表现为「点了入口高亮立刻消失」。
     const liveIds = new Set(entries.map((entry) => entry.id));
     // 先清掉已不在注册表里的入口。dispose 之后没人来删 DOM，必须在这里收口，
     // 否则用户点一个已经注销的入口会什么都不发生。
-    document.querySelectorAll(`[${chatgptxExtensionRailAttribute}]`).forEach((node) => {
-      if (!liveIds.has(node.getAttribute(chatgptxExtensionRailAttribute) || "")) node.remove();
+    document.querySelectorAll(`[${swivoxExtensionRailAttribute}]`).forEach((node) => {
+      if (!liveIds.has(node.getAttribute(swivoxExtensionRailAttribute) || "")) node.remove();
     });
     if (!entries.length) return false;
-    const anchor = chatgptxRailPrimaryAnchor(rail);
+    const anchor = swivoxRailPrimaryAnchor(rail);
     const host = anchor?.parentElement || rail;
-    const template = chatgptxRailTemplateButton(rail);
+    const template = swivoxRailTemplateButton(rail);
     let cursor = anchor;
     // 内置三项先占位，第三方从它们之后开始排。
-    [chatgptxRailNavId, chatgptxRailExtensionsId, chatgptxRailSponsorId].forEach((id) => {
+    [swivoxRailNavId, swivoxRailExtensionsId, swivoxRailSponsorId].forEach((id) => {
       const node = document.getElementById(id);
       if (node) cursor = node;
     });
     entries.forEach((entry) => {
-      const elementId = chatgptxExtensionRailElementId(entry);
+      const elementId = swivoxExtensionRailElementId(entry);
       let wrapper = document.getElementById(elementId);
       if (!wrapper || wrapper.parentElement !== host) {
         wrapper?.remove();
-        wrapper = createChatGPTXRailButton({
+        wrapper = createSwivoxRailButton({
           id: elementId,
           template,
           label: entry.label || entry.id,
-          iconMarkup: chatgptxExtensionIconMarkup(entry),
+          iconMarkup: swivoxExtensionIconMarkup(entry),
           withStatus: false,
           onActivate: () => {
             // 注册时若带了 pageId 就打开对应页面；否则交给拓展自己的 onActivate。
             const navigate = () => {
-              if (entry.pageId && chatgptxRegistry.pages.has(entry.pageId)) {
+              if (entry.pageId && swivoxRegistry.pages.has(entry.pageId)) {
                 entry.navId = elementId;
-                openChatGPTXExtensionPage(entry.pageId);
+                openSwivoxExtensionPage(entry.pageId);
               } else if (typeof entry.onActivate === "function") {
-                runChatGPTXExtensionCallback(entry.scriptKey, "navEntry.onActivate", () => entry.onActivate());
+                runSwivoxExtensionCallback(entry.scriptKey, "navEntry.onActivate", () => entry.onActivate());
               }
             };
             navigate();
@@ -15417,10 +15417,10 @@
         });
         if (!wrapper) return;
         // 这个属性是 dispose 后清理 DOM 的唯一线索，必须写。只靠
-        // data-chatgptx-ext 认不出「这是 rail 入口」还是别的什么扩展节点。
-        wrapper.setAttribute(chatgptxExtensionRailAttribute, entry.id);
-        markChatGPTXExtensionNode(wrapper, entry.scriptKey);
-        markChatGPTXExtensionNode(wrapper.firstElementChild || wrapper, entry.scriptKey);
+        // data-swivox-ext 认不出「这是 rail 入口」还是别的什么扩展节点。
+        wrapper.setAttribute(swivoxExtensionRailAttribute, entry.id);
+        markSwivoxExtensionNode(wrapper, entry.scriptKey);
+        markSwivoxExtensionNode(wrapper.firstElementChild || wrapper, entry.scriptKey);
       }
       if (cursor?.nextSibling) {
         if (cursor.nextSibling !== wrapper) host.insertBefore(wrapper, cursor.nextSibling);
@@ -15439,10 +15439,10 @@
    * 拆模板动的是内置 UI 主干，出问题会影响所有人；追加只影响新内容，回滚时删掉
    * 这个调用即可。
    *
-   * 每次 openChatGPTXModal 都会重新调用，所以不需要在别处维护刷新逻辑。
+   * 每次 openSwivoxModal 都会重新调用，所以不需要在别处维护刷新逻辑。
    */
-  function renderChatGPTXExtensionMenuRows() {
-    const items = chatgptxExtensionItems(chatgptxRegistry.menuItems);
+  function renderSwivoxExtensionMenuRows() {
+    const items = swivoxExtensionItems(swivoxRegistry.menuItems);
     if (!items.length) return "";
     const rows = items.map((item) => {
       const title = escapeHtml(item.label || item.id);
@@ -15451,43 +15451,43 @@
       let control;
       if (typeof item.onChange === "function") {
         const enabled = typeof item.toggleValue === "function" ? item.toggleValue() === true : false;
-        control = `<button type="button" class="chatgptx-toggle" data-chatgptx-ext-setting="${escapeHtml(item.id)}" data-enabled="${String(enabled)}" aria-pressed="${String(enabled)}"><span></span></button>`;
+        control = `<button type="button" class="swivox-toggle" data-swivox-ext-setting="${escapeHtml(item.id)}" data-enabled="${String(enabled)}" aria-pressed="${String(enabled)}"><span></span></button>`;
       } else {
-        control = `<button type="button" class="chatgptx-action-button" data-chatgptx-ext-action="${escapeHtml(item.id)}">${escapeHtml(item.buttonLabel || "打开")}</button>`;
+        control = `<button type="button" class="swivox-action-button" data-swivox-ext-action="${escapeHtml(item.id)}">${escapeHtml(item.buttonLabel || "打开")}</button>`;
       }
-      return `<div class="chatgptx-row" data-chatgptx-ext-row="${escapeHtml(item.id)}">`
-        + `<div><div class="chatgptx-row-title">${title}</div>`
-        + (description ? `<div class="chatgptx-row-description">${description}</div>` : "")
+      return `<div class="swivox-row" data-swivox-ext-row="${escapeHtml(item.id)}">`
+        + `<div><div class="swivox-row-title">${title}</div>`
+        + (description ? `<div class="swivox-row-description">${description}</div>` : "")
         + `</div>${control}</div>`;
     }).join("");
     // 整块包一层：dispose 后能一次性摘掉，测试也好定位。
-    return `<div data-chatgptx-ext-menu="true">${rows}</div>`;
+    return `<div data-swivox-ext-menu="true">${rows}</div>`;
   }
 
   /**
    * 处理拓展菜单项的点击。
    *
-   * 由 openChatGPTXModal 的委托监听调用；返回 true 表示已处理，调用方应 return。
+   * 由 openSwivoxModal 的委托监听调用；返回 true 表示已处理，调用方应 return。
    */
-  function handleChatGPTXExtensionMenuClick(target) {
-    const action = target?.closest?.("[data-chatgptx-ext-action]");
+  function handleSwivoxExtensionMenuClick(target) {
+    const action = target?.closest?.("[data-swivox-ext-action]");
     if (action) {
-      const id = action.getAttribute("data-chatgptx-ext-action") || "";
-      const item = chatgptxRegistry.menuItems.get(id);
+      const id = action.getAttribute("data-swivox-ext-action") || "";
+      const item = swivoxRegistry.menuItems.get(id);
       if (!item) return true;
-      runChatGPTXExtensionCallback(item.scriptKey, "menuItem.onActivate", () =>
-        item.onActivate({ close: () => document.querySelector(".chatgptx-modal-close")?.click() }));
+      runSwivoxExtensionCallback(item.scriptKey, "menuItem.onActivate", () =>
+        item.onActivate({ close: () => document.querySelector(".swivox-modal-close")?.click() }));
       return true;
     }
-    const toggle = target?.closest?.("[data-chatgptx-ext-setting]");
+    const toggle = target?.closest?.("[data-swivox-ext-setting]");
     if (toggle) {
-      const id = toggle.getAttribute("data-chatgptx-ext-setting") || "";
-      const item = chatgptxRegistry.menuItems.get(id);
+      const id = toggle.getAttribute("data-swivox-ext-setting") || "";
+      const item = swivoxRegistry.menuItems.get(id);
       if (!item) return true;
       const next = toggle.getAttribute("data-enabled") !== "true";
       toggle.setAttribute("data-enabled", String(next));
       toggle.setAttribute("aria-pressed", String(next));
-      runChatGPTXExtensionCallback(item.scriptKey, "menuItem.onChange", () => item.onChange(next));
+      runSwivoxExtensionCallback(item.scriptKey, "menuItem.onChange", () => item.onChange(next));
       return true;
     }
     return false;
@@ -15499,14 +15499,14 @@
    * 由 attachButton 在构建 moreMenu 时调用。返回的节点直接 append 进菜单，
    * 所以样式与内置项一致；点击后关闭菜单再执行回调。
    */
-  function appendChatGPTXExtensionRowActions(moreMenu, row, moreButton) {
-    const items = chatgptxExtensionItems(chatgptxRegistry.rowActions);
+  function appendSwivoxExtensionRowActions(moreMenu, row, moreButton) {
+    const items = swivoxExtensionItems(swivoxRegistry.rowActions);
     if (!items.length) return;
     items.forEach((definition) => {
       const item = createSessionMoreMenuItem(definition.label || definition.id, definition.icon || "◇", (event) => {
         stopActionButtonEvent(row, moreButton, event);
         closeSessionMoreMenus();
-        runChatGPTXExtensionCallback(definition.scriptKey, "rowAction.onActivate", () =>
+        runSwivoxExtensionCallback(definition.scriptKey, "rowAction.onActivate", () =>
           definition.onActivate({
             row,
             session_id: sessionRefFromRow(row).session_id,
@@ -15514,57 +15514,57 @@
           }));
       });
       // 加分隔线：拓展项与内置项在语义上没有关联，挨着排会让人以为是一组。
-      item.dataset.chatgptxExtensionItem = definition.id;
-      markChatGPTXExtensionNode(item, definition.scriptKey);
+      item.dataset.swivoxExtensionItem = definition.id;
+      markSwivoxExtensionNode(item, definition.scriptKey);
       moreMenu.appendChild(item);
     });
   }
   // API Key 听写使用独立的 ASR 服务。新版原生 capability / app-host RPC 是只读的，
   // 因此入口与录音由 CPP 管理，识别结果通过原生编辑器事务回填，保持草稿和附件。
-  window.__chatgptxDictationRuntime?.dispose?.();
-  const chatgptxDictation = {
+  window.__swivoxDictationRuntime?.dispose?.();
+  const swivoxDictation = {
     phase: "idle", revision: 0, target: null, stream: null, recorder: null,
     chunks: [], blob: null, text: "", error: "", action: "insert", startedAt: 0,
     controller: null, timer: null, status: null, statusAt: 0, statusPromise: null,
     nativeApi: null, nativeApiPromise: null, pendingSend: false,
   };
-  const chatgptxDictationMaxBytes = 25 * 1024 * 1024;
-  registerChatGPTXExtensionSelector('[data-chatgptx-ext="builtin-dictation"]');
+  const swivoxDictationMaxBytes = 25 * 1024 * 1024;
+  registerSwivoxExtensionSelector('[data-swivox-ext="builtin-dictation"]');
 
-  function chatgptxDictationEnabled() {
-    return chatgptxBackendSettingsLoaded && chatgptxBackendSettings.enhancementsEnabled !== false
-      && chatgptxBackendSettings.dictation?.enabled === true;
+  function swivoxDictationEnabled() {
+    return swivoxBackendSettingsLoaded && swivoxBackendSettings.enhancementsEnabled !== false
+      && swivoxBackendSettings.dictation?.enabled === true;
   }
 
-  function chatgptxDictationEditor(scope) {
+  function swivoxDictationEditor(scope) {
     return [...scope.querySelectorAll('.ProseMirror[contenteditable="true"], textarea:not(:disabled):not([readonly]), [role="textbox"][contenteditable="true"]')]
       .find((node) => visibleElement(node) && !isExtensionUiNode(node) && !node.closest('[inert], [aria-hidden="true"]')) || null;
   }
 
-  function chatgptxDictationScope(footer) {
+  function swivoxDictationScope(footer) {
     let scope = footer?.parentElement;
     while (scope && scope !== document.body) {
-      if (chatgptxDictationEditor(scope)) return scope;
+      if (swivoxDictationEditor(scope)) return scope;
       if (scope.matches?.('[data-codex-composer-root], [data-composer-surface-variant], form')) break;
       scope = scope.parentElement;
     }
     return null;
   }
 
-  function chatgptxDictationTargetEditor() {
-    const target = chatgptxDictation.target;
+  function swivoxDictationTargetEditor() {
+    const target = swivoxDictation.target;
     if (!target || window.location.href !== target.href) return null;
-    const editor = [...document.querySelectorAll('[data-chatgptx-dictation-target]')]
-      .find((node) => node.dataset.chatgptxDictationTarget === target.id && visibleElement(node));
+    const editor = [...document.querySelectorAll('[data-swivox-dictation-target]')]
+      .find((node) => node.dataset.swivoxDictationTarget === target.id && visibleElement(node));
     if (editor) return editor;
-    const root = [...document.querySelectorAll('[data-chatgptx-dictation-root]')]
-      .find((node) => node.dataset.chatgptxDictationRoot === target.id && visibleElement(node));
-    return root ? chatgptxDictationEditor(root) : null;
+    const root = [...document.querySelectorAll('[data-swivox-dictation-root]')]
+      .find((node) => node.dataset.swivoxDictationRoot === target.id && visibleElement(node));
+    return root ? swivoxDictationEditor(root) : null;
   }
 
-  async function loadChatGPTXDictationNativeApi() {
-    if (chatgptxDictation.nativeApiPromise) return chatgptxDictation.nativeApiPromise;
-    chatgptxDictation.nativeApiPromise = loadOptionalCodexAppModule("app-initial-").then((module) => {
+  async function loadSwivoxDictationNativeApi() {
+    if (swivoxDictation.nativeApiPromise) return swivoxDictation.nativeApiPromise;
+    swivoxDictation.nativeApiPromise = loadOptionalCodexAppModule("app-initial-").then((module) => {
       // 构建间压缩导出名会变化，只按能力识别函数；从不写 ESM namespace。
       const functions = Object.values(module || {}).filter((value) => typeof value === "function");
       const append = functions.find((fn) => {
@@ -15577,18 +15577,18 @@
         return source.length < 3000 && source.includes("document.activeElement?.closest")
           && source.includes("[data-codex-composer-root]") && source.includes("composerId:") && source.includes("root:");
       });
-      chatgptxDictation.nativeApi = append && context ? { append, context } : null;
-      return chatgptxDictation.nativeApi;
+      swivoxDictation.nativeApi = append && context ? { append, context } : null;
+      return swivoxDictation.nativeApi;
     }).catch(() => null);
-    return chatgptxDictation.nativeApiPromise;
+    return swivoxDictation.nativeApiPromise;
   }
 
-  function chatgptxDictationView(editor) {
+  function swivoxDictationView(editor) {
     const view = editor?.pmViewDesc?.view;
     return view && !view.isDestroyed && view.dom === editor && view.state?.tr && typeof view.dispatch === "function" ? view : null;
   }
 
-  function chatgptxInsertDictation(editor, transcript, nativeApi = chatgptxDictation.nativeApi, composerId = chatgptxDictation.target?.composerId) {
+  function swivoxInsertDictation(editor, transcript, nativeApi = swivoxDictation.nativeApi, composerId = swivoxDictation.target?.composerId) {
     const text = String(transcript || "").trim();
     if (!text || !editor?.isConnected || editor.matches?.(':disabled, [readonly], [contenteditable="false"]')
         || editor.closest?.('[inert], [aria-hidden="true"]')) return false;
@@ -15598,7 +15598,7 @@
       if (context?.composerId !== composerId || !context.root?.contains(editor)) return false;
       return nativeApi.append(composerId, text) === true;
     }
-    const view = chatgptxDictationView(editor);
+    const view = swivoxDictationView(editor);
     if (view) {
       // 用原生事务更新 React/ProseMirror 状态；不能直接改 innerHTML/textContent。
       const { from, to } = view.state.selection;
@@ -15625,7 +15625,7 @@
     return document.execCommand("insertText", false, text) === true;
   }
 
-  function chatgptxDictationSendButton(editor) {
+  function swivoxDictationSendButton(editor) {
     let scope = editor.parentElement;
     while (scope && scope !== document.body) {
       const button = [...scope.querySelectorAll('button')].find((node) => {
@@ -15641,168 +15641,168 @@
     return null;
   }
 
-  function chatgptxDictationStopTracks() {
-    chatgptxDictation.stream?.getTracks().forEach((track) => track.stop());
-    chatgptxDictation.stream = null;
-    clearInterval(chatgptxDictation.timer);
-    chatgptxDictation.timer = null;
+  function swivoxDictationStopTracks() {
+    swivoxDictation.stream?.getTracks().forEach((track) => track.stop());
+    swivoxDictation.stream = null;
+    clearInterval(swivoxDictation.timer);
+    swivoxDictation.timer = null;
   }
 
-  function cancelChatGPTXDictation() {
-    ++chatgptxDictation.revision;
-    chatgptxDictation.controller?.abort();
-    chatgptxDictation.controller = null;
-    const recorder = chatgptxDictation.recorder;
-    chatgptxDictation.recorder = null;
+  function cancelSwivoxDictation() {
+    ++swivoxDictation.revision;
+    swivoxDictation.controller?.abort();
+    swivoxDictation.controller = null;
+    const recorder = swivoxDictation.recorder;
+    swivoxDictation.recorder = null;
     if (recorder?.state !== "inactive") { try { recorder?.stop(); } catch {} }
-    chatgptxDictationStopTracks();
-    document.querySelectorAll('[data-chatgptx-dictation-target], [data-chatgptx-dictation-root]').forEach((node) => {
-      delete node.dataset.chatgptxDictationTarget; delete node.dataset.chatgptxDictationRoot;
+    swivoxDictationStopTracks();
+    document.querySelectorAll('[data-swivox-dictation-target], [data-swivox-dictation-root]').forEach((node) => {
+      delete node.dataset.swivoxDictationTarget; delete node.dataset.swivoxDictationRoot;
     });
-    Object.assign(chatgptxDictation, { phase: "idle", target: null, chunks: [], blob: null, text: "", error: "", pendingSend: false });
-    renderChatGPTXDictation();
+    Object.assign(swivoxDictation, { phase: "idle", target: null, chunks: [], blob: null, text: "", error: "", pendingSend: false });
+    renderSwivoxDictation();
   }
 
-  async function loadChatGPTXDictationStatus(force = false) {
-    if (chatgptxDictation.statusPromise) return chatgptxDictation.statusPromise;
-    if (!force && Date.now() - chatgptxDictation.statusAt < 5000) return chatgptxDictation.status;
-    chatgptxDictation.statusPromise = postJson("/dictation/status", {}).then((status) => {
-      chatgptxDictation.status = status;
-      chatgptxDictation.statusAt = Date.now();
+  async function loadSwivoxDictationStatus(force = false) {
+    if (swivoxDictation.statusPromise) return swivoxDictation.statusPromise;
+    if (!force && Date.now() - swivoxDictation.statusAt < 5000) return swivoxDictation.status;
+    swivoxDictation.statusPromise = postJson("/dictation/status", {}).then((status) => {
+      swivoxDictation.status = status;
+      swivoxDictation.statusAt = Date.now();
       return status;
-    }).finally(() => { chatgptxDictation.statusPromise = null; });
-    return chatgptxDictation.statusPromise;
+    }).finally(() => { swivoxDictation.statusPromise = null; });
+    return swivoxDictation.statusPromise;
   }
 
-  async function startChatGPTXDictation(footer) {
-    if (!chatgptxDictationEnabled() || chatgptxDictation.phase !== "idle") return;
-    const editor = chatgptxDictationScope(footer) && chatgptxDictationEditor(chatgptxDictationScope(footer));
+  async function startSwivoxDictation(footer) {
+    if (!swivoxDictationEnabled() || swivoxDictation.phase !== "idle") return;
+    const editor = swivoxDictationScope(footer) && swivoxDictationEditor(swivoxDictationScope(footer));
     if (!editor) { showToast("无法找到可编辑的 Codex 输入框", null); return; }
     if (footer.getAttribute("data-dictation-view")) { showToast("请先结束原生语音输入", null); return; }
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder !== "function") {
       showToast("当前环境不支持麦克风录音", null); return;
     }
-    const revision = ++chatgptxDictation.revision;
+    const revision = ++swivoxDictation.revision;
     const id = crypto.randomUUID();
-    editor.dataset.chatgptxDictationTarget = id;
-    Object.assign(chatgptxDictation, {
+    editor.dataset.swivoxDictationTarget = id;
+    Object.assign(swivoxDictation, {
       phase: "requesting", target: { id, href: window.location.href },
       error: "", text: "", chunks: [], blob: null, action: "insert",
     });
-    installChatGPTXDictation();
+    installSwivoxDictation();
     try {
-      const nativeApi = await loadChatGPTXDictationNativeApi();
-      if (revision !== chatgptxDictation.revision) return;
-      if (!chatgptxDictationTargetEditor()) throw new Error("输入框或会话已变化，请返回目标会话后重录");
+      const nativeApi = await loadSwivoxDictationNativeApi();
+      if (revision !== swivoxDictation.revision) return;
+      if (!swivoxDictationTargetEditor()) throw new Error("输入框或会话已变化，请返回目标会话后重录");
       editor.focus();
       const context = nativeApi?.context();
       if (context?.root?.contains(editor) && context.composerId) {
-        chatgptxDictation.target.composerId = context.composerId;
-        context.root.dataset.chatgptxDictationRoot = id;
+        swivoxDictation.target.composerId = context.composerId;
+        context.root.dataset.swivoxDictationRoot = id;
       }
-      const status = await loadChatGPTXDictationStatus(true);
-      if (revision !== chatgptxDictation.revision) return;
-      if (!chatgptxDictationEnabled()) { cancelChatGPTXDictation(); return; }
+      const status = await loadSwivoxDictationStatus(true);
+      if (revision !== swivoxDictation.revision) return;
+      if (!swivoxDictationEnabled()) { cancelSwivoxDictation(); return; }
       if (!status?.enabled || !status?.configured || !status?.helperToken) throw new Error(status?.message || "请先在管理工具中配置并启用语音服务");
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } });
-      if (revision !== chatgptxDictation.revision) {
+      if (revision !== swivoxDictation.revision) {
         stream.getTracks().forEach((track) => track.stop()); return;
       }
-      if (!chatgptxDictationEnabled()) {
-        stream.getTracks().forEach((track) => track.stop()); cancelChatGPTXDictation(); return;
+      if (!swivoxDictationEnabled()) {
+        stream.getTracks().forEach((track) => track.stop()); cancelSwivoxDictation(); return;
       }
-      chatgptxDictation.stream = stream;
+      swivoxDictation.stream = stream;
       const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"]
         .find((type) => typeof MediaRecorder.isTypeSupported === "function" && MediaRecorder.isTypeSupported(type));
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-      chatgptxDictation.recorder = recorder;
+      swivoxDictation.recorder = recorder;
       recorder.ondataavailable = (event) => {
-        if (revision !== chatgptxDictation.revision || !event.data?.size) return;
-        chatgptxDictation.chunks.push(event.data);
-        if (chatgptxDictation.chunks.reduce((sum, chunk) => sum + chunk.size, 0) > chatgptxDictationMaxBytes) {
-          chatgptxDictation.error = "录音超过 25 MiB，请缩短后重录";
-          stopChatGPTXDictation("discard");
+        if (revision !== swivoxDictation.revision || !event.data?.size) return;
+        swivoxDictation.chunks.push(event.data);
+        if (swivoxDictation.chunks.reduce((sum, chunk) => sum + chunk.size, 0) > swivoxDictationMaxBytes) {
+          swivoxDictation.error = "录音超过 25 MiB，请缩短后重录";
+          stopSwivoxDictation("discard");
         }
       };
       recorder.onerror = () => {
-        if (revision !== chatgptxDictation.revision) return;
-        chatgptxDictation.error = "录音失败，请检查麦克风后重录";
-        stopChatGPTXDictation("discard");
+        if (revision !== swivoxDictation.revision) return;
+        swivoxDictation.error = "录音失败，请检查麦克风后重录";
+        stopSwivoxDictation("discard");
       };
       recorder.onstop = () => {
-        if (revision !== chatgptxDictation.revision) return;
-        chatgptxDictationStopTracks();
-        chatgptxDictation.recorder = null;
-        const blob = new Blob(chatgptxDictation.chunks, { type: recorder.mimeType || "audio/webm" });
-        chatgptxDictation.chunks = [];
-        if (chatgptxDictation.action === "discard" || blob.size > chatgptxDictationMaxBytes) {
-          chatgptxDictation.phase = "error"; renderChatGPTXDictation(); return;
+        if (revision !== swivoxDictation.revision) return;
+        swivoxDictationStopTracks();
+        swivoxDictation.recorder = null;
+        const blob = new Blob(swivoxDictation.chunks, { type: recorder.mimeType || "audio/webm" });
+        swivoxDictation.chunks = [];
+        if (swivoxDictation.action === "discard" || blob.size > swivoxDictationMaxBytes) {
+          swivoxDictation.phase = "error"; renderSwivoxDictation(); return;
         }
-        if (!blob.size || Date.now() - chatgptxDictation.startedAt < 250) { cancelChatGPTXDictation(); return; }
-        chatgptxDictation.blob = blob;
-        void transcribeChatGPTXDictation();
+        if (!blob.size || Date.now() - swivoxDictation.startedAt < 250) { cancelSwivoxDictation(); return; }
+        swivoxDictation.blob = blob;
+        void transcribeSwivoxDictation();
       };
       recorder.start(1000);
-      chatgptxDictation.phase = "recording";
-      chatgptxDictation.startedAt = Date.now();
-      chatgptxDictation.timer = setInterval(() => {
-        if (Date.now() - chatgptxDictation.startedAt >= 595000) stopChatGPTXDictation("insert");
-        renderChatGPTXDictation();
+      swivoxDictation.phase = "recording";
+      swivoxDictation.startedAt = Date.now();
+      swivoxDictation.timer = setInterval(() => {
+        if (Date.now() - swivoxDictation.startedAt >= 595000) stopSwivoxDictation("insert");
+        renderSwivoxDictation();
       }, 1000);
-      renderChatGPTXDictation();
+      renderSwivoxDictation();
     } catch (error) {
-      if (revision !== chatgptxDictation.revision) return;
-      chatgptxDictationStopTracks();
-      chatgptxDictation.phase = "error";
-      chatgptxDictation.error = ["NotAllowedError", "SecurityError"].includes(error?.name)
+      if (revision !== swivoxDictation.revision) return;
+      swivoxDictationStopTracks();
+      swivoxDictation.phase = "error";
+      swivoxDictation.error = ["NotAllowedError", "SecurityError"].includes(error?.name)
         ? "麦克风权限被拒绝，请在系统设置中允许 Codex 使用麦克风后重录"
         : error?.name === "NotFoundError" ? "未找到麦克风" : error?.message || "无法开始录音";
-      renderChatGPTXDictation();
+      renderSwivoxDictation();
     }
   }
 
-  function stopChatGPTXDictation(action) {
-    chatgptxDictation.action = action;
-    if (chatgptxDictation.phase === "transcribing") { renderChatGPTXDictation(); return; }
-    if (chatgptxDictation.phase !== "recording") return;
-    chatgptxDictation.phase = "transcribing";
-    clearInterval(chatgptxDictation.timer);
-    try { chatgptxDictation.recorder.stop(); }
-    catch { chatgptxDictationStopTracks(); chatgptxDictation.phase = "error"; chatgptxDictation.error = "无法结束录音，请重录"; }
-    renderChatGPTXDictation();
+  function stopSwivoxDictation(action) {
+    swivoxDictation.action = action;
+    if (swivoxDictation.phase === "transcribing") { renderSwivoxDictation(); return; }
+    if (swivoxDictation.phase !== "recording") return;
+    swivoxDictation.phase = "transcribing";
+    clearInterval(swivoxDictation.timer);
+    try { swivoxDictation.recorder.stop(); }
+    catch { swivoxDictationStopTracks(); swivoxDictation.phase = "error"; swivoxDictation.error = "无法结束录音，请重录"; }
+    renderSwivoxDictation();
   }
 
-  async function finishChatGPTXDictation() {
-    if (!chatgptxDictationEnabled()) { cancelChatGPTXDictation(); return; }
-    const editor = chatgptxDictationTargetEditor();
-    if (!editor || !chatgptxInsertDictation(editor, chatgptxDictation.text)) {
-      chatgptxDictation.phase = "result";
-      chatgptxDictation.error = "输入框或会话已变化，请复制识别结果到目标输入框";
-      renderChatGPTXDictation(); return;
+  async function finishSwivoxDictation() {
+    if (!swivoxDictationEnabled()) { cancelSwivoxDictation(); return; }
+    const editor = swivoxDictationTargetEditor();
+    if (!editor || !swivoxInsertDictation(editor, swivoxDictation.text)) {
+      swivoxDictation.phase = "result";
+      swivoxDictation.error = "输入框或会话已变化，请复制识别结果到目标输入框";
+      renderSwivoxDictation(); return;
     }
-    const send = chatgptxDictation.action === "send";
-    const target = { ...chatgptxDictation.target };
-    cancelChatGPTXDictation();
+    const send = swivoxDictation.action === "send";
+    const target = { ...swivoxDictation.target };
+    cancelSwivoxDictation();
     if (send) {
-      const revision = chatgptxDictation.revision;
-      chatgptxDictation.pendingSend = true;
+      const revision = swivoxDictation.revision;
+      swivoxDictation.pendingSend = true;
       // 给原生状态一个渲染周期，再点击它自己的发送按钮；找不到时保留已插入的草稿。
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      if (revision !== chatgptxDictation.revision) return;
-      chatgptxDictation.pendingSend = false;
-      if (!chatgptxDictationEnabled() || window.location.href !== target.href) return;
-      const context = chatgptxDictation.nativeApi?.context();
+      if (revision !== swivoxDictation.revision) return;
+      swivoxDictation.pendingSend = false;
+      if (!swivoxDictationEnabled() || window.location.href !== target.href) return;
+      const context = swivoxDictation.nativeApi?.context();
       const currentEditor = target.composerId && context?.composerId === target.composerId
-        ? chatgptxDictationEditor(context.root) : editor.isConnected && !target.composerId ? editor : null;
+        ? swivoxDictationEditor(context.root) : editor.isConnected && !target.composerId ? editor : null;
       if (!currentEditor) return;
-      const button = chatgptxDictationSendButton(currentEditor);
+      const button = swivoxDictationSendButton(currentEditor);
       if (button) button.click();
       else showToast("识别结果已插入，请点击发送", null);
     }
   }
 
-  async function chatgptxDictationAudioBase64(blob, signal) {
-    if (blob.size > chatgptxDictationMaxBytes) throw new Error("录音超过 25 MiB，请缩短后重录");
+  async function swivoxDictationAudioBase64(blob, signal) {
+    if (blob.size > swivoxDictationMaxBytes) throw new Error("录音超过 25 MiB，请缩短后重录");
     const bytes = new Uint8Array(await blob.arrayBuffer());
     let encoded = "";
     // 按 3 字节对齐分段编码，避免一次展开大录音耗尽调用栈；让取消事件有机会执行。
@@ -15816,7 +15816,7 @@
 
   // SenseVoice 接收 16 kHz/单声道 PCM WAV；MediaRecorder 在 Chromium 中通常只提供 WebM/Opus，
   // 因此只在选择本地 provider 时通过浏览器音频解码器做一次无损 PCM 转换。
-  async function chatgptxDictationSenseVoiceWav(blob, signal) {
+  async function swivoxDictationSenseVoiceWav(blob, signal) {
     if (signal.aborted) throw new DOMException("转写已取消", "AbortError");
     const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
     const OfflineContextCtor = window.OfflineAudioContext || window.webkitOfflineAudioContext;
@@ -15850,19 +15850,19 @@
     }
   }
 
-  async function transcribeChatGPTXDictation() {
-    if (!chatgptxDictationEnabled()) { cancelChatGPTXDictation(); return; }
-    if (!chatgptxDictation.blob) return;
-    const revision = ++chatgptxDictation.revision;
+  async function transcribeSwivoxDictation() {
+    if (!swivoxDictationEnabled()) { cancelSwivoxDictation(); return; }
+    if (!swivoxDictation.blob) return;
+    const revision = ++swivoxDictation.revision;
     const controller = new AbortController();
-    chatgptxDictation.controller = controller;
-    chatgptxDictation.phase = "transcribing";
-    chatgptxDictation.error = "";
-    renderChatGPTXDictation();
+    swivoxDictation.controller = controller;
+    swivoxDictation.phase = "transcribing";
+    swivoxDictation.error = "";
+    renderSwivoxDictation();
     let cancelRequest = null;
     try {
-      const status = await loadChatGPTXDictationStatus(true);
-      if (revision !== chatgptxDictation.revision) return;
+      const status = await loadSwivoxDictationStatus(true);
+      if (revision !== swivoxDictation.revision) return;
       if (!status?.enabled || !status?.configured || !status?.helperToken) throw new Error(status?.message || "语音服务尚未配置");
       const requestId = crypto.randomUUID();
       let requestStarted = false;
@@ -15871,11 +15871,11 @@
       };
       controller.signal.addEventListener("abort", cancelRequest, { once: true });
       const uploadBlob = status.provider === "sensevoice"
-        ? await chatgptxDictationSenseVoiceWav(chatgptxDictation.blob, controller.signal)
-        : chatgptxDictation.blob;
-      const audioBase64 = await chatgptxDictationAudioBase64(uploadBlob, controller.signal);
-      if (revision !== chatgptxDictation.revision || controller.signal.aborted) return;
-      if (!chatgptxDictationEnabled()) { cancelChatGPTXDictation(); return; }
+        ? await swivoxDictationSenseVoiceWav(swivoxDictation.blob, controller.signal)
+        : swivoxDictation.blob;
+      const audioBase64 = await swivoxDictationAudioBase64(uploadBlob, controller.signal);
+      if (revision !== swivoxDictation.revision || controller.signal.aborted) return;
+      if (!swivoxDictationEnabled()) { cancelSwivoxDictation(); return; }
       const extension = uploadBlob.type.includes("wav") ? "wav" : uploadBlob.type.includes("mp4") ? "m4a" : "webm";
       requestStarted = true;
       // app:// 的 CSP 不允许 renderer 直接 fetch localhost；音频经既有特权桥接交给 Rust。
@@ -15885,24 +15885,24 @@
       });
       controller.signal.removeEventListener("abort", cancelRequest);
       cancelRequest = null;
-      if (revision !== chatgptxDictation.revision) return;
+      if (revision !== swivoxDictation.revision) return;
       if (result?.status === "failed" || result?.status === "cancelled") throw new Error(result?.message || "语音转写失败");
       if (typeof result?.text !== "string") throw new Error("语音服务没有返回 text 字段");
-      chatgptxDictation.text = result.text.trim();
-      if (!chatgptxDictation.text) { cancelChatGPTXDictation(); showToast("未识别到文字，请重录", null); return; }
-      await finishChatGPTXDictation();
+      swivoxDictation.text = result.text.trim();
+      if (!swivoxDictation.text) { cancelSwivoxDictation(); showToast("未识别到文字，请重录", null); return; }
+      await finishSwivoxDictation();
     } catch (error) {
-      if (revision !== chatgptxDictation.revision) return;
-      chatgptxDictation.phase = "error";
-      chatgptxDictation.error = error?.name === "AbortError" ? "转写已取消" : error?.message || "语音转写失败";
-      renderChatGPTXDictation();
+      if (revision !== swivoxDictation.revision) return;
+      swivoxDictation.phase = "error";
+      swivoxDictation.error = error?.name === "AbortError" ? "转写已取消" : error?.message || "语音转写失败";
+      renderSwivoxDictation();
     } finally {
       if (cancelRequest) controller.signal.removeEventListener("abort", cancelRequest);
-      if (revision === chatgptxDictation.revision) chatgptxDictation.controller = null;
+      if (revision === swivoxDictation.revision) swivoxDictation.controller = null;
     }
   }
 
-  function chatgptxDictationControl(action, label, disabled = false) {
+  function swivoxDictationControl(action, label, disabled = false) {
     const button = document.createElement("button");
     button.type = "button"; button.textContent = label; button.dataset.dictationAction = action;
     button.disabled = disabled;
@@ -15917,7 +15917,7 @@
    * 成 aria-label / title。录音、转写这些状态仍然保留文字——那些状态要传达信息，
    * 光靠图标说不清。
    */
-  function chatgptxDictationMicIcon() {
+  function swivoxDictationMicIcon() {
     const ns = "http://www.w3.org/2000/svg";
     const svg = document.createElementNS(ns, "svg");
     svg.setAttribute("viewBox", "0 0 16 16");
@@ -15934,18 +15934,18 @@
     return svg;
   }
 
-  function chatgptxDictationMicButton(disabled) {
-    const button = chatgptxDictationControl("start", "", disabled);
-    button.className = "chatgptx-dictation-mic";
+  function swivoxDictationMicButton(disabled) {
+    const button = swivoxDictationControl("start", "", disabled);
+    button.className = "swivox-dictation-mic";
     button.setAttribute("aria-label", "语音输入");
     button.setAttribute("title", "语音输入");
-    button.append(chatgptxDictationMicIcon());
+    button.append(swivoxDictationMicIcon());
     return button;
   }
 
-  function renderChatGPTXDictation() {
-    const state = chatgptxDictation;
-    document.querySelectorAll('[data-chatgptx-ext="builtin-dictation"][data-dictation-controls]').forEach((root) => {
+  function renderSwivoxDictation() {
+    const state = swivoxDictation;
+    document.querySelectorAll('[data-swivox-ext="builtin-dictation"][data-dictation-controls]').forEach((root) => {
       const active = state.phase !== "idle" && (root.dataset.dictationTarget === state.target?.id || root.dataset.floating === "true");
       const seconds = Math.floor((Date.now() - state.startedAt) / 1000);
       const recordingLabel = `● 录音 ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
@@ -15956,7 +15956,7 @@
         return;
       }
       root.dataset.renderKey = key; root.replaceChildren();
-      if (!active) { root.append(chatgptxDictationMicButton(state.phase !== "idle")); return; }
+      if (!active) { root.append(swivoxDictationMicButton(state.phase !== "idle")); return; }
       const status = document.createElement("span"); status.setAttribute("role", "status");
       if (state.phase === "recording") status.setAttribute("aria-live", "off");
       status.textContent = state.phase === "requesting" ? "正在请求麦克风…"
@@ -15964,85 +15964,85 @@
         : state.phase === "transcribing" ? "正在转写…" : state.error;
       root.append(status);
       if (state.phase === "recording") {
-        root.append(chatgptxDictationControl("insert", "停止并插入"), chatgptxDictationControl("send", "停止并发送"));
+        root.append(swivoxDictationControl("insert", "停止并插入"), swivoxDictationControl("send", "停止并发送"));
       } else if (state.phase === "transcribing") {
-        root.append(chatgptxDictationControl("send", "完成后发送", state.action === "send"));
+        root.append(swivoxDictationControl("send", "完成后发送", state.action === "send"));
       } else if (state.phase === "error") {
-        if (state.blob) root.append(chatgptxDictationControl("retry", "重试转写"));
-        root.append(chatgptxDictationControl("rerecord", "重录"));
+        if (state.blob) root.append(swivoxDictationControl("retry", "重试转写"));
+        root.append(swivoxDictationControl("rerecord", "重录"));
       } else if (state.phase === "result") {
         const text = document.createElement("textarea"); text.readOnly = true; text.value = state.text; text.setAttribute("aria-label", "语音识别结果");
-        root.append(text, chatgptxDictationControl("copy", "复制文字"));
+        root.append(text, swivoxDictationControl("copy", "复制文字"));
       }
-      root.append(chatgptxDictationControl("cancel", state.phase === "result" ? "关闭" : "取消"));
+      root.append(swivoxDictationControl("cancel", state.phase === "result" ? "关闭" : "取消"));
     });
-    const floating = document.getElementById("chatgptx-dictation-recovery");
+    const floating = document.getElementById("swivox-dictation-recovery");
     if (state.phase === "idle") floating?.remove();
-    else if (!chatgptxDictationTargetEditor() && !floating) {
-      const root = createChatGPTXDictationControls();
-      root.id = "chatgptx-dictation-recovery"; root.dataset.floating = "true";
-      document.body.append(root); renderChatGPTXDictation();
+    else if (!swivoxDictationTargetEditor() && !floating) {
+      const root = createSwivoxDictationControls();
+      root.id = "swivox-dictation-recovery"; root.dataset.floating = "true";
+      document.body.append(root); renderSwivoxDictation();
     }
   }
 
-  function createChatGPTXDictationControls() {
+  function createSwivoxDictationControls() {
     const root = document.createElement("div");
-    root.dataset.chatgptxExt = "builtin-dictation"; root.dataset.dictationControls = "true";
-    root.className = "chatgptx-dictation-controls";
+    root.dataset.swivoxExt = "builtin-dictation"; root.dataset.dictationControls = "true";
+    root.className = "swivox-dictation-controls";
     root.addEventListener("pointerdown", (event) => { if (event.target.closest("button")) event.preventDefault(); });
     root.addEventListener("click", (event) => {
       const action = event.target.closest('[data-dictation-action]')?.dataset.dictationAction;
       if (!action) return;
       event.preventDefault(); event.stopPropagation();
-      if (action === "start") void startChatGPTXDictation(root.closest(".composer-footer, [data-composer-footer-responsive]"));
-      else if (action === "cancel") cancelChatGPTXDictation();
-      else if (action === "retry") void transcribeChatGPTXDictation();
+      if (action === "start") void startSwivoxDictation(root.closest(".composer-footer, [data-composer-footer-responsive]"));
+      else if (action === "cancel") cancelSwivoxDictation();
+      else if (action === "retry") void transcribeSwivoxDictation();
       else if (action === "rerecord") {
-        const footer = chatgptxDictationTargetEditor()?.closest('[data-composer-surface-variant], form')?.querySelector('.composer-footer, [data-composer-footer-responsive]')
+        const footer = swivoxDictationTargetEditor()?.closest('[data-composer-surface-variant], form')?.querySelector('.composer-footer, [data-composer-footer-responsive]')
           || root.closest(".composer-footer, [data-composer-footer-responsive]");
-        cancelChatGPTXDictation();
-        if (footer) void startChatGPTXDictation(footer);
+        cancelSwivoxDictation();
+        if (footer) void startSwivoxDictation(footer);
         else showToast("请返回目标会话后重新录音", null);
       } else if (action === "copy") {
         if (!navigator.clipboard?.writeText) { showToast("请选中识别结果手动复制", null); return; }
-        void navigator.clipboard.writeText(chatgptxDictation.text)
+        void navigator.clipboard.writeText(swivoxDictation.text)
           .then(() => showToast("已复制识别结果", null)).catch(() => showToast("复制失败，请选中识别结果手动复制", null));
-      } else stopChatGPTXDictation(action);
+      } else stopSwivoxDictation(action);
     });
     return root;
   }
 
-  function chatgptxDictationFooterScore(footer, editor) {
+  function swivoxDictationFooterScore(footer, editor) {
     let score = footer.contains(editor) ? 4 : 0;
-    const send = chatgptxDictationSendButton(editor);
+    const send = swivoxDictationSendButton(editor);
     if (send && footer.contains(send)) score += 2;
     return score;
   }
 
-  function chatgptxDictationFooterControls(footer) {
+  function swivoxDictationFooterControls(footer) {
     const node = footer.querySelector('[data-dictation-controls]');
     return node && node.closest(".composer-footer, [data-composer-footer-responsive]") === footer ? node : null;
   }
 
-  function installChatGPTXDictation() {
-    if (!chatgptxDictationEnabled()) {
-      if (chatgptxDictation.phase !== "idle" || chatgptxDictation.pendingSend) cancelChatGPTXDictation();
-      document.querySelectorAll('[data-chatgptx-ext="builtin-dictation"]').forEach((node) => node.remove());
+  function installSwivoxDictation() {
+    if (!swivoxDictationEnabled()) {
+      if (swivoxDictation.phase !== "idle" || swivoxDictation.pendingSend) cancelSwivoxDictation();
+      document.querySelectorAll('[data-swivox-ext="builtin-dictation"]').forEach((node) => node.remove());
       return;
     }
-    if (!document.getElementById("chatgptx-dictation-style")) {
-      const style = document.createElement("style"); style.id = "chatgptx-dictation-style";
-      style.dataset.chatgptxExt = "builtin-dictation";
-      style.textContent = `.chatgptx-dictation-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-inline:6px;font-size:12px;max-width:100%}
-        .chatgptx-dictation-controls button{border:1px solid color-mix(in srgb,currentColor 20%,transparent);border-radius:8px;padding:5px 8px;background:transparent;color:inherit;cursor:pointer;white-space:nowrap}
-        .chatgptx-dictation-controls button:disabled{opacity:.5;cursor:default}.chatgptx-dictation-controls button:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+    if (!document.getElementById("swivox-dictation-style")) {
+      const style = document.createElement("style"); style.id = "swivox-dictation-style";
+      style.dataset.swivoxExt = "builtin-dictation";
+      style.textContent = `.swivox-dictation-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-inline:6px;font-size:12px;max-width:100%}
+        .swivox-dictation-controls button{border:1px solid color-mix(in srgb,currentColor 20%,transparent);border-radius:8px;padding:5px 8px;background:transparent;color:inherit;cursor:pointer;white-space:nowrap}
+        .swivox-dictation-controls button:disabled{opacity:.5;cursor:default}.swivox-dictation-controls button:focus-visible{outline:2px solid currentColor;outline-offset:2px}
         /* 颜色取主文字色而不是继承 footer 的弱化文字：图标按钮没有边框和标签，
            再叠一层弱化会被误读成禁用态。 */
-        .chatgptx-dictation-controls .chatgptx-dictation-mic{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--color-token-text-primary,currentColor);opacity:.9;cursor:pointer}
-        .chatgptx-dictation-controls .chatgptx-dictation-mic:hover{background:color-mix(in srgb,currentColor 12%,transparent);opacity:1}
-        .chatgptx-dictation-controls .chatgptx-dictation-mic:disabled{opacity:.4;cursor:default;background:transparent}
-        #chatgptx-dictation-recovery{position:fixed;bottom:24px;right:24px;z-index:2147483000;padding:12px;border-radius:12px;background:var(--background,#252525);color:var(--foreground,#eee);box-shadow:0 4px 24px #0006;max-width:480px}
-        #chatgptx-dictation-recovery textarea{width:100%;min-height:80px;color:inherit;background:transparent}`;
+        .swivox-dictation-controls .swivox-dictation-mic{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--color-token-text-primary,currentColor);opacity:.9;cursor:pointer}
+        .swivox-dictation-controls .swivox-dictation-mic:hover{background:color-mix(in srgb,currentColor 12%,transparent);opacity:1}
+        .swivox-dictation-controls .swivox-dictation-mic:disabled{opacity:.4;cursor:default;background:transparent}
+        #swivox-dictation-recovery{position:fixed;bottom:24px;right:24px;z-index:2147483000;padding:12px;border-radius:12px;background:var(--background,#252525);color:var(--foreground,#eee);box-shadow:0 4px 24px #0006;max-width:480px}
+        #swivox-dictation-recovery textarea{width:100%;min-height:80px;color:inherit;background:transparent}`;
       document.head.append(style);
     }
     // 同一输入框可能同时命中多个 footer（例如新版首页的顶部上下文栏和底部
@@ -16052,10 +16052,10 @@
     const candidates = [];
     document.querySelectorAll(".composer-footer, [data-composer-footer-responsive]").forEach((footer) => {
       if (!visibleElement(footer) || isExtensionUiNode(footer)) return;
-      const scope = chatgptxDictationScope(footer);
-      const editor = scope && chatgptxDictationEditor(scope);
+      const scope = swivoxDictationScope(footer);
+      const editor = scope && swivoxDictationEditor(scope);
       if (!editor) return;
-      candidates.push({ footer, editor, score: chatgptxDictationFooterScore(footer, editor) });
+      candidates.push({ footer, editor, score: swivoxDictationFooterScore(footer, editor) });
     });
     const hosts = new Map();
     for (const item of candidates) {
@@ -16063,64 +16063,64 @@
       if (!current || item.score >= current.score) hosts.set(item.editor, item);
     }
     const hostFooters = new Set([...hosts.values()].map((item) => item.footer));
-    document.querySelectorAll('[data-chatgptx-ext="builtin-dictation"][data-dictation-controls]').forEach((node) => {
+    document.querySelectorAll('[data-swivox-ext="builtin-dictation"][data-dictation-controls]').forEach((node) => {
       if (node.dataset.floating === "true") return;
       const owner = node.closest(".composer-footer, [data-composer-footer-responsive]");
       if (owner && !hostFooters.has(owner)) node.remove();
     });
     for (const item of hosts.values()) {
-      let controls = chatgptxDictationFooterControls(item.footer);
-      if (!controls) { controls = createChatGPTXDictationControls(); item.footer.append(controls); }
-      const target = item.editor.dataset.chatgptxDictationTarget || item.editor.closest('[data-chatgptx-dictation-root]')?.dataset.chatgptxDictationRoot || "";
+      let controls = swivoxDictationFooterControls(item.footer);
+      if (!controls) { controls = createSwivoxDictationControls(); item.footer.append(controls); }
+      const target = item.editor.dataset.swivoxDictationTarget || item.editor.closest('[data-swivox-dictation-root]')?.dataset.swivoxDictationRoot || "";
       if (controls.dataset.dictationTarget !== target) { controls.dataset.dictationTarget = target; delete controls.dataset.renderKey; }
     }
-    renderChatGPTXDictation();
+    renderSwivoxDictation();
   }
 
-  const chatgptxDictationKeyHandler = (event) => {
-    if (event.key === "Escape" && (chatgptxDictation.phase !== "idle" || chatgptxDictation.pendingSend)) {
-      event.preventDefault(); event.stopImmediatePropagation(); cancelChatGPTXDictation();
+  const swivoxDictationKeyHandler = (event) => {
+    if (event.key === "Escape" && (swivoxDictation.phase !== "idle" || swivoxDictation.pendingSend)) {
+      event.preventDefault(); event.stopImmediatePropagation(); cancelSwivoxDictation();
       return;
     }
-    const editor = chatgptxDictationTargetEditor();
+    const editor = swivoxDictationTargetEditor();
     if (event.key === "Enter" && !event.isComposing && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey
         && editor && (document.activeElement === editor || editor.contains?.(document.activeElement))
-        && ["requesting", "recording", "transcribing"].includes(chatgptxDictation.phase)) {
+        && ["requesting", "recording", "transcribing"].includes(swivoxDictation.phase)) {
       // 在录音期间，Enter 先结束转写再发送，不能让原生输入框先提交旧草稿。
       event.preventDefault(); event.stopImmediatePropagation();
-      if (chatgptxDictation.phase !== "requesting") stopChatGPTXDictation("send");
+      if (swivoxDictation.phase !== "requesting") stopSwivoxDictation("send");
     }
   };
-  document.addEventListener("keydown", chatgptxDictationKeyHandler, true);
-  const chatgptxDictationDispose = () => {
-    cancelChatGPTXDictation();
-    document.removeEventListener("keydown", chatgptxDictationKeyHandler, true);
-    document.querySelectorAll('[data-chatgptx-ext="builtin-dictation"]').forEach((node) => node.remove());
+  document.addEventListener("keydown", swivoxDictationKeyHandler, true);
+  const swivoxDictationDispose = () => {
+    cancelSwivoxDictation();
+    document.removeEventListener("keydown", swivoxDictationKeyHandler, true);
+    document.querySelectorAll('[data-swivox-ext="builtin-dictation"]').forEach((node) => node.remove());
   };
-  window.addEventListener("pagehide", chatgptxDictationDispose, { once: true });
-  window.__chatgptxDictationRuntime = { dispose: () => {
-    window.removeEventListener("pagehide", chatgptxDictationDispose);
-    chatgptxDictationDispose();
+  window.addEventListener("pagehide", swivoxDictationDispose, { once: true });
+  window.__swivoxDictationRuntime = { dispose: () => {
+    window.removeEventListener("pagehide", swivoxDictationDispose);
+    swivoxDictationDispose();
   } };
   // 特效只观察原生编辑事件；不写输入框、不改选区，也不触发 React 输入事务。
-  window.__chatgptxTypingEffectsRuntime?.dispose?.();
-  const chatgptxTypingEffects = {
+  window.__swivoxTypingEffectsRuntime?.dispose?.();
+  const swivoxTypingEffects = {
     installed: false, disposed: false, mode: "off", canvas: null, context: null,
     bounds: null, particles: [], frame: null, frameAt: 0, lastBurstAt: -Infinity,
     editor: null, composition: null, compositionFrame: null, media: null,
   };
-  const chatgptxTypingEffectMaxParticles = 180;
-  const chatgptxTypingEffectInterval = 40;
-  const chatgptxTypingEffectOwner = "builtin-typing-effects";
-  registerChatGPTXExtensionSelector('[data-chatgptx-ext="builtin-typing-effects"]');
+  const swivoxTypingEffectMaxParticles = 180;
+  const swivoxTypingEffectInterval = 40;
+  const swivoxTypingEffectOwner = "builtin-typing-effects";
+  registerSwivoxExtensionSelector('[data-swivox-ext="builtin-typing-effects"]');
 
-  function chatgptxTypingEffectMode() {
-    const value = chatgptxSettings().typingEffect;
+  function swivoxTypingEffectMode() {
+    const value = swivoxSettings().typingEffect;
     return ["rainbow", "fireworks", "stars"].includes(value) ? value : "off";
   }
 
-  function clearChatGPTXTypingEffects(resetComposition = true) {
-    const state = chatgptxTypingEffects;
+  function clearSwivoxTypingEffects(resetComposition = true) {
+    const state = swivoxTypingEffects;
     if (state.frame !== null) cancelAnimationFrame(state.frame);
     state.frame = null;
     state.canvas?.remove();
@@ -16135,14 +16135,14 @@
     state.lastBurstAt = -Infinity;
   }
 
-  function syncChatGPTXTypingEffects() {
-    const state = chatgptxTypingEffects;
-    const mode = chatgptxTypingEffectMode();
-    if (state.mode !== mode || mode === "off" || state.media?.matches || document.hidden) clearChatGPTXTypingEffects();
+  function syncSwivoxTypingEffects() {
+    const state = swivoxTypingEffects;
+    const mode = swivoxTypingEffectMode();
+    if (state.mode !== mode || mode === "off" || state.media?.matches || document.hidden) clearSwivoxTypingEffects();
     state.mode = mode;
   }
 
-  function chatgptxTypingEffectEditor(target) {
+  function swivoxTypingEffectEditor(target) {
     const editor = target?.closest?.('.ProseMirror[contenteditable="true"], textarea, [role="textbox"][contenteditable="true"]');
     if (!editor?.isConnected || editor.matches(':disabled, [readonly], [contenteditable="false"]')
         || isExtensionUiNode(editor) || editor.closest('[inert], [aria-hidden="true"]') || !visibleElement(editor)) return null;
@@ -16158,11 +16158,11 @@
     return composer && (document.activeElement === editor || editor.contains(document.activeElement)) ? editor : null;
   }
 
-  function chatgptxTypingEffectText(editor) {
+  function swivoxTypingEffectText(editor) {
     return editor instanceof HTMLTextAreaElement ? editor.value : editor.textContent || "";
   }
 
-  function chatgptxTypingEffectTextareaCaret(editor) {
+  function swivoxTypingEffectTextareaCaret(editor) {
     const style = getComputedStyle(editor);
     const rect = editor.getBoundingClientRect();
     const width = editor.offsetWidth || rect.width;
@@ -16171,7 +16171,7 @@
     const mirrorWidth = editor.clientWidth > 0
       ? editor.clientWidth + (parseFloat(style.borderLeftWidth) || 0) + (parseFloat(style.borderRightWidth) || 0) : width;
     const mirror = document.createElement("div");
-    mirror.setAttribute("data-chatgptx-ext", chatgptxTypingEffectOwner);
+    mirror.setAttribute("data-swivox-ext", swivoxTypingEffectOwner);
     mirror.setAttribute("aria-hidden", "true");
     // offsetWidth 使用布局尺寸，最终按真实 rect 缩放，兼容编辑器祖先上的 CSS zoom。
     const properties = ["direction", "fontFamily", "fontSize", "fontWeight", "fontStyle", "fontVariant", "fontStretch",
@@ -16204,10 +16204,10 @@
     } finally { mirror.remove(); }
   }
 
-  function chatgptxTypingEffectCaret(editor) {
+  function swivoxTypingEffectCaret(editor) {
     const box = editor.getBoundingClientRect();
     let point;
-    if (editor instanceof HTMLTextAreaElement) point = chatgptxTypingEffectTextareaCaret(editor);
+    if (editor instanceof HTMLTextAreaElement) point = swivoxTypingEffectTextareaCaret(editor);
     else {
       const selection = window.getSelection?.();
       if (!selection?.rangeCount || !editor.contains(selection.anchorNode) || !editor.contains(selection.focusNode)) return null;
@@ -16250,11 +16250,11 @@
     return { x: Math.max(box.left, Math.min(box.right, point.x)), y: Math.max(box.top, Math.min(box.bottom, point.y)) };
   }
 
-  function createChatGPTXTypingEffectCanvas() {
-    const state = chatgptxTypingEffects;
+  function createSwivoxTypingEffectCanvas() {
+    const state = swivoxTypingEffects;
     if (state.canvas?.isConnected) return true;
     const canvas = document.createElement("canvas");
-    canvas.setAttribute("data-chatgptx-ext", chatgptxTypingEffectOwner);
+    canvas.setAttribute("data-swivox-ext", swivoxTypingEffectOwner);
     canvas.setAttribute("aria-hidden", "true");
     Object.assign(canvas.style, {
       position: "fixed", top: "0", left: "0", width: "100%", height: "100%", pointerEvents: "none",
@@ -16272,12 +16272,12 @@
     return true;
   }
 
-  function drawChatGPTXTypingEffects(timestamp) {
-    const state = chatgptxTypingEffects;
+  function drawSwivoxTypingEffects(timestamp) {
+    const state = swivoxTypingEffects;
     state.frame = null;
-    if (state.disposed || state.mode !== chatgptxTypingEffectMode() || state.media?.matches || document.hidden
-        || !state.editor?.isConnected || chatgptxTypingEffectEditor(document.activeElement) !== state.editor || !state.canvas?.isConnected) {
-      clearChatGPTXTypingEffects(); return;
+    if (state.disposed || state.mode !== swivoxTypingEffectMode() || state.media?.matches || document.hidden
+        || !state.editor?.isConnected || swivoxTypingEffectEditor(document.activeElement) !== state.editor || !state.canvas?.isConnected) {
+      clearSwivoxTypingEffects(); return;
     }
     const elapsed = state.frameAt ? Math.max(0, Math.min(32, timestamp - state.frameAt)) : 16;
     state.frameAt = timestamp;
@@ -16308,22 +16308,22 @@
       context.restore();
       return true;
     });
-    if (state.particles.length) state.frame = requestAnimationFrame(drawChatGPTXTypingEffects);
-    else clearChatGPTXTypingEffects(false);
+    if (state.particles.length) state.frame = requestAnimationFrame(drawSwivoxTypingEffects);
+    else clearSwivoxTypingEffects(false);
   }
 
-  function emitChatGPTXTypingEffects(editor) {
-    const state = chatgptxTypingEffects;
-    syncChatGPTXTypingEffects();
+  function emitSwivoxTypingEffects(editor) {
+    const state = swivoxTypingEffects;
+    syncSwivoxTypingEffects();
     if (state.disposed || state.mode === "off" || state.media?.matches || document.hidden) return false;
     const now = performance.now();
-    if (now - state.lastBurstAt < chatgptxTypingEffectInterval) return false;
-    const point = chatgptxTypingEffectCaret(editor);
-    if (!point || !createChatGPTXTypingEffectCanvas()) return false;
+    if (now - state.lastBurstAt < swivoxTypingEffectInterval) return false;
+    const point = swivoxTypingEffectCaret(editor);
+    if (!point || !createSwivoxTypingEffectCanvas()) return false;
     state.lastBurstAt = now;
     state.editor = editor;
     const count = state.mode === "fireworks" ? 26 : state.mode === "stars" ? 10 : 16;
-    const available = Math.max(0, chatgptxTypingEffectMaxParticles - state.particles.length);
+    const available = Math.max(0, swivoxTypingEffectMaxParticles - state.particles.length);
     if (!available) return false;
     const hue = now / 9 % 360;
     for (let index = 0; index < Math.min(count, available); index++) {
@@ -16337,23 +16337,23 @@
         color: `hsl(${state.mode === "stars" ? 38 + Math.random() * 22 : hue + index * 360 / count} 95% 68%)`,
       });
     }
-    if (state.particles.length && state.frame === null) state.frame = requestAnimationFrame(drawChatGPTXTypingEffects);
+    if (state.particles.length && state.frame === null) state.frame = requestAnimationFrame(drawSwivoxTypingEffects);
     return true;
   }
 
-  function createChatGPTXTypingEffectComposition(editor, before = chatgptxTypingEffectText(editor)) {
+  function createSwivoxTypingEffectComposition(editor, before = swivoxTypingEffectText(editor)) {
     return { editor, before, ended: false, emitted: false, lastEmittedText: null, lastInputText: before, sawTrustedInput: false, attempts: 0 };
   }
 
-  function commitChatGPTXTypingEffectComposition(composition) {
-    const state = chatgptxTypingEffects;
+  function commitSwivoxTypingEffectComposition(composition) {
+    const state = swivoxTypingEffects;
     if (state.composition !== composition || !composition.data || !composition.trusted
-        || !chatgptxTypingEffectEditor(composition.editor)) return false;
-    const text = chatgptxTypingEffectText(composition.editor);
+        || !swivoxTypingEffectEditor(composition.editor)) return false;
+    const text = swivoxTypingEffectText(composition.editor);
     if (composition.emitted && text === composition.committed) return true;
     // 最终 input 通常紧接组词 input；同一份已绘制文本不重复发射。
     if (text !== composition.lastEmittedText) {
-      if (text === composition.before || !emitChatGPTXTypingEffects(composition.editor)) return false;
+      if (text === composition.before || !emitSwivoxTypingEffects(composition.editor)) return false;
     }
     composition.emitted = true;
     composition.committed = text;
@@ -16361,15 +16361,15 @@
     return true;
   }
 
-  function updateChatGPTXTypingEffectComposition(composition) {
-    const state = chatgptxTypingEffects;
-    if (state.composition !== composition || state.disposed || !chatgptxTypingEffectEditor(composition.editor)) return;
+  function updateSwivoxTypingEffectComposition(composition) {
+    const state = swivoxTypingEffects;
+    if (state.composition !== composition || state.disposed || !swivoxTypingEffectEditor(composition.editor)) return;
     let emitted;
-    if (composition.ended) emitted = commitChatGPTXTypingEffectComposition(composition);
+    if (composition.ended) emitted = commitSwivoxTypingEffectComposition(composition);
     else {
-      const text = chatgptxTypingEffectText(composition.editor);
+      const text = swivoxTypingEffectText(composition.editor);
       emitted = text === composition.lastEmittedText || (composition.lastInputData === "" && !composition.backwardDeletion);
-      if (!emitted && (text !== composition.before || composition.backwardDeletion) && emitChatGPTXTypingEffects(composition.editor)) {
+      if (!emitted && (text !== composition.before || composition.backwardDeletion) && emitSwivoxTypingEffects(composition.editor)) {
         composition.lastEmittedText = text;
         emitted = true;
       }
@@ -16383,26 +16383,26 @@
       state.compositionFrame = requestAnimationFrame(() => {
         state.compositionFrame = null;
         composition.attempts += 1;
-        updateChatGPTXTypingEffectComposition(composition);
+        updateSwivoxTypingEffectComposition(composition);
       });
     }
   }
 
-  function chatgptxTypingEffectInput(event) {
+  function swivoxTypingEffectInput(event) {
     if (event.isTrusted !== true) return;
     const backwardDeletion = ["deleteContentBackward", "deleteWordBackward", "deleteSoftLineBackward", "deleteHardLineBackward"].includes(event.inputType);
     if (!backwardDeletion && !["insertText", "insertLineBreak", "insertParagraph", "insertCompositionText", "insertFromComposition"].includes(event.inputType)) return;
-    const editor = chatgptxTypingEffectEditor(event.target);
+    const editor = swivoxTypingEffectEditor(event.target);
     if (!editor) return;
-    const state = chatgptxTypingEffects;
+    const state = swivoxTypingEffects;
     let composition = state.composition;
     const compositionInput = event.isComposing || ["insertCompositionText", "insertFromComposition"].includes(event.inputType);
     if (compositionInput && (!composition || composition.editor !== editor
-        || (composition.ended && composition.emitted && (event.isComposing || chatgptxTypingEffectText(editor) !== composition.committed)))) {
+        || (composition.ended && composition.emitted && (event.isComposing || swivoxTypingEffectText(editor) !== composition.committed)))) {
       // 部分输入法不会派发 compositionstart，但仍有可信的原生组词 input。
       if (state.compositionFrame !== null) cancelAnimationFrame(state.compositionFrame);
       state.compositionFrame = null;
-      composition = state.composition = createChatGPTXTypingEffectComposition(editor, null);
+      composition = state.composition = createSwivoxTypingEffectComposition(editor, null);
       if (event.inputType === "insertFromComposition") Object.assign(composition, { ended: true, data: event.data, trusted: true });
     }
     if (composition?.editor === editor) {
@@ -16410,94 +16410,94 @@
         if (state.compositionFrame !== null) cancelAnimationFrame(state.compositionFrame);
         state.compositionFrame = null;
         state.composition = null;
-        emitChatGPTXTypingEffects(editor);
+        emitSwivoxTypingEffects(editor);
         return;
       }
       if (!composition.ended || !composition.emitted) {
-        const text = chatgptxTypingEffectText(editor);
+        const text = swivoxTypingEffectText(editor);
         // 输入法退格也可能沿用 insertCompositionText，且清空组词时 data 为空。
         const shorterPreedit = compositionInput && typeof composition.lastInputText === "string" && text.length < composition.lastInputText.length;
         Object.assign(composition, {
           sawTrustedInput: true, lastInputData: event.data, lastInputText: text,
           backwardDeletion: backwardDeletion || shorterPreedit, attempts: 0,
         });
-        updateChatGPTXTypingEffectComposition(composition);
+        updateSwivoxTypingEffectComposition(composition);
         return;
       }
-      if (chatgptxTypingEffectText(editor) === composition.committed) return;
+      if (swivoxTypingEffectText(editor) === composition.committed) return;
       state.composition = null;
     }
     if (event.isComposing || (!backwardDeletion && !["insertText", "insertLineBreak", "insertParagraph"].includes(event.inputType))) return;
     if (event.inputType === "insertText" && !event.data) return;
-    emitChatGPTXTypingEffects(editor);
+    emitSwivoxTypingEffects(editor);
   }
 
-  function chatgptxTypingEffectCompositionStart(event) {
+  function swivoxTypingEffectCompositionStart(event) {
     if (event.isTrusted !== true) return;
-    syncChatGPTXTypingEffects();
-    if (chatgptxTypingEffects.mode === "off" || chatgptxTypingEffects.media?.matches || document.hidden) return;
-    const editor = chatgptxTypingEffectEditor(event.target);
+    syncSwivoxTypingEffects();
+    if (swivoxTypingEffects.mode === "off" || swivoxTypingEffects.media?.matches || document.hidden) return;
+    const editor = swivoxTypingEffectEditor(event.target);
     if (editor) {
-      if (chatgptxTypingEffects.compositionFrame !== null) cancelAnimationFrame(chatgptxTypingEffects.compositionFrame);
-      chatgptxTypingEffects.compositionFrame = null;
-      chatgptxTypingEffects.composition = createChatGPTXTypingEffectComposition(editor);
+      if (swivoxTypingEffects.compositionFrame !== null) cancelAnimationFrame(swivoxTypingEffects.compositionFrame);
+      swivoxTypingEffects.compositionFrame = null;
+      swivoxTypingEffects.composition = createSwivoxTypingEffectComposition(editor);
     }
   }
 
-  function chatgptxTypingEffectCompositionEnd(event) {
-    const composition = chatgptxTypingEffects.composition;
-    if (!composition || composition.editor !== chatgptxTypingEffectEditor(event.target)) return;
+  function swivoxTypingEffectCompositionEnd(event) {
+    const composition = swivoxTypingEffects.composition;
+    if (!composition || composition.editor !== swivoxTypingEffectEditor(event.target)) return;
     // 有些输入法/宿主转发结束事件，isTrusted 为 false；仅接纳之前已观察到的可信组词内容。
     if (event.isTrusted !== true && (!composition.sawTrustedInput || (event.data && event.data !== composition.lastInputData))) return;
     if (!event.data) {
-      chatgptxTypingEffects.composition = null;
-      if (chatgptxTypingEffects.compositionFrame !== null) cancelAnimationFrame(chatgptxTypingEffects.compositionFrame);
-      chatgptxTypingEffects.compositionFrame = null;
+      swivoxTypingEffects.composition = null;
+      if (swivoxTypingEffects.compositionFrame !== null) cancelAnimationFrame(swivoxTypingEffects.compositionFrame);
+      swivoxTypingEffects.compositionFrame = null;
       return;
     }
     Object.assign(composition, { ended: true, data: event.data, trusted: event.isTrusted === true || composition.sawTrustedInput });
     queueMicrotask(() => {
-      updateChatGPTXTypingEffectComposition(composition);
+      updateSwivoxTypingEffectComposition(composition);
     });
   }
 
-  function chatgptxTypingEffectFocusOut(event) {
-    const state = chatgptxTypingEffects;
-    if (event.target === state.editor || event.target === state.composition?.editor) clearChatGPTXTypingEffects();
+  function swivoxTypingEffectFocusOut(event) {
+    const state = swivoxTypingEffects;
+    if (event.target === state.editor || event.target === state.composition?.editor) clearSwivoxTypingEffects();
   }
 
-  function installChatGPTXTypingEffects() {
-    const state = chatgptxTypingEffects;
+  function installSwivoxTypingEffects() {
+    const state = swivoxTypingEffects;
     if (state.disposed) return;
     if (!state.installed) {
       state.installed = true;
       state.media = window.matchMedia?.("(prefers-reduced-motion: reduce)") || null;
-      document.addEventListener("input", chatgptxTypingEffectInput, true);
-      document.addEventListener("compositionstart", chatgptxTypingEffectCompositionStart, true);
-      document.addEventListener("compositionend", chatgptxTypingEffectCompositionEnd, true);
-      document.addEventListener("focusout", chatgptxTypingEffectFocusOut, true);
-      document.addEventListener("visibilitychange", syncChatGPTXTypingEffects);
-      window.addEventListener("blur", clearChatGPTXTypingEffects);
-      window.addEventListener("resize", clearChatGPTXTypingEffects);
-      state.media?.addEventListener?.("change", syncChatGPTXTypingEffects);
+      document.addEventListener("input", swivoxTypingEffectInput, true);
+      document.addEventListener("compositionstart", swivoxTypingEffectCompositionStart, true);
+      document.addEventListener("compositionend", swivoxTypingEffectCompositionEnd, true);
+      document.addEventListener("focusout", swivoxTypingEffectFocusOut, true);
+      document.addEventListener("visibilitychange", syncSwivoxTypingEffects);
+      window.addEventListener("blur", clearSwivoxTypingEffects);
+      window.addEventListener("resize", clearSwivoxTypingEffects);
+      state.media?.addEventListener?.("change", syncSwivoxTypingEffects);
     }
-    syncChatGPTXTypingEffects();
+    syncSwivoxTypingEffects();
   }
 
-  window.__chatgptxTypingEffectsRuntime = {
+  window.__swivoxTypingEffectsRuntime = {
     dispose() {
-      const state = chatgptxTypingEffects;
+      const state = swivoxTypingEffects;
       state.disposed = true;
-      clearChatGPTXTypingEffects();
+      clearSwivoxTypingEffects();
       if (!state.installed) return;
-      document.removeEventListener("input", chatgptxTypingEffectInput, true);
-      document.removeEventListener("compositionstart", chatgptxTypingEffectCompositionStart, true);
-      document.removeEventListener("compositionend", chatgptxTypingEffectCompositionEnd, true);
-      document.removeEventListener("focusout", chatgptxTypingEffectFocusOut, true);
-      document.removeEventListener("visibilitychange", syncChatGPTXTypingEffects);
-      window.removeEventListener("blur", clearChatGPTXTypingEffects);
-      window.removeEventListener("resize", clearChatGPTXTypingEffects);
-      state.media?.removeEventListener?.("change", syncChatGPTXTypingEffects);
+      document.removeEventListener("input", swivoxTypingEffectInput, true);
+      document.removeEventListener("compositionstart", swivoxTypingEffectCompositionStart, true);
+      document.removeEventListener("compositionend", swivoxTypingEffectCompositionEnd, true);
+      document.removeEventListener("focusout", swivoxTypingEffectFocusOut, true);
+      document.removeEventListener("visibilitychange", syncSwivoxTypingEffects);
+      window.removeEventListener("blur", clearSwivoxTypingEffects);
+      window.removeEventListener("resize", clearSwivoxTypingEffects);
+      state.media?.removeEventListener?.("change", syncSwivoxTypingEffects);
       state.installed = false;
     },
   };
@@ -16518,7 +16518,7 @@
   }
 
   function refreshConversationView() {
-    if (!chatgptxSettings().conversationView) {
+    if (!swivoxSettings().conversationView) {
       cleanupConversationView();
       return;
     }
@@ -16527,15 +16527,15 @@
   }
 
 
-  const officialUsageWindowMarker = "data-chatgptx-official-usage-window";
+  const officialUsageWindowMarker = "data-swivox-official-usage-window";
   // 重新注入会替换局部配置；已有 Query 钩子必须通过同一个运行时读取新策略。
-  const officialUsageRuntime = window.__chatgptxOfficialUsageRuntime ||= {
+  const officialUsageRuntime = window.__swivoxOfficialUsageRuntime ||= {
     rawPayloads: new WeakMap(),
     rewriteDepth: 0,
   };
   officialUsageRuntime.pendingPublications ||= new WeakMap();
   officialUsageRuntime.rewrite = rewriteTrackedOfficialUsagePayload;
-  window.__chatgptxOfficialUsageWindowCleanup?.();
+  window.__swivoxOfficialUsageWindowCleanup?.();
 
   function isOfficialLowQuotaSidebarCard(node) {
     if (node?.nodeType !== Node.ELEMENT_NODE || node.getAttribute("role") !== "status") return false;
@@ -16658,7 +16658,7 @@
     if (officialUsageWindowActive) syncOfficialUsageWindowMode(officialUsagePolicyKey());
   }
 
-  window.__chatgptxOfficialUsageWindowCleanup = () => {
+  window.__swivoxOfficialUsageWindowCleanup = () => {
     officialUsageWindowActive = false;
     officialUsageWindowHidden = false;
     document.removeEventListener("DOMContentLoaded", startOfficialUsageWindowsAfterReady);
@@ -16693,17 +16693,17 @@
     installCodexServiceTierDispatcherPatch();
     installCodexAppServerClientPrototypePatch();
     installCodexRemoteSessionRecoveryListener();
-    if (window.__chatgptxRemoteSessionRecoveryDispatcher) {
+    if (window.__swivoxRemoteSessionRecoveryDispatcher) {
       installCodexRemoteSessionDispatcherSubscription(
-        window.__chatgptxRemoteSessionRecoveryDispatcher,
+        window.__swivoxRemoteSessionRecoveryDispatcher,
         "existing-renderer"
       );
     }
-    installChatGPTXNavigationEntries();
+    installSwivoxNavigationEntries();
     // 拓展注册的图标栏入口与内置入口走同一条刷新路径：rail 渲染晚于注入，
     // 所以要每轮扫描都补一次（内部靠 id 幂等，不会重复插入）。
-    refreshChatGPTXRailNavigation();
-    installChatGPTXPageNavigationCloseHandler();
+    refreshSwivoxRailNavigation();
+    installSwivoxPageNavigationCloseHandler();
     scheduleBackendHeartbeat();
     installDeleteButtonEventDelegation();
     updateThreadScrollHandlers();
@@ -16717,7 +16717,7 @@
 
   function officialUsagePolicy() {
     // 新一代设置尚未返回时沿用最后一次真实配置，避免重新注入短暂恢复额度锁。
-    if (!chatgptxBackendSettingsLoaded && officialUsageRuntime.lastPolicy) return officialUsageRuntime.lastPolicy;
+    if (!swivoxBackendSettingsLoaded && officialUsageRuntime.lastPolicy) return officialUsageRuntime.lastPolicy;
     const profile = codexRemoteSessionActiveProfile();
     const official = String(profile?.relayMode || "") === "official";
     const hasApi = Boolean((profile?.apiKey && String(profile.apiKey).trim()) || (profile?.baseUrl && String(profile.baseUrl).trim()));
@@ -16727,7 +16727,7 @@
       hideAlerts: mixed,
       unlockSend: mixed,
     };
-    if (chatgptxBackendSettingsLoaded) officialUsageRuntime.lastPolicy = policy;
+    if (swivoxBackendSettingsLoaded) officialUsageRuntime.lastPolicy = policy;
     return policy;
   }
 
@@ -16890,9 +16890,9 @@
     const query = listed.find((item) => typeof Object.getPrototypeOf(item)?.setData === "function");
     if (!query) return;
     const proto = Object.getPrototypeOf(query);
-    if (typeof proto.setData !== "function" || proto.setData.__chatgptxUsagePublication) return;
+    if (typeof proto.setData !== "function" || proto.setData.__swivoxUsagePublication) return;
     const original = proto.setData;
-    function chatgptxPublishUsageData(data, ...rest) {
+    function swivoxPublishUsageData(data, ...rest) {
       if (!isMainRateLimitQueryKey(this?.queryKey)) return original.call(this, data, ...rest);
       const raw = officialUsageRuntime.rawPayloads.get(data) || data;
       const next = officialUsageRuntime.rewrite(data);
@@ -16916,16 +16916,16 @@
         else officialUsageRuntime.pendingPublications.delete(this);
       }
     }
-    chatgptxPublishUsageData.__chatgptxUsagePublication = true;
-    proto.setData = chatgptxPublishUsageData;
+    swivoxPublishUsageData.__swivoxUsagePublication = true;
+    proto.setData = swivoxPublishUsageData;
   }
 
   function patchOfficialUsageQueryClient(client) {
     if (!client || typeof client.setQueryData !== "function") return;
     patchOfficialUsageQueryPublication(client);
-    if (client.__chatgptxUsageRewrite) return;
+    if (client.__swivoxUsageRewrite) return;
     const original = client.setQueryData;
-    client.setQueryData = function chatgptxSetUsageQueryData(queryKey, updater, ...rest) {
+    client.setQueryData = function swivoxSetUsageQueryData(queryKey, updater, ...rest) {
       if (!isMainRateLimitQueryKey(queryKey)) {
         return original.call(this, queryKey, updater, ...rest);
       }
@@ -16957,7 +16957,7 @@
         client.setQueryData(query.queryKey, next);
       });
     }
-    client.__chatgptxUsageRewrite = true;
+    client.__swivoxUsageRewrite = true;
   }
 
   function rewriteCachedOfficialUsage(client) {
@@ -17009,9 +17009,9 @@
     } else {
       return;
     }
-    const recoveredHomeReads = window.__chatgptxComposerReadiness?.tick(client, officialUsagePolicy().unlockSend) || 0;
+    const recoveredHomeReads = window.__swivoxComposerReadiness?.tick(client, officialUsagePolicy().unlockSend) || 0;
     if (recoveredHomeReads > 0) {
-      sendChatGPTXDiagnostic("composer_home_read_retried", { count: recoveredHomeReads });
+      sendSwivoxDiagnostic("composer_home_read_retried", { count: recoveredHomeReads });
     }
     if (key === officialUsagePolicyApplied) {
       if (key !== "off") rewriteCachedOfficialUsage(client);
@@ -17032,14 +17032,14 @@
     if (previous) invalidateMainRateLimitQueries(client);
   }
 
-  if (window.__CHATGPTX_TEST_RATE_LIMIT_UNLOCK__) {
-    window.__chatgptxRateLimitUnlockTest = {
+  if (window.__SWIVOX_TEST_RATE_LIMIT_UNLOCK__) {
+    window.__swivoxRateLimitUnlockTest = {
       setBackendSettings: (settings) => {
-        chatgptxBackendSettings = { ...chatgptxBackendSettings, ...settings };
-        chatgptxBackendSettingsLoaded = true;
+        swivoxBackendSettings = { ...swivoxBackendSettings, ...settings };
+        swivoxBackendSettingsLoaded = true;
       },
       setHideAlerts: (hidden) => {
-        window.__CHATGPTX_HIDE_OFFICIAL_USAGE_ALERT__ = hidden === true;
+        window.__SWIVOX_HIDE_OFFICIAL_USAGE_ALERT__ = hidden === true;
       },
       install: () => syncOfficialUsagePolicy(),
       policyKey: () => officialUsagePolicyKey(),
@@ -17067,7 +17067,7 @@
 
   function looksLikeSessionActionMenu(menu) {
     if (!(menu instanceof HTMLElement) || menu.hidden) return false;
-    if (menu.matches(`.${moreMenuClass}, .${chatgptxMenuFloatingClass}, #${chatgptxMenuId}`)) return false;
+    if (menu.matches(`.${moreMenuClass}, .${swivoxMenuFloatingClass}, #${swivoxMenuId}`)) return false;
     const text = normalizedElementText(menu);
     const hasRename = /(?:重命名|rename)/i.test(text);
     const hasOtherSessionAction = /(?:置顶|取消置顶|pin|unpin|归档|archive|删除|delete|移动|move)/i.test(text);
@@ -17081,7 +17081,7 @@
     const testid = candidate.getAttribute("data-testid") || "";
     // Codex 26.1007 changed the visible label from the bare "重命名"/
     // "Rename" to a longer localized label. Match the native semantic
-    // affordance while excluding ChatGPTX's own auto-rename entry.
+    // affordance while excluding Swivox's own auto-rename entry.
     if (/自动重命名当前会话|auto.?rename current session/i.test(`${text} ${label}`)) return false;
     return /重命名|rename/i.test(`${text} ${label} ${testid}`);
   }
@@ -17348,7 +17348,7 @@
     item.setAttribute("data-codex-session-copy-menu", "true");
     item.dataset.codexSessionCopyVersion = sessionCopyMenuItemVersion;
     item.__codexSessionCopyRow = row;
-    item.innerHTML = `<div class="flex w-full items-center gap-1.5"><span class="inline-flex h-5 w-5 shrink-0 items-center justify-center opacity-75 group-focus:opacity-100 group-hover:opacity-100">${sessionCopyMenuItemIcon()}</span><span class="flex-1 min-w-0 truncate">原地复制会话 - ChatGPTX</span></div>`;
+    item.innerHTML = `<div class="flex w-full items-center gap-1.5"><span class="inline-flex h-5 w-5 shrink-0 items-center justify-center opacity-75 group-focus:opacity-100 group-hover:opacity-100">${sessionCopyMenuItemIcon()}</span><span class="flex-1 min-w-0 truncate">原地复制会话 - Swivox</span></div>`;
     item.addEventListener("pointerup", activateSessionCopyMenuItem, true);
     item.addEventListener("click", activateSessionCopyMenuItem, true);
     item.addEventListener("keydown", activateSessionCopyMenuItem, true);
@@ -17358,7 +17358,7 @@
   function refreshSessionCopyMenuItems(scope = document) {
     sessionCopyMenuScopes(scope).forEach((menu) => {
       if (!(menu instanceof HTMLElement) || isExtensionUiNode(menu)) return;
-      if (menu.matches(`.${moreMenuClass}, .${chatgptxMenuFloatingClass}, #${chatgptxMenuId}`)) {
+      if (menu.matches(`.${moreMenuClass}, .${swivoxMenuFloatingClass}, #${swivoxMenuId}`)) {
         menu.querySelectorAll(`.${sessionCopyMenuItemClass}`).forEach((item) => item.remove());
         return;
       }
@@ -17381,7 +17381,7 @@
   function scanDeferred() {
     if (codexPluginMarketplacePatchEnabled()) {
       const pluginUnlockStrategy = codexPluginUnlockStrategy();
-      const settings = chatgptxSettings();
+      const settings = swivoxSettings();
       logCodexPluginUnlockStrategy(pluginUnlockStrategy);
       if ((pluginUnlockStrategy === "modern" || pluginUnlockStrategy === "unknown") && settings.pluginMarketplaceUnlock) {
         const marketplaceRequestPatchStrategy = codexPluginMarketplaceRequestPatchStrategy();
@@ -17397,7 +17397,7 @@
         }
       }
     }
-    if (typeof syncChatGPTXWhaleWidget === "function") runScanStep(syncChatGPTXWhaleWidget);
+    if (typeof syncSwivoxWhaleWidget === "function") runScanStep(syncSwivoxWhaleWidget);
     refreshThreadIdBadges();
     sessionRows().forEach(tryAttachButton);
     updateDeleteButtonOffsets();
@@ -17427,12 +17427,12 @@
     scheduleDeferredScan();
   }
   // 完整上游引擎的词法宿主：不替换页面全局 API；挂件关闭时释放所有副作用。
-  const chatgptxWhaleFullStoragePrefix = "chatgptx.whale.full.v1.";
-  function chatgptxWhaleFullNumber(value) {
+  const swivoxWhaleFullStoragePrefix = "swivox.whale.full.v1.";
+  function swivoxWhaleFullNumber(value) {
     if (value === null || value === undefined || value === "") return null;
     const n = Number(value); return Number.isFinite(n) && n >= 0 ? n : null;
   }
-  function chatgptxWhaleFullBuiltin(url) {
+  function swivoxWhaleFullBuiltin(url) {
     let parsed;
     try { parsed = new URL(String(url), "https://codex-whale.invalid"); } catch { return ""; }
     const path = parsed.pathname, id = parsed.searchParams.get("id"), set = parsed.searchParams.get("set");
@@ -17443,10 +17443,10 @@
     if (path === "/dsh-whale/bubble-img.png") file = ({ bimg_petpet: "bubble-petpet.gif", bimg_money1: "bubble-money1.gif" })[id];
     if (/^\/dsh-whale\/sound\/(press|release)\.mp3$/.test(path) && (!set || set === "duck" || set === "fx1")) file = fragments[(set === "fx1" ? "d" : "ya") + (path.includes("press") ? "1" : "2")];
     if (path === "/dsh-whale/role-image.png" && id === "default") file = "DSniang1.png";
-    return file ? window.__CHATGPTX_WHALE_ASSETS__?.[file] || (file === "DSniang1.png" ? window.__CHATGPTX_WHALE_IMAGE__ : "") || "" : "";
+    return file ? window.__SWIVOX_WHALE_ASSETS__?.[file] || (file === "DSniang1.png" ? window.__SWIVOX_WHALE_IMAGE__ : "") || "" : "";
   }
 
-  function chatgptxWhaleFullDataResponse(source) {
+  function swivoxWhaleFullDataResponse(source) {
     // 直接读取本地内嵌字节，避免 fetch(data:) 受到宿主 connect-src 限制。
     const match = /^data:((?:audio|image)\/[A-Za-z0-9.+-]+);base64,([A-Za-z0-9+/]*={0,2})$/.exec(source);
     if (!match) throw new Error("不支持的本地媒体数据");
@@ -17454,14 +17454,14 @@
     return new Response(bytes, { status: 200, headers: { "Content-Type": match[1] } });
   }
 
-  function createChatGPTXWhaleFullRuntime() {
+  function createSwivoxWhaleFullRuntime() {
     const state = { disposed: false, paused: document.hidden === true, timers: new Map(), rafs: new Map(), observers: new Set(), nodes: new Set(), listeners: [], audio: new Set(), pending: new Set(), media: new Map(), objectUrls: new Set(), subscriptions: [], dispatcher: null, sessionId: "", session: null, sessionAt: 0, sessionPending: null, history: null, historyAt: 0, historyPrices: "", historyPending: null, models: [], relayProfiles: [], turn: null, completed: new Set(), seq: 0, pendingWait: null, completion: null, controls: null, serial: 0 };
     const isolated = Object.create(null);
     const wrappedMedia = new WeakSet();
     const storage = {
-      getItem(key) { return localStorage.getItem(chatgptxWhaleFullStoragePrefix + key); },
-      setItem(key, value) { return localStorage.setItem(chatgptxWhaleFullStoragePrefix + key, String(value)); },
-      removeItem(key) { return localStorage.removeItem(chatgptxWhaleFullStoragePrefix + key); },
+      getItem(key) { return localStorage.getItem(swivoxWhaleFullStoragePrefix + key); },
+      setItem(key, value) { return localStorage.setItem(swivoxWhaleFullStoragePrefix + key, String(value)); },
+      removeItem(key) { return localStorage.removeItem(swivoxWhaleFullStoragePrefix + key); },
     };
     try { state.seq = Math.max(0, Number(storage.getItem("dshw-last-seq")) || 0); } catch {}
     state.initialSeq = state.seq;
@@ -17574,9 +17574,9 @@
       const result = [];
       for (const model of state.models) {
         const price = model.price;
-        if (!price || ![price.hit, price.miss, price.out].every((value) => value !== "" && chatgptxWhaleFullNumber(value) !== null)) continue;
+        if (!price || ![price.hit, price.miss, price.out].every((value) => value !== "" && swivoxWhaleFullNumber(value) !== null)) continue;
         const matchIds = model.matchIds?.length ? model.matchIds : [model.id];
-        const currency = String(price.cur || "USD").toUpperCase(), rate = currency === "CNY" ? 1 : chatgptxWhaleFullNumber(price.rate);
+        const currency = String(price.cur || "USD").toUpperCase(), rate = currency === "CNY" ? 1 : swivoxWhaleFullNumber(price.rate);
         if (!(rate > 0) || !["CNY", "USD"].includes(currency)) continue;
         // 匹配交给数据层：精确匹配优先，其次最长的大小写不敏感子串。
         for (const id of matchIds) result.push({ model: id, currency: "CNY", input: Number(price.miss) * rate, cachedInput: Number(price.hit) * rate, output: Number(price.out) * rate });
@@ -17600,19 +17600,19 @@
     const toTokens = (period) => {
       if (state.codexStatsOn === false) return "—";
       const value = state.history?.periods?.[period]?.usage?.totalTokens ?? state.history?.machineSummary?.[({ today: "todayTokens", month: "monthTokens", all: "totalTokens" })[period]];
-      const number = chatgptxWhaleFullNumber(value);
+      const number = swivoxWhaleFullNumber(value);
       if (number === null) return "—";
       return number.toLocaleString("zh-CN", { maximumFractionDigits: 0 });
     };
     function codexModel(model, summary) {
       const data = summary?.codex || summary?.machineSummary || {};
-      const total = (period) => chatgptxWhaleFullNumber(summary?.periods?.[period]?.usage?.totalTokens);
+      const total = (period) => swivoxWhaleFullNumber(summary?.periods?.[period]?.usage?.totalTokens);
       const limits = state.session?.rateLimits || summary?.rateLimits || [];
       const windows = limits.filter((entry) => entry.resetAt == null || Number(entry.resetAt) * 1000 > Date.now()).map((entry, index) => ({ usedPct: entry.usedPercent, windowMinutes: entry.windowMinutes || (index === 0 ? 300 : 10080), resetAt: entry.resetAt == null ? null : Number(entry.resetAt) * 1000 }));
       return { ...model, codex: { ...data, ok: summary?.status === "ok" || summary?.status === "partial" || data.ok === true, complete: summary?.complete === true, deferred: summary?.complete === false ? Math.max(1, summary?.scan?.deferred || 1) : 0, todayTokens: total("today") ?? data.todayTokens, monthTokens: total("month") ?? data.monthTokens, totalTokens: total("all") ?? data.totalTokens, sessions: summary?.scan?.sessions ?? data.sessions ?? 0, days7: data.days7 || (summary?.days || []).slice(-7).map((day) => ({ date: day.date, tokens: day.usage?.totalTokens })), windows: data.windows || { primary: windows[0] || null, secondary: windows[1] || null } }, planSupport: windows.length > 0, plan: windows.length ? { ok: true, usedPct: windows[0].usedPct, remainPct: windows[0].usedPct == null ? null : 100 - windows[0].usedPct, windows: windows.map((entry, index) => ({ id: index === 0 ? "rolling" : "weekly", key: index === 0 ? "rolling" : "weekly", label: index === 0 ? "5h" : "周", usedPct: entry.usedPct, remainPct: entry.usedPct == null ? null : 100 - entry.usedPct, resetAt: entry.resetAt })) } : model.plan };
     }
     function subscribe() {
-      const dispatcher = window.__chatgptxRemoteSessionRecoveryDispatcher;
+      const dispatcher = window.__swivoxRemoteSessionRecoveryDispatcher;
       if (state.dispatcher === dispatcher && state.onEvent) return;
       for (const unsubscribe of state.subscriptions.splice(0)) { try { unsubscribe(); } catch {} }
       state.dispatcher = dispatcher;
@@ -17729,12 +17729,12 @@
     }
     async function fetchCompat(value, options = {}) {
       if (!active() || state.paused) throw new Error("挂件已暂停");
-      const raw = String(value), builtin = chatgptxWhaleFullBuiltin(raw);
-      if (builtin) return chatgptxWhaleFullDataResponse(builtin);
+      const raw = String(value), builtin = swivoxWhaleFullBuiltin(raw);
+      if (builtin) return swivoxWhaleFullDataResponse(builtin);
       const parsed = new URL(raw, "https://codex-whale.invalid");
       if (parsed.origin !== "https://codex-whale.invalid" || !parsed.pathname.startsWith("/dsh-whale/")) {
         // 上游只有本机资源 fetch；用户显式配置的超链接通过 window.open。
-        if (raw.startsWith("data:")) return chatgptxWhaleFullDataResponse(raw);
+        if (raw.startsWith("data:")) return swivoxWhaleFullDataResponse(raw);
         if (raw.startsWith("blob:")) return nativeFetch(raw, options);
         throw new Error("挂件资源只允许本机桥接");
       }
@@ -17746,14 +17746,14 @@
       const result = await compatibilityJson(parsed.pathname, method, query, body);
       if (!active() || options.signal?.aborted) throw new Error("挂件请求已取消");
       if (result?.builtinFragmentId) {
-        const uri = chatgptxWhaleFullBuiltin("/dsh-whale/audio-fragment.wav?id=" + encodeURIComponent(result.builtinFragmentId));
+        const uri = swivoxWhaleFullBuiltin("/dsh-whale/audio-fragment.wav?id=" + encodeURIComponent(result.builtinFragmentId));
         if (!uri) throw new Error("内置音频缺失");
         return nativeFetch(uri);
       }
       return responseOf(result);
     }
     async function resolveMedia(path) {
-      const builtin = chatgptxWhaleFullBuiltin(path); if (builtin) return builtin;
+      const builtin = swivoxWhaleFullBuiltin(path); if (builtin) return builtin;
       if (state.media.has(path)) return state.media.get(path);
       const pending = (async () => {
       const result = await fetchCompat(path);
@@ -17774,7 +17774,7 @@
       try { Object.defineProperty(node, "src", { configurable: true, get() { return descriptor?.get ? descriptor.get.call(node) : node.getAttribute("src") || ""; }, set(value) {
         const rev = ++revision, raw = String(value || "");
         if (!raw.startsWith("/dsh-whale/")) { if (!raw || /^(data:image\/(png|jpeg|webp|gif|avif);|data:audio\/|blob:)/i.test(raw)) set(raw); return; }
-        const builtin = chatgptxWhaleFullBuiltin(raw);
+        const builtin = swivoxWhaleFullBuiltin(raw);
         if (builtin) { set(builtin); return; }
         void resolveMedia(raw).then((url) => { if (active() && rev === revision) set(url); }).catch(() => { if (active() && rev === revision) node.dispatchEvent?.(new Event("error")); });
       } }); } catch {}
@@ -17783,7 +17783,7 @@
     function mark(node) {
       if (!active()) throw new Error("挂件已关闭");
       if (!node) return node;
-      node.setAttribute?.("data-chatgptx-ext", "whale-widget");
+      node.setAttribute?.("data-swivox-ext", "whale-widget");
       if (["IMG", "AUDIO", "VIDEO", "SOURCE"].includes(node.tagName)) mediaNode(node);
       return node;
     }
@@ -17800,7 +17800,7 @@
       const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
     } });
     const win = new Proxy(window, { get(target, key) {
-      if (key === "__chatgptxWhaleHost") return host;
+      if (key === "__swivoxWhaleHost") return host;
       if (typeof key === "string" && (key.startsWith("__dsh") || key === "dshwRegisterMask")) return isolated[key];
       if (key === "document") return doc;
       if (key === "localStorage") return storage;
@@ -17851,7 +17851,7 @@
         if (data.historyArchive?.detailRetentionDays) { const note = mark(document.createElement("span")); note.textContent = `明细保留 ${data.historyArchive.detailRetentionDays} 天；更早用量保留在日汇总中。`; note.style.width = "100%"; area.appendChild(note); }
         body.appendChild(area);
       },
-      fail(error) { state.initializationError = error?.name || "Error"; console.warn("[ChatGPTX] 完整鲸鱼初始化失败", state.initializationError); },
+      fail(error) { state.initializationError = error?.name || "Error"; console.warn("[Swivox] 完整鲸鱼初始化失败", state.initializationError); },
       bind(controls) { state.controls = controls; subscribe(); },
       defaultBubbleItems(items) {
         const copy = JSON.parse(JSON.stringify(items));
@@ -17879,7 +17879,7 @@
       state.startupConfig = configuration.body;
       setStatsEnabled(configuration.body.codexStatsOn);
       let legacy;
-      try { legacy = JSON.parse(localStorage.getItem("chatgptx.whaleWidget.v1") || "null"); } catch {}
+      try { legacy = JSON.parse(localStorage.getItem("swivox.whaleWidget.v1") || "null"); } catch {}
       if (!legacy || storage.getItem("legacy-migrated") === "1") return;
       if (configuration.body.hasSavedConfig === true) { storage.setItem("legacy-migrated", "1"); return; }
       // 只迁移用户实际保存过的旧偏好；保存失败保留旧数据并允许下次重试。
@@ -17904,14 +17904,14 @@
       const limits = Object.values(legacy.thresholds || {}).find((value) => value && typeof value === "object");
       if (limits) {
         const patch = { models: { "current-provider": {} } };
-        if (chatgptxWhaleFullNumber(limits.low) > 0) patch.models["current-provider"].alert = { on: true, below: Number(limits.low) };
-        if (chatgptxWhaleFullNumber(limits.budget) > 0) patch.models["current-provider"].budget = { on: true, amount: Number(limits.budget) };
+        if (swivoxWhaleFullNumber(limits.low) > 0) patch.models["current-provider"].alert = { on: true, below: Number(limits.low) };
+        if (swivoxWhaleFullNumber(limits.budget) > 0) patch.models["current-provider"].budget = { on: true, amount: Number(limits.budget) };
         await send("usage-settings.json", "PUT", patch);
       }
       const base = Math.max(122, Math.min(250, Math.min(window.innerWidth || 1024, window.innerHeight || 768) * 0.28));
       const config = { ...configuration.body, sound: legacy.sound === true, turnCostOn: legacy.completion !== false };
-      if (chatgptxWhaleFullNumber(legacy.size) > 0) config.scale = Math.min(2.5, Math.max(0.6, Number(legacy.size) / (base * 0.5945)));
-      if (chatgptxWhaleFullNumber(legacy.x) !== null && chatgptxWhaleFullNumber(legacy.y) !== null) {
+      if (swivoxWhaleFullNumber(legacy.size) > 0) config.scale = Math.min(2.5, Math.max(0.6, Number(legacy.size) / (base * 0.5945)));
+      if (swivoxWhaleFullNumber(legacy.x) !== null && swivoxWhaleFullNumber(legacy.y) !== null) {
         const fullSize = base * (config.scale || 1.5), right = Math.max(0, (window.innerWidth || 1024) - Number(legacy.x) - Number(legacy.size || 88)), bottom = Math.max(0, (window.innerHeight || 768) - Number(legacy.y) - Number(legacy.size || 88));
         storage.setItem("dshw-pos", JSON.stringify({ v: 2, hAnchor: legacy.x < (window.innerWidth || 1024) / 2 ? "left" : "right", hDist: legacy.x < (window.innerWidth || 1024) / 2 ? Math.max(0, legacy.x - fullSize * 0.4055) : right, vAnchor: legacy.y < (window.innerHeight || 768) / 2 ? "top" : "bottom", vDist: legacy.y < (window.innerHeight || 768) / 2 ? Math.max(0, legacy.y - fullSize * 0.4055) : bottom }));
       }
@@ -17960,70 +17960,70 @@
     return { state, environment, host, active, pause, dispose, initialize, fetch: fetchCompat, context, session, history, observe, subscribe, nativeEnvelope, prices };
   }
   // 完整版鲸鱼由上游原始引擎 + Codex 数据适配层组成；默认关闭。
-  window.__chatgptxWhaleWidgetRuntime?.dispose?.();
-  const chatgptxWhaleState = { disposed: false, runtime: null, profile: "", missingSource: false, failedUntil: 0, notice: null };
-  function chatgptxWhaleEnabled() {
-    return !chatgptxWhaleState.disposed && chatgptxBackendSettingsLoaded && chatgptxSettings().whaleWidget === true;
+  window.__swivoxWhaleWidgetRuntime?.dispose?.();
+  const swivoxWhaleState = { disposed: false, runtime: null, profile: "", missingSource: false, failedUntil: 0, notice: null };
+  function swivoxWhaleEnabled() {
+    return !swivoxWhaleState.disposed && swivoxBackendSettingsLoaded && swivoxSettings().whaleWidget === true;
   }
-  function chatgptxWhaleStop() {
-    chatgptxWhaleState.runtime?.dispose();
-    chatgptxWhaleState.runtime = null;
-    chatgptxWhaleState.notice?.remove(); chatgptxWhaleState.notice = null;
+  function swivoxWhaleStop() {
+    swivoxWhaleState.runtime?.dispose();
+    swivoxWhaleState.runtime = null;
+    swivoxWhaleState.notice?.remove(); swivoxWhaleState.notice = null;
   }
-  function chatgptxWhaleInitializationFailed(runtime) {
-    runtime?.dispose(); chatgptxWhaleState.runtime = null; chatgptxWhaleState.failedUntil = Date.now() + 10000;
-    if (chatgptxWhaleState.notice) return;
-    const notice = document.createElement("div"); notice.setAttribute("data-chatgptx-ext", "whale-widget"); notice.setAttribute("role", "status");
+  function swivoxWhaleInitializationFailed(runtime) {
+    runtime?.dispose(); swivoxWhaleState.runtime = null; swivoxWhaleState.failedUntil = Date.now() + 10000;
+    if (swivoxWhaleState.notice) return;
+    const notice = document.createElement("div"); notice.setAttribute("data-swivox-ext", "whale-widget"); notice.setAttribute("role", "status");
     notice.style.cssText = "position:fixed;right:20px;bottom:20px;z-index:2147483600;max-width:320px;padding:12px;border-radius:10px;background:#fff5ec;color:#7c3218;font:12px/1.6 system-ui;box-shadow:0 3px 16px #0002";
-    notice.textContent = "鲸鱼挂件暂时无法加载，10 秒后自动重试。可在 ChatGPTX 增强设置关闭后重新开启。";
-    document.body.appendChild(notice); chatgptxWhaleState.notice = notice;
+    notice.textContent = "鲸鱼挂件暂时无法加载，10 秒后自动重试。可在 Swivox 增强设置关闭后重新开启。";
+    document.body.appendChild(notice); swivoxWhaleState.notice = notice;
   }
-  function chatgptxWhaleProfileFingerprint() {
+  function swivoxWhaleProfileFingerprint() {
     const profile = codexRemoteSessionActiveProfile?.();
-    const settings = chatgptxBackendSettings || {};
+    const settings = swivoxBackendSettings || {};
     return JSON.stringify([profile?.id || "", profile?.relayMode || "", settings.codexAppWhaleBalanceProtocol,
       settings.codexAppWhaleBalancePath, settings.codexAppWhaleBalanceField, settings.codexAppWhaleBalanceCurrency,
       settings.codexAppWhaleBalanceScale]);
   }
-  function syncChatGPTXWhaleWidget() {
-    if (!chatgptxWhaleEnabled()) { chatgptxWhaleStop(); chatgptxWhaleState.failedUntil = 0; return; }
-    const profile = chatgptxWhaleProfileFingerprint();
-    if (chatgptxWhaleState.profile !== profile) { chatgptxWhaleStop(); chatgptxWhaleState.failedUntil = 0; }
-    chatgptxWhaleState.profile = profile;
-    if (chatgptxWhaleState.runtime) {
-      chatgptxWhaleState.runtime.context();
-      chatgptxWhaleState.runtime.subscribe();
-      chatgptxWhaleState.runtime.pause(document.hidden === true);
+  function syncSwivoxWhaleWidget() {
+    if (!swivoxWhaleEnabled()) { swivoxWhaleStop(); swivoxWhaleState.failedUntil = 0; return; }
+    const profile = swivoxWhaleProfileFingerprint();
+    if (swivoxWhaleState.profile !== profile) { swivoxWhaleStop(); swivoxWhaleState.failedUntil = 0; }
+    swivoxWhaleState.profile = profile;
+    if (swivoxWhaleState.runtime) {
+      swivoxWhaleState.runtime.context();
+      swivoxWhaleState.runtime.subscribe();
+      swivoxWhaleState.runtime.pause(document.hidden === true);
       return;
     }
     // 隐藏窗口等恢复可见后再挂载，不在后台构造音频或轮询会话日志。
     if (document.hidden) return;
-    if (Date.now() < chatgptxWhaleState.failedUntil) return;
-    if (typeof window.__CHATGPTX_WHALE_ENGINE__ !== "function") {
-      if (!chatgptxWhaleState.missingSource) console.warn("[ChatGPTX] 完整鲸鱼运行时未随启动器加载，请重新构建启动器。");
-      chatgptxWhaleState.missingSource = true; chatgptxWhaleInitializationFailed(null); return;
+    if (Date.now() < swivoxWhaleState.failedUntil) return;
+    if (typeof window.__SWIVOX_WHALE_ENGINE__ !== "function") {
+      if (!swivoxWhaleState.missingSource) console.warn("[Swivox] 完整鲸鱼运行时未随启动器加载，请重新构建启动器。");
+      swivoxWhaleState.missingSource = true; swivoxWhaleInitializationFailed(null); return;
     }
-    const runtime = createChatGPTXWhaleFullRuntime();
-    chatgptxWhaleState.runtime = runtime;
-    registerChatGPTXExtensionSelector("[data-chatgptx-ext=whale-widget]");
+    const runtime = createSwivoxWhaleFullRuntime();
+    swivoxWhaleState.runtime = runtime;
+    registerSwivoxExtensionSelector("[data-swivox-ext=whale-widget]");
     void runtime.initialize().then(() => {
-      if (runtime.active() && chatgptxWhaleState.runtime === runtime && chatgptxWhaleEnabled()) {
-        window.__CHATGPTX_WHALE_ENGINE__(...runtime.environment);
+      if (runtime.active() && swivoxWhaleState.runtime === runtime && swivoxWhaleEnabled()) {
+        window.__SWIVOX_WHALE_ENGINE__(...runtime.environment);
         if (runtime.state.initializationError || !runtime.state.controls) throw new Error("完整鲸鱼初始化未完成");
-        chatgptxWhaleState.notice?.remove(); chatgptxWhaleState.notice = null;
+        swivoxWhaleState.notice?.remove(); swivoxWhaleState.notice = null;
       }
     }).catch((error) => {
       if (!runtime.active()) return;
-      if (chatgptxWhaleState.runtime === runtime) chatgptxWhaleInitializationFailed(runtime);
+      if (swivoxWhaleState.runtime === runtime) swivoxWhaleInitializationFailed(runtime);
     });
   }
-  window.__chatgptxWhaleWidgetRuntime = {
+  window.__swivoxWhaleWidgetRuntime = {
     version: 3,
-    sync: syncChatGPTXWhaleWidget,
-    dispose() { chatgptxWhaleStop(); chatgptxWhaleState.disposed = true; },
-    get state() { return chatgptxWhaleState.runtime?.state || null; },
+    sync: syncSwivoxWhaleWidget,
+    dispose() { swivoxWhaleStop(); swivoxWhaleState.disposed = true; },
+    get state() { return swivoxWhaleState.runtime?.state || null; },
   };
-  window.__chatgptxScanScheduleCleanup?.();
+  window.__swivoxScanScheduleCleanup?.();
   clearTimeout(window.__codexSessionDeleteScanTimer);
   cancelAnimationFrame(window.__codexSessionDeleteDeferredRaf);
   window.__codexSessionDeleteScanTimer = null;
@@ -18032,18 +18032,18 @@
   window.__codexSessionDeleteDeferredPending = false;
 
   /**
-   * 这个节点是不是 ChatGPTX 自己（或拓展）的 UI。
+   * 这个节点是不是 Swivox 自己（或拓展）的 UI。
    *
-   * 内置选择器写在这里；拓展通过注册中心登记的选择器走 isChatGPTXExtensionNode，
+   * 内置选择器写在这里；拓展通过注册中心登记的选择器走 isSwivoxExtensionNode，
    * 那边已把选择器合并成一个串并在 Set 变化时重建缓存，所以这里每次调用只多一次
    * closest()，不会因为拓展数量增长而线性变慢。
    */
   function isExtensionUiNode(node) {
     if (!node?.closest) return false;
-    if (node.closest(`[data-chatgptx-ext], .codex-delete-toast, .codex-delete-confirm-overlay, .chatgptx-modal-overlay, .${chatgptxPageClass}, #${chatgptxSidebarNavId}, #${chatgptxRailNavId}, #${chatgptxRailExtensionsId}, #${chatgptxRailSponsorId}, #${chatgptxRailNavId} > button, #${chatgptxRailExtensionsId} > button, #${chatgptxRailSponsorId} > button, .${codexServiceTierBadgeClass}, .${sessionShareButtonClass}, .codex-zed-remote-button, .codex-zed-remote-toast, .${sessionCopyMenuItemClass}, #chatgptx-menu, #${capacityAutoRetryChipId}`)) {
+    if (node.closest(`[data-swivox-ext], .codex-delete-toast, .codex-delete-confirm-overlay, .swivox-modal-overlay, .${swivoxPageClass}, #${swivoxSidebarNavId}, #${swivoxRailNavId}, #${swivoxRailExtensionsId}, #${swivoxRailSponsorId}, #${swivoxRailNavId} > button, #${swivoxRailExtensionsId} > button, #${swivoxRailSponsorId} > button, .${codexServiceTierBadgeClass}, .${sessionShareButtonClass}, .codex-zed-remote-button, .codex-zed-remote-toast, .${sessionCopyMenuItemClass}, #swivox-menu, #${capacityAutoRetryChipId}`)) {
       return true;
     }
-    return isChatGPTXExtensionNode(node);
+    return isSwivoxExtensionNode(node);
   }
 
   function scanRelevantSelector() {
@@ -18152,7 +18152,7 @@
     } else if (window.__codexSessionDeleteDeferredPending) scheduleDeferredScan();
   };
   document.addEventListener("visibilitychange", onScanVisibilityChange);
-  window.__chatgptxScanScheduleCleanup = () => {
+  window.__swivoxScanScheduleCleanup = () => {
     document.removeEventListener("visibilitychange", onScanVisibilityChange);
     clearTimeout(window.__codexSessionDeleteScanTimer);
     cancelAnimationFrame(window.__codexSessionDeleteDeferredRaf);
@@ -18165,7 +18165,7 @@
    *
    * 注入永远早于 Codex 把左侧面板渲染出来：注入那一刻 readyState 已是 complete，
    * 但 aside.app-shell-left-panel 还不存在（实测 anyNav: 0），所以首次 scan 里的
-   * installChatGPTXSidebarNavigation 必然走 `if (!navigation) return`。
+   * installSwivoxSidebarNavigation 必然走 `if (!navigation) return`。
    *
    * 之后全靠 MutationObserver 观察到侧边栏挂载再补一次，实测要 2.6~3.1 秒。
    * 但那把入口的出现押在了单次 DOM 变更上——那次变更若被 shouldScheduleScan
@@ -18175,19 +18175,19 @@
    * 不留常驻定时器，也不影响 observer 那条正常路径。
    */
   function scheduleSidebarNavStartupRetry() {
-    clearInterval(window.__chatgptxSidebarNavRetryTimer);
+    clearInterval(window.__swivoxSidebarNavRetryTimer);
     let attempts = 0;
-    window.__chatgptxSidebarNavRetryTimer = setInterval(() => {
+    window.__swivoxSidebarNavRetryTimer = setInterval(() => {
       attempts += 1;
-      const installed = document.getElementById(chatgptxSidebarNavId)
-        || document.getElementById(chatgptxRailNavId);
+      const installed = document.getElementById(swivoxSidebarNavId)
+        || document.getElementById(swivoxRailNavId);
       if (installed || attempts > 20) {
-        clearInterval(window.__chatgptxSidebarNavRetryTimer);
-        window.__chatgptxSidebarNavRetryTimer = null;
+        clearInterval(window.__swivoxSidebarNavRetryTimer);
+        window.__swivoxSidebarNavRetryTimer = null;
         return;
       }
       try {
-        installChatGPTXNavigationEntries();
+        installSwivoxNavigationEntries();
       } catch {}
     }, 300);
   }
@@ -18196,21 +18196,21 @@
   scan();
   syncOfficialUsagePolicy();
   scheduleSidebarNavStartupRetry();
-  window.removeEventListener("resize", window.__chatgptxResizeHandler);
+  window.removeEventListener("resize", window.__swivoxResizeHandler);
   // Optional right-side layout for Codex's native message navigation rail.
   // The native page recreates the rail and preview card during navigation, so
   // this uses stable data attributes instead of retaining DOM node references.
   (() => {
-    const styleId = "chatgptx-avatar-overlay-layout-style";
+    const styleId = "swivox-avatar-overlay-layout-style";
     const root = document.documentElement;
-    const enabledAttribute = "data-chatgptx-activity-overlay-right";
+    const enabledAttribute = "data-swivox-activity-overlay-right";
 
     function installStyle() {
       const existing = document.getElementById(styleId);
       if (existing) return;
       const style = document.createElement("style");
       style.id = styleId;
-      style.dataset.chatgptxExt = "builtin-avatar-overlay-layout";
+      style.dataset.swivoxExt = "builtin-avatar-overlay-layout";
       style.textContent = `
         /* The native rail is mounted inside an absolute nav with left-3. */
         html[${enabledAttribute}="true"] nav:has([data-thread-user-message-navigation-rail-list]) {
@@ -18236,41 +18236,41 @@
 
     function sync() {
       installStyle();
-      const enabled = typeof chatgptxSettings === "function"
-        && chatgptxSettings().activityOverlayRight === true;
+      const enabled = typeof swivoxSettings === "function"
+        && swivoxSettings().activityOverlayRight === true;
       root.toggleAttribute(enabledAttribute, enabled);
       root.setAttribute(enabledAttribute, String(enabled));
     }
 
     installStyle();
     sync();
-    globalThis.__CHATGPTX_ACTIVITY_OVERLAY_SYNC__ = sync;
+    globalThis.__SWIVOX_ACTIVITY_OVERLAY_SYNC__ = sync;
     let attempts = 0;
     const timer = window.setInterval(() => {
       sync();
-      if (++attempts >= 60 && chatgptxBackendSettingsLoaded) window.clearInterval(timer);
+      if (++attempts >= 60 && swivoxBackendSettingsLoaded) window.clearInterval(timer);
     }, 250);
   })();
   /**
    * 多开实例身份提示。
    *
    * 启动器会在独立 Codex 实例的 renderer 注入前设置
-   * `window.__CHATGPTX_INSTANCE_LABEL__`（或兼容用的
-   * `window.__CHATGPTX_INSTANCE_ID__`）。普通主实例没有这些值，因此不会
+   * `window.__SWIVOX_INSTANCE_LABEL__`（或兼容用的
+   * `window.__SWIVOX_INSTANCE_ID__`）。普通主实例没有这些值，因此不会
    * 渲染提示。节点带有扩展归属标记，避免被扫描调度器当成 Codex 原生节点
-   * 触发自喂循环；也不占用公开的 window.chatgptx API 名称。
+   * 触发自喂循环；也不占用公开的 window.swivox API 名称。
    */
-  function installChatGPTXInstanceIdentity() {
-    const raw = window.__CHATGPTX_INSTANCE_LABEL__ || window.__CHATGPTX_INSTANCE_ID__;
+  function installSwivoxInstanceIdentity() {
+    const raw = window.__SWIVOX_INSTANCE_LABEL__ || window.__SWIVOX_INSTANCE_ID__;
     const label = String(raw || "").replace(/\s+/g, " ").trim();
     if (!label) return;
     const mount = () => {
       if (!document.body) return false;
-      let node = document.getElementById("chatgptx-instance-identity");
+      let node = document.getElementById("swivox-instance-identity");
       if (!node) {
         node = document.createElement("div");
-        node.id = "chatgptx-instance-identity";
-        node.setAttribute("data-chatgptx-ext", "instance-identity");
+        node.id = "swivox-instance-identity";
+        node.setAttribute("data-swivox-ext", "instance-identity");
         node.setAttribute("role", "status");
         node.style.cssText = [
           "position:fixed",
@@ -18296,8 +18296,8 @@
         ].join(";");
         document.body.appendChild(node);
       }
-      node.textContent = `ChatGPTX 多开 · ${label}`;
-      node.setAttribute("aria-label", `当前 ChatGPTX 多开身份：${label}`);
+      node.textContent = `Swivox 多开 · ${label}`;
+      node.setAttribute("aria-label", `当前 Swivox 多开身份：${label}`);
       return true;
     };
     if (mount()) return;
@@ -18312,19 +18312,19 @@
     }
   }
 
-  installChatGPTXForceChineseLocale();
-  installChatGPTXInstanceIdentity();
-  runScanStep(installChatGPTXTypingEffects);
-  runScanStep(syncChatGPTXWhaleWidget);
-  let chatgptxResizeRafId = 0;
-  window.__chatgptxResizeHandler = () => {
-    cancelAnimationFrame(chatgptxResizeRafId);
-    chatgptxResizeRafId = requestAnimationFrame(() => {
+  installSwivoxForceChineseLocale();
+  installSwivoxInstanceIdentity();
+  runScanStep(installSwivoxTypingEffects);
+  runScanStep(syncSwivoxWhaleWidget);
+  let swivoxResizeRafId = 0;
+  window.__swivoxResizeHandler = () => {
+    cancelAnimationFrame(swivoxResizeRafId);
+    swivoxResizeRafId = requestAnimationFrame(() => {
       syncActionGroupsLayout(true);
       runScanStep(refreshConversationView);
     });
   };
-  window.addEventListener("resize", window.__chatgptxResizeHandler);
+  window.addEventListener("resize", window.__swivoxResizeHandler);
   window.__codexSessionDeleteObserver?.disconnect();
   window.__codexSessionDeleteObserver = new MutationObserver(scheduleScan);
   window.__codexSessionDeleteObserver.observe(document.body || document.documentElement, {
@@ -18343,19 +18343,19 @@
   window.__codexSessionActionTriggerClickHandler = rememberSessionActionTrigger;
   document.addEventListener("click", window.__codexSessionActionTriggerClickHandler, true);
   // 对外接口层在此刻挂载：此时所有分片都已执行完毕，闭包里的函数全部就绪。
-  // 放在 99-tail 收尾之前，确保 IIFE 结束前 window.chatgptx 已经可用——
+  // 放在 99-tail 收尾之前，确保 IIFE 结束前 window.swivox 已经可用——
   // 用户脚本的注入晚于本脚本，不会撞上这个时间点。
-  window.chatgptx = buildChatGPTXExtensionApi();
+  window.swivox = buildSwivoxExtensionApi();
 })();
 
-// === 粘贴修复 (ChatGPTX 页面增强) ===
-// 控制开关：window.__CHATGPTX_PASTE_FIX__ = { enabled: <bool> }
-// 由 ChatGPTX 在启动时根据 settings.codexAppPasteFix 注入。
+// === 粘贴修复 (Swivox 页面增强) ===
+// 控制开关：window.__SWIVOX_PASTE_FIX__ = { enabled: <bool> }
+// 由 Swivox 在启动时根据 settings.codexAppPasteFix 注入。
 // 关闭时不进入 if 体，行为与原 Codex 完全一致；开启时在 document 捕获阶段
 // 拦截 paste，若 text/plain 非空则阻止默认行为并调用 execCommand('insertText')
 // 插入纯文本，避免 Codex 把 Word 复制的内容识别为附件。
 // SENTINEL 保证多次执行（页面刷新、脚本重注入）只装一次 handler。
-if (window.__CHATGPTX_PASTE_FIX__ && window.__CHATGPTX_PASTE_FIX__.enabled === true) {
+if (window.__SWIVOX_PASTE_FIX__ && window.__SWIVOX_PASTE_FIX__.enabled === true) {
   (() => {
     const SENTINEL = '__codexPasteFixInstalled__';
     if (window[SENTINEL]) return;

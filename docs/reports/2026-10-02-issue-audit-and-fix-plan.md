@@ -1,7 +1,7 @@
-# ChatGPTX 开放 issue 审计与修复方案
+# Swivox 开放 issue 审计与修复方案
 
 - 日期：2026-10-02
-- 仓库：`/Users/mac/Desktop/ChatGPTX`
+- 仓库：`/Users/mac/Desktop/Swivox`
 - 基线：`main` @ `2ce62815`（fix(inject): 插件解锁改用结构正则识别 marketplace 过滤器）
 - 数据来源：8 组并行审计代理对近 141 条开放 issue 的只读核查结论
 - 去重后规模：**116 条 issue + 1 条 PR（#2303）**；`#2299` 为审计批次中的编号占位条目（未取到正文，非真实 issue），不计入
@@ -23,7 +23,7 @@
 
 **最重要的三条结论：**
 
-1. **注入层的「周期性强占主线程」是本轮最大的单一根因**，一条链路同时解释 #2330（60s 重复解析）、#2169（68% 空转）、#2267/#2266（输入法与滚动卡顿）、#2201（listener/observer 不回收）：`launcher.rs` 的桥接看门狗把「窗口隐藏」误判为「桥接失效」，而重注入退避又因为「刚注入完必然健康」被永久清零（`crates/chatgptx-core/src/launcher.rs:2879`）。修复已在 PR #2337，但**必须把改动从产物搬到分片**（`assets/inject/renderer-inject/20-menu.js:99`、`:128`），否则下次 `assemble` 会把修复静默抹掉。
+1. **注入层的「周期性强占主线程」是本轮最大的单一根因**，一条链路同时解释 #2330（60s 重复解析）、#2169（68% 空转）、#2267/#2266（输入法与滚动卡顿）、#2201（listener/observer 不回收）：`launcher.rs` 的桥接看门狗把「窗口隐藏」误判为「桥接失效」，而重注入退避又因为「刚注入完必然健康」被永久清零（`crates/swivox-core/src/launcher.rs:2879`）。修复已在 PR #2337，但**必须把改动从产物搬到分片**（`assets/inject/renderer-inject/20-menu.js:99`、`:128`），否则下次 `assemble` 会把修复静默抹掉。
 2. **协议翻译层有三个独立的状态机缺陷**（#2275/#2257 同根因、#2210、#2367），全部是「单条 item 转换正确、item 之间的顺序与 pending 交接出错」。这是 107 条 `protocol_proxy` 测试的盲区，三条修复都不大，收益最广。
 3. **纯 API 模式下的能力缺失有三个根因**（#2294 / #2173 / #2209）：一个可修（CUA runtime 白名单过窄，改一行修一片）、一个不可修（原生 app-server 要求 `auth_method == "chatgpt"`，必须对外直说）、一个必须立刻修（`relay_config.rs:721-722` 纯 API 分支整体覆盖 `auth.json`，会静默摧毁唯一可用的 workaround）。
 
@@ -41,7 +41,7 @@
 | #2256 | 26.911 空转高 CPU | 同上 `bed5277d`；代码见 `assets/inject/renderer-inject/70-model-catalog.js:782-813`（统一计数、8 次熔断）、`:770-781`（指数退避 250ms→30s）、`20-menu.js:200-222`（fallback 名单按 `codexAppAssetCandidateUrls()` 动态筛选） | 已在 v1.4.0 修复（你定位的两个缺口都已闭合），升级后空闲 10s 窗口内 fetch 应远低于 1651 次，diagnostic 里能看到 `model_app_server_request_patch_skipped`。 |
 | #2167 | 26.909 右上角版本徽章不渲染 | PR #2186；降级路径见 `70-model-catalog.js:630-673`、`:675-700` | 已修复（走 CDP 断点捕获降级路径），升级后徽章应恢复，诊断里可见 `app_server_client_capture_located`。 |
 | #2182 | AUMID 硬编码导致无法从管理工具打开 ChatGPT | `2a41afb`（#2154，2026-09-10）+ `2b4d8d68`（#2202 后续加固） | 已修复，v1.5.0 之后的包会带上；请确认当前包构建 SHA 晚于 `2a41afb`。 |
-| #2216 | 切回 official 后残留中转站 provider 段导致 401 | `1b214349`（2026-09-22，`git tag --contains` = v1.4.0 v1.5.0）；`crates/chatgptx-core/src/relay_config.rs:1027-1055`、`:4108` | 主因已修，升 v1.5.0 复测；正文里附带的 `runtimes\cua_node\<hex>` 模板路径陈旧问题属实且未修，已另开跟踪。 |
+| #2216 | 切回 official 后残留中转站 provider 段导致 401 | `1b214349`（2026-09-22，`git tag --contains` = v1.4.0 v1.5.0）；`crates/swivox-core/src/relay_config.rs:1027-1055`、`:4108` | 主因已修，升 v1.5.0 复测；正文里附带的 `runtimes\cua_node\<hex>` 模板路径陈旧问题属实且未修，已另开跟踪。 |
 | #2207 | 切换后 config.toml 报 invalid transport | `bc3669e2`（语义合并重写）+ `6b02b74a` / `7daabac8`（写盘前用 live 补齐 mcp_servers）；`relay_config.rs:1734`、`:1310`、`:1337` | 已修（v1.4.0/v1.5.0）；注意**磁盘上已损坏的 config.toml 不会自愈**，需按 §4 的体检路径处理。 |
 | #2281 | 补全 GPT-6 Sol / Luna 元数据 | PR #2281 已合并；`assets/gpt6-sol-luna-model-metadata-compat.json` | 已合并，升 v1.5.0 即生效。 |
 | #2282 | 官登额度提示与功能锁 | PR #2282，随 v1.4.0 发布；`assets/inject/renderer-inject/95-conversation-view.js:483` `syncOfficialUsagePolicy` | 已合并，无需处理。 |
@@ -49,8 +49,8 @@
 | #2109 | GPT-6 不能选 ultra / 快速模式 | `assets/gpt6-sol-luna-model-metadata-compat.json` + `assets/gpt61-sol-model-metadata-compat.json`；`3d6d360d` 补 fast 档位 | 已修复，升 v1.5.0 复测。 |
 | #2121 | 缺少 GPT-6 Max / ultra | `2d667570`（PR #2112）；gpt-6-astra / gpt-6-sol 已进 `codex-models.json` | 本 issue 已修；兜底机制本身见 #2374 的统一修复。 |
 | #2358 | gpt-6.1 Sol 最高只有 xhigh | `35ede662` / merge `11813fad`（2026-09-30）；`model_suffix.rs:314` | 已修，v1.5.0 已包含。 |
-| #2141 | 生成的 model-catalogs 与官方 models_cache.json 差异大 | `f652cc9f`（2026-09-18）+ `7e7d44a4`（#2280）；`crates/chatgptx-core/src/model_suffix.rs:403-435`、`:634-676` | 已修；「按时间取较新一份」是有意不实现（兼容层承载 Fast/Ultra 特性字段），可在 issue 里说明。 |
-| #2338 | v1.4.0 无法压缩 | `549551d3` 等（仅进 v1.5.0）；`crates/chatgptx-core/src/protocol_proxy.rs:717-760`、`:513`（`cmp_` 前缀） | v1.4.0 独有的回归，已修，直接升 v1.5.0。 |
+| #2141 | 生成的 model-catalogs 与官方 models_cache.json 差异大 | `f652cc9f`（2026-09-18）+ `7e7d44a4`（#2280）；`crates/swivox-core/src/model_suffix.rs:403-435`、`:634-676` | 已修；「按时间取较新一份」是有意不实现（兼容层承载 Fast/Ultra 特性字段），可在 issue 里说明。 |
+| #2338 | v1.4.0 无法压缩 | `549551d3` 等（仅进 v1.5.0）；`crates/swivox-core/src/protocol_proxy.rs:717-760`、`:513`（`cmp_` 前缀） | v1.4.0 独有的回归，已修，直接升 v1.5.0。 |
 | #2341 | remote compaction v2 缺 `response.output_item.done` | 同上，`protocol_proxy.rs:717-760` 已按 issue「期望响应」逐字实现 | 已修，关单并指向 `549551d3`。 |
 | #2360 | v1.4.0 远程压缩失败，回退 1.2.56 正常 | 同上 | 已修，升 v1.5.0；你的技术判断正确。 |
 | #2217 | deepseek-flash 压缩报 `got 0 from 2 output items` | CHANGELOG 1.4.0 有条目；`549551d3` / `4b71d6f9` / `94151316` / `7577eeca` | 已在 v1.4.0 修复，升 v1.5.0 复测。 |
@@ -70,11 +70,11 @@
 
 | issue | 证据 | 为什么不修 | 建议回复要点 |
 |---|---|---|---|
-| #2107 | 整仓 grep `cua_node` / `runtimes` / `.staging-` 零引用；评论区把根因定位到 `%LOCALAPPDATA%\OpenAI\Codex\runtimes\cua_node` 的 `.staging-*` 部署过程 | 是 Codex 官方 CUA Runtime 的自部署行为，ChatGPTX 不写该目录 | 转成上游 SOP：看到 `.staging-*` 不要删，等它自己完成；「最小化失效」另开 issue 并附 MainWindowHandle 与 `latest-status.json`。 |
-| #2169（部分） | 全仓 grep `heapProfiler` / `HeapProfiler.start` 零命中；`cdp.rs` 只用 Runtime/Page/DOM 域 | V8 heap profiler 由 Codex 自家 renderer 启停，ChatGPTX 没有开启调用 | (a) 重注入循环按 §4.2 修；(b) 让用户用 `sample` 对比「只启动 ChatGPT」与「经 ChatGPTX 启动」以分离责任。 |
+| #2107 | 整仓 grep `cua_node` / `runtimes` / `.staging-` 零引用；评论区把根因定位到 `%LOCALAPPDATA%\OpenAI\Codex\runtimes\cua_node` 的 `.staging-*` 部署过程 | 是 Codex 官方 CUA Runtime 的自部署行为，Swivox 不写该目录 | 转成上游 SOP：看到 `.staging-*` 不要删，等它自己完成；「最小化失效」另开 issue 并附 MainWindowHandle 与 `latest-status.json`。 |
+| #2169（部分） | 全仓 grep `heapProfiler` / `HeapProfiler.start` 零命中；`cdp.rs` 只用 Runtime/Page/DOM 域 | V8 heap profiler 由 Codex 自家 renderer 启停，Swivox 没有开启调用 | (a) 重注入循环按 §4.2 修；(b) 让用户用 `sample` 对比「只启动 ChatGPT」与「经 Swivox 启动」以分离责任。 |
 | #2260 | `model_provider="custom"` + `model_catalog_json` 指针正是本仓 `relay_config.rs` 的合法写入形态（对应主 feature #1171/#931） | 用户的「被第三方改写」推断站不住，且正文无可操作信息 | 说明该指针是本工具配中转站的正常产物；要 `codexAppVersion`、实际错误文案、「App 清理配套组件」的完整路径（很可能对照 #2107 的 cua_node SOP）。 |
-| #2126 | 报错 URL 是 `chatgpt.com/backend-api/codex/responses` 且带 cf-ray | 请求直发官方后端，根本没走 ChatGPTX 本地代理；403 是 Cloudflare WAF，404 是账号无 gpt-5.5 权限 | 确认供应商是否「使用中」；403 换网络重试，404 需在官方侧解决订阅；若本意是走第三方却打到官方域名才需要我们跟进。 |
-| #2171 | `ws://127.0.0.1:12326` 全仓零命中；不是 helper 端口（后者 57321 量级） | 该端口由扩展自身起，属 Codex Desktop 原生 sidepanel ↔ app-server | 但**不能直接判 not-our-bug**：注入层确实订阅了 browser 相关消息，需先证伪（见 §4.25）。 |
+| #2126 | 报错 URL 是 `chatgpt.com/backend-api/codex/responses` 且带 cf-ray | 请求直发官方后端，根本没走 Swivox 本地代理；403 是 Cloudflare WAF，404 是账号无 gpt-5.5 权限 | 确认供应商是否「使用中」；403 换网络重试，404 需在官方侧解决订阅；若本意是走第三方却打到官方域名才需要我们跟进。 |
+| #2171 | `ws://127.0.0.1:12326` 全仓零命中；不是 helper 端口（后者 58321 量级） | 该端口由扩展自身起，属 Codex Desktop 原生 sidepanel ↔ app-server | 但**不能直接判 not-our-bug**：注入层确实订阅了 browser 相关消息，需先证伪（见 §4.25）。 |
 | #2188 / #2373 / #2369 / #2287 | `Codex auth token is unavailable` / `unsupported Codex auth method: apikey` 均出自 CUA runtime 二进制，本仓 grep 零命中 | 原生 `getAuthStatus` 硬性要求 `auth_method == "chatgpt"`，检查发生在 HTTP 之前，代理/注入/元数据三处都够不到 | **不许做「把 apikey 标签改写成 chatgpt」的绕过**——那只改标签不转凭据，原生侧会把原 token 放进 `Authorization: Bearer`，服务端不接受，属既无效又带伪造身份风险。可行路径只有「官方登录 + 第三方模型」。 |
 
 ### 3.2 第三方供应商 / 缓存 / 额度语义
@@ -84,7 +84,7 @@
 | #2252 | 报错原文 `chatgpt authentication required for remote plugin catalog` 全仓零命中；本仓只在 `60-plugin-marketplace.js:132/137/189-194` 做本地兜底降级 | 远端插件目录要求 ChatGPT 登录态，API key 鉴权在协议层不成立 | 不是把插件藏了；可做体验补救（顶部说明条），**不要**把远端失败包装成成功。 |
 | #2325 | 本仓不参与 prompt caching 的构造或改写；`protocol_proxy.rs` 只做协议转换与转发 | 缓存命中由上游中转站实现决定 | 转讨论或关闭；可补文档：确认 base_url 是否 Responses 原生端点，且不要配错上下文窗口。 |
 | #2144 | `relay_config.rs:3411-3417`：混合模式下 API Key 写进 `experimental_bearer_token`，官方身份只保留登录；`relay_rotation.rs:185/215` 的 failover 只在聚合成员间轮转 | 「官方额度优先、耗尽兜底 API、恢复切回」是需要新增的 feature，不是缺陷 | 关单并在设置页文案澄清；替代方案是聚合供应商的 failover/轮转，或手动切回官方登录。 |
-| #2100 | 用户提供的 200 条 bridge 日志里没有优化请求 | Prompt Optimize 是脚本市场的第三方脚本，请求没到 ChatGPTX helper | 转脚本仓库追踪；让脚本作者在点击处加 try/catch 打 console。 |
+| #2100 | 用户提供的 200 条 bridge 日志里没有优化请求 | Prompt Optimize 是脚本市场的第三方脚本，请求没到 Swivox helper | 转脚本仓库追踪；让脚本作者在点击处加 try/catch 打 console。 |
 
 ### 3.3 Windows 安全策略 / 杀软 / 产品范围
 
@@ -92,9 +92,9 @@
 |---|---|---|---|
 | #2184 | 维护者评论区已定性；注入机制（写脚本文件 + 回环调试端口）是启发式检测高命中项 | 杀软误报，代码开源无混淆；「反杀软」是军备竞赛且有安全代价 | README/Release notes 固定一段 Defender 加白步骤；启动期自检把 os error 2 升级为「可能被隔离」提示。 |
 | #2269 | os error 4551 = WDAC/AppLocker/Smart App Control 阻断；`install/mod.rs:305` 把 spawn 失败统一包成裸错误 | 企业应用控制策略，重装无用 | 只改可读性：识别 `raw_os_error() == Some(4551)` 给出「请联系管理员放行 / 检查智能应用控制」文案；**不要**做成自动关闭 Smart App Control。 |
-| #2238 | 注入层与 Codex 页面结构强绑定（`00-prelude.js` 第 4 行的宿主守卫） | 换宿主等于重写，不是适配 | 转 Discussion；若只是想要「按模型配窗口/供应商切换」，`crates/chatgptx-core` 那部分与宿主解耦，可单独提需求。 |
-| #2268 | 与本仓范围无关（workbuddy 是另一产品） | 评论已有人质疑 | close as not-planned；若本意是「在 ChatGPTX 里管理多个 Codex 账号」则另开 issue。 |
-| #2344 | 会话沙箱由 `~/.codex/config.toml` 的 `sandbox_mode` / `approval_policy` 决定 | 是 Codex 本体能力，不是 ChatGPTX 限制；标题已标「已解决」 | 直接关闭；给出 sandbox_mode 取值指引。 |
+| #2238 | 注入层与 Codex 页面结构强绑定（`00-prelude.js` 第 4 行的宿主守卫） | 换宿主等于重写，不是适配 | 转 Discussion；若只是想要「按模型配窗口/供应商切换」，`crates/swivox-core` 那部分与宿主解耦，可单独提需求。 |
+| #2268 | 与本仓范围无关（workbuddy 是另一产品） | 评论已有人质疑 | close as not-planned；若本意是「在 Swivox 里管理多个 Codex 账号」则另开 issue。 |
+| #2344 | 会话沙箱由 `~/.codex/config.toml` 的 `sandbox_mode` / `approval_policy` 决定 | 是 Codex 本体能力，不是 Swivox 限制；标题已标「已解决」 | 直接关闭；给出 sandbox_mode 取值指引。 |
 | #2139 | 注入层未找到针对宿主模式选择器的改写（grep 无命中） | 更可能是上游 Codex 自身形态变化 | 要 DOM 片段（outerHTML）+ 官方直启对照截图 + `codexAppVersion`，再二分。 |
 
 ### 3.4 已修但仍需发版提醒
@@ -111,12 +111,12 @@
 
 **现象**：空闲状态每分钟一次注入模块重新解析，叠加一轮含约 286 个 `app://` asset 的全量 rescan；renderer 单次 burst 顶到 55.6% 单核。
 
-**根因**：60 秒周期不是 ChatGPTX 的定时器，是桥接看门狗把「隐藏窗口」误判成「桥接失效」后的整份脚本重注入。
-- `crates/chatgptx-core/src/launcher.rs:1137`：看门狗 `tokio::time::interval(Duration::from_secs(5))`；窗口最小化后 Chromium 把后台定时器钳到约 1 次/分钟，`assets/inject/renderer-inject/40-backend-settings.js:194` 的 5s heartbeat 随之停摆。
-- `crates/chatgptx-core/src/bridge.rs:137-154`：`bridge_health_check_script` 只看 `lastInjectionAt(≤5s) / lastSuccessAt(≤15s) / lastAttemptAt(≤15s)`，**没有 visibilityState 判据**，后台必然返回 false。
+**根因**：60 秒周期不是 Swivox 的定时器，是桥接看门狗把「隐藏窗口」误判成「桥接失效」后的整份脚本重注入。
+- `crates/swivox-core/src/launcher.rs:1137`：看门狗 `tokio::time::interval(Duration::from_secs(5))`；窗口最小化后 Chromium 把后台定时器钳到约 1 次/分钟，`assets/inject/renderer-inject/40-backend-settings.js:194` 的 5s heartbeat 随之停摆。
+- `crates/swivox-core/src/bridge.rs:137-154`：`bridge_health_check_script` 只看 `lastInjectionAt(≤5s) / lastSuccessAt(≤15s) / lastAttemptAt(≤15s)`，**没有 visibilityState 判据**，后台必然返回 false。
 - `launcher.rs:26` `BRIDGE_HEALTH_FAILURE_THRESHOLD=2` → `launcher.rs:2811` `should_reinject_after_health_result` 放行 → `launcher.rs:2832` `check_and_reinject_bridge_inner` → `launcher.rs:2669` `try_inject` → `assets::injection_script_with_settings` 重发整份 616KB。
 - 退避挡不住：`launcher.rs:2879-2883` `Some(true) | None => backoff.reset()`，刚注入完的第一次健康检查必然通过（`lastInjectionAt` 在 5s 内），`consecutive_attempts` 立刻归零，`BridgeReinjectBackoff`（`launcher.rs:33-64`）永远停在第一档。
-- 与 rescan 严格 1:1：每次新实例 `chatgptxModelWhitelistRefreshUntil` 从 0 起算，`70-model-catalog.js:890-903` 的 120ms tick 重新跑满 2.5s。
+- 与 rescan 严格 1:1：每次新实例 `swivoxModelWhitelistRefreshUntil` 从 0 起算，`70-model-catalog.js:890-903` 的 120ms tick 重新跑满 2.5s。
 
 **修复方案**（PR #2337 思路正确，但有三个必改落地点）：
 1. **改动必须落到分片，不能只改产物**。PR #2337（`54b61fa6`）只改了 `assets/inject/renderer-inject.js`，reviewer 已指出 `assemble --check` 报「产物与分片不一致」（269 pass / 1 fail）。把以下改动搬进分片后再跑 `node scripts/assemble-renderer-inject.mjs`：
@@ -130,34 +130,34 @@
    - `Some(false) => backoff.observe_unhealthy()`。
    **`launcher.rs:2870` 的 `browser_identity_changed` reset 必须保留**，否则应用换实例后新页面要白等退避。
 
-**影响面**：仅改 launcher/bridge 与注入分片，不触及 per-profile 数据模型；`settings.rs` 无变化；不碰 `window.chatgptx` 的已发布类名与 `constants`；20-menu.js 两处改挂 `window` 属内部实现，第三方脚本无依赖。
+**影响面**：仅改 launcher/bridge 与注入分片，不触及 per-profile 数据模型；`settings.rs` 无变化；不碰 `window.swivox` 的已发布类名与 `constants`；20-menu.js 两处改挂 `window` 属内部实现，第三方脚本无依赖。
 
 **需要补的测试**：
 - Rust：仿 `launcher.rs:3634` 新增 `reinject_backoff_resets_only_after_sustained_health`，断言「注入后立刻健康不清零 / 中途不健康重新计时 / 持续健康满阈值才清零」。
 - Rust：`cdp_bridge.rs` 加 hidden / hidden 且无 bridge / visible 三种健康检查用例（PR #2337 已有 7 行）。
-- 前端：`renderer-inject.test.ts` 断言产物含 `window.__chatgptxAppModuleFailures`（跨重注入保留）。
+- 前端：`renderer-inject.test.ts` 断言产物含 `window.__swivoxAppModuleFailures`（跨重注入保留）。
 - 实机：CDP 连 9229 最小化窗口跑 3 分钟，`Debugger.enable` 数 `scriptParsed` 中同一 hash 重复次数应为 0。
 
 ### 4.2 #2169 —— 调试端口持续连接导致 68% CPU 空转（P1，likely）
 
-**现象**：macOS 上 ChatGPTX 进程 68% CPU 空转。
+**现象**：macOS 上 Swivox 进程 68% CPU 空转。
 
 **根因**：三层，只有第一层是我们的。
 - (a) 桥接重注入循环：`e06c9fb5` 加了指数退避，但退避在 health 恢复时清零、健康判定含 `lastInjectionAt ≤5s`（`bridge.rs:149`），刚注入完必然判健康 → 退避实际不生效。**与 §4.1 是同一入口**（`launcher.rs:2879` 的 reset）。
 - (b) `V8HeapProfilerConnection::Start()`：Codex 自家 renderer 的诊断能力，全仓 grep `heapProfiler` 零命中，非我们引入，但被高频重注入反复触发。
 - (c) 每秒 80 次 `sysctl`：`launcher.rs:1129` 只在 Windows 上 spawn `run_pet_real_mouse_cursor_driver`，macOS 不跑，故该轮询来自 ChatGPT 自身。
 
-**修复方案**：只需修 (a)，与 §4.1 完全同一改法（合入 PR #2337 的三条改动 + 分片同步）。(b) 在 issue 里回复：heap profiler 由 Codex 客户端自身启停，ChatGPTX 只做 CDP 求值，请用户用 `sample` 对比两次启动。(c) 判为上游。
+**修复方案**：只需修 (a)，与 §4.1 完全同一改法（合入 PR #2337 的三条改动 + 分片同步）。(b) 在 issue 里回复：heap profiler 由 Codex 客户端自身启停，Swivox 只做 CDP 求值，请用户用 `sample` 对比两次启动。(c) 判为上游。
 
 **影响面**：同 §4.1。
 
-**测试**：修 (a) 后 macOS 最小化再打开，`chatgptx.log` 不应出现每分钟一次的 `bridge.reinject_start`，CPU 应从 68% 回落到个位数。
+**测试**：修 (a) 后 macOS 最小化再打开，`swivox.log` 不应出现每分钟一次的 `bridge.reinject_start`，CPU 应从 68% 回落到个位数。
 
 ### 4.3 #2363 + #2350 —— 会话展示与输入框丢失（P0，confirmed）
 
 **现象**：更换皮肤后「会话展示及输入框丢失」/「聊天栏消失」。`8baffa91` 只修了一半。
 
-**根因**：两条叠加的皮肤侧缺陷，落在 vendored 皮肤产物里（`crates/chatgptx-core/src/assets.rs:11-20` 用 `include_str!` 内嵌 `assets/inject/upstream/dream-skin/windows/dream-skin.css`，`10-style.js:1937` 整段塞进 `<style id="codex-dream-skin-style">`）。
+**根因**：两条叠加的皮肤侧缺陷，落在 vendored 皮肤产物里（`crates/swivox-core/src/assets.rs:11-20` 用 `include_str!` 内嵌 `assets/inject/upstream/dream-skin/windows/dream-skin.css`，`10-style.js:1937` 整段塞进 `<style id="codex-dream-skin-style">`）。
 1. `dream-skin.css:1419-1423` 的 `[class*="_MainContentTopFade_"] { display: none !important }` 是**子串匹配**，在 26.924+ 上同时命中挂在整条对话内容容器上的状态类与真正的遮罩层；规则带 `display: none !important`，命中容器即隐藏对话流 + 输入框整棵子树。`8baffa91` 只改了裸属性那一路（`dream-skin.css:1414-1417`），`[class*=` 这路仍是同一形态。该 CSS 由 `data-dream-art-wide="true"` 门控（`renderer-inject.js:422` 写该属性），与「更换皮肤后才复现」吻合。
 2. 输入框周围白区：`dream-skin.css:907-916` 与 `1148-1149` 对 `:is(.composer-surface-chrome, [class*="_ComposerLayoutRoot_"], ...)` 设 `background: var(--ds-immersive-composer-solid) !important`，而 `1148` 那条（art-wide 分支）没有排除外层 `main` 的二级不透明层；`1409-1412` 的 `[data-app-shell-focus-area] [data-sticky]:not(:has([data-codex-composer-root]))::before` 只清了 backdrop 没清 background。历史会话比首页多两层背景，故只在历史会话暴露。
 
@@ -173,11 +173,11 @@
 
 > 归属注：#2350 / #2363 在另一组审计里被归到「会话数据/磁盘」主题，实为 dream-skin 样式误伤，与 8baffa91 / 2334 同族，两处结论一致。
 
-### 4.4 #2362 —— 升级/重装报「无法写入 chatgptx-manager.exe」（P0，confirmed）
+### 4.4 #2362 —— 升级/重装报「无法写入 swivox-manager.exe」（P0，confirmed）
 
 **现象**：Win11 升级或重装时安装器报无法写入，重装也失败。
 
-**根因**：`scripts/installer/windows/ChatGPTX.nsi:31-37`（安装段）与 `:60-75`（卸载段）在 `nsExec::ExecToLog 'taskkill /IM … /F'` 之后**零等待**立刻 `File` 覆盖写。taskkill 只发终止指令、不同步；镜像文件锁的释放（进程退出清理、WebView2 子进程树、杀软扫描）是异步的。卸载段 `Delete` 对占用文件静默失败，于是「卸载后重装」也继续失败。
+**根因**：`scripts/installer/windows/Swivox.nsi:31-37`（安装段）与 `:60-75`（卸载段）在 `nsExec::ExecToLog 'taskkill /IM … /F'` 之后**零等待**立刻 `File` 覆盖写。taskkill 只发终止指令、不同步；镜像文件锁的释放（进程退出清理、WebView2 子进程树、杀软扫描）是异步的。卸载段 `Delete` 对占用文件静默失败，于是「卸载后重装」也继续失败。
 
 **修复方案**：**采纳 PR #2368**（纯新增 +50 行）。`WaitForProcessExit` 宏在 taskkill 后用 `$SYSDIR\tasklist.exe` 输出 + `StrFunc.nsh` 的 `StrStr` 子串判断进程名（无管道、无 PATH 依赖、语言无关）轮询 500ms×20，等到过进程再补 500ms 锁释放缓冲，然后才 `File`/`Delete`；卸载段 `Delete` 后加残留检测弹窗。评估：三个已知坑（PATH 里 Git 的 Unix `find.exe` 劫持管道、Win11 tasklist 无匹配仍返回 0、语言相关输出）都规避了；等待宏无 `Abort` 分支、异常收敛到「立即放行」，tasklist 缺失时自动退化原行为。唯一提醒：它只修「进程正在退出」这一半；建议顺手在 `File` 前用 `IfFileExists` 循环重试并把失败明确提示用户。
 
@@ -189,7 +189,7 @@
 
 **现象**：#2275 单点 400「No tool output found for tool call b」；#2257 是并行 `view_image` 的多点形态（每两条 tool 消息之间夹一条 developer，三个 tool_call 全部被判 orphaned）。协议切到 responses 直连上游同样失败。
 
-**根因**：`crates/chatgptx-core/src/protocol_proxy.rs:3377` `enforce_tool_call_pairing` 用「连续 tool 消息」判定配对——`:3378-3390` 用 `take_while` 只收集紧跟在 assistant 之后、role 连续为 tool 的消息，中间插了 developer 就停止计数。夹心结构 `assistant(tool_calls=[a,b]) → tool(a) → developer → tool(b)` 里 followers 只数到 1 条，b 被判 orphaned 从 `tool_calls` 摘掉降级成文本——但 b 的 tool 消息还在原位置，这正是「role 'tool' 无前置 tool_calls」的来源。`relocate_tool_output_images`（`:3458`）只在 tool 区尾部插 user 消息；`append_responses_item` 的 `_` 兜底（`:3330-3350`）对 developer 只调 `flush_tool_calls`。全仓 grep `image_resize_notice` 零命中。
+**根因**：`crates/swivox-core/src/protocol_proxy.rs:3377` `enforce_tool_call_pairing` 用「连续 tool 消息」判定配对——`:3378-3390` 用 `take_while` 只收集紧跟在 assistant 之后、role 连续为 tool 的消息，中间插了 developer 就停止计数。夹心结构 `assistant(tool_calls=[a,b]) → tool(a) → developer → tool(b)` 里 followers 只数到 1 条，b 被判 orphaned 从 `tool_calls` 摘掉降级成文本——但 b 的 tool 消息还在原位置，这正是「role 'tool' 无前置 tool_calls」的来源。`relocate_tool_output_images`（`:3458`）只在 tool 区尾部插 user 消息；`append_responses_item` 的 `_` 兜底（`:3330-3350`）对 developer 只调 `flush_tool_calls`。全仓 grep `image_resize_notice` 零命中。
 
 **修复方案**：在 `responses_to_chat_completions_with_options` 的消息后处理链（`protocol_proxy.rs:250-256`）插入重排步骤 `relocate_interleaved_non_tool_messages`，**位置必须在 `enforce_tool_call_pairing` 之前**（否则配对已被错误摘除，无法恢复）：
 - 扫描每个 `assistant(tool_calls=[...])`，收集「本条 tool_call 集合尚未全部应答」的区间；
@@ -221,14 +221,14 @@
 
 **现象**：被判定为 API 接入后浏览器控制无法接入，报 `unsupported Codex auth method: apikey`。1.4.0 用户还看到 `bin/node_repl.exe` 报 `Unsupported native runtime component`，1.5.0 的 0.0.27 倒在更早的 manifest 判据上——**同一个「白名单太窄」根因的两个落点，别当成两个 bug**。
 
-**根因**：`crates/chatgptx-core/src/native_browser.rs:20-25` 把 CUA runtime 的 SHA-256 与 manifest 哈希硬编码，只认 0.0.11 / 0.0.24（`for_manifest` `:89-99`）。链路：`reconcile_locked`（`:639-672`）先 `restore_all`，`:662-670` 读 manifest 调 `for_manifest`，0.0.27 两个哈希都不匹配 → `Err` → `reconcile_contract` 的 `if result.is_err()`（`:634-639`）把 `control.json` 写成 `requireIdentification:false`（fail-closed）→ `require-identification.mjs` 里 `control?.requireIdentification !== true` 直接 `return fallback()` 回落云端策略 → 云端对 API 接入判定不可用。另运行时的锚点也从 `new eh(...je...,sv)` 漂到 `new uh(...We...,wv)`，即使放开 manifest 白名单，`transform_binding`（`native_browser.rs:313-320`）的 `text.matches(anchor).count() == 1` 仍会失败。
+**根因**：`crates/swivox-core/src/native_browser.rs:20-25` 把 CUA runtime 的 SHA-256 与 manifest 哈希硬编码，只认 0.0.11 / 0.0.24（`for_manifest` `:89-99`）。链路：`reconcile_locked`（`:639-672`）先 `restore_all`，`:662-670` 读 manifest 调 `for_manifest`，0.0.27 两个哈希都不匹配 → `Err` → `reconcile_contract` 的 `if result.is_err()`（`:634-639`）把 `control.json` 写成 `requireIdentification:false`（fail-closed）→ `require-identification.mjs` 里 `control?.requireIdentification !== true` 直接 `return fallback()` 回落云端策略 → 云端对 API 接入判定不可用。另运行时的锚点也从 `new eh(...je...,sv)` 漂到 `new uh(...We...,wv)`，即使放开 manifest 白名单，`transform_binding`（`native_browser.rs:313-320`）的 `text.matches(anchor).count() == 1` 仍会失败。
 
 **修复方案**（**不要再往 `RuntimeContract` 里堆第三个常量**——0.0.11→0.0.24 已证明一次版本即作废整张表）：
 1. **认结构不认哈希**：`for_manifest` 改为解析 manifest JSON，校验结构不变量（required 字段、`bin/node_modules/@oai/browser-desktop/scripts/browser-service.mjs` 存在、`bin/node_modules/@oai/cua-repl/bin/cua-repl.mjs` 存在、版本号 ≥ 0.0.11），保留 `CURRENT_/pinned` 作为「已知良好」快路径；未知哈希从 `Err` 降级为「结构通过即接受，标记 `runtime_adapted_unknown`」。
 2. **认锚点结构不认压缩名**：`transform_binding` 现在是 `text.matches(ANCHOR).count() == 1` + `!text.contains("cppNativeIdentificationReader")` 两条裸串判据。改成结构正则匹配 ``new \w+\(r,this\.clientApi,\(\)=>\w+\(this\.runtime\),this\.turnEndedTracker,\w+\)`` 的**唯一**命中，并把第三个捕获组（policy 回调名）带入替换串，这样 `sv` 与 `wv` 都能吃下，且仍拒绝多命中。补一层运行时自检：替换后要求函数名出现次数与替换前一致。
-3. `crates/chatgptx-core/src/native_browser_connection.rs:76-80` 的扩展白名单加「同 family 但未登记 ID」的降级展示，让用户在 UI 上区分「扩展没连上」与「扩展连上了但版本不认识」。
+3. `crates/swivox-core/src/native_browser_connection.rs:76-80` 的扩展白名单加「同 family 但未登记 ID」的降级展示，让用户在 UI 上区分「扩展没连上」与「扩展连上了但版本不认识」。
 
-**影响面**：`RuntimeContract` 是 `assets/native-browser/require-identification.mjs` 之外唯一改动点；`codex_app_native_browser_require_identification`（`settings.rs:497`）与 launcher 门（`apps/chatgptx-launcher/src/main.rs:437`）都不用动；`docs/native-browser-identification.md:54-66` 的哈希表必须同步更新，并删掉「未来版本不保证」那句与实现不符的免责。
+**影响面**：`RuntimeContract` 是 `assets/native-browser/require-identification.mjs` 之外唯一改动点；`codex_app_native_browser_require_identification`（`settings.rs:497`）与 launcher 门（`apps/swivox-launcher/src/main.rs:437`）都不用动；`docs/native-browser-identification.md:54-66` 的哈希表必须同步更新，并删掉「未来版本不保证」那句与实现不符的免责。
 
 **需要补的测试**：在 `native_browser.rs` 现有 `current_binding_uses_current_metadata_and_policy_callback`（`:1260` 起）旁加「0.0.27 形状」合成 service + 合成 manifest，断言 `transform_binding` 成功且产出串含 `cppNativeIdentificationReader(this.runtime,wv,We,`；回归：挖掉 `cua-repl.mjs` 字段后 `for_manifest` 必须 Err。真机按 `docs/native-browser-identification.md` 的 Validation 一节，注意文档已写明「已开启过标识的 Edge profile 不能证明首次启用」，必须用全新 user-data-dir。
 
@@ -239,11 +239,11 @@
 **根因**：三个独立根因被混着讨论：
 - **(a) 浏览器请求标识**：与 §4.7 完全同一根因（白名单过窄 → `requireIdentification` 写 false → 回落云端策略）。已在代码里被 PR #2208 / #2335 覆盖，只是版本表跟不上。
 - **(b) app-server 认证**：`require-identification.mjs` 完全够不到。错误来自 CUA runtime 另起的 `codex app-server` 调 `getAuthStatus(includeToken=true)`，原生分支硬性要求 `auth_method == "chatgpt"`（#2188 第 2 节反汇编定位：VA 0x14032C9F9 读 authToken、0x14032CAF4 读 authMethod）。**检查发生在 HTTP 发出之前**，本地代理/注入改头/改元数据三处都兜不住。dongyu23 的「OpenAI 会话身份」能生效，正是因为它改的是 `model_provider` 让 `getAuthStatus` 改读 auth.json。
-- **(c) `auth.json` 整体覆盖**：`crates/chatgptx-core/src/relay_config.rs:721-722` 的 PureApi 分支直接 `apply_relay_files_to_home(home, &compatible_config, &profile.auth_contents)`，把 profile 快照整体写进 auth.json；而 Aggregate（`:726-731`）与 Official（`:733-735`）都先经 `auth_contents_with_proxy_key`（`:3529-3559`）合并 live auth.json。**纯 API 供应商一切换就可能把 `tokens` 抹掉，从而静默摧毁 (b) 的唯一 workaround**——用户表现为「本来能用的插件某天开始报 apikey」，且没有任何配置报错。
+- **(c) `auth.json` 整体覆盖**：`crates/swivox-core/src/relay_config.rs:721-722` 的 PureApi 分支直接 `apply_relay_files_to_home(home, &compatible_config, &profile.auth_contents)`，把 profile 快照整体写进 auth.json；而 Aggregate（`:726-731`）与 Official（`:733-735`）都先经 `auth_contents_with_proxy_key`（`:3529-3559`）合并 live auth.json。**纯 API 供应商一切换就可能把 `tokens` 抹掉，从而静默摧毁 (b) 的唯一 workaround**——用户表现为「本来能用的插件某天开始报 apikey」，且没有任何配置报错。
 
 **修复方案**：分三块，别混。
 - **(a)** 见 §4.7，同一处改动同时解决。
-- **(b) 如实承认修不了，别承诺**。能做的是：(i) 把「会话身份」入口从「供应商编辑页里一个被 disabled 条件的下拉」提到显眼位置——`apps/chatgptx-manager/src/App.tsx:8451-8468` 的 hint 现在只说「选择 OpenAI 后…中转仍使用 custom 表」，没告诉用户这是让 CUA 插件可用的开关；补前置条件检查（`relay_config.rs:3989-4003` 的 `auth_contents_looks_like_chatgpt_auth` 可复用），无 `tokens` 时明确提示「此选项无法解决插件问题」；(ii) 注入层加针对 `unsupported Codex auth method` 的识别与本地提示（照 `30-service-tier.js:1007-1055` `installDictationSupportPatch` 那套范式），**必须一开始就写成结构匹配**（见 2ce62815 的教训）并配真实反例测试；(iii) 把 #2188 第 2 节的链路结论固化进 `docs/`。
+- **(b) 如实承认修不了，别承诺**。能做的是：(i) 把「会话身份」入口从「供应商编辑页里一个被 disabled 条件的下拉」提到显眼位置——`apps/swivox-manager/src/App.tsx:8451-8468` 的 hint 现在只说「选择 OpenAI 后…中转仍使用 custom 表」，没告诉用户这是让 CUA 插件可用的开关；补前置条件检查（`relay_config.rs:3989-4003` 的 `auth_contents_looks_like_chatgpt_auth` 可复用），无 `tokens` 时明确提示「此选项无法解决插件问题」；(ii) 注入层加针对 `unsupported Codex auth method` 的识别与本地提示（照 `30-service-tier.js:1007-1055` `installDictationSupportPatch` 那套范式），**必须一开始就写成结构匹配**（见 2ce62815 的教训）并配真实反例测试；(iii) 把 #2188 第 2 节的链路结论固化进 `docs/`。
 - **(c) 与 Aggregate/Official 对齐**：`relay_config.rs:721-722` 的 PureApi 分支在写 auth.json 前先读 live、保留其 `tokens` / `auth_mode`，只覆盖本 profile 真正需要覆盖的字段。
 
 **影响面**：(b)(i) 只动前端表单，不动契约；(ii) 属「加载模块 + 源正则」类，是最易随 Codex 压缩失灵的写法，必须结构匹配；(c) 改 `relay_config.rs` 写入对称性，需同步核对该函数所有分支。
@@ -276,8 +276,8 @@
 **现象**：冷启动 80~110 秒，两进程对 1.89 GiB 应用包约 9 GB 全量读取，全程无日志（用户采样 87.5/80.3/102.6/104.1/109.6 秒）。
 
 **根因**：先纠正 issue 的推论——9.0 GB ÷ 1.89 GiB ≈ 4.4 倍，且启动链路里**没有任何代码读应用包内容**（`app_paths` 只用 `read_dir` 与 `AppxManifest.xml` 的 `read_to_string`）。所以「读的就是应用包」大概率是采样归属误判（Win32_Process 的读写字节是进程级累计，杀软与 WebView2 子进程树的 IO 可能被记到父进程头上）。真正可疑的是两处同步、无上限、无缓存的全量扫描：
-- `crates/chatgptx-core/src/codex_sqlite.rs:294-339` `sanitize_logs_model_suffixes` 每次启动都对 `logs_2.sqlite` 跑 `SELECT rowid, feedback_log_body FROM logs WHERE feedback_log_body LIKE '%[%'`，把命中行的整段 body 全读进内存（`:324-327` 的 `rows`），再逐行正则替换。`feedback_log_body` 是完整请求/响应文本，命中行总量可达 GB 级，**没有「上次已清理」的短路**。
-- `crates/chatgptx-core/src/launcher.rs:540-559` `sanitize_historical_model_suffixes` 在启动早期同步执行。
+- `crates/swivox-core/src/codex_sqlite.rs:294-339` `sanitize_logs_model_suffixes` 每次启动都对 `logs_2.sqlite` 跑 `SELECT rowid, feedback_log_body FROM logs WHERE feedback_log_body LIKE '%[%'`，把命中行的整段 body 全读进内存（`:324-327` 的 `rows`），再逐行正则替换。`feedback_log_body` 是完整请求/响应文本，命中行总量可达 GB 级，**没有「上次已清理」的短路**。
+- `crates/swivox-core/src/launcher.rs:540-559` `sanitize_historical_model_suffixes` 在启动早期同步执行。
 
 另外半数是启动顺序：`launcher.rs:583-615` 先等 helper 端口再 `launch_codex`，之后才 `ensure_injection`；`launcher.rs:257-280` 的 `ensure_injection` 是 `for attempt in 1..=120` + 每次失败 sleep 1s，**每次循环都在 `try_inject`（`:2669-2690`）里重建约 616KB 注入脚本文本**。
 
@@ -319,11 +319,11 @@
 
 **现象**：重启后内存持续增长、反应慢。
 
-**根因**：issue 正文只有一句话；作者评论里「皮肤 MutationObserver 无过滤导致全量重扫」这条**已不成立**——`10-style.js:2062-2068` 已收窄，且 `01-registry.js` 的 `data-chatgptx-ext` 自喂防护已在位。剩下的可复现路径是 §4.1 的 60 秒重注入：每次都重建整套 DOM 监听与 observer，旧实例 listener 不会全部解绑（仓库里大量 handler 挂在 `window` 上但只有部分 `removeEventListener`，例如 `98-scan-schedule.js:131` 与 `92-extension-host.js:78` 只在特定路径解绑），长期运行累积。
+**根因**：issue 正文只有一句话；作者评论里「皮肤 MutationObserver 无过滤导致全量重扫」这条**已不成立**——`10-style.js:2062-2068` 已收窄，且 `01-registry.js` 的 `data-swivox-ext` 自喂防护已在位。剩下的可复现路径是 §4.1 的 60 秒重注入：每次都重建整套 DOM 监听与 observer，旧实例 listener 不会全部解绑（仓库里大量 handler 挂在 `window` 上但只有部分 `removeEventListener`，例如 `98-scan-schedule.js:131` 与 `92-extension-host.js:78` 只在特定路径解绑），长期运行累积。
 
 **修复方案**：
 1. 主修仍是合入 PR #2337（停掉 60 秒重注入，从源头止住 listener 累积）。
-2. 补一层自愈：在 `40-backend-settings.js:89-90` 已有的 `chatgptxBackendGeneration` 世代号机制上扩展——每次注入把本世代的定时器/observer 句柄登记到 `window` 上的表，新世代启动时遍历上一代并 `clearInterval/clearTimeout/disconnect/removeEventListener`。**世代号机制已是现成的隔离点，不要引入第二套**。（PR #2337 作者实测 window 上留着 65 个 keydown。）
+2. 补一层自愈：在 `40-backend-settings.js:89-90` 已有的 `swivoxBackendGeneration` 世代号机制上扩展——每次注入把本世代的定时器/observer 句柄登记到 `window` 上的表，新世代启动时遍历上一代并 `clearInterval/clearTimeout/disconnect/removeEventListener`。**世代号机制已是现成的隔离点，不要引入第二套**。（PR #2337 作者实测 window 上留着 65 个 keydown。）
 
 **影响面**：注入层，遵守「注册表持久、DOM 瞬态」；不碰 Rust / per-profile。
 
@@ -333,7 +333,7 @@
 
 **现象**：#2157 最小化到 Dock 后点击图标无法打开；#2304 点右上角关闭（落 Dock）后点击不弹出。**同一根因的两个入口**。
 
-**根因**：macOS 上 Dock 点击产生 `RunEvent::Reopen`，而 `apps/chatgptx-manager/src-tauri/src/lib.rs:207-216` 的 `app.run` 只匹配 `RunEvent::Opened`（且只用于 dreamskin:// 与会话分享 URL），**没有 `Reopen` 分支**。窗口被 `lib.rs:342-359` 的 `CloseRequested` 隐藏后（非 transient 时 `api.prevent_close() + window.hide()`），无任何回调把它 show 回来——唯一能 show 的 `show_main_window`（`lib.rs:464-470`）只被托盘（`lib.rs:302-321`）与 URL 路径调用。另 `lib.rs:475-495` 的 `focus_existing_manager_window` 只有 `#[cfg(windows)]` 实现，macOS 上二次启动走空路径（`lib.rs:27` 的单实例守卫失败后调它，什么也不做）。
+**根因**：macOS 上 Dock 点击产生 `RunEvent::Reopen`，而 `apps/swivox-manager/src-tauri/src/lib.rs:207-216` 的 `app.run` 只匹配 `RunEvent::Opened`（且只用于 dreamskin:// 与会话分享 URL），**没有 `Reopen` 分支**。窗口被 `lib.rs:342-359` 的 `CloseRequested` 隐藏后（非 transient 时 `api.prevent_close() + window.hide()`），无任何回调把它 show 回来——唯一能 show 的 `show_main_window`（`lib.rs:464-470`）只被托盘（`lib.rs:302-321`）与 URL 路径调用。另 `lib.rs:475-495` 的 `focus_existing_manager_window` 只有 `#[cfg(windows)]` 实现，macOS 上二次启动走空路径（`lib.rs:27` 的单实例守卫失败后调它，什么也不做）。
 
 **修复方案**：在 `lib.rs:207` 的 `app.run` 闭包里、与 `RunEvent::Opened` 并列加 macOS 分支：`if let tauri::RunEvent::Reopen { .. } = event { show_main_window(app_handle); }`。若想同时覆盖「从 Finder 再次双击 .app」，需给 `lib.rs:475` 的 `focus_existing_manager_window` 补 macOS 实现（例如 `NSApp activate` + 通过 loopback guard 端口通知已有实例 show，或改用 Tauri 单实例插件），**注意不要动 `lib.rs:519-575` 那段端口守卫逻辑**（它同时承担「已运行就不再启一个实例」的职责，改动风险高）；也**不要影响 Windows 那条 `manager.already_running` 分支依赖的 `startup_is_background()`（`lib.rs:364-372`）**。
 **这条已在 PR #2365 实现，建议直接审并合并**（见 §9）。
@@ -347,21 +347,21 @@
 **现象**：#2364 打开增强也看不到插件；#2227 能显示市场但装不上。
 
 **根因**：三条叠加。
-1. **门控把「未加载」当「relay 模式」**：`60-plugin-marketplace.js:544` `pluginPatchDisabledInRelayMode() { return !chatgptxBackendSettingsLoaded || chatgptxBackendSettings.launchMode === "relay"; }`——后端设置没加载出来时**整个插件补丁链路 early return**（`:1:20 / 398 / 428 / 501` 四处守卫），而 `clearPluginPatchArtifacts()`（`:547-548`）是**空函数**。设置加载失败 → 补丁全不装 → 市场按官方策略过滤 → 用户看到「打开了增强但一片空白」，且无任何可观测降级信号。
-2. **版本门控硬编码**：`20-menu.js:16-18` 三条版本线（`26.601.2237` / `26.616.0` / `26.803.0`），`:43-48/:62-69/:71-75` 拿 `chatgptxBackendSettings.codexAppVersion` 去比。`codexPluginMarketplaceRequestPatchStrategy()` 返回 `"unknown"` 时会去跑三分支全装（`:1437-1446` 的 else），代价是重复装补丁。
+1. **门控把「未加载」当「relay 模式」**：`60-plugin-marketplace.js:544` `pluginPatchDisabledInRelayMode() { return !swivoxBackendSettingsLoaded || swivoxBackendSettings.launchMode === "relay"; }`——后端设置没加载出来时**整个插件补丁链路 early return**（`:1:20 / 398 / 428 / 501` 四处守卫），而 `clearPluginPatchArtifacts()`（`:547-548`）是**空函数**。设置加载失败 → 补丁全不装 → 市场按官方策略过滤 → 用户看到「打开了增强但一片空白」，且无任何可观测降级信号。
+2. **版本门控硬编码**：`20-menu.js:16-18` 三条版本线（`26.601.2237` / `26.616.0` / `26.803.0`），`:43-48/:62-69/:71-75` 拿 `swivoxBackendSettings.codexAppVersion` 去比。`codexPluginMarketplaceRequestPatchStrategy()` 返回 `"unknown"` 时会去跑三分支全装（`:1437-1446` 的 else），代价是重复装补丁。
 3. **安装侧改写有损**：`60-plugin-marketplace.js:57-77` 对 `install-plugin` 在 `marketplacePath` 以 `remote:` 开头时**删掉 marketplacePath 并改成 remoteMarketplaceName**（`:70-74`），再在 `:170-172` 用改写后的 params 发请求。若上游只认其中一种，这次改写就改出服务端不认的形状。且 `plugin_install_request_debug`（`:173-184`）在 #2227 的日志里一条都没有——说明**安装请求根本没走到打过补丁的通道**。
 
 **修复方案**：
-- (a) **门控解耦**（`60-plugin-marketplace.js:544`）：改成只认 relay——`return chatgptxBackendSettingsLoaded && chatgptxBackendSettings.launchMode === "relay";`；加载完成前走保守分支但要有诊断。同时把空实现的 `clearPluginPatchArtifacts()` 补上实际清理，或在 relay 模式下明确上报一次 `plugin_patch_skipped_relay_mode`。
+- (a) **门控解耦**（`60-plugin-marketplace.js:544`）：改成只认 relay——`return swivoxBackendSettingsLoaded && swivoxBackendSettings.launchMode === "relay";`；加载完成前走保守分支但要有诊断。同时把空实现的 `clearPluginPatchArtifacts()` 补上实际清理，或在 relay 模式下明确上报一次 `plugin_patch_skipped_relay_mode`。
 - (b) **版本门控兜底**（`20-menu.js:43-48`）：`codexPluginUnlockStrategy()` 返回 `"unknown"` 时调用方已按 modern 处理（保留）；把 `codexPluginMarketplaceRequestPatchStrategy()` 的 `"unknown"` 显式归一到一个策略，不要「全上」；三条版本线加注释说明每次 Codex 大版本要复核。
 - (c) **featured 过滤器判据补强**（`50-navigation.js:256-265`）：`isCodexPluginFeaturedFilter` 在 `filtered.length >= sample.length` 之外补一条「sample 里至少有一个 id 能过官方前缀/白名单判定」的弱证据，拿不到映射时返回 false（宁可不解锁精选区也不要误判）。
 - (d) **安装改写非破坏性**：保留 `marketplacePath` 原值，只在缺 `remoteMarketplaceName` 时**补**一个字段，不要 `delete next.marketplacePath`（`:72`）。删字段不可逆，补字段对不认它的服务端无害。
 - (e) **install-plugin 失败降级**：现在 `:195-203` 只上报然后 `throw`；识别出确是改写导致的失败时，用原始 params 重试一次。
-- 牵连：改 `50-navigation.js` / `60-plugin-marketplace.js` 后必须 `node scripts/assemble-renderer-inject.mjs` + `--check`；`renderer-inject.test.ts:815-855` 三条正则契约测试要同步；`chatgptxExtensionRoutes` 白名单不受影响。
+- 牵连：改 `50-navigation.js` / `60-plugin-marketplace.js` 后必须 `node scripts/assemble-renderer-inject.mjs` + `--check`；`renderer-inject.test.ts:815-855` 三条正则契约测试要同步；`swivoxExtensionRoutes` 白名单不受影响。
 
-**影响面**：全部隔离在插件链路内，不动 per-profile；不碰 `window.chatgptx` 已发布类名。
+**影响面**：全部隔离在插件链路内，不动 per-profile；不碰 `window.swivox` 已发布类名。
 
-**需要补的测试**：渲染层单测——构造 `chatgptxBackendSettingsLoaded = false` + `launchMode = "patch"`，断言 `pluginPatchDisabledInRelayMode()` 为 false（当前是 true，这就是回归点）；再补 `launchMode = "relay"` 为 true。安装改写单测——输入 `{marketplacePath:"remote:openai-curated", pluginName:"x"}`，断言输出**同时**保留 marketplacePath 与 remoteMarketplaceName（当前会删前者）。真机：抓 `/diagnostics/log` 确认 `plugin_install_request_debug` 成对出现。
+**需要补的测试**：渲染层单测——构造 `swivoxBackendSettingsLoaded = false` + `launchMode = "patch"`，断言 `pluginPatchDisabledInRelayMode()` 为 false（当前是 true，这就是回归点）；再补 `launchMode = "relay"` 为 true。安装改写单测——输入 `{marketplacePath:"remote:openai-curated", pluginName:"x"}`，断言输出**同时**保留 marketplacePath 与 remoteMarketplaceName（当前会删前者）。真机：抓 `/diagnostics/log` 确认 `plugin_install_request_debug` 成对出现。
 
 ### 4.15 #2258 + #2085 —— 对话居中宽度失效 / 不够宽（P1/P2，confirmed）
 
@@ -375,7 +375,7 @@
 - (a) 目标查找改多候选（`90-action-groups.js:420-433`）：保留旧清单作为候选之一，并列补 `max-w-(--thread-body-max-width)` 与结构性写法 `div[class*="max-w-(--thread-"][class*="mx-auto"]`；`conversationViewHasAllClasses` 改成「候选之一命中即可」，或直接改成 `document.querySelectorAll` 逗号选择器。
 - (b) 去掉对非结构性样式类的硬依赖：把 `"pb-8"` 从 `conversationViewContentClasses` 删掉或降级为可选。
 - (c) 兜底：两处类名都没命中时，用 CSS 变量反查宿主节点（`getComputedStyle(el).getPropertyValue("--thread-body-max-width")` 非空即是）。
-- (d) **在 `conversationViewAlignNow` 的 `if (!targets.length) return;`（`:760`）处加一次性 `sendChatGPTXDiagnostic("conversation_view_target_not_found", ...)`**——静默是这次最贵的地方。
+- (d) **在 `conversationViewAlignNow` 的 `if (!targets.length) return;`（`:760`）处加一次性 `sendSwivoxDiagnostic("conversation_view_target_not_found", ...)`**——静默是这次最贵的地方。
 - (e) #2085 自适应：保持设置值为**上限**，实际写 `min(conversationViewWidth(), 可用宽度)`；可用宽度取 `conversationViewSessionRectFor(el)`（`:710-712` 已有）减去两侧留白（约 2×16）。计算放进现有两阶段批量（`:752-779` 已是先统一写 style 再统一读几何），**不要引入新的读-写交替**，否则退回 82fb0924 修掉的强制重排问题。建议加 `conversationViewEffectiveWidth(containerWidth)` 集中边界逻辑。
 - 牵连：改了分片要重组产物；`renderer-inject.test.ts` 相关断言会动；`conversationViewMinWidth/MaxAllowedWidth/DefaultWidth`（`00-prelude.js:390-392`）的 320/4000/900 边界不变。
 
@@ -405,13 +405,13 @@
 **现象**：切换供应商报「当前 Codex 配置使用外部 model_catalog_json」。
 
 **根因**：两处 `bail` 都是设计上的冲突拒绝，触发条件不同：
-- `relay_config.rs:2411-2413`：config.toml 已有 `model_catalog_json` 指针且不是本 profile 的，且 `is_chatgptx_managed_model_catalog`（`:3040`）与 `is_cc_switch_model_catalog`（`:3032`）都不成立、指针不含未展开变量（`:3090`）时进 else。
+- `relay_config.rs:2411-2413`：config.toml 已有 `model_catalog_json` 指针且不是本 profile 的，且 `is_swivox_managed_model_catalog`（`:3040`）与 `is_cc_switch_model_catalog`（`:3032`）都不成立、指针不含未展开变量（`:3090`）时进 else。
 - `relay_config.rs:2442-2444`：`live_external_model_catalog`（`:3022`）直接读 live 的 `model_catalog_json`。
 两处都在 `has_per_model_overrides` 为真时 bail（用户配了带 `[窗口]` 后缀的模型、或设了 `model_metadata`、或设了每模型 auto_compact 百分比，`:2364-2373`）。
 另：issue 评论里「PR #2197 / #2178 与本问题无关」的结论正确——#2197 是 max_context_window 适配（issue #2191），#2178 修 #2161 且未合并，**维护者之前的回复指错了**。
 
 **修复方案**：改 `apply_model_catalog_to_config`（`relay_config.rs:2332`）——正确取舍是**接管而不是拒绝**：
-1. 把 `is_chatgptx_managed_model_catalog` 从「路径形状」升级为「路径形状 + 文件内容是本程序生成的」（文件里有 `models` 数组且每条带 `priority` 即可判定）；
+1. 把 `is_swivox_managed_model_catalog` 从「路径形状」升级为「路径形状 + 文件内容是本程序生成的」（文件里有 `models` 数组且每条带 `priority` 即可判定）；
 2. 对确认是外部用户手写的指针，**不要 bail**，改为「保留外部指针 + 在 config.toml 顶层写 `model_context_window` / `model_auto_compact_token_limit` 兜底」，并在返回值带 `warning` 字段，前端展示「当前使用外部 catalog，每模型窗口未生效」——失败让用户完全切不了供应商，代价远大于特性降级；
 3. `warning` 字段加进 `RelayApplyResult` 与管理器 UI。
 **注意这会影响 `preserves_user_model_catalog_json` 测试的既有契约，需同步改期望值。**
@@ -427,7 +427,7 @@
 **根因**：注入链里**没有**「按 relay_mode 关掉注入」的代码路径（注入由 launcher 的 launchMode/桥接决定，与供应商 profile 无关；`assets/inject/renderer-inject/*.js` grep 不到 Aggregate 分支）。更可能是聚合模式的注入后置条件没满足：`relay_config.rs:3786-3788` 对 Aggregate 强制写 `requires_openai_auth = false`，`:3809-3820` 在 `has_model_routes / uses_no_auth` 时把 base_url 指向本地协议代理，`:3559-3569` 走 `auth_contents_with_proxy_key` 生成含代理 token 的 auth.json。若协议代理端口未就绪，或桥接在 Codex 连不上目标 base_url 时进入降级/重注入退避，用户看到的就是「增强全没了」。
 
 **修复方案**：
-1. 先取证据：让用户在聚合模式下导出 `chatgptx.log`，过滤 bridge/inject 条目，确认是「注入没跑」还是「注入跑了但页面被重载冲掉」；
+1. 先取证据：让用户在聚合模式下导出 `swivox.log`，过滤 bridge/inject 条目，确认是「注入没跑」还是「注入跑了但页面被重载冲掉」；
 2. 若是协议代理未就绪：在 `ensure_active_protocol_proxy_config_in_home`（`relay_config.rs:291`）之外补一条「协议代理端口不可达时不把 base_url 指向代理，而是保留直连并记录降级原因」；
 3. 若确认是桥接重注入把注入产物冲掉，按 `e06c9fb5` 的既有模式把聚合场景纳入降级可见化范围。
 **不要把注入开关做成 per-profile**——增强是否生效不应随供应商变化。
@@ -442,7 +442,7 @@
 
 **根因**：
 - 根因 1（列表不刷新）：门槛在 `should_write_managed_model_catalog`（`relay_config.rs:2618-2633`）——只有 `metadata_overrides` 为真、或条目带 `suffix_window / auto_compact_percent`、或 `requires_bundled_metadata_catalog(slug)`、或官方 deepseek-v4、或 `standard_responses && has_model_routes` 时才写 catalog。普通无后缀的 relay 模型（glm-5.2、kimi-k3 等）全部落在门外，函数在 `:2464-2476` 直接返回。另一条独立不刷新路径在 `:2398-2423`（外部指针且无 per-model 覆盖时 `return Ok(config_text)`，`:2422`）。
-- 根因 2（旧对话不换模型）：确认。`crates/chatgptx-core/src/codex_sqlite.rs:250-288` 的 `sanitize_thread_model_suffixes_in_db` 只把 `threads.model` 里带合法后缀的值剥成裸 slug（SQL `WHERE model LIKE '%[%'`，`:271`），**没有「把旧默认模型回填为新选中模型」的逻辑**；`crates/chatgptx-data/src/provider_sync.rs:4325` 只同步 `threads.model_provider`，不动 `model` 列。
+- 根因 2（旧对话不换模型）：确认。`crates/swivox-core/src/codex_sqlite.rs:250-288` 的 `sanitize_thread_model_suffixes_in_db` 只把 `threads.model` 里带合法后缀的值剥成裸 slug（SQL `WHERE model LIKE '%[%'`，`:271`），**没有「把旧默认模型回填为新选中模型」的逻辑**；`crates/swivox-data/src/provider_sync.rs:4325` 只同步 `threads.model_provider`，不动 `model` 列。
 - **与 #2374 直接对立**：`relay_config.rs:2394` 的注释与 `preserves_user_model_catalog_json` 测试把「用户手写指针不覆盖」当契约，而 #2374 抱怨的正是「每次切换都覆盖我的手动配置」。修一边必须同时处理另一边。
 
 **修复方案**：
@@ -457,12 +457,12 @@
 
 **现象**：使用过程中整个 `%USERPROFILE%\.codex` 被永久删除。
 
-**根因**：审计全部 `remove_dir_all` 调用点，**没有一条能删到 `.codex` 的既定路径**——会话删除走 `crates/chatgptx-data/src/storage.rs`，`delete_local`（`:184`）按 schema 分派，rollout 文件逐个 `fs::remove_file`（`:615`）并带备份（`:1325`）与不可读时的显式报错（`:608-611`），无递归删除。其余 `remove_dir_all` 只作用于 staging/backup/lock 目录（`skills.rs:364/384/410/550`、`plugin_marketplace.rs:332/393/592`、`provider_sync.rs:1685/1708/1753/1802`）。兜底 `crates/chatgptx-core/src/codex_home.rs:26` 的 `ensure_safe_recursive_removal` 拒绝删除 CODEX_HOME 本身/祖先/文件系统根，规范化后判定，覆盖 Windows 盘符根与 UNC（`2edabfe6` / `dcaefeb6` / `c5b1db26`）。**该守卫目前只挂在 `install/mod.rs:128` 一处。**
+**根因**：审计全部 `remove_dir_all` 调用点，**没有一条能删到 `.codex` 的既定路径**——会话删除走 `crates/swivox-data/src/storage.rs`，`delete_local`（`:184`）按 schema 分派，rollout 文件逐个 `fs::remove_file`（`:615`）并带备份（`:1325`）与不可读时的显式报错（`:608-611`），无递归删除。其余 `remove_dir_all` 只作用于 staging/backup/lock 目录（`skills.rs:364/384/410/550`、`plugin_marketplace.rs:332/393/592`、`provider_sync.rs:1685/1708/1753/1802`）。兜底 `crates/swivox-core/src/codex_home.rs:26` 的 `ensure_safe_recursive_removal` 拒绝删除 CODEX_HOME 本身/祖先/文件系统根，规范化后判定，覆盖 Windows 盘符根与 UNC（`2edabfe6` / `dcaefeb6` / `c5b1db26`）。**该守卫目前只挂在 `install/mod.rs:128` 一处。**
 
 **修复方案**：
 1. 把 `ensure_safe_recursive_removal` 提升为强制约束：在 `codex_home.rs` 提供 `wrap_remove_dir_all(target, home)`，逐一替换那 11 处裸 `remove_dir_all`（skills 4、plugin_marketplace 4、provider_sync 4、install 1 已用）。
 2. 给破坏性操作加审计日志：`diagnostic_log` 补 `destructive_op` 事件（操作名、目标路径、文件数、结果），至少覆盖会话删除、技能卸载、provider sync 的 quarantine 清理。
-3. 备份位置独立于 `.codex`：确认 rollout 备份落在 `.chatgptx` 下而非 `.codex` 内部。
+3. 备份位置独立于 `.codex`：确认 rollout 备份落在 `.swivox` 下而非 `.codex` 内部。
 4. **待决策**：`codexAppSessionDelete` 默认值现在是 true（`settings.rs:467-468` `default_true`），涉及不可逆操作，建议评估改 default false 并在开启时提示——**这条改变存量用户行为，需你拍板**。
 
 **影响面**：替换调用点不改变各目标目录的语义（当前都是固定安全目录），只在值被写坏时提供下限保护；审计日志新增不碰现有行为。
@@ -473,16 +473,16 @@
 
 **现象**：#2343 26.924 后找不到 `codex.exe`；#2314 管理工具读不到 Codex 应用、手动选择也无反应。三条 issue（含 #2204）全部卡在同一句日志上。
 
-**根因**：`crates/chatgptx-core/src/app_paths.rs:509-556` 的 `normalize_codex_app_path` 要求路径存在、且 `executable_in_dir(path).is_some()`（`:531`）或 `path.join("app")` 下能枚举到 exe 且包名像 `OpenAI.Codex_*`（`:540-544`）。WindowsApps 的 ACL 第三方进程常枚举不了 exe，于是 `:536` 的 `is_codex_store_package_dir` 兜底成了唯一出路——而它的前提是最后一段能过 `codex_package_parts`（`:953-974`）。判据失败时 `normalize` 返回 None，落到 `resolve_codex_app_dir(None)` 自动探测，探测也失败时 `launcher.rs:792-802` 直接 `anyhow!("Codex App directory not found")`。**这是 #2204 / #2314 / #2343 日志里那条 `launcher.failed` 文案**，四个平台四种失败原因共用一句。#2314 的「手动选择也无反应」是多一层：`commands.rs:6333-6347` 的 `load_overview_payload` 里 `normalize_codex_app_path` 返回 None 时 UI 静默显示未检测，调用方不区分「路径无效」与「不是 Codex 目录」。
+**根因**：`crates/swivox-core/src/app_paths.rs:509-556` 的 `normalize_codex_app_path` 要求路径存在、且 `executable_in_dir(path).is_some()`（`:531`）或 `path.join("app")` 下能枚举到 exe 且包名像 `OpenAI.Codex_*`（`:540-544`）。WindowsApps 的 ACL 第三方进程常枚举不了 exe，于是 `:536` 的 `is_codex_store_package_dir` 兜底成了唯一出路——而它的前提是最后一段能过 `codex_package_parts`（`:953-974`）。判据失败时 `normalize` 返回 None，落到 `resolve_codex_app_dir(None)` 自动探测，探测也失败时 `launcher.rs:792-802` 直接 `anyhow!("Codex App directory not found")`。**这是 #2204 / #2314 / #2343 日志里那条 `launcher.failed` 文案**，四个平台四种失败原因共用一句。#2314 的「手动选择也无反应」是多一层：`commands.rs:6333-6347` 的 `load_overview_payload` 里 `normalize_codex_app_path` 返回 None 时 UI 静默显示未检测，调用方不区分「路径无效」与「不是 Codex 目录」。
 
 **修复方案**（**先补可观测性再修判据，不能盲改**）：
-1. **第一步（可立即做）**：在 `DefaultLaunchHooks::resolve_app_dir`（`launcher.rs:792-802`）的报错里带上探测轨迹——试过的每个候选根、`normalize_codex_app_path` 的拒绝理由（不存在/是 ChatGPTX 目录/无 exe/包名不匹配）写进 `diagnostic_log` 与错误消息。
+1. **第一步（可立即做）**：在 `DefaultLaunchHooks::resolve_app_dir`（`launcher.rs:792-802`）的报错里带上探测轨迹——试过的每个候选根、`normalize_codex_app_path` 的拒绝理由（不存在/是 Swivox 目录/无 exe/包名不匹配）写进 `diagnostic_log` 与错误消息。
 2. **第二步（拿到日志后再定）**：若确认卡在包名判据，把 `:540-544` 的兜底从「包名像 `OpenAI.Codex_*`」放宽为「父链上任意一段像，或同目录存在 `AppxManifest.xml`」。**牵连**：`packaged_app_user_model_id`（`:693-712`）依赖 `package_name_from_app_dir` 反推 AUMID，放宽判据后必须保证 AUMID 仍能从 manifest 真读到，否则把 #2308/#2310 重新打开。
 3. **把拒绝理由传到前端**：`normalize_codex_app_path` 拆出返回 `anyhow::Result<PathBuf>` 的内核（保留现有 Option 薄壳），在 `commands.rs` 的选择路径上走内核并把错误文案回给前端。
 
 **影响面**：纯可观测性 + 判据放宽；不动判据语义时可零风险先合第一步；不碰 per-profile 与注入层。
 
-**需要补的测试**：`app_paths.rs` 补「多根下第二个根命中」；「所有根都空时返回 None 且错误文案含已搜索根列表」；「包名不匹配但存在 `AppxManifest.xml` 的目录应被接受」；「ChatGPTX 安装目录仍必须被拒」。normalize 内核分别对四种输入返回可区分的错误/成功。
+**需要补的测试**：`app_paths.rs` 补「多根下第二个根命中」；「所有根都空时返回 None 且错误文案含已搜索根列表」；「包名不匹配但存在 `AppxManifest.xml` 的目录应被接受」；「Swivox 安装目录仍必须被拒」。normalize 内核分别对四种输入返回可区分的错误/成功。
 
 ### 4.22 #2351 —— 提权运行时 AUMID 激活失败被静默降级（P1，confirmed）
 
@@ -493,41 +493,41 @@
 **修复方案**：**采纳 PR #2371**（+59 行，`launcher.rs` 与 `windows_integration.rs`）：
 - `windows_integration.rs` 新增 `current_process_is_elevated()`（`IsUserAnAdmin`，非 Windows 恒 false）。**必须新写而不是复用 `relay_config.rs:2185` 的私有 `windows_process_is_elevated`**——后者在非 Windows 上刻意返回 true 以保留 sandbox 设置语义，语义不同。
 - `launcher.rs` 把回退决策抽成纯函数 `packaged_activation_fallback_block_reason(is_elevated)`：提权 → `bail!` 带「取消 属性→兼容性→以管理员身份运行 勾选」指引，错误沿既有 `Err` 分支如实写 `latest-status.json` `status=failed` 并清理已启动进程；非提权 → 保留原回退，零行为变化。
-- 对「非提权代理激活」的取舍（PR 作者判断正确）：explorer 代启动会丢 `--remote-debugging-port`，受限令牌降权 spawn 基建复杂且易被杀软拦；ChatGPTX 全家（NSIS `RequestExecutionLevel user`、manager、launcher）都是用户级设计，与 Codex 应用的通信走本地 TCP，无任何功能需要管理员身份。
+- 对「非提权代理激活」的取舍（PR 作者判断正确）：explorer 代启动会丢 `--remote-debugging-port`，受限令牌降权 spawn 基建复杂且易被杀软拦；Swivox 全家（NSIS `RequestExecutionLevel user`、manager、launcher）都是用户级设计，与 Codex 应用的通信走本地 TCP，无任何功能需要管理员身份。
 
 **影响面**：非提权路径零行为变化；把「提权」与「#2308/#2310 AUMID 解析失败」在日志上分开（两者文案相同，过去排查成本极高）。
 
-**需要补的测试**：`cargo test -p chatgptx-core --lib launcher::tests`（PR 报 27 passed，含新增 3 项）：提权→回退被禁止且错误含「管理员」；非提权→返回 None 保留回退；CI/开发 shell 下 `current_process_is_elevated()` 为 false。真机：勾选后冷启动应得 failed + 指引；取消后恢复 running 且 `hasBridge: true`。
+**需要补的测试**：`cargo test -p swivox-core --lib launcher::tests`（PR 报 27 passed，含新增 3 项）：提权→回退被禁止且错误含「管理员」；非提权→返回 None 保留回退；CI/开发 shell 下 `current_process_is_elevated()` 为 false。真机：勾选后冷启动应得 failed + 指引；取消后恢复 running 且 `hasBridge: true`。
 
 ### 4.23 #2354 —— Windows 安装器未注册 URL 协议（P1，confirmed）
 
-**现象**：`chatgptx://` 网页深链导入在 Windows 全部失效。
+**现象**：`swivox://` 网页深链导入在 Windows 全部失效。
 
-**根因**：`apps/chatgptx-manager/src-tauri/tauri.conf.json` 无 deep-link 插件配置、`capabilities/default.json` 权限只有 `core:default + dialog:default`、`Cargo.toml` 无 deep-link/single-instance 依赖——确实没有 Tauri 侧深链通道。但 `apps/chatgptx-manager/src-tauri/src/main.rs:7-23` 走的是 argv 解析 + `focus_existing_manager_window`（Win32 唤起已运行实例），而 `lib.rs:208` 的 `RunEvent::Opened` 带 `#[cfg(target_os = "macos")]`。**argv 那套在 Windows 上本来就够用，缺的只是注册表**：`scripts/installer/windows/ChatGPTX.nsi` 全文没有任何 `Software\Classes` 写入，而运行时的 `install/windows.rs:172-200` 的 `register_url_protocol` 覆盖 `chatgptx` 与 `dreamskin` 两套键，却只被 `install_entrypoints`（`commands.rs:4143`）这个用户手动点的按钮调用，**manager 启动时不自检**。macOS 走 `Info.plist` 的 `CFBundleURLTypes`，落位即生效。
+**根因**：`apps/swivox-manager/src-tauri/tauri.conf.json` 无 deep-link 插件配置、`capabilities/default.json` 权限只有 `core:default + dialog:default`、`Cargo.toml` 无 deep-link/single-instance 依赖——确实没有 Tauri 侧深链通道。但 `apps/swivox-manager/src-tauri/src/main.rs:7-23` 走的是 argv 解析 + `focus_existing_manager_window`（Win32 唤起已运行实例），而 `lib.rs:208` 的 `RunEvent::Opened` 带 `#[cfg(target_os = "macos")]`。**argv 那套在 Windows 上本来就够用，缺的只是注册表**：`scripts/installer/windows/Swivox.nsi` 全文没有任何 `Software\Classes` 写入，而运行时的 `install/windows.rs:172-200` 的 `register_url_protocol` 覆盖 `swivox` 与 `dreamskin` 两套键，却只被 `install_entrypoints`（`commands.rs:4143`）这个用户手动点的按钮调用，**manager 启动时不自检**。macOS 走 `Info.plist` 的 `CFBundleURLTypes`，落位即生效。
 
-**修复方案**：**采纳 PR #2370** 的安装段改动（写 `chatgptx` + `dreamskin` 两个协议键，值格式 `"<INSTDIR>\chatgptx-manager.exe" "%1"`，键名与文案与 `install/windows.rs` 的 `register_url_protocol_key` 逐字一致；卸载段 `DeleteRegKey` 对应清理）。**强烈建议一并做「启动时幂等自检」**：校验 `HKCU\Software\Classes\chatgptx\shell\open\command` 是否等于 `current_exe` 的 `"%1"` 形式，不符则重写——安装器只覆盖新装用户，存量用户不会重装却会开软件，exe 路径一旦变（换目录、绿色版解压）深链就静默指向旧路径。判据注意：别把「读不到键」误判成「需要注册」而在用户没同意时改注册表。
+**修复方案**：**采纳 PR #2370** 的安装段改动（写 `swivox` + `dreamskin` 两个协议键，值格式 `"<INSTDIR>\swivox-manager.exe" "%1"`，键名与文案与 `install/windows.rs` 的 `register_url_protocol_key` 逐字一致；卸载段 `DeleteRegKey` 对应清理）。**强烈建议一并做「启动时幂等自检」**：校验 `HKCU\Software\Classes\swivox\shell\open\command` 是否等于 `current_exe` 的 `"%1"` 形式，不符则重写——安装器只覆盖新装用户，存量用户不会重装却会开软件，exe 路径一旦变（换目录、绿色版解压）深链就静默指向旧路径。判据注意：别把「读不到键」误判成「需要注册」而在用户没同意时改注册表。
 
 **影响面**：纯注册表写入，不碰 CLI 参数、不碰 per-profile、不碰注入层。
 
-**需要补的测试**：`install/windows.rs` 契约测试——`register_url_protocol_key` 生成的 command 必须是 `\"<path>\" \"%1\"`；再从 `.nsi` 文本断言同款字面量（防两侧漂移）。实机：`rundll32 url.dll,FileProtocolHandler chatgptx://…` 观察进程是否被调起。
+**需要补的测试**：`install/windows.rs` 契约测试——`register_url_protocol_key` 生成的 command 必须是 `\"<path>\" \"%1\"`；再从 `.nsi` 文本断言同款字面量（防两侧漂移）。实机：`rundll32 url.dll,FileProtocolHandler swivox://…` 观察进程是否被调起。
 
 ### 4.24 #2339 —— 卸载项残留：注册表键名与运行时不一致（P1，confirmed）
 
 **现象**：升级到 1.4.0 后卸载项残留（issue 顺带反馈，容易被修主诉时漏掉）。
 
-**根因**：两侧键名硬编码不一致。NSIS `scripts/installer/windows/ChatGPTX.nsi:50-57` 写 `Software\Microsoft\Windows\CurrentVersion\Uninstall\ChatGPTX`，卸载段 `:78` 也只删这个键；运行时 `crates/chatgptx-core/src/install/windows.rs:8-10` 却把 `ChatGPTX` 当正式键、`ChatGPTX` 当 legacy。于是经安装器装过又被管理工具碰过的机器留两条；反之运行时装过、之后走 NSIS 卸载的机器，`ChatGPTX` 那条永远删不掉。同源问题：`InstallLocation` 也不同步（NSIS 写 `$INSTDIR`，运行时写 `manager_path` 的父目录）。
+**根因**：两侧键名硬编码不一致。NSIS `scripts/installer/windows/Swivox.nsi:50-57` 写 `Software\Microsoft\Windows\CurrentVersion\Uninstall\Swivox`，卸载段 `:78` 也只删这个键；运行时 `crates/swivox-core/src/install/windows.rs:8-10` 却把 `Swivox` 当正式键、`Swivox` 当 legacy。于是经安装器装过又被管理工具碰过的机器留两条；反之运行时装过、之后走 NSIS 卸载的机器，`Swivox` 那条永远删不掉。同源问题：`InstallLocation` 也不同步（NSIS 写 `$INSTDIR`，运行时写 `manager_path` 的父目录）。
 
-**修复方案**：统一到 `ChatGPTX`。改 `ChatGPTX.nsi`：安装段写 `Uninstall\ChatGPTX` 并在写之前 `DeleteRegKey` 掉 `Uninstall\ChatGPTX`（`:54-57` 的 6 条 `WriteRegStr` 改键名，`:78` 的 `DeleteRegKey` 加一条 legacy 清理）。**别顺手删掉 legacy 清理分支**——存量用户靠它收尸。
+**修复方案**：统一到 `Swivox`。改 `Swivox.nsi`：安装段写 `Uninstall\Swivox` 并在写之前 `DeleteRegKey` 掉 `Uninstall\Swivox`（`:54-57` 的 6 条 `WriteRegStr` 改键名，`:78` 的 `DeleteRegKey` 加一条 legacy 清理）。**别顺手删掉 legacy 清理分支**——存量用户靠它收尸。
 
 **影响面**：纯注册表；不碰 CLI 参数、per-profile、注入层。
 
-**需要补的测试**：`crates/chatgptx-core/src/install` 补断言 `build_windows_entrypoint_plan` 产出的 `legacy_uninstall_key == "ChatGPTX"` 且 `uninstall_key == "ChatGPTX"`；再写一个读 `.nsi` 文本断言含 `Uninstall\ChatGPTX` 的测试（沿用仓库「断言读文本」的风格）。
+**需要补的测试**：`crates/swivox-core/src/install` 补断言 `build_windows_entrypoint_plan` 产出的 `legacy_uninstall_key == "Swivox"` 且 `uninstall_key == "Swivox"`；再写一个读 `.nsi` 文本断言含 `Uninstall\Swivox` 的测试（沿用仓库「断言读文本」的风格）。
 
 ### 4.25 #2160 + #2222 —— provider sync 前置读取失败打断启动 / 误认 ChatGPT Classic（P1）
 
-**#2160 根因**：`crates/chatgptx-data/src/provider_sync.rs:1136` 的 `format!("Provider sync skipped: {err}")` 把底层 serde_json 原始解析错误拼进用户文案，而 err 来自前置状态读取（`%USERPROFILE%\.codex\.codex-global-state.json`）。两条报错都是 serde_json 原文：`column 1` 是空/截断文件；hex escape 那条（threweird0 已查明）是文件里两处孤立的 UTF-16 高代理项 `\ud8ce`——.NET 与 Python 都认为可解析，只有 serde_json 严格模式拒绝。放大点在 `apps/chatgptx-launcher/src/main.rs:715`：provider sync 未完成时 `launcher_main` 直接 `anyhow::bail!`，整次启动被前置状态读取失败连带打断。
+**#2160 根因**：`crates/swivox-data/src/provider_sync.rs:1136` 的 `format!("Provider sync skipped: {err}")` 把底层 serde_json 原始解析错误拼进用户文案，而 err 来自前置状态读取（`%USERPROFILE%\.codex\.codex-global-state.json`）。两条报错都是 serde_json 原文：`column 1` 是空/截断文件；hex escape 那条（threweird0 已查明）是文件里两处孤立的 UTF-16 高代理项 `\ud8ce`——.NET 与 Python 都认为可解析，只有 serde_json 严格模式拒绝。放大点在 `apps/swivox-launcher/src/main.rs:715`：provider sync 未完成时 `launcher_main` 直接 `anyhow::bail!`，整次启动被前置状态读取失败连带打断。
 
-**#2222 根因**：`crates/chatgptx-core/src/watcher.rs:809-824` 的 `is_macos_codex_desktop_main` 只从参数抠出 `.app/Contents/MacOS/` 后的可执行名，匹配 `"Codex" | "Codex Dev" | "ChatGPT" | "ChatGPT Dev"`。ChatGPT Classic.app 的主可执行文件恰好叫 `ChatGPT`，于是命中，`provider_sync.rs:896-905` 误判 Codex 仍在运行。这也解释「之前版本没有、近期才出现」——同名产物是后来才纳入匹配列表的。
+**#2222 根因**：`crates/swivox-core/src/watcher.rs:809-824` 的 `is_macos_codex_desktop_main` 只从参数抠出 `.app/Contents/MacOS/` 后的可执行名，匹配 `"Codex" | "Codex Dev" | "ChatGPT" | "ChatGPT Dev"`。ChatGPT Classic.app 的主可执行文件恰好叫 `ChatGPT`，于是命中，`provider_sync.rs:896-905` 误判 Codex 仍在运行。这也解释「之前版本没有、近期才出现」——同名产物是后来才纳入匹配列表的。
 
 **修复方案**：
 - #2160 三步：(1) 把 provider sync 的前置状态读取失败与「同步本身失败」区分开——`codex_app_state` 的 snapshot/load 失败降级为「跳过 app-state 同步、继续启动并写诊断」，参考 `codex_app_state.rs:84-94` 的 `capture_app_state_snapshot_nonfatal` 模式；(2) **对孤立代理项做容错**：解析前把 `\uD800-\uDFFF` 区间里不成对的转义序列替换为 U+FFFD（在原始文本上做，不依赖完整解析）；(3) 用户可见文案去掉 serde_json 原始错误，给「全局状态文件 X 存在无法解析的字符，已跳过并在 <备份路径> 保留原件」。**注意 provider sync 的「必须停 Codex 应用」语义不能被降级绕过**，那是安全前提。
@@ -541,9 +541,9 @@
 
 ### 4.26 #2359 —— Windows 白色主题下黑底黑字（P1，confirmed）
 
-**现象**：Windows 白色主题下 ChatGPTX 页面黑底黑字完全看不清，切深色主题反而正常。
+**现象**：Windows 白色主题下 Swivox 页面黑底黑字完全看不清，切深色主题反而正常。
 
-**根因**：`assets/inject/renderer-inject/10-style.js:1123-1140` 定义面板语义变量，`:1128 --chatgptx-bg-primary: var(--color-token-bg-primary, var(--token-bg-primary, #fff))`、`:1132 --chatgptx-text: var(--color-token-text-primary, var(--token-text-primary, #171717))`；页面容器硬规则在 `:1238-1242` 用 `!important` 覆盖成 `var(--chatgptx-bg-primary)`。问题在三级回退链的中间那级：Codex 提供 `--color-token-*` 还是 `--token-*` 会随版本与主题切换变化，两层回退同时落空时前景背景同明度。
+**根因**：`assets/inject/renderer-inject/10-style.js:1123-1140` 定义面板语义变量，`:1128 --swivox-bg-primary: var(--color-token-bg-primary, var(--token-bg-primary, #fff))`、`:1132 --swivox-text: var(--color-token-text-primary, var(--token-text-primary, #171717))`；页面容器硬规则在 `:1238-1242` 用 `!important` 覆盖成 `var(--swivox-bg-primary)`。问题在三级回退链的中间那级：Codex 提供 `--color-token-*` 还是 `--token-*` 会随版本与主题切换变化，两层回退同时落空时前景背景同明度。
 **同类隐患（独立条目）**：`10-style.js` 里散布写死的深色系色值——`:969/:985`（`#3f3f46` + `#f3f4f6`）、`:1018`、`:1103/1108/1115`（`#f3f4f6/#f8fafc/#a1a1aa/#71717a/#9ca3af` + `rgba(255,255,255,.05/.16)`）、`:705/:803-805`——深色下正常，浅色下无对比度。这不是「黑底黑字」的直接原因，但属同类不同侧面。
 
 **修复方案**：
@@ -575,8 +575,8 @@
 **现象**：为模型单独配置 strip/vlm 后保存，全部变回「原样发送」。
 
 **根因**：两处叠加。
-1. **后缀与 map key 不匹配**：UI 行名允许带窗口后缀（如 `deepseek-v4-pro[1M]`），而服务端按**原始 model 字符串**查 map：`crates/chatgptx-core/src/vision.rs:122` 的 `image_handling_mode` 做 `map.get(model)` 全字匹配，**不剥后缀**（对比 `model_suffix.rs:385` 的 `normalized_model_slug` 是剥后缀的）。用户带后缀保存的 key 与请求里不带后缀的 model 对不上，查不到就回落 `SendAsIs`（`vision.rs:130`）。
-2. **保存前读回覆盖**：`apps/chatgptx-manager/src/App.tsx:7518` 的 effect 依赖含 `profile.modelVlm`，保存成功后 draft 变化触发 effect，重新执行 `modelWindowRowsFromProfile(...)`，该函数（`model-windows.ts:104-148`）只认 `'vlm'/'strip'`，其余一律给 `'send-as-is'`（`:147`）。任何 key 对不上都会在这里静默重置。
+1. **后缀与 map key 不匹配**：UI 行名允许带窗口后缀（如 `deepseek-v4-pro[1M]`），而服务端按**原始 model 字符串**查 map：`crates/swivox-core/src/vision.rs:122` 的 `image_handling_mode` 做 `map.get(model)` 全字匹配，**不剥后缀**（对比 `model_suffix.rs:385` 的 `normalized_model_slug` 是剥后缀的）。用户带后缀保存的 key 与请求里不带后缀的 model 对不上，查不到就回落 `SendAsIs`（`vision.rs:130`）。
+2. **保存前读回覆盖**：`apps/swivox-manager/src/App.tsx:7518` 的 effect 依赖含 `profile.modelVlm`，保存成功后 draft 变化触发 effect，重新执行 `modelWindowRowsFromProfile(...)`，该函数（`model-windows.ts:104-148`）只认 `'vlm'/'strip'`，其余一律给 `'send-as-is'`（`:147`）。任何 key 对不上都会在这里静默重置。
 （序列化侧 `model-windows.ts:159-183` 本身是对的。）
 
 **修复方案**：统一 key 归一化，两处都改。
@@ -592,7 +592,7 @@
 
 **现象**：微信链接不可用，app-server 拒绝 sandbox variant。
 
-**根因**：ChatGPTX 内部以 kebab-case 存储沙箱档位，三处同一套映射且都是 kebab-case：`settings.rs:1909-1911`（`"workspace-write" => "workspace-write", _ => "read-only"`）、`crates/chatgptx-core/src/connect/mod.rs:457-459` 与 `:469`、`connect/app_server.rs:493-495`。`app_server.rs` 是真正构造 app-server 请求的地方，`:493-495` 的 match 只做内部档位透传与兜底，**没有任何地方把它转成 camelCase**。
+**根因**：Swivox 内部以 kebab-case 存储沙箱档位，三处同一套映射且都是 kebab-case：`settings.rs:1909-1911`（`"workspace-write" => "workspace-write", _ => "read-only"`）、`crates/swivox-core/src/connect/mod.rs:457-459` 与 `:469`、`connect/app_server.rs:493-495`。`app_server.rs` 是真正构造 app-server 请求的地方，`:493-495` 的 match 只做内部档位透传与兜底，**没有任何地方把它转成 camelCase**。
 
 **修复方案**：在 `connect/app_server.rs:493` 起的 match 旁新增 `sandbox_variant_wire_value`，把内部档位映射为 app-server 接受的枚举：`read-only → readOnly`、`workspace-write → workspaceWrite`、`danger-full-access → dangerFullAccess`。**只在构造 app-server 请求那一处转换**，内部存储与设置界面保持 kebab-case。确认 `connect/mod.rs:457` 那条 match 是否也在构造请求路径上——是则复用同一函数，若只是内部归一化则保持原样。参照 `ad76ae51` 的既有处理保持一致。
 
@@ -604,7 +604,7 @@
 
 **现象**：#2340 对话无法删除和归档；#2199 会话删除失效。**现象与直觉相反——不是删不掉，是删了又被写回索引。** #2199 的「切到设置再返回（= 触发一次 repair）就复活」是最佳时序指纹。
 
-**根因**：删除走删 rollout jsonl + 删 threads 行，而侧边栏索引由 catalog repair 重建。可疑点在 `crates/chatgptx-data/src/provider_sync.rs:4744` 的副本择优逻辑：`source_updated_at` 相等时用「ineligible 一方胜出」防复活，但另一份 catalog 副本若 `source_detail`（rollout_path）仍指向未清理的路径，`rollout_exists`（`:4685-4689`）就仍为真，`eligible`（`:4735-4741`）成立，已删会话被重新写回。`eligible` 只看 `archived == 0 && has_user_content == 1 && rollout_exists`，**没有「刚被显式删除」这个状态**。
+**根因**：删除走删 rollout jsonl + 删 threads 行，而侧边栏索引由 catalog repair 重建。可疑点在 `crates/swivox-data/src/provider_sync.rs:4744` 的副本择优逻辑：`source_updated_at` 相等时用「ineligible 一方胜出」防复活，但另一份 catalog 副本若 `source_detail`（rollout_path）仍指向未清理的路径，`rollout_exists`（`:4685-4689`）就仍为真，`eligible`（`:4735-4741`）成立，已删会话被重新写回。`eligible` 只看 `archived == 0 && has_user_content == 1 && rollout_exists`，**没有「刚被显式删除」这个状态**。
 **正交线索**：用户说「归档反而等于删除」——归档置 `archived=1` 恰使 `eligible` 为假而逃过复活，从反面印证 `eligible` 缺一个删除态判断。
 
 **修复方案**：在 catalog repair 里引入「删除墓碑」：
@@ -655,9 +655,9 @@
 | #2219 | 图标布局错位 + 按模型设思考级别 | 布局同 #2151 流程；思考级别是新能力，与 #2279 同构——`model_suffix.rs:509-580` 加按模型 reasoning effort 覆盖字段，前端 `model-windows.ts:26-31` 加一列。**先探 catalog schema 是否接受该字段** | M |
 | #2215 | 微信连接支持图片（带补丁） | 按 feature 流程：下载 `weixin-image-support.patch` 检查能否干净应用；确认用 app-server 官方 `localImage`；补「图片下载失败不阻塞文本通道」用例。**合入与否由用户决定** | M |
 | #2226 | 主代理等子代理期间无响应 | 先抓 SSE 帧序列区分「上游不发」与「代理攒批」；若是代理，在 responses 流式转发路径放行不应聚合的事件。**没抓到帧序列之前不要动代码** | M |
-| #2273 | 同一 key 在 CCS 正常、ChatGPTX 报 401 | 让用户自查 profile（relayMode / no_auth / custom_headers）；临时解法显式加 `Authorization: Bearer` 头；代码侧加「请求未带鉴权」的诊断可见化（与 #2236 同一改动） | S |
+| #2273 | 同一 key 在 CCS 正常、Swivox 报 401 | 让用户自查 profile（relayMode / no_auth / custom_headers）；临时解法显式加 `Authorization: Bearer` 头；代码侧加「请求未带鉴权」的诊断可见化（与 #2236 同一改动） | S |
 | #2270 | 换账号后会话不见 | 安抚 + 取证：会话按身份隔离是上游设计，rollout 不会被删；要用户贴切换前后 auth.json 字段对比与 relayMode，重点看切回官方是否保留认证状态 | S |
-| #2261 | 纯 API 下界面部分汉化 | 先确认用户是否开了「强制中文」与 `chatgptx.forceChineseLocale.managed.v1` 是否存在；若值对但仍英文，需补齐「宿主 UI 另一份语言来源」的托管。**留意 1.4.0 刚修过的刷新循环不要回归** | M |
+| #2261 | 纯 API 下界面部分汉化 | 先确认用户是否开了「强制中文」与 `swivox.forceChineseLocale.managed.v1` 是否存在；若值对但仍英文，需补齐「宿主 UI 另一份语言来源」的托管。**留意 1.4.0 刚修过的刷新循环不要回归** | M |
 | #2158 | 畸形路径 `D:\Users\AppData\...` os error 2 | 先分清拼接问题 vs 杀软隔离（让用户直接粘贴报错路径）；`install_root_or_default` 改用 `current_exe` 父目录为首选来源 | S |
 | #2119 | 同事的模型列表里没有 GPT6 | 操作指引：确认 relayMode——官方登录需升 1.4.0+ 并开白名单解锁；第三方供应商需手工加模型名 | S |
 
@@ -697,8 +697,8 @@
 - `20-menu.js:16-18` 三条硬编码版本线 → #2364 的另一半。
 
 **架构级改法**：
-1. **统一「选择器契约」治理**，参照已存在的 `SELECTOR_CONTRACT` 机制（`assets/inject/upstream/dream-skin/windows/renderer-inject.js` 第 3 行，带 `tier` / `scope` / `required` 三档）推广到主分片：每个跨版本选择器登记为 `{key, selector, tier, required}`，`required: true` 的在运行时探针失配时**主动上报诊断**而不是静默返回 null。今天的 `conversationViewAlignNow`（`90-action-groups.js:760`）与 `installChatGPTXSidebarNavigation`（`40-backend-settings.js:1391` 附近的 `if (!navigation) return`）都是静默失败——用户报「没生效」时我们手上没有证据。
-2. **扫描调度与自喂防护复用**：`98-scan-schedule.js:59-82` 的 `shouldScheduleScan` 补 composition/contenteditable 排除（见 §4.11），并把 `1960` 那套 `data-chatgptx-ext` 防护模式复用为标准——**拓展插入的节点必须带该属性**，否则触发自喂扫描循环。
+1. **统一「选择器契约」治理**，参照已存在的 `SELECTOR_CONTRACT` 机制（`assets/inject/upstream/dream-skin/windows/renderer-inject.js` 第 3 行，带 `tier` / `scope` / `required` 三档）推广到主分片：每个跨版本选择器登记为 `{key, selector, tier, required}`，`required: true` 的在运行时探针失配时**主动上报诊断**而不是静默返回 null。今天的 `conversationViewAlignNow`（`90-action-groups.js:760`）与 `installSwivoxSidebarNavigation`（`40-backend-settings.js:1391` 附近的 `if (!navigation) return`）都是静默失败——用户报「没生效」时我们手上没有证据。
+2. **扫描调度与自喂防护复用**：`98-scan-schedule.js:59-82` 的 `shouldScheduleScan` 补 composition/contenteditable 排除（见 §4.11），并把 `1960` 那套 `data-swivox-ext` 防护模式复用为标准——**拓展插入的节点必须带该属性**，否则触发自喂扫描循环。
 
 ### 6.2 config.toml 切换的对称性问题（覆盖 #2203 #2216 #2147 #2123 #2207 #2081 #2374）
 
@@ -725,7 +725,7 @@
 
 ### 6.4 错误可观测性的系统性缺失（覆盖 #2343 #2314 #2204 #2129 #2244 #2336 #2351 #2140 #2354）
 
-**根因**：`DefaultLaunchHooks::resolve_app_dir`（`launcher.rs:792-802`）在任何探测失败时只抛一句 `anyhow!("Codex App directory not found")`，三个平台、四种失败原因（目录不存在 / 被误判为 ChatGPTX 目录 / 枚举不到 exe / 包名判据不匹配）**共用这一句**。同一错误文案「该进程没有程序包标识符」对应至少四条互不相同的产生路径。这也是 #2244 那条「80~110 秒内 chatgptx.log 一条都不写」的同源问题。
+**根因**：`DefaultLaunchHooks::resolve_app_dir`（`launcher.rs:792-802`）在任何探测失败时只抛一句 `anyhow!("Codex App directory not found")`，三个平台、四种失败原因（目录不存在 / 被误判为 Swivox 目录 / 枚举不到 exe / 包名判据不匹配）**共用这一句**。同一错误文案「该进程没有程序包标识符」对应至少四条互不相同的产生路径。这也是 #2244 那条「80~110 秒内 swivox.log 一条都不写」的同源问题。
 
 **架构级改法**：
 1. 给 `launcher.rs:497-660` 的每个前置步骤加「进入/离开 + 耗时」诊断日志，让所有路径解析失败都带上探测轨迹与拒绝理由。
@@ -755,7 +755,7 @@
 ### 第 1 批（注入层根治，收益最大，可并行）
 
 1. **PR #2337 + 分片迁移**（#2330 / #2169 / #2267 / #2201）。**必须先做这一步**——它同时是 CPU 空转、卡顿、内存增长、60 秒重复解析四条链路的主因；且必须先把改动搬进 `20-menu.js` 再重跑 assemble，否则下一次组装会静默抹掉。
-2. **PR #2303**（原生压缩保真）——合入前唯一阻断项是重跑并发测试确认时序修复生效（`cargo test -p chatgptx-core --test protocol_proxy` 并发连跑 5 次）。它是压缩线的收官动作（main 仍缺「原生 encrypted compaction 历史遇上不支持 v2 的上游」时的显式拒绝，会把 opaque checkpoint 当明文重放）。**建议把其中 App.tsx 的 dead `metadataImportPreview` 重复 useState 声明作为独立 commit 先合**——它会让所有 PR 的 TS/Vite 构建失败。
+2. **PR #2303**（原生压缩保真）——合入前唯一阻断项是重跑并发测试确认时序修复生效（`cargo test -p swivox-core --test protocol_proxy` 并发连跑 5 次）。它是压缩线的收官动作（main 仍缺「原生 encrypted compaction 历史遇上不支持 v2 的上游」时的显式拒绝，会把 opaque checkpoint 当明文重放）。**建议把其中 App.tsx 的 dead `metadataImportPreview` 重复 useState 声明作为独立 commit 先合**——它会让所有 PR 的 TS/Vite 构建失败。
 
 ### 第 2 批（协议翻译层，P0 但改动小，可与第 1 批并行）
 
@@ -785,7 +785,7 @@
 
 - 注入层任何改动必须走完 **assemble + npm test + `--check` 三步**；
 - **`10-style.js` 的改动要先 `codexDeleteStyleVersion` +1**，否则 `installStyle` 因版本号相同静默不重建，改了等于没改；
-- 修完重注入循环后，把「旧实例资源不回收」当成独立课题做（PR #2337 作者实测 window 上留着 65 个 keydown），现成隔离点是 `40-backend-settings.js:89-90` 的 `chatgptxBackendGeneration` 世代号——**不要引入第二套**；
+- 修完重注入循环后，把「旧实例资源不回收」当成独立课题做（PR #2337 作者实测 window 上留着 65 个 keydown），现成隔离点是 `40-backend-settings.js:89-90` 的 `swivoxBackendGeneration` 世代号——**不要引入第二套**；
 - 根因 B（原生 app-server 认证）的任何「绕过」方案（把 `auth_method` 从 apikey 改写成 chatgpt）**都不许做**。
 
 ---
@@ -794,16 +794,16 @@
 
 | issue | 要问什么 | 要到的证据能定什么 |
 |---|---|---|
-| #2107 | Windows 上是任务栏点击还是托盘图标点击？最小化后多久失效？是否装了 ChatGPTX 托盘？ | 区分「托盘/任务栏不 restore」与「上游 cua_node 部署」两件事 |
-| #2114 | 脱敏 config.toml 的 `model_providers` 段与顶层 `model/model_provider`；profile 的 protocol；复现时含协议代理转发条目的 `chatgptx.log` | 二分「协议代理是否收到请求」 |
-| #2139 | 模式控件的 DOM 片段（DevTools 复制 outerHTML）；官方直启对照截图；`codexAppVersion` | 是否是 ChatGPTX 主动改的外观 |
-| #2205 | 干净环境下用原生 codex（不经 ChatGPTX）复现同一操作序列，记录 `.codex\sqlite\codex-dev.db` 的 mtime 与会话列表 | 判断是否与 ChatGPTX 无关 |
+| #2107 | Windows 上是任务栏点击还是托盘图标点击？最小化后多久失效？是否装了 Swivox 托盘？ | 区分「托盘/任务栏不 restore」与「上游 cua_node 部署」两件事 |
+| #2114 | 脱敏 config.toml 的 `model_providers` 段与顶层 `model/model_provider`；profile 的 protocol；复现时含协议代理转发条目的 `swivox.log` | 二分「协议代理是否收到请求」 |
+| #2139 | 模式控件的 DOM 片段（DevTools 复制 outerHTML）；官方直启对照截图；`codexAppVersion` | 是否是 Swivox 主动改的外观 |
+| #2205 | 干净环境下用原生 codex（不经 Swivox）复现同一操作序列，记录 `.codex\sqlite\codex-dev.db` 的 mtime 与会话列表 | 判断是否与 Swivox 无关 |
 | #2206 | `gh issue view 2206 --json body,comments` 取正文；核对 `gh pr list` 是否仍有 open PR | 按其自身主题（Taskboard）单独立项 |
 | #2223 | Computer Use 每个动作（cua 枚举窗口、截图、点击、键盘输入）单独的成功/失败与错误串；版本号 | 填 `docs/` 的四列依赖表 |
 | #2226 | 用 CDP 抓该会话的 SSE 事件序列（或开转发诊断日志），对比 GPT 官方直连与 deepseek 经代理两条路径 | 区分「上游不发增量」与「代理攒批」 |
 | #2270 | 切换前后的 auth.json 内容对比（脱敏，只留字段名与是否为空）与 relayMode | 判断是否某条路径把 auth.json 写成影响身份识别的形状 |
-| #2261 | 管理工具「强制中文」是否开启；浏览器 localStorage 里 `chatgptx.forceChineseLocale.managed.v1` 是否存在且为 zh-CN | 区分「注入没生效」与「宿主 UI 语言来源不止一处」 |
-| #2297 | 脚本名与来源；「不生效」的具体表现（列表里没有 vs 列表里有但功能没出现）；`chatgptx.log` 的 user-scripts 诊断行；文件名是否含中文 | 区分安装失败 / 加载失败 / 路径编码 |
+| #2261 | 管理工具「强制中文」是否开启；浏览器 localStorage 里 `swivox.forceChineseLocale.managed.v1` 是否存在且为 zh-CN | 区分「注入没生效」与「宿主 UI 语言来源不止一处」 |
+| #2297 | 脚本名与来源；「不生效」的具体表现（列表里没有 vs 列表里有但功能没出现）；`swivox.log` 的 user-scripts 诊断行；文件名是否含中文 | 区分安装失败 / 加载失败 / 路径编码 |
 | #2300 | 脱敏 config.toml（重点 `model_reasoning_effort`、`model`、`model_provider`）；一次原始响应里 `content` 字段开头几行 | 判断思维链是模型自出还是上游兼容层混进 content |
 | #2315 | 管理工具里模型列表的原文（两行完整拼写）与 profile 的 `modelList / modelWindows / modelMetadata` 三字段 | 确认是两个不同 slug 还是别名污染 |
 | #2349 | 抓一份含安装动作的 `/diagnostics/log`，确认 `plugin_install_request_debug` 是否出现 | 区分是策略通道没覆盖还是改写错 |
@@ -818,7 +818,7 @@
 | PR | 标题 | 处置 | 理由 |
 |---|---|---|---|
 | **#2371** | fix(launcher): 提权运行时 AUMID 激活失败不再静默回退 | **建议合并** | 方案经代码核对正确（纯函数 `packaged_activation_fallback_block_reason` 便于测试；非提权路径零行为变化）；新增 `current_process_is_elevated()` 而不复用 `relay_config.rs:2185` 的私有函数，语义判断正确。合入后 #2351 / #2336 一并关闭。 |
-| **#2370** | fix(installer): 安装器注册 `chatgptx://` 与 `dreamskin://` | **建议合并** | 与 `install/windows.rs:172-200` 的 `register_url_protocol_key` 逐字对齐是关键；建议同批追加「manager 启动时幂等自检」覆盖存量用户。合入后 #2354 关闭。 |
+| **#2370** | fix(installer): 安装器注册 `swivox://` 与 `dreamskin://` | **建议合并** | 与 `install/windows.rs:172-200` 的 `register_url_protocol_key` 逐字对齐是关键；建议同批追加「manager 启动时幂等自检」覆盖存量用户。合入后 #2354 关闭。 |
 | **#2368** | fix(installer): taskkill 后轮询等待进程退出 | **建议合并** | 纯新增 +50 行，三个已知坑（PATH 里 Unix `find.exe`、Win11 tasklist 返回码、语言相关输出）都规避；等待宏无 `Abort` 分支、异常收敛到「立即放行」，失败方向正确。合入后 #2362 关闭。 |
 | **#2366** | feat(manager): 支持模型列表拖动排序 | **要求修改（或与 #2333 合并）** | 与 #2333（按名称排序）功能重叠、同区域改动，同时合入会冲突。请两作者对齐成一条「模型列表排序」PR：拖动排序 + 名称排序二选一或合并实现，避免两次改动同一块 UI。 |
 | **#2365** | fix(manager): reopen hidden macOS window from Dock | **建议合并** | 正是 #2157 / #2304 的正解（`RunEvent::Reopen` → `show_main_window`），改动小。合入前确认没有动 `lib.rs:519-575` 的端口守卫逻辑，且 `--transient` 模式仍直接退出。合入后 #2157 / #2304 关闭。 |
@@ -826,7 +826,7 @@
 | **#2333** | feat(manager): 模型列表支持按名称排序 | **要求修改（见 #2366）** | 与 #2366 重叠，先合并再评审。 |
 | **#2313** | fix: make launch and restart lifecycle deterministic | **要求修改** | 方向与本轮 §6.4 的可观测性诉求一致，但「deterministic lifecycle」范围过大，需拆分为可独立验证的小改动（重启时序 / 状态写回 / 清理），并要求作者给出 `latest-status.json` 的阶段字段设计——这与 #2244 的诉求 3 直接重合，避免两处各写一套。 |
 | **#2309** | fix: 新版 Codex App 兼容适配（面板边界、顶部入口、注入卡顿缓解） | **要求修改** | 与 #2337 在「注入卡顿」上重叠，需明确分工：卡顿主因归 #2337，本 PR 只做面板边界与顶部入口的形态适配。要求作者**附 CDP 实测证据**（改前改后的 DOM 锚点与布局值），因为注入层布局类问题静态阅读容易误判。 |
-| **#2303** | fix: preserve native compaction with safe summary fallback | **要求修改后合并** | PR（非 issue）。它在 main 上确实还有未覆盖的真实缺口（`native_checkpoint_cannot_be_downgraded_to_chat_text` / `native_compaction_history_returns_responses_error_without_summary_retry` 两个测试名在 main 搜不到，会把 opaque checkpoint 当明文重放）。**唯一合入阻断项**：拿当前 head 重跑并发验证 `cargo test -p chatgptx-core --test protocol_proxy` 连续 5 次（09-30 的失败是在 rebase 前版本上复现的，作者声称已改，需实测）。隔离要求：新逻辑只作用于「OpenAI 会话身份 + 本地代理 + v2 远程压缩」，纯官登与纯 API 不受影响；#2301 的 `UpstreamProxyResponse.compaction: bool` 单一标记路线保留，不要用 `native_compaction_passthrough` 字段整份替换。**App.tsx 的 dead `metadataImportPreview` 重复声明应与功能改动分开成独立 commit 先合。** |
+| **#2303** | fix: preserve native compaction with safe summary fallback | **要求修改后合并** | PR（非 issue）。它在 main 上确实还有未覆盖的真实缺口（`native_checkpoint_cannot_be_downgraded_to_chat_text` / `native_compaction_history_returns_responses_error_without_summary_retry` 两个测试名在 main 搜不到，会把 opaque checkpoint 当明文重放）。**唯一合入阻断项**：拿当前 head 重跑并发验证 `cargo test -p swivox-core --test protocol_proxy` 连续 5 次（09-30 的失败是在 rebase 前版本上复现的，作者声称已改，需实测）。隔离要求：新逻辑只作用于「OpenAI 会话身份 + 本地代理 + v2 远程压缩」，纯官登与纯 API 不受影响；#2301 的 `UpstreamProxyResponse.compaction: bool` 单一标记路线保留，不要用 `native_compaction_passthrough` 字段整份替换。**App.tsx 的 dead `metadataImportPreview` 重复声明应与功能改动分开成独立 commit 先合。** |
 
 ---
 
@@ -934,7 +934,7 @@ test model_catalog_uses_active_relay_profile_model_list_and_actual_provider ... 
 精确版本锁定是正确的（AST 哈希依赖 Babel 输出形状）。但要补：构建脚本 `--check` 未接 CI、
 `esbuild` 未显式声明（靠 vite 传递依赖，脆弱）。
 
-**实测**：`chatgptx-core` 1383 passed / 0 failed / 6 ignored（作者称 1708，属 workspace 口径差异）；
+**实测**：`swivox-core` 1383 passed / 0 failed / 6 ignored（作者称 1708，属 workspace 口径差异）；
 `npm test` 315 pass / 1 skip；tsc、assemble --check 通过。
 **但**最有价值的负例（真实版本识别、歧义、遮蔽）全在被 CI skip 的 fixture 测试里，
 `structural::detect` 新代码路径**在 CI 上零覆盖**。

@@ -2,7 +2,7 @@
 
 ## Summary
 
-ChatGPTX will add an optional enhancement for Codex App worktree creation. The feature makes new worktrees start from a remote tracking branch such as `upstream/main`, instead of inheriting a stale local `HEAD` or unsynced branch state.
+Swivox will add an optional enhancement for Codex App worktree creation. The feature makes new worktrees start from a remote tracking branch such as `upstream/main`, instead of inheriting a stale local `HEAD` or unsynced branch state.
 
 The intended Git equivalent is:
 
@@ -11,14 +11,14 @@ git fetch upstream <base-branch>
 git worktree add -b <new-branch> <worktree-path> upstream/<base-branch>
 ```
 
-The implementation will first add a reliable Rust backend capability and a ChatGPTX menu entry. After that is tested, the renderer injection can enhance Codex App's native worktree creation UI when the current Codex version exposes a recognizable action point. If the native action point cannot be detected, ChatGPTX must show a clear fallback message and keep the menu entry usable.
+The implementation will first add a reliable Rust backend capability and a Swivox menu entry. After that is tested, the renderer injection can enhance Codex App's native worktree creation UI when the current Codex version exposes a recognizable action point. If the native action point cannot be detected, Swivox must show a clear fallback message and keep the menu entry usable.
 
 ## Goals
 
 - Create new worktrees from a remote tracking ref, defaulting to `upstream/<base-branch>`.
 - Reduce conflicts caused by Codex App creating worktrees from stale local state.
 - Keep the Git operation explicit and testable in Rust, not hidden inside the renderer script.
-- Provide a stable ChatGPTX menu workflow even when Codex App UI internals change.
+- Provide a stable Swivox menu workflow even when Codex App UI internals change.
 - Enhance the native Codex App worktree flow when it can be detected safely.
 - Report actionable errors for missing remotes, missing base branches, existing branches, existing paths, and invalid repositories.
 
@@ -32,9 +32,9 @@ The implementation will first add a reliable Rust backend capability and a ChatG
 
 ## User Experience
 
-ChatGPTX settings gains an `Upstream worktree` enhancement toggle. The toggle is enabled only when backend support is available.
+Swivox settings gains an `Upstream worktree` enhancement toggle. The toggle is enabled only when backend support is available.
 
-When the user uses the ChatGPTX menu entry, ChatGPTX asks for:
+When the user uses the Swivox menu entry, Swivox asks for:
 
 - Repository path.
 - New branch name.
@@ -48,13 +48,13 @@ The primary action label should make the Git source clear, for example:
 Create from upstream/<base-branch>
 ```
 
-On success, ChatGPTX shows the created worktree path and source ref. On failure, ChatGPTX shows a concise error and keeps the user's entered values so they can fix the issue.
+On success, Swivox shows the created worktree path and source ref. On failure, Swivox shows a concise error and keeps the user's entered values so they can fix the issue.
 
-When native Codex App worktree enhancement is active, the user can continue using Codex's normal worktree creation path. ChatGPTX intercepts or augments the action only when it can identify the repository path, new branch name, worktree path, and base branch. If any required value is ambiguous, ChatGPTX does not run Git. It shows a toast that says the native flow could not be safely enhanced and points the user to the ChatGPTX menu entry.
+When native Codex App worktree enhancement is active, the user can continue using Codex's normal worktree creation path. Swivox intercepts or augments the action only when it can identify the repository path, new branch name, worktree path, and base branch. If any required value is ambiguous, Swivox does not run Git. It shows a toast that says the native flow could not be safely enhanced and points the user to the Swivox menu entry.
 
 ## Backend Architecture
 
-Add a focused Rust module in `crates/chatgptx-core`, tentatively named `upstream_worktree`.
+Add a focused Rust module in `crates/swivox-core`, tentatively named `upstream_worktree`.
 
 The module owns:
 
@@ -157,7 +157,7 @@ Include stderr in diagnostic logs, but keep renderer-facing messages short and s
 
 ## Renderer Injection
 
-Add the menu workflow first. It should reuse existing ChatGPTX injected menu patterns instead of creating a visually separate system.
+Add the menu workflow first. It should reuse existing Swivox injected menu patterns instead of creating a visually separate system.
 
 The renderer script should:
 
@@ -172,7 +172,7 @@ Native Codex App enhancement should be implemented as a guarded adapter:
 
 - Detect known Codex worktree creation controls through stable attributes first, then text/structure as fallback.
 - Extract repository path, branch name, target path, and base branch before intercepting.
-- If extraction is incomplete, do not prevent the native action unless ChatGPTX can show a clear fallback.
+- If extraction is incomplete, do not prevent the native action unless Swivox can show a clear fallback.
 - Keep the adapter versioned so future Codex App DOM changes can be diagnosed.
 
 ## Settings
@@ -211,7 +211,7 @@ Renderer tests can be lightweight and focused on pure helpers:
 Manual verification should cover:
 
 1. A repository with `upstream/main` newer than local `main`.
-2. Creating `feature/test` at a new worktree path through ChatGPTX menu.
+2. Creating `feature/test` at a new worktree path through Swivox menu.
 3. Confirming `git -C <worktree-path> rev-parse HEAD` matches `git -C <repo> rev-parse upstream/main`.
 4. Confirming a duplicate branch gives a clear `branch-exists` error.
 5. Confirming a missing `upstream` remote gives a clear `remote-missing` error.
@@ -219,7 +219,7 @@ Manual verification should cover:
 
 ## Rollout Plan
 
-Phase 1 adds the Rust backend module, bridge routes, tests, and ChatGPTX menu entry.
+Phase 1 adds the Rust backend module, bridge routes, tests, and Swivox menu entry.
 
 Phase 2 adds native Codex App worktree UI detection and guarded interception.
 

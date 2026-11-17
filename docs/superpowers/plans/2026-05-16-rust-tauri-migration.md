@@ -4,7 +4,7 @@
 
 **Goal:** Replace the Python backend with a Rust core, a no-window silent launcher, and a Tauri management tool while preserving the existing Codex App injection behavior.
 
-**Architecture:** Add a Rust workspace beside the current Python package, port behavior in verifiable slices, then switch the installed entry points to Rust and remove Python only after parity is proven. The only user-facing entry points are `ChatGPTX` silent launch and `ChatGPTX 管理工具`; there is no separate CLI.
+**Architecture:** Add a Rust workspace beside the current Python package, port behavior in verifiable slices, then switch the installed entry points to Rust and remove Python only after parity is proven. The only user-facing entry points are `Swivox` silent launch and `Swivox 管理工具`; there is no separate CLI.
 
 **Tech Stack:** Rust 1.95, Cargo workspace, Tauri 2, TypeScript/Vite, `rusqlite`, `serde`, `serde_json`, `tokio`, `reqwest`, `tungstenite` or `tokio-tungstenite`, Windows PowerShell shortcut generation, macOS app bundle generation, existing `renderer-inject.js`, existing pytest suite as behavior reference during migration.
 
@@ -17,10 +17,10 @@ The design covers several subsystems: Rust workspace setup, data operations, CDP
 ## File Structure
 
 - Create `Cargo.toml`: workspace root with members under `crates/` and `apps/`.
-- Create `crates/chatgptx-core/`: shared launch, CDP, bridge, settings, logs, diagnostics, path resolution, install/update primitives.
-- Create `crates/chatgptx-data/`: SQLite, backup, markdown export, provider sync, and filesystem data operations.
-- Create `apps/chatgptx-launcher/`: no-window silent launcher binary used by the `ChatGPTX` shortcut.
-- Create `apps/chatgptx-manager/`: Tauri management console used by `ChatGPTX 管理工具`.
+- Create `crates/swivox-core/`: shared launch, CDP, bridge, settings, logs, diagnostics, path resolution, install/update primitives.
+- Create `crates/swivox-data/`: SQLite, backup, markdown export, provider sync, and filesystem data operations.
+- Create `apps/swivox-launcher/`: no-window silent launcher binary used by the `Swivox` shortcut.
+- Create `apps/swivox-manager/`: Tauri management console used by `Swivox 管理工具`.
 - Move or copy runtime assets into `assets/`: icons, sponsor images, and `renderer-inject.js` source used by Rust packaging.
 - Create `tests/fixtures/`: shared SQLite, rollout, and settings fixtures for Rust integration tests.
 - Modify `README.md` and `README_EN.md`: replace Python usage with Rust/Tauri installation and two-entry behavior.
@@ -34,19 +34,19 @@ The design covers several subsystems: Rust workspace setup, data operations, CDP
 **Files:**
 - Create: `Cargo.toml`
 - Create: `.cargo/config.toml`
-- Create: `crates/chatgptx-core/Cargo.toml`
-- Create: `crates/chatgptx-core/src/lib.rs`
-- Create: `crates/chatgptx-core/src/version.rs`
-- Create: `crates/chatgptx-data/Cargo.toml`
-- Create: `crates/chatgptx-data/src/lib.rs`
-- Create: `apps/chatgptx-launcher/Cargo.toml`
-- Create: `apps/chatgptx-launcher/src/main.rs`
-- Create: `apps/chatgptx-manager/package.json`
-- Create: `apps/chatgptx-manager/src-tauri/Cargo.toml`
-- Create: `apps/chatgptx-manager/src-tauri/src/lib.rs`
-- Create: `apps/chatgptx-manager/src-tauri/src/main.rs`
-- Create: `apps/chatgptx-manager/src/main.tsx`
-- Create: `apps/chatgptx-manager/index.html`
+- Create: `crates/swivox-core/Cargo.toml`
+- Create: `crates/swivox-core/src/lib.rs`
+- Create: `crates/swivox-core/src/version.rs`
+- Create: `crates/swivox-data/Cargo.toml`
+- Create: `crates/swivox-data/src/lib.rs`
+- Create: `apps/swivox-launcher/Cargo.toml`
+- Create: `apps/swivox-launcher/src/main.rs`
+- Create: `apps/swivox-manager/package.json`
+- Create: `apps/swivox-manager/src-tauri/Cargo.toml`
+- Create: `apps/swivox-manager/src-tauri/src/lib.rs`
+- Create: `apps/swivox-manager/src-tauri/src/main.rs`
+- Create: `apps/swivox-manager/src/main.tsx`
+- Create: `apps/swivox-manager/index.html`
 
 - [ ] **Step 1: Write the workspace manifests**
 
@@ -56,17 +56,17 @@ Create root `Cargo.toml`:
 [workspace]
 resolver = "2"
 members = [
-  "crates/chatgptx-core",
-  "crates/chatgptx-data",
-  "apps/chatgptx-launcher",
-  "apps/chatgptx-manager/src-tauri",
+  "crates/swivox-core",
+  "crates/swivox-data",
+  "apps/swivox-launcher",
+  "apps/swivox-manager/src-tauri",
 ]
 
 [workspace.package]
 version = "1.0.8"
 edition = "2024"
 license = "MIT"
-repository = "https://github.com/ChatGPTX/ChatGPTX"
+repository = "https://github.com/Swivox/Swivox"
 
 [workspace.dependencies]
 anyhow = "1"
@@ -95,11 +95,11 @@ xcheck = "check --workspace --all-targets"
 
 - [ ] **Step 2: Add core crate**
 
-Create `crates/chatgptx-core/Cargo.toml`:
+Create `crates/swivox-core/Cargo.toml`:
 
 ```toml
 [package]
-name = "chatgptx-core"
+name = "swivox-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -114,13 +114,13 @@ thiserror.workspace = true
 tokio.workspace = true
 ```
 
-Create `crates/chatgptx-core/src/lib.rs`:
+Create `crates/swivox-core/src/lib.rs`:
 
 ```rust
 pub mod version;
 ```
 
-Create `crates/chatgptx-core/src/version.rs`:
+Create `crates/swivox-core/src/version.rs`:
 
 ```rust
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -138,11 +138,11 @@ mod tests {
 
 - [ ] **Step 3: Add data crate**
 
-Create `crates/chatgptx-data/Cargo.toml`:
+Create `crates/swivox-data/Cargo.toml`:
 
 ```toml
 [package]
-name = "chatgptx-data"
+name = "swivox-data"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -157,7 +157,7 @@ serde_json.workspace = true
 thiserror.workspace = true
 ```
 
-Create `crates/chatgptx-data/src/lib.rs`:
+Create `crates/swivox-data/src/lib.rs`:
 
 ```rust
 pub fn crate_ready() -> bool {
@@ -175,45 +175,45 @@ mod tests {
 
 - [ ] **Step 4: Add silent launcher binary skeleton**
 
-Create `apps/chatgptx-launcher/Cargo.toml`:
+Create `apps/swivox-launcher/Cargo.toml`:
 
 ```toml
 [package]
-name = "chatgptx-launcher"
+name = "swivox-launcher"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
 [[bin]]
-name = "chatgptx"
+name = "swivox"
 path = "src/main.rs"
 
 [dependencies]
 anyhow.workspace = true
-chatgptx-core = { path = "../../crates/chatgptx-core" }
+swivox-core = { path = "../../crates/swivox-core" }
 tokio.workspace = true
 ```
 
-Create `apps/chatgptx-launcher/src/main.rs`:
+Create `apps/swivox-launcher/src/main.rs`:
 
 ```rust
 use anyhow::Result;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    println!("ChatGPTX launcher {}", chatgptx_core::version::VERSION);
+    println!("Swivox launcher {}", swivox_core::version::VERSION);
     Ok(())
 }
 ```
 
 - [ ] **Step 5: Add Tauri manager skeleton**
 
-Create `apps/chatgptx-manager/package.json`:
+Create `apps/swivox-manager/package.json`:
 
 ```json
 {
-  "name": "chatgptx-manager",
+  "name": "swivox-manager",
   "version": "1.0.8",
   "private": true,
   "type": "module",
@@ -232,7 +232,7 @@ Create `apps/chatgptx-manager/package.json`:
 }
 ```
 
-Create `apps/chatgptx-manager/index.html`:
+Create `apps/swivox-manager/index.html`:
 
 ```html
 <!doctype html>
@@ -240,7 +240,7 @@ Create `apps/chatgptx-manager/index.html`:
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ChatGPTX 管理工具</title>
+    <title>Swivox 管理工具</title>
   </head>
   <body>
     <div id="app"></div>
@@ -249,7 +249,7 @@ Create `apps/chatgptx-manager/index.html`:
 </html>
 ```
 
-Create `apps/chatgptx-manager/src/main.tsx`:
+Create `apps/swivox-manager/src/main.tsx`:
 
 ```tsx
 const app = document.getElementById("app");
@@ -257,59 +257,59 @@ const app = document.getElementById("app");
 if (app) {
   app.innerHTML = `
     <main style="font-family: system-ui, sans-serif; padding: 24px">
-      <h1>ChatGPTX 管理工具</h1>
+      <h1>Swivox 管理工具</h1>
       <p>Rust/Tauri migration shell is ready.</p>
     </main>
   `;
 }
 ```
 
-Create `apps/chatgptx-manager/src-tauri/Cargo.toml`:
+Create `apps/swivox-manager/src-tauri/Cargo.toml`:
 
 ```toml
 [package]
-name = "chatgptx-manager"
+name = "swivox-manager"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
 [lib]
-name = "chatgptx_manager_lib"
+name = "swivox_manager_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [[bin]]
-name = "chatgptx-manager"
+name = "swivox-manager"
 path = "src/main.rs"
 
 [dependencies]
-chatgptx-core = { path = "../../../crates/chatgptx-core" }
+swivox-core = { path = "../../../crates/swivox-core" }
 serde.workspace = true
 serde_json.workspace = true
 tauri = { version = "2", features = [] }
 ```
 
-Create `apps/chatgptx-manager/src-tauri/src/lib.rs`:
+Create `apps/swivox-manager/src-tauri/src/lib.rs`:
 
 ```rust
 #[tauri::command]
 fn backend_version() -> &'static str {
-    chatgptx_core::version::VERSION
+    swivox_core::version::VERSION
 }
 
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![backend_version])
         .run(tauri::generate_context!())
-        .expect("failed to run ChatGPTX manager");
+        .expect("failed to run Swivox manager");
 }
 ```
 
-Create `apps/chatgptx-manager/src-tauri/src/main.rs`:
+Create `apps/swivox-manager/src-tauri/src/main.rs`:
 
 ```rust
 fn main() {
-    chatgptx_manager_lib::run();
+    swivox_manager_lib::run();
 }
 ```
 
@@ -335,11 +335,11 @@ git commit -m "feat: add Rust Tauri workspace skeleton"
 ### Task 2: Shared Models, Settings, And Status Files
 
 **Files:**
-- Create: `crates/chatgptx-core/src/models.rs`
-- Create: `crates/chatgptx-core/src/paths.rs`
-- Create: `crates/chatgptx-core/src/settings.rs`
-- Create: `crates/chatgptx-core/src/status.rs`
-- Modify: `crates/chatgptx-core/src/lib.rs`
+- Create: `crates/swivox-core/src/models.rs`
+- Create: `crates/swivox-core/src/paths.rs`
+- Create: `crates/swivox-core/src/settings.rs`
+- Create: `crates/swivox-core/src/status.rs`
+- Modify: `crates/swivox-core/src/lib.rs`
 
 - [ ] **Step 1: Write model and settings tests**
 
@@ -417,7 +417,7 @@ pub struct BackendSettings {
 }
 ```
 
-Add `SettingsStore::load`, `save`, and `update` with atomic temp-file writes to `~/.chatgptx/settings.json`.
+Add `SettingsStore::load`, `save`, and `update` with atomic temp-file writes to `~/.swivox/settings.json`.
 
 - [ ] **Step 3: Implement latest status file**
 
@@ -434,13 +434,13 @@ pub struct LaunchStatus {
 }
 ```
 
-Implement `StatusStore::save_latest` and `StatusStore::load_latest` at `~/.chatgptx/latest-status.json`.
+Implement `StatusStore::save_latest` and `StatusStore::load_latest` at `~/.swivox/latest-status.json`.
 
 - [ ] **Step 4: Run tests and commit**
 
 ```bash
-cargo test -p chatgptx-core settings status models
-git add crates/chatgptx-core
+cargo test -p swivox-core settings status models
+git add crates/swivox-core
 git commit -m "feat: add Rust settings and status models"
 ```
 
@@ -449,13 +449,13 @@ git commit -m "feat: add Rust settings and status models"
 ### Task 3: Data Layer Parity
 
 **Files:**
-- Create: `crates/chatgptx-data/src/backup.rs`
-- Create: `crates/chatgptx-data/src/storage.rs`
-- Create: `crates/chatgptx-data/src/markdown.rs`
-- Create: `crates/chatgptx-data/src/provider_sync.rs`
-- Modify: `crates/chatgptx-data/src/lib.rs`
-- Create: `crates/chatgptx-data/tests/storage_adapter.rs`
-- Create: `crates/chatgptx-data/tests/provider_sync.rs`
+- Create: `crates/swivox-data/src/backup.rs`
+- Create: `crates/swivox-data/src/storage.rs`
+- Create: `crates/swivox-data/src/markdown.rs`
+- Create: `crates/swivox-data/src/provider_sync.rs`
+- Modify: `crates/swivox-data/src/lib.rs`
+- Create: `crates/swivox-data/tests/storage_adapter.rs`
+- Create: `crates/swivox-data/tests/provider_sync.rs`
 
 - [ ] **Step 1: Port fixture behavior from Python tests**
 
@@ -521,8 +521,8 @@ Provider sync must lock with `~/.codex/tmp/provider-sync.lock`, backup writable 
 - [ ] **Step 5: Run data tests and commit**
 
 ```bash
-cargo test -p chatgptx-data --all-targets
-git add crates/chatgptx-data
+cargo test -p swivox-data --all-targets
+git add crates/swivox-data
 git commit -m "feat: port data operations to Rust"
 ```
 
@@ -531,13 +531,13 @@ git commit -m "feat: port data operations to Rust"
 ### Task 4: CDP Bridge And Injection Runtime
 
 **Files:**
-- Create: `crates/chatgptx-core/src/cdp.rs`
-- Create: `crates/chatgptx-core/src/bridge.rs`
-- Create: `crates/chatgptx-core/src/assets.rs`
-- Modify: `crates/chatgptx-core/src/lib.rs`
-- Create: `crates/chatgptx-core/tests/cdp_bridge.rs`
+- Create: `crates/swivox-core/src/cdp.rs`
+- Create: `crates/swivox-core/src/bridge.rs`
+- Create: `crates/swivox-core/src/assets.rs`
+- Modify: `crates/swivox-core/src/lib.rs`
+- Create: `crates/swivox-core/tests/cdp_bridge.rs`
 - Copy asset: `assets/inject/renderer-inject.js`
-- Copy assets: `assets/images/chatgptx.ico`, `assets/images/chatgptx.png`, sponsor images
+- Copy assets: `assets/images/swivox.ico`, `assets/images/swivox.png`, sponsor images
 
 - [ ] **Step 1: Write bridge script tests**
 
@@ -554,7 +554,7 @@ Test that injection prefix includes:
 
 ```text
 window.__CODEX_SESSION_DELETE_HELPER__
-window.__CHATGPTX_SPONSOR_IMAGES__
+window.__SWIVOX_SPONSOR_IMAGES__
 ```
 
 - [ ] **Step 2: Implement CDP target discovery**
@@ -587,8 +587,8 @@ Use `include_str!` and `include_bytes!` for injected JS and sponsor images. The 
 - [ ] **Step 5: Run tests and commit**
 
 ```bash
-cargo test -p chatgptx-core cdp bridge assets
-git add crates/chatgptx-core assets
+cargo test -p swivox-core cdp bridge assets
+git add crates/swivox-core assets
 git commit -m "feat: port CDP bridge injection to Rust"
 ```
 
@@ -597,12 +597,12 @@ git commit -m "feat: port CDP bridge injection to Rust"
 ### Task 5: Silent Launcher Runtime
 
 **Files:**
-- Create: `crates/chatgptx-core/src/app_paths.rs`
-- Create: `crates/chatgptx-core/src/ports.rs`
-- Create: `crates/chatgptx-core/src/proxy.rs`
-- Create: `crates/chatgptx-core/src/launcher.rs`
-- Modify: `apps/chatgptx-launcher/src/main.rs`
-- Create: `crates/chatgptx-core/tests/launcher.rs`
+- Create: `crates/swivox-core/src/app_paths.rs`
+- Create: `crates/swivox-core/src/ports.rs`
+- Create: `crates/swivox-core/src/proxy.rs`
+- Create: `crates/swivox-core/src/launcher.rs`
+- Modify: `apps/swivox-launcher/src/main.rs`
+- Create: `crates/swivox-core/tests/launcher.rs`
 
 - [ ] **Step 1: Port path and port tests**
 
@@ -657,14 +657,14 @@ It must:
 
 - [ ] **Step 5: Implement no-window launcher binary**
 
-`apps/chatgptx-launcher/src/main.rs` should call `launch_and_inject`. On Windows release builds, configure the binary as no-console if packaging requires it.
+`apps/swivox-launcher/src/main.rs` should call `launch_and_inject`. On Windows release builds, configure the binary as no-console if packaging requires it.
 
 - [ ] **Step 6: Run launcher tests and commit**
 
 ```bash
-cargo test -p chatgptx-core launcher ports app_paths proxy
-cargo build -p chatgptx-launcher
-git add crates/chatgptx-core apps/chatgptx-launcher
+cargo test -p swivox-core launcher ports app_paths proxy
+cargo build -p swivox-launcher
+git add crates/swivox-core apps/swivox-launcher
 git commit -m "feat: add Rust silent launcher runtime"
 ```
 
@@ -673,10 +673,10 @@ git commit -m "feat: add Rust silent launcher runtime"
 ### Task 6: Bridge Route Parity
 
 **Files:**
-- Create: `crates/chatgptx-core/src/routes.rs`
-- Modify: `crates/chatgptx-core/src/bridge.rs`
-- Modify: `crates/chatgptx-core/Cargo.toml`
-- Create: `crates/chatgptx-core/tests/bridge_routes.rs`
+- Create: `crates/swivox-core/src/routes.rs`
+- Modify: `crates/swivox-core/src/bridge.rs`
+- Modify: `crates/swivox-core/Cargo.toml`
+- Create: `crates/swivox-core/tests/bridge_routes.rs`
 
 - [ ] **Step 1: Write route tests**
 
@@ -723,8 +723,8 @@ Connect delete/export/move/sort/provider/settings/status routes to Rust implemen
 - [ ] **Step 4: Run route tests and commit**
 
 ```bash
-cargo test -p chatgptx-core bridge_routes
-git add crates/chatgptx-core
+cargo test -p swivox-core bridge_routes
+git add crates/swivox-core
 git commit -m "feat: port bridge route handling to Rust"
 ```
 
@@ -733,12 +733,12 @@ git commit -m "feat: port bridge route handling to Rust"
 ### Task 7: Tauri Management Console
 
 **Files:**
-- Create: `apps/chatgptx-manager/src/App.ts`
-- Create: `apps/chatgptx-manager/src/styles.css`
-- Modify: `apps/chatgptx-manager/src/main.tsx`
-- Modify: `apps/chatgptx-manager/src-tauri/src/lib.rs`
-- Create: `apps/chatgptx-manager/src-tauri/src/commands.rs`
-- Create: `apps/chatgptx-manager/src-tauri/src/install.rs`
+- Create: `apps/swivox-manager/src/App.ts`
+- Create: `apps/swivox-manager/src/styles.css`
+- Modify: `apps/swivox-manager/src/main.tsx`
+- Modify: `apps/swivox-manager/src-tauri/src/lib.rs`
+- Create: `apps/swivox-manager/src-tauri/src/commands.rs`
+- Create: `apps/swivox-manager/src-tauri/src/install.rs`
 
 - [ ] **Step 1: Implement Tauri commands**
 
@@ -747,7 +747,7 @@ Expose commands:
 ```rust
 backend_version
 load_overview
-launch_chatgptx
+launch_swivox
 load_settings
 save_settings
 install_entrypoints
@@ -804,7 +804,7 @@ Implement:
 - [ ] **Step 5: Build and smoke test**
 
 ```bash
-cd apps/chatgptx-manager
+cd apps/swivox-manager
 npm install
 npm run check
 npm run build
@@ -815,7 +815,7 @@ Expected: TypeScript check passes and Tauri build succeeds.
 - [ ] **Step 6: Commit management console**
 
 ```bash
-git add apps/chatgptx-manager crates/chatgptx-core
+git add apps/swivox-manager crates/swivox-core
 git commit -m "feat: add Tauri management console"
 ```
 
@@ -824,14 +824,14 @@ git commit -m "feat: add Tauri management console"
 ### Task 8: Install, Uninstall, Update, And Watcher In Rust
 
 **Files:**
-- Create: `crates/chatgptx-core/src/install/windows.rs`
-- Create: `crates/chatgptx-core/src/install/macos.rs`
-- Create: `crates/chatgptx-core/src/install/mod.rs`
-- Create: `crates/chatgptx-core/src/update.rs`
-- Create: `crates/chatgptx-core/src/watcher.rs`
-- Modify: `crates/chatgptx-core/src/lib.rs`
-- Create: `crates/chatgptx-core/tests/installers.rs`
-- Create: `crates/chatgptx-core/tests/updater.rs`
+- Create: `crates/swivox-core/src/install/windows.rs`
+- Create: `crates/swivox-core/src/install/macos.rs`
+- Create: `crates/swivox-core/src/install/mod.rs`
+- Create: `crates/swivox-core/src/update.rs`
+- Create: `crates/swivox-core/src/watcher.rs`
+- Modify: `crates/swivox-core/src/lib.rs`
+- Create: `crates/swivox-core/tests/installers.rs`
+- Create: `crates/swivox-core/tests/updater.rs`
 
 - [ ] **Step 1: Port installer script tests**
 
@@ -849,28 +849,28 @@ tests/test_watcher.py
 Test generated Windows shortcut scripts contain both:
 
 ```text
-ChatGPTX.lnk
-ChatGPTX 管理工具.lnk
+Swivox.lnk
+Swivox 管理工具.lnk
 ```
 
 Test generated macOS app bundle metadata contains both:
 
 ```text
-ChatGPTX.app
-ChatGPTX 管理工具.app
+Swivox.app
+Swivox 管理工具.app
 ```
 
 - [ ] **Step 2: Implement Windows install/uninstall**
 
-Generate two shortcuts and one uninstall registry entry. The silent shortcut points to `chatgptx.exe`; the management shortcut points to `chatgptx-manager.exe`.
+Generate two shortcuts and one uninstall registry entry. The silent shortcut points to `swivox.exe`; the management shortcut points to `swivox-manager.exe`.
 
 - [ ] **Step 3: Implement macOS install/uninstall**
 
 Generate two app bundles:
 
 ```text
-/Applications/ChatGPTX.app
-/Applications/ChatGPTX 管理工具.app
+/Applications/Swivox.app
+/Applications/Swivox 管理工具.app
 ```
 
 The silent bundle launches the no-window launcher. The management bundle launches the Tauri manager.
@@ -886,8 +886,8 @@ Port existing watcher behavior so management UI can install/remove/enable/disabl
 - [ ] **Step 6: Run tests and commit**
 
 ```bash
-cargo test -p chatgptx-core installers updater watcher
-git add crates/chatgptx-core
+cargo test -p swivox-core installers updater watcher
+git add crates/swivox-core
 git commit -m "feat: port install update and watcher management to Rust"
 ```
 
@@ -907,8 +907,8 @@ git commit -m "feat: port install update and watcher management to Rust"
 Replace Python commands with two-entry usage:
 
 ```text
-双击 ChatGPTX：静默启动增强版 Codex。
-双击 ChatGPTX 管理工具：安装、卸载、更新、设置、日志和诊断。
+双击 Swivox：静默启动增强版 Codex。
+双击 Swivox 管理工具：安装、卸载、更新、设置、日志和诊断。
 ```
 
 Remove references to:
@@ -928,10 +928,10 @@ Make `setup.bat` open or install the Rust/Tauri management tool. It should not c
 Document release artifacts:
 
 ```text
-chatgptx.exe
-chatgptx-manager.exe
-ChatGPTX.app
-ChatGPTX 管理工具.app
+swivox.exe
+swivox-manager.exe
+Swivox.app
+Swivox 管理工具.app
 ```
 
 - [ ] **Step 4: Run docs tests and commit**
@@ -956,7 +956,7 @@ git commit -m "docs: document Rust Tauri entry points"
 
 ```bash
 cargo test --workspace --all-targets
-cd apps/chatgptx-manager
+cd apps/swivox-manager
 npm run check
 npm run build
 ```
@@ -975,10 +975,10 @@ Expected: pass, or replace these tests with Rust/Node equivalents before deletin
 
 Verify:
 
-- `ChatGPTX` shortcut starts Codex without opening management UI.
-- Codex App shows the ChatGPTX injected menu.
+- `Swivox` shortcut starts Codex without opening management UI.
+- Codex App shows the Swivox injected menu.
 - Delete/undo/export/move/settings routes work from the injected UI.
-- `ChatGPTX 管理工具` opens and shows Overview status.
+- `Swivox 管理工具` opens and shows Overview status.
 - Management tool can repair shortcuts and read latest logs.
 - Update check works with mocked or real release metadata.
 
@@ -999,4 +999,4 @@ git commit -m "chore: remove Python backend after Rust migration"
 
 - Spec coverage: the plan covers Rust core, data operations, CDP bridge, silent launcher, Tauri management tool, two desktop entry points, install/uninstall/update, watcher, docs, verification, and Python removal.
 - Placeholder scan: no `TODO` or `TBD` placeholders are left. Tasks that are intentionally broad identify exact files, reference tests, expected APIs, and verification commands.
-- Type consistency: the plan consistently uses `chatgptx-launcher` for the no-window launcher and does not introduce a separate user-facing CLI.
+- Type consistency: the plan consistently uses `swivox-launcher` for the no-window launcher and does not introduce a separate user-facing CLI.

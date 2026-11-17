@@ -62,11 +62,11 @@ baseUrl 只接受 HTTP(S)，禁止 URL userinfo、query 和 hash。model 不能�
 
 ## 接口与文件
 
-- `crates/chatgptx-core/src/dictation.rs`：URL/Key/配置检查、multipart 解析与重建、ASR 请求及错误归一化。
-- `crates/chatgptx-core/src/launcher.rs`：helper `/dictation/transcribe` HTTP POST；公开 `/dictation/status` HTTP GET 只返回无密钥状态。
-- `crates/chatgptx-core/src/routes.rs`：特权 bridge `/dictation/status` 提供当前 helper capability token；`/dictation/transcribe` 接收有界 base64 音频，`/dictation/cancel` 通过 requestId 取消上游请求。与公开 HTTP status 是两层接口。
-- `crates/chatgptx-core/src/bridge.rs`：CDP 单 frame/message 上限为 40 MiB，容纳 25 MiB 音频的 base64 和 JSON 封装；仍保留明确的传输上限。
-- `apps/chatgptx-manager/src/dictation-settings.ts` 及 App.tsx：opt-in 配置和预设。
+- `crates/swivox-core/src/dictation.rs`：URL/Key/配置检查、multipart 解析与重建、ASR 请求及错误归一化。
+- `crates/swivox-core/src/launcher.rs`：helper `/dictation/transcribe` HTTP POST；公开 `/dictation/status` HTTP GET 只返回无密钥状态。
+- `crates/swivox-core/src/routes.rs`：特权 bridge `/dictation/status` 提供当前 helper capability token；`/dictation/transcribe` 接收有界 base64 音频，`/dictation/cancel` 通过 requestId 取消上游请求。与公开 HTTP status 是两层接口。
+- `crates/swivox-core/src/bridge.rs`：CDP 单 frame/message 上限为 40 MiB，容纳 25 MiB 音频的 base64 和 JSON 封装；仍保留明确的传输上限。
+- `apps/swivox-manager/src/dictation-settings.ts` 及 App.tsx：opt-in 配置和预设。
 - `assets/inject/renderer-inject/93-dictation.js`：录音、重试、取消、结果插入、发送和恢复 UI；分片改动后需组装 renderer-inject.js。
 
 前端转写上传携带随机进程内 helper token、随机 requestId、音频和格式元数据，不携带 ASR Key。bridge 的 settings 输出移除 ASR apiKey，仅返回 apiKeyConfigured；ASR Bearer 由 Rust 后端加入；不跟随重定向，错误不回显供应商响应体，公共 status 不返回 key/token，音频和 key 不写入诊断日志。转写和取消路由不在第三方拓展路由白名单开放。
@@ -77,21 +77,21 @@ baseUrl 只接受 HTTP(S)，禁止 URL userinfo、query 和 hash。model 不能�
 
 本记录的 native capability、RPC 不可变性、registry 和 append 语义来自本地安装包静态拆包。静态研究未录制真实音频、调用付费 ASR、发送聊天或提取用户凭据。后续隔离注入沿用现有 CPP 流程，只读配置中的插件启用名称；没有修改用户 auth.json、config.toml 或编码供应商配置。
 
-管理器实现已通过 TypeScript 检查、Vite 生产构建、全部管理器回归测试（344 通过、1 跳过、0 失败）与 diff whitespace 检查。修复 CSP 上传问题后重新构建原生程序成功；`cargo build -p chatgptx-launcher -p chatgptx-manager --locked` 成功，`cargo test -p chatgptx-core dictation --locked` 的 21 个听写及桥接传输相关测试全部通过。构建仅获取 Cargo.lock 声明的依赖，未新增依赖或工具链。当前安装包 exports 的静态指纹扫描中，定向 append 只匹配 CVn，上下文 getter 只匹配 IVn。
+管理器实现已通过 TypeScript 检查、Vite 生产构建、全部管理器回归测试（344 通过、1 跳过、0 失败）与 diff whitespace 检查。修复 CSP 上传问题后重新构建原生程序成功；`cargo build -p swivox-launcher -p swivox-manager --locked` 成功，`cargo test -p swivox-core dictation --locked` 的 21 个听写及桥接传输相关测试全部通过。构建仅获取 Cargo.lock 声明的依赖，未新增依赖或工具链。当前安装包 exports 的静态指纹扫描中，定向 append 只匹配 CVn，上下文 getter 只匹配 IVn。
 
 renderer 的行为测试已通过，覆盖原生接口按能力发现、草稿与选区保留、readonly 拒绝、录音最终 chunk、取消后晚到结果、权限请求期间取消、同 Blob 重试、会话切换、延迟发送期间导航和取消、大小与时长限制。该测试已接入管理器的 `node --test src/*.test.ts` 入口。录音计时只更新文本，不销毁按钮，避免失去键盘焦点或取消正在进行的点击。
 
 CSP 修复后的行为测试强制让 renderer fetch 抛错，验证语音上传仍使用特权 bridge；分段 base64 编码保持跨段二进制内容，编码期间取消不启动上传，转写取消发送匹配的 requestId，成功清理不发送取消。Rust 取消测试使用延迟 TCP 上游并检查取消后连接 EOF；CDP 传输测试通过本地模拟 WebSocket 单 frame 发送完整 25 MiB 音频的 base64/JSON，验证约 33.4 MiB 消息不会触发旧 16 MiB frame 上限。
 
-浏览器使用真实 DOM 加模拟麦克风、ASR 响应和 composer registry 验证了入口显示、停止并插入、停止并发送、麦克风释放以及保留已有草稿/附件。此验证没有采集真实音频或调用第三方服务；验证截图位于 `/tmp/chatgptx-dictation-verification.jpg`。
+浏览器使用真实 DOM 加模拟麦克风、ASR 响应和 composer registry 验证了入口显示、停止并插入、停止并发送、麦克风释放以及保留已有草稿/附件。此验证没有采集真实音频或调用第三方服务；验证截图位于 `/tmp/swivox-dictation-verification.jpg`。
 
-新构建的原生 manager 已独立启动，并通过 CUA 验证默认关闭、本地预设、非法 URL 提示，以及刷新恢复未保存的表单。CSP 修复后已重新构建并启动最新版 manager，设置页截图位于 `/tmp/chatgptx-dictation-settings-latest.png`。真实 Codex 界面操作被 CUA 安全限制拒绝，未使用其他界面操控渠道绕过限制。用户手测初次录音遇到上述 CSP 上传失败；修复后专用 mock 已收到实际录音，字段校验通过，bridge 成功返回测试文本。用户随后提供截图，确认“本地语音链路测试成功”已写入目标 Codex 原生输入框，完成实际录音、桥接上传与文字回填验证。该次手测使用专用本地 mock；实际 UI 发送尚未手测。
+新构建的原生 manager 已独立启动，并通过 CUA 验证默认关闭、本地预设、非法 URL 提示，以及刷新恢复未保存的表单。CSP 修复后已重新构建并启动最新版 manager，设置页截图位于 `/tmp/swivox-dictation-settings-latest.png`。真实 Codex 界面操作被 CUA 安全限制拒绝，未使用其他界面操控渠道绕过限制。用户手测初次录音遇到上述 CSP 上传失败；修复后专用 mock 已收到实际录音，字段校验通过，bridge 成功返回测试文本。用户随后提供截图，确认“本地语音链路测试成功”已写入目标 Codex 原生输入框，完成实际录音、桥接上传与文字回填验证。该次手测使用专用本地 mock；实际 UI 发送尚未手测。
 
-用户创建 Groq Key 并授权配置后，已启用独立听写配置：官方 Groq Base URL、`whisper-large-v3-turbo`、`zh`、120 秒超时。仅更新现有 settings 的 dictation 字段，文件权限为 0600，未修改其他设置；Key 未写入仓库或诊断日志。最新版 manager 的设置页已显示启用状态、上述字段及掩码 Key，截图位于 `/tmp/chatgptx-groq-settings-configured.png`。
+用户创建 Groq Key 并授权配置后，已启用独立听写配置：官方 Groq Base URL、`whisper-large-v3-turbo`、`zh`、120 秒超时。仅更新现有 settings 的 dictation 字段，文件权限为 0600，未修改其他设置；Key 未写入仓库或诊断日志。最新版 manager 的设置页已显示启用状态、上述字段及掩码 Key，截图位于 `/tmp/swivox-groq-settings-configured.png`。
 
-新增 `crates/chatgptx-core/examples/dictation_live.rs`，只读取已有配置；探针固定使用首次校验过的 Groq 配置快照，避免并发设置变化切换请求目的地。通过真实 helper 和特权 bridge 上传系统语音生成的非敏感中文 WAV（130324 字节），Groq 返回 `这是音输入测试,请把这句话转成文字。`，耗时 1544 ms。音频原文为“这是语音输入测试，请把这句话转成文字。”，此次漏识别了“语”字；仅这一条样本不能代表真人录音的识别质量。真实转写后，现有 CPP 注入流程已成功接入隔离 Codex 窗口。用户随后手测真人录音、停止并插入，并确认“成功回填文字”，完成真实 Groq 服务的录音、转写与原生回填验证。示例编译通过，失败输出仅使用后端已去敏的 message；不保存音频内容、Key 或 helper token 到日志。
+新增 `crates/swivox-core/examples/dictation_live.rs`，只读取已有配置；探针固定使用首次校验过的 Groq 配置快照，避免并发设置变化切换请求目的地。通过真实 helper 和特权 bridge 上传系统语音生成的非敏感中文 WAV（130324 字节），Groq 返回 `这是音输入测试,请把这句话转成文字。`，耗时 1544 ms。音频原文为“这是语音输入测试，请把这句话转成文字。”，此次漏识别了“语”字；仅这一条样本不能代表真人录音的识别质量。真实转写后，现有 CPP 注入流程已成功接入隔离 Codex 窗口。用户随后手测真人录音、停止并插入，并确认“成功回填文字”，完成真实 Groq 服务的录音、转写与原生回填验证。示例编译通过，失败输出仅使用后端已去敏的 message；不保存音频内容、Key 或 helper token 到日志。
 
-新增 `crates/chatgptx-core/examples/dictation_smoke.rs`，使用严格新建、权限为 0600 的临时 settings、假 Key 和专用本地 mock ASR。同一进程启动真实 helper，经 privileged bridge 获取 token 后上传 60 字节静音 WAV；公开 status 未包含 Key/token、无 token 上传返回 403、带 token HTTP 上传及 bridge base64 转写 text 断言均通过，成功后的 cancel 返回 false。mock 验证收到 `/v1/audio/transcriptions`、file、model、response_format=json 和 language。该自检没有调用麦克风或第三方服务。
+新增 `crates/swivox-core/examples/dictation_smoke.rs`，使用严格新建、权限为 0600 的临时 settings、假 Key 和专用本地 mock ASR。同一进程启动真实 helper，经 privileged bridge 获取 token 后上传 60 字节静音 WAV；公开 status 未包含 Key/token、无 token 上传返回 403、带 token HTTP 上传及 bridge base64 转写 text 断言均通过，成功后的 cancel 返回 false。mock 验证收到 `/v1/audio/transcriptions`、file、model、response_format=json 和 language。该自检没有调用麦克风或第三方服务。
 
 smoke 通过现有产品接口注入单独启动的 Codex userData 窗口，未调用启动器的供应商同步、数据库迁移或关闭现有 Codex 流程。注入完成仅证明产品注入链路成功，不能代替真实界面和音频验证。进程到期或 stop marker 出现时关闭 helper；它不会卸载已注入 renderer，测试结束后应关闭隔离窗口或正常重新注入 CPP。
 
@@ -103,7 +103,7 @@ smoke 通过现有产品接口注入单独启动的 Codex userData 窗口，未�
 
 调整后的管理器回归测试为 351 通过、1 跳过、0 失败；TypeScript、Vite 构建及 launcher/manager 原生构建成功。核心单测 573 通过、2 忽略，CDP 集成 159 通过，旧设置退役兼容 3 通过；其他核心集成测试已通过。macOS 单测使用 `TMPDIR=/private/tmp`，避免默认 `/var` 链接路径触发原生浏览器 fixture 的路径限制。renderer 的语音、生命周期与退役迁移相关测试 22 通过。另修复语音 UI 安装异常影响已成功加载设置的边界：独立隔离 UI 安装错误，Fast/provider 设置加载不受影响。
 
-新构建的管理器已在独立窗口检查：侧边栏无 Zed 入口，增强页无上述四项功能；语音与 Stepwise 的完整字段和测试连接位于增强页，设置页无这两个面板。临时关闭总开关时，语音和 Stepwise 开关禁用，底部出现统一保存按钮；未保存此临时修改，刷新后原来的增强启用状态与 Groq 配置恢复。分类截图位于 `/tmp/chatgptx-enhancements-final.png`，Stepwise 参数截图位于 `/tmp/chatgptx-enhancement-services.png`。
+新构建的管理器已在独立窗口检查：侧边栏无 Zed 入口，增强页无上述四项功能；语音与 Stepwise 的完整字段和测试连接位于增强页，设置页无这两个面板。临时关闭总开关时，语音和 Stepwise 开关禁用，底部出现统一保存按钮；未保存此临时修改，刷新后原来的增强启用状态与 Groq 配置恢复。分类截图位于 `/tmp/swivox-enhancements-final.png`，Stepwise 参数截图位于 `/tmp/swivox-enhancement-services.png`。
 
 功能验证应覆盖：默认关闭；旧设置迁移；独立 ASR key 不混用编码 key；multipart 二进制透传与模型/语言字段；key/env、本地匿名服务、超时、取消、上游错误去敏；renderer 录音停止最终 chunk、同音频重试、权限失败、25 MiB 限制；原生 registry 追加保留 mention/附件；录音期间切换会话和完成后发送期间导航不能误发送；未知原生按钮布局保留草稿。真实麦克风配合 mock 的原生回填、真实 Groq 的后端转写、真人录音配合真实服务的完整回填均已通过；实际发送仍待手测。
 
@@ -115,4 +115,4 @@ smoke 通过现有产品接口注入单独启动的 Codex userData 窗口，未�
 
 最终验证：管理器 Node 测试 357 通过、1 跳过、0 失败；TypeScript、Vite、launcher/manager Cargo 构建通过。核心单测 575 通过、2 忽略，bridge 32、launcher 93、relay switch 18、CDP 159、assets 22 均通过；Tauri 旧配置归一化专项测试通过。当前新增文案均有英文词条；全量国际化校验仍有历史缺项，未扩大本次修改范围。
 
-在独立原生管理器窗口验证了标签切换、键盘左右键和 End 导航、草稿保留及顶部保存状态。临时草稿已恢复，未保存测试值或重新发送录音。最终语音截图为 /tmp/chatgptx-enhance-final-voice.png，中文建议截图为 /tmp/chatgptx-enhance-final-suggestions.png。预览应用为 /tmp/chatgptx-enhance-final-dSwiYn/ChatGPTX Enhance Preview.app。
+在独立原生管理器窗口验证了标签切换、键盘左右键和 End 导航、草稿保留及顶部保存状态。临时草稿已恢复，未保存测试值或重新发送录音。最终语音截图为 /tmp/swivox-enhance-final-voice.png，中文建议截图为 /tmp/swivox-enhance-final-suggestions.png。预览应用为 /tmp/swivox-enhance-final-dSwiYn/Swivox Enhance Preview.app。

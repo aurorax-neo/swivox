@@ -5,7 +5,7 @@ const vm = require("node:vm");
 const source = readFileSync(`${__dirname}/renderer-inject.js`, "utf8");
 
 test("retired project enhancements have no UI, dispatch or scanner entry", () => {
-  assert.doesNotMatch(source, /data-chatgptx-setting="(?:zedRemoteOpen|upstreamWorktreeCreate)"/);
+  assert.doesNotMatch(source, /data-swivox-setting="(?:zedRemoteOpen|upstreamWorktreeCreate)"/);
   assert.doesNotMatch(source, /data-codex-upstream-worktree-open/);
   assert.doesNotMatch(source, /(?:postJson|bridgeCall)\("\/(?:zed-remote|upstream-worktree)\//);
   assert.doesNotMatch(source, /function (?:installUpstream\w+|openUpstreamWorktreeDialog|refreshZedRemote\w+|scheduleZedRemote\w+)\(/);
@@ -21,20 +21,20 @@ test("retired project enhancements have no UI, dispatch or scanner entry", () =>
 
 test("old backend switches cannot enable retired features", () => {
   const style = readFileSync(`${__dirname}/renderer-inject/10-style.js`, "utf8");
-  const begin = style.indexOf("  function defaultChatGPTXSettings()");
+  const begin = style.indexOf("  function defaultSwivoxSettings()");
   const end = style.indexOf("  // Dream skin runtime", begin);
   assert.ok(begin >= 0 && end > begin);
   const context = vm.createContext({
     window: {}, localStorage: { getItem: () => "{}" },
-    conversationViewDefaultWidth: 900, chatgptxSettingsKey: "fixture",
-    chatgptxBackendSettings: {
+    conversationViewDefaultWidth: 900, swivoxSettingsKey: "fixture",
+    swivoxBackendSettings: {
       enhancementsEnabled: true,
       codexAppZedRemoteOpen: true, codexAppUpstreamWorktreeCreate: true,
       codexAppNativeMenuTranslation: true,
       codexAppNativeMenuPlacement: false, codexAppStepwiseEnabled: true,
     },
   });
-  vm.runInContext(`${style.slice(begin, end)}\nglobalThis.result = chatgptxSettings();`, context);
+  vm.runInContext(`${style.slice(begin, end)}\nglobalThis.result = swivoxSettings();`, context);
   for (const key of ["zedRemoteOpen", "upstreamWorktreeCreate", "nativeMenuTranslation"]) {
     assert.equal(Object.hasOwn(context.result, key), false, key);
   }
@@ -44,11 +44,11 @@ test("old backend switches cannot enable retired features", () => {
 
 function installForceChinese(fixture) {
   const prelude = readFileSync(`${__dirname}/renderer-inject/00-prelude.js`, "utf8");
-  const begin = prelude.indexOf("  function installChatGPTXForceChineseLocale()");
+  const begin = prelude.indexOf("  function installSwivoxForceChineseLocale()");
   const end = prelude.indexOf("  const helperBase =", begin);
   assert.ok(begin >= 0 && end > begin);
   vm.runInContext(
-    `${prelude.slice(begin, end)}\nglobalThis.install = installChatGPTXForceChineseLocale;`,
+    `${prelude.slice(begin, end)}\nglobalThis.install = installSwivoxForceChineseLocale;`,
     fixture.context,
   );
   fixture.context.install();
@@ -81,7 +81,7 @@ test("force Chinese locale installs once per configuration", async () => {
   fixture.context.install();
   await fixture.settled();
   assert.equal(fixture.calls.length, afterFirst, "re-running with the same config does not resync");
-  assert.equal(fixture.context.window.__chatgptxForceChineseLocaleInstalled, "2:on:zh-CN");
+  assert.equal(fixture.context.window.__swivoxForceChineseLocaleInstalled, "2:on:zh-CN");
 });
 
 test("force Chinese locale leaves everything alone while it is switched off", async () => {
@@ -120,7 +120,7 @@ test("retired fast startup flags cannot change native fetch or Statsig initializ
     $emt: (...args) => unexpectedCalls.push(args),
   };
   const window = {
-    __CHATGPTX_FAST_STARTUP__: { enabled: true, statsigTimeoutMs: 100 },
+    __SWIVOX_FAST_STARTUP__: { enabled: true, statsigTimeoutMs: 100 },
     __STATSIG__: { firstInstance: client },
     fetch,
     setTimeout: (...args) => unexpectedCalls.push(args),
@@ -135,7 +135,7 @@ test("retired fast startup flags cannot change native fetch or Statsig initializ
   assert.equal(client.initializeAsync, initializeAsync);
   assert.equal(client.loadingStatus, "Loading");
   assert.deepEqual(unexpectedCalls, []);
-  assert.doesNotMatch(source, /installChatGPTXFastStartup|__CHATGPTX_FAST_STARTUP__|__chatgptxFastStartup|statsigTimeoutMs/);
+  assert.doesNotMatch(source, /installSwivoxFastStartup|__SWIVOX_FAST_STARTUP__|__swivoxFastStartup|statsigTimeoutMs/);
   // 模型白名单仍依赖原生 Statsig 动态配置，与已撤下的启动超时无关。
   assert.match(source, /function patchStatsigModelDynamicConfig\(/);
   assert.match(source, /function patchStatsigModelWhitelist\(/);
@@ -143,7 +143,7 @@ test("retired fast startup flags cannot change native fetch or Statsig initializ
 });
 
 function forceChineseContext({ enabled = true, managed = null, current = "en-US", failFirst = 0 } = {}) {
-  const managedKey = "chatgptx.forceChineseLocale.managed.v1";
+  const managedKey = "swivox.forceChineseLocale.managed.v1";
   const local = new Map(managed ? [[managedKey, JSON.stringify(managed)]] : []);
   const session = new Map();
   const calls = [];
@@ -151,7 +151,7 @@ function forceChineseContext({ enabled = true, managed = null, current = "en-US"
   const reloads = [];
   const context = vm.createContext({
     window: {
-      __CHATGPTX_FORCE_CHINESE_LOCALE__: { enabled, locale: "zh-CN" },
+      __SWIVOX_FORCE_CHINESE_LOCALE__: { enabled, locale: "zh-CN" },
       localStorage: {
         getItem: (key) => local.get(key) ?? null,
         setItem: (key, value) => { writes.push([key, value]); local.set(key, value); },

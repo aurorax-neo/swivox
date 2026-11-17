@@ -13,7 +13,7 @@ const scheduling = source.slice(source.indexOf("  function isExtensionUiNode("),
   source.indexOf("  /**\n   * 侧边栏入口的启动补扫"));
 const scan = source.match(/^  function scan\(\) \{[^]*?^  \}/m)[0];
 const runStep = source.match(/^  function runScanStep\(step\) \{[^]*?^  \}/m)[0];
-const initStart = source.indexOf("  window.__chatgptxScanScheduleCleanup?.();");
+const initStart = source.indexOf("  window.__swivoxScanScheduleCleanup?.();");
 const init = initStart < 0 ? "" : source.slice(initStart, source.indexOf("  /**", initStart));
 const counters = { light: 0, deferred: 0, dictation: 0 };
 const timers = new Map(), frames = new Map(), listeners = new Set();

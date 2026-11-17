@@ -166,8 +166,8 @@
   }
 
   function attachButton(row) {
-    const settings = chatgptxSettings();
-    const sessionMenuEnabled = chatgptxBackendSettings.enhancementsEnabled !== false;
+    const settings = swivoxSettings();
+    const sessionMenuEnabled = swivoxBackendSettings.enhancementsEnabled !== false;
     if (!settings.sessionDelete && !settings.markdownExport && !sessionMenuEnabled) {
       removeActionGroups(row);
       row.dataset.codexDeleteRow = "false";
@@ -215,7 +215,7 @@
         }));
       }
       if (sessionMenuEnabled) {
-        const sessionCopyItem = createSessionMoreMenuItem("原地复制会话 - ChatGPTX", "⧉", activateSessionCopyMenuItem);
+        const sessionCopyItem = createSessionMoreMenuItem("原地复制会话 - Swivox", "⧉", activateSessionCopyMenuItem);
         sessionCopyItem.dataset.codexSessionCopyMenu = "true";
         sessionCopyItem.dataset.codexSessionCopyVersion = sessionCopyMenuItemVersion;
         sessionCopyItem.__codexSessionCopyRow = row;
@@ -227,7 +227,7 @@
       }
       // 拓展注册的会话行操作追加在内置项之后。菜单每次重建（版本号变化）都会
       // 重新走一遍这里，所以拓展项不会因为重建而丢失。
-      appendChatGPTXExtensionRowActions(moreMenu, row, moreButton);
+      appendSwivoxExtensionRowActions(moreMenu, row, moreButton);
       const openMoreMenu = (event) => {
         stopActionButtonEvent(row, moreButton, event);
         hideActionButtonTooltip();
@@ -320,7 +320,7 @@
   }
 
   function attachArchivedPageDeleteButton(row) {
-    const settings = chatgptxSettings();
+    const settings = swivoxSettings();
     row.querySelectorAll("[data-codex-archive-row-action]").forEach((button) => button.remove());
     row.dataset.codexArchiveDeleteRow = "false";
     if (!settings.sessionDelete && !settings.markdownExport) return;
@@ -494,7 +494,7 @@
   function conversationViewSafeWidthNode(el) {
     if (!el) return false;
     if (["MAIN", "ASIDE", "NAV", "HEADER", "BODY", "HTML"].includes(el.tagName)) return false;
-    if (el.closest?.(`${conversationViewPaneBoundarySelector}, [data-chatgptx-ext]`)) return false;
+    if (el.closest?.(`${conversationViewPaneBoundarySelector}, [data-swivox-ext]`)) return false;
     // CSS 变量可继承给整棵布局树；包含其他 pane 的祖先不能改 width/margin/left。
     // composer 内的状态提示也会用 aside，不能仅按语义标签把它误判为侧栏。
     return !el.querySelector?.(`${conversationViewPaneBoundarySelector}, .thread-scroll-container`);
@@ -514,14 +514,14 @@
   function conversationViewFootersFor(scroller) {
     return Array.from(document.querySelectorAll(conversationViewFooterSelector)).filter((footer) => {
       if (typeof visibleElement === "function" && !visibleElement(footer)) return false;
-      return !footer.closest?.(`${conversationViewPaneBoundarySelector}, [data-chatgptx-ext]`) && conversationViewSamePane(scroller, footer);
+      return !footer.closest?.(`${conversationViewPaneBoundarySelector}, [data-swivox-ext]`) && conversationViewSamePane(scroller, footer);
     });
   }
 
   function conversationViewFindNativeComposer(scroller) {
     const roots = Array.from(document.querySelectorAll("[data-codex-composer-root]"))
       .filter((el) => (typeof visibleElement !== "function" || visibleElement(el))
-        && !el.closest?.(`${conversationViewPaneBoundarySelector}, [data-chatgptx-ext]`) && (!scroller || conversationViewSamePane(scroller, el)));
+        && !el.closest?.(`${conversationViewPaneBoundarySelector}, [data-swivox-ext]`) && (!scroller || conversationViewSamePane(scroller, el)));
     if (roots.length !== 1) return null;
     const root = roots[0];
     const accept = (el) => conversationViewLooksLikeThreadWidthBox(el) && conversationViewSafeWidthNode(el)
@@ -727,7 +727,7 @@
     const threadComposer = conversationViewFindComposerEl();
     if (threadComposer && codexServiceTierBadgeVisibleElement(threadComposer)) return [threadComposer];
     const footers = codexServiceTierVisibleComposerFooters().filter((footer) =>
-      !footer.closest?.(`${conversationViewPaneBoundarySelector}, [data-chatgptx-ext]`));
+      !footer.closest?.(`${conversationViewPaneBoundarySelector}, [data-swivox-ext]`));
     // 只认唯一的原生 footer；不能爬到页面/侧栏祖先，或把 review 的栏当成输入区。
     return footers.length === 1 ? footers : [];
   }
@@ -803,7 +803,7 @@
   }
 
   function installCodexServiceTierBadge() {
-    if (!chatgptxSettings().serviceTierControls) {
+    if (!swivoxSettings().serviceTierControls) {
       removeCodexServiceTierBadges();
       return;
     }
@@ -849,51 +849,51 @@
       transform: el.style.transform || "",
       boxSizing: el.style.boxSizing || "",
     };
-    if (!("chatgptxConversationViewOriginalWidth" in el.dataset)) el.dataset.chatgptxConversationViewOriginalWidth = original.width;
-    if (!("chatgptxConversationViewOriginalMaxWidth" in el.dataset)) el.dataset.chatgptxConversationViewOriginalMaxWidth = original.maxWidth;
-    if (!("chatgptxConversationViewOriginalMarginLeft" in el.dataset)) el.dataset.chatgptxConversationViewOriginalMarginLeft = original.marginLeft;
-    if (!("chatgptxConversationViewOriginalMarginRight" in el.dataset)) el.dataset.chatgptxConversationViewOriginalMarginRight = original.marginRight;
-    if (!("chatgptxConversationViewOriginalLeft" in el.dataset)) el.dataset.chatgptxConversationViewOriginalLeft = original.left;
-    if (!("chatgptxConversationViewOriginalTransform" in el.dataset)) el.dataset.chatgptxConversationViewOriginalTransform = original.transform;
-    if (!("chatgptxConversationViewOriginalBoxSizing" in el.dataset)) el.dataset.chatgptxConversationViewOriginalBoxSizing = original.boxSizing;
+    if (!("swivoxConversationViewOriginalWidth" in el.dataset)) el.dataset.swivoxConversationViewOriginalWidth = original.width;
+    if (!("swivoxConversationViewOriginalMaxWidth" in el.dataset)) el.dataset.swivoxConversationViewOriginalMaxWidth = original.maxWidth;
+    if (!("swivoxConversationViewOriginalMarginLeft" in el.dataset)) el.dataset.swivoxConversationViewOriginalMarginLeft = original.marginLeft;
+    if (!("swivoxConversationViewOriginalMarginRight" in el.dataset)) el.dataset.swivoxConversationViewOriginalMarginRight = original.marginRight;
+    if (!("swivoxConversationViewOriginalLeft" in el.dataset)) el.dataset.swivoxConversationViewOriginalLeft = original.left;
+    if (!("swivoxConversationViewOriginalTransform" in el.dataset)) el.dataset.swivoxConversationViewOriginalTransform = original.transform;
+    if (!("swivoxConversationViewOriginalBoxSizing" in el.dataset)) el.dataset.swivoxConversationViewOriginalBoxSizing = original.boxSizing;
   }
 
   function conversationViewRestoreElement(el) {
     if (!el) return;
-    if ("chatgptxConversationViewOriginalWidth" in el.dataset) {
-      el.style.width = el.dataset.chatgptxConversationViewOriginalWidth;
-      delete el.dataset.chatgptxConversationViewOriginalWidth;
+    if ("swivoxConversationViewOriginalWidth" in el.dataset) {
+      el.style.width = el.dataset.swivoxConversationViewOriginalWidth;
+      delete el.dataset.swivoxConversationViewOriginalWidth;
     }
-    if ("chatgptxConversationViewOriginalMaxWidth" in el.dataset) {
-      el.style.maxWidth = el.dataset.chatgptxConversationViewOriginalMaxWidth;
-      delete el.dataset.chatgptxConversationViewOriginalMaxWidth;
+    if ("swivoxConversationViewOriginalMaxWidth" in el.dataset) {
+      el.style.maxWidth = el.dataset.swivoxConversationViewOriginalMaxWidth;
+      delete el.dataset.swivoxConversationViewOriginalMaxWidth;
     }
-    if ("chatgptxConversationViewOriginalMarginLeft" in el.dataset) {
-      el.style.marginLeft = el.dataset.chatgptxConversationViewOriginalMarginLeft;
-      delete el.dataset.chatgptxConversationViewOriginalMarginLeft;
+    if ("swivoxConversationViewOriginalMarginLeft" in el.dataset) {
+      el.style.marginLeft = el.dataset.swivoxConversationViewOriginalMarginLeft;
+      delete el.dataset.swivoxConversationViewOriginalMarginLeft;
     }
-    if ("chatgptxConversationViewOriginalMarginRight" in el.dataset) {
-      el.style.marginRight = el.dataset.chatgptxConversationViewOriginalMarginRight;
-      delete el.dataset.chatgptxConversationViewOriginalMarginRight;
+    if ("swivoxConversationViewOriginalMarginRight" in el.dataset) {
+      el.style.marginRight = el.dataset.swivoxConversationViewOriginalMarginRight;
+      delete el.dataset.swivoxConversationViewOriginalMarginRight;
     }
-    if ("chatgptxConversationViewOriginalLeft" in el.dataset) {
-      el.style.left = el.dataset.chatgptxConversationViewOriginalLeft;
-      delete el.dataset.chatgptxConversationViewOriginalLeft;
+    if ("swivoxConversationViewOriginalLeft" in el.dataset) {
+      el.style.left = el.dataset.swivoxConversationViewOriginalLeft;
+      delete el.dataset.swivoxConversationViewOriginalLeft;
     }
-    if ("chatgptxConversationViewOriginalTransform" in el.dataset) {
-      el.style.transform = el.dataset.chatgptxConversationViewOriginalTransform;
-      delete el.dataset.chatgptxConversationViewOriginalTransform;
+    if ("swivoxConversationViewOriginalTransform" in el.dataset) {
+      el.style.transform = el.dataset.swivoxConversationViewOriginalTransform;
+      delete el.dataset.swivoxConversationViewOriginalTransform;
     }
-    if ("chatgptxConversationViewOriginalBoxSizing" in el.dataset) {
-      el.style.boxSizing = el.dataset.chatgptxConversationViewOriginalBoxSizing;
-      delete el.dataset.chatgptxConversationViewOriginalBoxSizing;
+    if ("swivoxConversationViewOriginalBoxSizing" in el.dataset) {
+      el.style.boxSizing = el.dataset.swivoxConversationViewOriginalBoxSizing;
+      delete el.dataset.swivoxConversationViewOriginalBoxSizing;
     }
   }
 
   function conversationViewResetOwnOffset(el) {
     if (!el) return;
-    const originalTransform = el.dataset.chatgptxConversationViewOriginalTransform || "";
-    const originalLeft = el.dataset.chatgptxConversationViewOriginalLeft || "";
+    const originalTransform = el.dataset.swivoxConversationViewOriginalTransform || "";
+    const originalLeft = el.dataset.swivoxConversationViewOriginalLeft || "";
     if (el.style.left !== originalLeft) el.style.left = originalLeft;
     if (el.style.transform !== originalTransform) el.style.transform = originalTransform;
     const transform = String(el.style.transform || "").trim();
@@ -983,7 +983,7 @@
   }
 
   function conversationViewAlignNow() {
-    if (!chatgptxSettings().conversationView) return;
+    if (!swivoxSettings().conversationView) return;
     conversationViewResolveTargets();
     const targets = [
       conversationViewState.contentEl,
@@ -1028,7 +1028,7 @@
     if (conversationViewState.targetsReported) return;
     conversationViewState.targetsReported = true;
     const scroller = conversationViewScrollContainer();
-    sendChatGPTXDiagnostic("conversation_view_target_not_found", {
+    sendSwivoxDiagnostic("conversation_view_target_not_found", {
       hasScrollContainer: !!scroller,
       hasContentAnchor: !!document.querySelector(conversationViewContentAnchorSelector),
       hasFooter: !!document.querySelector(conversationViewFooterSelector),
@@ -1076,4 +1076,4 @@
     conversationViewState.composerEl = null;
   }
 
-  window.__chatgptxConversationViewCleanup = cleanupConversationView;
+  window.__swivoxConversationViewCleanup = cleanupConversationView;

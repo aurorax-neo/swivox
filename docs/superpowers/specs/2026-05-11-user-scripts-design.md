@@ -2,24 +2,24 @@
 
 ## Goal
 
-Add a ChatGPTX user script system so users can extend the injected renderer behavior with their own JavaScript files without modifying the project source.
+Add a Swivox user script system so users can extend the injected renderer behavior with their own JavaScript files without modifying the project source.
 
 ## Architecture
 
-ChatGPTX keeps local file access in Python and browser execution in the existing CDP-injected renderer. Python scans two script directories, stores enablement configuration in the user config directory, injects enabled scripts through CDP, and exposes script inventory/actions through the existing bridge. The renderer only displays the script manager UI and sends configuration/reload requests.
+Swivox keeps local file access in Python and browser execution in the existing CDP-injected renderer. Python scans two script directories, stores enablement configuration in the user config directory, injects enabled scripts through CDP, and exposes script inventory/actions through the existing bridge. The renderer only displays the script manager UI and sends configuration/reload requests.
 
 ## Script locations
 
 - Built-in scripts directory: `codex_session_delete/user_scripts/`
-- User scripts directory: platform user config directory plus `ChatGPTX/user_scripts/`
-  - Windows: `%APPDATA%/ChatGPTX/user_scripts/`
-  - Non-Windows: existing user config home pattern plus `ChatGPTX/user_scripts/`
+- User scripts directory: platform user config directory plus `Swivox/user_scripts/`
+  - Windows: `%APPDATA%/Swivox/user_scripts/`
+  - Non-Windows: existing user config home pattern plus `Swivox/user_scripts/`
 
 The user directory is created automatically. Missing built-in directory is treated as empty. Only top-level `*.js` files are loaded in the first version.
 
 ## Configuration
 
-Script settings are persisted as JSON in the user config directory, e.g. `%APPDATA%/ChatGPTX/user_scripts.json`:
+Script settings are persisted as JSON in the user config directory, e.g. `%APPDATA%/Swivox/user_scripts.json`:
 
 ```json
 {
@@ -35,13 +35,13 @@ Newly discovered scripts default to enabled. The global `enabled` flag controls 
 
 ## Loading behavior
 
-On launch, Python scans built-in scripts then user scripts, sorted by file name within each source. If the global switch is enabled, only individually enabled scripts are injected. Each script is wrapped so one failure does not stop other scripts and so status is written to `window.__chatgptxUserScripts`.
+On launch, Python scans built-in scripts then user scripts, sorted by file name within each source. If the global switch is enabled, only individually enabled scripts are injected. Each script is wrapped so one failure does not stop other scripts and so status is written to `window.__swivoxUserScripts`.
 
 Reloading scripts from the menu rescans directories and reinjects currently enabled scripts into the current page. Disabling a script does not undo side effects from code that has already run; the UI states that a page reload/restart may be needed to fully remove an already-executed script effect.
 
 ## Renderer UI
 
-The ChatGPTX modal gains a “用户脚本” section:
+The Swivox modal gains a “用户脚本” section:
 
 - Global switch: “启用用户脚本”
 - Directory hints for built-in and user script directories

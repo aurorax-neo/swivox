@@ -1,4 +1,4 @@
-// i18n codemod for chatgptx-manager.
+// i18n codemod for swivox-manager.
 //
 // Wraps every Chinese (CJK) UI string in the React frontend with a translation
 // helper:
@@ -27,7 +27,7 @@ import path from "node:path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
-const appRoot = path.join(repoRoot, "apps", "chatgptx-manager");
+const appRoot = path.join(repoRoot, "apps", "swivox-manager");
 const require = createRequire(path.join(appRoot, "package.json"));
 const ts = require("typescript");
 

@@ -1,8 +1,8 @@
 # UI 能力开放给拓展（用户脚本）——现状梳理与设计方案
 
 日期：2026-09-30
-目标：把 ChatGPTX 注入的 UI 能力（菜单项、导航入口、会话行按钮、浮层面板 tab、toast、整页视图）暴露给第三方用户脚本调用
-相关文件：`assets/inject/renderer-inject/`、`assets/inject/floating-panel/`、`crates/chatgptx-core/src/user_scripts.rs`
+目标：把 Swivox 注入的 UI 能力（菜单项、导航入口、会话行按钮、浮层面板 tab、toast、整页视图）暴露给第三方用户脚本调用
+相关文件：`assets/inject/renderer-inject/`、`assets/inject/floating-panel/`、`crates/swivox-core/src/user_scripts.rs`
 状态：设计稿，未实施
 
 ---
@@ -22,7 +22,7 @@
 | | renderer-inject | floating-panel |
 |---|---|---|
 | 入口 | `assets/inject/renderer-inject.js` | `assets/inject/floating-panel-inject.js` |
-| 拼装方式 | Node 脚本切分/回收（`scripts/split-renderer-inject.mjs` + `assemble-renderer-inject.mjs`），产物落盘，测试守漂移 | Rust `concat!` 编译期拼接（`crates/chatgptx-core/src/assets.rs:48-71`），无中间产物 |
+| 拼装方式 | Node 脚本切分/回收（`scripts/split-renderer-inject.mjs` + `assemble-renderer-inject.mjs`），产物落盘，测试守漂移 | Rust `concat!` 编译期拼接（`crates/swivox-core/src/assets.rs:48-71`），无中间产物 |
 | 分片清单 | `manifest.json`（**已与内容漂移，见 1.6**） | 硬编码在 `concat!` 参数顺序里 |
 | 作用域 | 单个大 IIFE（`00-prelude.js:1` → `99-tail.js`） | 单个大 IIFE |
 | 注入时机 | 总是注入 | **按需注入**：`stepwise_enabled \|\| answer_outline_enabled` 才拼进去（`assets.rs:447-451`） |
@@ -32,21 +32,21 @@
 
 用户脚本是**第三套**，由 `wrap_script`（`user_scripts.rs:443`）注入，时间点晚于前两者，每个脚本独立 IIFE。
 
-### 1.2 全局命名空间现状：42 个 `__chatgptx*`，能力 API 一个没有
+### 1.2 全局命名空间现状：42 个 `__swivox*`，能力 API 一个没有
 
-全量清点后，`window.__chatgptx*` 共 42 个名字，性质分布：
+全量清点后，`window.__swivox*` 共 42 个名字，性质分布：
 
-- **约 60%** 是幂等哨兵：`__chatgptxModelPatchFailures`（出现 30 次）、`__chatgptxAppServerClientPrototypePatchInstalled`、`__chatgptxModelMessagePatchInstalled`……
-- **约 30%** 是定时器句柄 / 清理槽位：`__chatgptxPageNavigationCloseTimer`、`__chatgptxConversationViewCleanup`、`__chatgptxOfficialUsageWindowCleanup`
-- **约 10%** 是测试钩子：`__chatgptxServiceTierTest`、`__chatgptxRateLimitUnlockTest`、`__chatgptxPluginMarketplaceTest`
+- **约 60%** 是幂等哨兵：`__swivoxModelPatchFailures`（出现 30 次）、`__swivoxAppServerClientPrototypePatchInstalled`、`__swivoxModelMessagePatchInstalled`……
+- **约 30%** 是定时器句柄 / 清理槽位：`__swivoxPageNavigationCloseTimer`、`__swivoxConversationViewCleanup`、`__swivoxOfficialUsageWindowCleanup`
+- **约 10%** 是测试钩子：`__swivoxServiceTierTest`、`__swivoxRateLimitUnlockTest`、`__swivoxPluginMarketplaceTest`
 
 **42 个里只有 1 个有清理路径**（`pet-real-mouse-inject.js:298` 的 `delete`）。
 
 唯一称得上「对外接口」的是梦皮（dream skin）：
 
 ```js
-window.__CHATGPTX_APPLY_DREAM_SKIN__   // 10-style.js:1879
-window.__CHATGPTX_CLEAR_DREAM_SKIN__   // 10-style.js:2132
+window.__SWIVOX_APPLY_DREAM_SKIN__   // 10-style.js:1879
+window.__SWIVOX_CLEAR_DREAM_SKIN__   // 10-style.js:2132
 ```
 
 **这是本项目已有的先例**——launcher 侧通过它们调用渲染层能力。说明「大 IIFE 往外挂能力对象」这个模式不用从零发明，照这个形状做即可。
@@ -58,7 +58,7 @@ window.__CHATGPTX_CLEAR_DREAM_SKIN__   // 10-style.js:2132
 | **toast** | `80-session-share.js:47` `showToast(msg, undoToken)` | 闭包私有；**单例语义**（每次先删旧的）；**无样式变体** | ★ 低 |
 | **会话行按钮** | `90-action-groups.js:103` `createSessionMoreMenuItem(label, icon, onActivate)` | **已有干净的扩展点形状**，但调用方写死在 `:211-228` | ★ 低 |
 | **导航入口** | `40-backend-settings.js:1548` `spec = {id, label, iconMarkup, withStatus, onActivate}` | **最接近注册点的东西**，但是函数内局部数组 | ★★ 中 |
-| **整页视图** | `40-backend-settings.js:1004` `openChatGPTXModal({page:true, ...})` | 能力成熟（缩放/主题/选中态全都处理了），但只认写死的三个 tab；未知 tab **兜底成 `"home"`** | ★★ 中 |
+| **整页视图** | `40-backend-settings.js:1004` `openSwivoxModal({page:true, ...})` | 能力成熟（缩放/主题/选中态全都处理了），但只认写死的三个 tab；未知 tab **兜底成 `"home"`** | ★★ 中 |
 | **菜单项** | `40-backend-settings.js:1015-1152` | **一整块 `innerHTML` 模板字符串**，无数组无 schema 无 registry | ★★★ 高 |
 | **浮层面板 tab** | `floating-panel/core/views.js:233` | **三元链分派**，且被 `DEFAULT_VIEW_ORDER` 硬闸门过滤；FAB 状态机、`stopRuntime()` 清理清单、CSS 规则三处都要同步改 | ★★★★ 高 |
 
@@ -68,7 +68,7 @@ window.__CHATGPTX_CLEAR_DREAM_SKIN__   // 10-style.js:2132
 
 ```js
 function isExtensionUiNode(node) {
-  return !!node?.closest?.(`.codex-delete-toast, .codex-delete-confirm-overlay, .chatgptx-modal-overlay, .${chatgptxPageClass}, #${chatgptxSidebarNavId}, ... #chatgptx-menu`);
+  return !!node?.closest?.(`.codex-delete-toast, .codex-delete-confirm-overlay, .swivox-modal-overlay, .${swivoxPageClass}, #${swivoxSidebarNavId}, ... #swivox-menu`);
 }
 ```
 
@@ -100,8 +100,8 @@ function installStyle() {
 
 ### 1.5 其它已知缺口
 
-- **`chatgptxSettings()` 是扁平 key**（`10-style.js:1353`），第三方 key 直接撞内置项
-- **overlay 每次打开都重建**：`openChatGPTXModal` 先 `querySelectorAll(...).forEach(remove)` 再 `document.body.appendChild`，**第三方注入的节点会随之消失**
+- **`swivoxSettings()` 是扁平 key**（`10-style.js:1353`），第三方 key 直接撞内置项
+- **overlay 每次打开都重建**：`openSwivoxModal` 先 `querySelectorAll(...).forEach(remove)` 再 `document.body.appendChild`，**第三方注入的节点会随之消失**
 - **`stopRuntime()` 清理清单写死**（`floating-panel/runtime/lifecycle.js:171`）：逐项列举 7 个固定清理句柄，第三方注册的定时器不会被清理
 - **`bridgeCall` 超时不 reject，而是 resolve `{error: "page bridge timed out"}`**（`floating-panel/runtime/bridge-client.js:10`，26000ms）——这个约定第三方必须遵守，否则错误处理不一致
 - **异步错误不上报**：`wrap_script` 只 catch 顶层同步代码，`await` 之后的错误会让状态永远停在 `loaded`
@@ -110,8 +110,8 @@ function installStyle() {
 
 `manifest.json` 声明的分片名和文件实际内容对不上，原因是 `split-renderer-inject.mjs` 按顶层声明边界切分，而 `assemble-renderer-inject.mjs` 只按 manifest 顺序拼回，每个文件开头都带着上一块的尾巴：
 
-- `20-menu.js` 的 fragment 名是「菜单」，但 `renderChatGPTXMenu()`（`:1`）只是同步已有按钮状态；真正的菜单 HTML 在 `40-backend-settings.js:1015-1152`
-- `50-navigation.js` 的 `installChatGPTXNavigationEntries()`（`:1`）只有 8 行，是个分发壳；真正的 rail 安装在 `40-backend-settings.js:1374-1580`
+- `20-menu.js` 的 fragment 名是「菜单」，但 `renderSwivoxMenu()`（`:1`）只是同步已有按钮状态；真正的菜单 HTML 在 `40-backend-settings.js:1015-1152`
+- `50-navigation.js` 的 `installSwivoxNavigationEntries()`（`:1`）只有 8 行，是个分发壳；真正的 rail 安装在 `40-backend-settings.js:1374-1580`
 
 **这不阻塞本设计，但会让后续维护者找错文件，建议顺手修正 manifest 描述。**
 
@@ -141,7 +141,7 @@ function installStyle() {
 在 renderer-inject 里新增一个 fragment（建议 `85-registry.js`，插在 80 与 90 之间——此时依赖的原语都已声明，UI 消费方尚未执行），定义：
 
 ```js
-const chatgptxRegistry = {
+const swivoxRegistry = {
   menus:      new Map(),   // id -> { id, label, description, icon, order, panel, onActivate, visible }
   navEntries: new Map(),   // id -> { id, label, iconMarkup, withStatus, order, onActivate }
   rowActions: new Map(),   // id -> { id, label, icon, order, onActivate }
@@ -162,7 +162,7 @@ const chatgptxRegistry = {
 沿用梦皮的先例，**只挂一个全局对象**，不再散落：
 
 ```js
-window.chatgptx = {
+window.swivox = {
   version: "1.0.0",
   apiVersion: 1,
 
@@ -215,22 +215,22 @@ function isExtensionUiNode(node) {
 
 **性能注意**：`shouldScheduleScan` 在每次 mutation 上都跑，选择器数量增长要控制。当前 13 个，第三方注册上限建议设 32 个并做校验（选择器语法合法性）。另外 `closest()` 逐个调用比一次传逗号串慢，可缓存成逗号拼接串，只在 Set 变化时重建。
 
-**第三方注册时必须提供选择器**，`registerMenuItem` 等接口从定义里自动推导（约定：所有扩展节点带 `data-chatgptx-ext="<scriptKey>"`），这样只需注册一条 `[data-chatgptx-ext="<key>"]`。
+**第三方注册时必须提供选择器**，`registerMenuItem` 等接口从定义里自动推导（约定：所有扩展节点带 `data-swivox-ext="<scriptKey>"`），这样只需注册一条 `[data-swivox-ext="<key>"]`。
 
 #### (b) 样式注入 —— 版本号问题
 
 不要把第三方 CSS 塞进 `codexDeleteStyleVersion` 那套（那是内置样式的版本控制）。新增独立注入：
 
 ```js
-// 每个拓展一个 <style id="chatgptx-ext-style-<key>">
+// 每个拓展一个 <style id="swivox-ext-style-<key>">
 function injectExtensionStyle(key, css) { ... }
 ```
 
-**但必须处理与内置 `<style>` 的层叠顺序**：内置样式用 `--chatgptx-*` 变量，第三方应该优先复用变量而不是覆盖规则。文档里要写清楚。
+**但必须处理与内置 `<style>` 的层叠顺序**：内置样式用 `--swivox-*` 变量，第三方应该优先复用变量而不是覆盖规则。文档里要写清楚。
 
 #### (c) `codexActionGroupVersion` —— 给第三方留位置
 
-改法：`attachButton(row)` 重建 group 后，遍历 `chatgptxRegistry.rowActions` 重新挂。**关键是重建时必须重新挂**，因为版本号变化会整组删掉。
+改法：`attachButton(row)` 重建 group 后，遍历 `swivoxRegistry.rowActions` 重新挂。**关键是重建时必须重新挂**，因为版本号变化会整组删掉。
 
 同时 `positionSessionMoreMenu` 的高度估算（`90-action-groups.js:89` 写死 `Math.max(80, …)`）要改成按实际项数算，否则第三方加项后菜单会溢出屏幕。
 
@@ -266,11 +266,11 @@ const VIEWS = {
 
 #### (e) 整页视图 —— 放开 tab 白名单
 
-`chatgptxModalTab()`（`40-backend-settings.js:998`）会把未知 tab 兜底成 `"home"`，这是第三方页面拿不到控制权的直接原因。改为：先查 `chatgptxRegistry.pages`，命中则调用其 `render()`，未命中才兜底。
+`swivoxModalTab()`（`40-backend-settings.js:998`）会把未知 tab 兜底成 `"home"`，这是第三方页面拿不到控制权的直接原因。改为：先查 `swivoxRegistry.pages`，命中则调用其 `render()`，未命中才兜底。
 
-同时 rail specs（`40-backend-settings.js:1570`）和 `renderChatGPTXPageNavItems()`（`40-backend-settings.js:463`）都要从注册中心读。
+同时 rail specs（`40-backend-settings.js:1570`）和 `renderSwivoxPageNavItems()`（`40-backend-settings.js:463`）都要从注册中心读。
 
-**特别注意**：新增 rail 入口必须一并注册进 `syncChatGPTXRailNativeSelection()`（`40-backend-settings.js:812`）的数组，否则 Codex 原生 selected 态压不下来，rail 上会同时亮两个。
+**特别注意**：新增 rail 入口必须一并注册进 `syncSwivoxRailNativeSelection()`（`40-backend-settings.js:812`）的数组，否则 Codex 原生 selected 态压不下来，rail 上会同时亮两个。
 
 #### (f) toast —— 先改语义再开放
 
@@ -279,13 +279,13 @@ const VIEWS = {
 1. **单例语义**：`showToast` 每次先删旧的。第三方和内置会互相踩。改为**队列 + 最多同时 3 条**，超出则挤掉最旧的
 2. **无样式变体**：加 `options.type = "info" | "success" | "warn" | "error"`，对应 CSS class。当前只有一个外观（`10-style.js:260-275`）
 
-改完再暴露 `chatgptx.ui.toast(message, options)`。
+改完再暴露 `swivox.ui.toast(message, options)`。
 
 ### 3.4 后端调用：沿用现有桥，加包装
 
 第三方调后端不需要新机制——`window.__codexSessionDeleteBridge` 已经是全局可达的（浮层面板和 `conversation-canvas` 都在用）。但直接暴露它有三个问题：名字语义错位、无超时、无错误归一。
 
-所以 `chatgptx.call(route, payload, options)` 做薄包装：
+所以 `swivox.call(route, payload, options)` 做薄包装：
 
 1. 查路由白名单（编译进接口层），未声明直接 reject，**不发请求**
 2. 校验 payload 可序列化
@@ -306,7 +306,7 @@ const VIEWS = {
 
 **UE 宿主重建**的三种情况和应对：
 
-1. **overlay 重建**（`openChatGPTXModal` 每次清空重来）：注册中心的 `pages` / `menus` 数据是持久的，渲染函数每次重建时重新读并重建 DOM。**第三方只提供 `render()`，不持有 DOM 引用**——这是接口契约的核心，必须写进文档。
+1. **overlay 重建**（`openSwivoxModal` 每次清空重来）：注册中心的 `pages` / `menus` 数据是持久的，渲染函数每次重建时重新读并重建 DOM。**第三方只提供 `render()`，不持有 DOM 引用**——这是接口契约的核心，必须写进文档。
 2. **会话行按钮重建**（`codexActionGroupVersion` 变化）：同上，`rowActions` 注册表重挂。
 3. **浮层面板 runtime 重启**（`stopRuntime()` → `activateRuntime()`）：`state.extensionCleanups` 纳入清理，重启时第三方 tab 仍在注册表里，`renderFloat()` 会自动重建。
 
@@ -317,10 +317,10 @@ const VIEWS = {
 CSS 类名常量现在全在闭包里（`00-prelude.js:405,418,419,423,424`），第三方只能硬编码字面量。开放接口时必须一并暴露：
 
 ```js
-window.chatgptx.ui.constants = {
-  pageClass: "chatgptx-page-overlay",
+window.swivox.ui.constants = {
+  pageClass: "swivox-page-overlay",
   railSelector: "nav[data-app-navigation-rail]",
-  extensionAttr: "data-chatgptx-ext",
+  extensionAttr: "data-swivox-ext",
   // ...
 };
 ```
@@ -350,14 +350,14 @@ window.chatgptx.ui.constants = {
 **验收标准**：功能零变化，纯内部结构改动。这一步不做任何对外暴露。
 
 ### Step 2 — 开放第一批（低风险）
-- 挂 `window.chatgptx`（版本号、`ui.constants`、`onCleanup`）
+- 挂 `window.swivox`（版本号、`ui.constants`、`onCleanup`）
 - `registerRowAction` + `registerNavEntry`（内部形状已经很好，改造成本最低）
 - `toast` 语义改造（队列 + type）并暴露
 - 扩展样式注入机制
 - 迁移 `conversation-canvas` 试用
 
 ### Step 3 — 开放整页与菜单
-- `registerPage`，放开 `chatgptxModalTab` 白名单
+- `registerPage`，放开 `swivoxModalTab` 白名单
 - `registerMenuItem`，拆菜单 `innerHTML` 模板为「内置项数组 + 渲染函数」
 - 设置 key 命名空间（第三方 key 加 `ext:<scriptKey>:` 前缀）
 - rail 选中态同步纳入新入口
@@ -368,7 +368,7 @@ window.chatgptx.ui.constants = {
 - 第三方视图 CSS 模板与文档
 
 ### Step 5 — 文档与类型
-- `types/chatgptx-extensions.d.ts`（从注册中心 schema 生成）
+- `types/swivox-extensions.d.ts`（从注册中心 schema 生成）
 - `EXTENSIONS.md`（仓库根目录）：快速上手、完整 API、类名契约、生命周期契约、失败排查
 - AGENTS.md 补「已发布的类名/接口不再更名」约定
 

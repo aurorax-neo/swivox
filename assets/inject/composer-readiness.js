@@ -74,5 +74,5 @@
   }
 
   if (typeof module === "object" && module.exports) module.exports = { createRecovery };
-  if (typeof window !== "undefined") window.__chatgptxComposerReadiness ||= createRecovery();
+  if (typeof window !== "undefined") window.__swivoxComposerReadiness ||= createRecovery();
 })();

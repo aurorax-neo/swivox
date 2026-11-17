@@ -1,5 +1,5 @@
 /* ============================================================
-   ChatGPTX 官网 · 交互主脚本
+   Swivox 官网 · 交互主脚本
    - GSAP 入场与滚动编排（横向实拍、数字滚动、进度条）
    - 打字粒子特效（彩虹 / 烟花 / 星光）
    - 终端打字机、卡片 3D 倾斜、磁吸按钮
@@ -279,19 +279,19 @@
         title: "Official sign-in + API",
         desc: "Keep the official sign-in state and plugin entry while model requests always go through your configured compatible API — official quota is never consumed (there is no 'official first, API when exhausted' behavior).",
         points: ["Official UI on a custom API channel", "Model requests never touch official quota", "Chat and plugins unchanged"],
-        nodes: ["You", "Codex", "ChatGPTX", "Your API"]
+        nodes: ["You", "Codex", "Swivox", "Your API"]
       },
       api: {
         title: "API only",
         desc: "Bring your own Base URL / key, no official account needed. Chat Completions providers are converted locally to the Responses protocol Codex speaks.",
         points: ["Custom Base URL / key", "No official account required", "Chat Completions → Responses conversion"],
-        nodes: ["You", "Codex", "ChatGPTX", "Any relay"]
+        nodes: ["You", "Codex", "Swivox", "Any relay"]
       },
       agg: {
         title: "Aggregate providers",
         desc: "Two flavors: failover switches members on errors with per-session / per-request / weighted rotation; model aggregation pins each model to a fixed member — members can even be signed-in official accounts.",
         points: ["Failover: auto-switch + rotation/weights", "Model aggregation: pin models to members", "Official accounts can be members too", "Model picker folds groups per provider"],
-        nodes: ["You", "Codex", "ChatGPTX", "Provider A / B / C"]
+        nodes: ["You", "Codex", "Swivox", "Provider A / B / C"]
       }
     } : {
       official: {
@@ -304,19 +304,19 @@
         title: "官方登录 + API",
         desc: "保留官方登录状态与插件入口，模型请求始终走配置的兼容 API，不消耗官方额度（没有「先官方、耗尽再切 API」的行为）。",
         points: ["官方界面 + 自定义 API 通道", "模型请求不消耗官方额度", "聊天与插件体验不变"],
-        nodes: ["You", "Codex", "ChatGPTX", "你的 API"]
+        nodes: ["You", "Codex", "Swivox", "你的 API"]
       },
       api: {
         title: "纯 API",
         desc: "使用自定义 Base URL / Key，无需官方账号。Chat Completions 供应商可通过本地代理转换为 Codex 使用的 Responses 协议。",
         points: ["自定义 Base URL / Key", "无需官方账号", "Chat Completions → Responses 协议转换"],
-        nodes: ["You", "Codex", "ChatGPTX", "任意中转"]
+        nodes: ["You", "Codex", "Swivox", "任意中转"]
       },
       agg: {
         title: "聚合供应商",
         desc: "分「故障转移」与「模型聚合」两类：故障转移在多供应商间失败切换、按会话/请求/权重轮转；模型聚合按模型把请求固定到指定成员，成员也可以是已登录的官方账号。",
         points: ["故障转移：失败自动切换 + 轮转/权重", "模型聚合：按模型固定成员", "官方账号也可作为成员", "模型选择器按供应商分组折叠"],
-        nodes: ["You", "Codex", "ChatGPTX", "供应商 A / B / C"]
+        nodes: ["You", "Codex", "Swivox", "供应商 A / B / C"]
       }
     };
 
@@ -395,14 +395,14 @@
             '<span class="rel-tag">' + (idx === 0 ? (isEn ? "● Latest · " : "● 最新 · ") : "") + "v" + rel.version + "</span>" +
             '<div class="rel-date">' + rel.date + "</div>" +
             "<ul>" + items + "</ul>" +
-            '<a class="rel-more" href="https://github.com/aurorax-neo/chatgptx/releases/tag/v' + rel.version + '" target="_blank" rel="noopener">' + (isEn ? "View this release →" : "查看该版本 →") + "</a>" +
+            '<a class="rel-more" href="https://github.com/aurorax-neo/swivox/releases/tag/v' + rel.version + '" target="_blank" rel="noopener">' + (isEn ? "View this release →" : "查看该版本 →") + "</a>" +
             "</article>";
         }).join("");
       })
       .catch(function () {
         list.innerHTML = isEn
-          ? '<p class="rel-empty">Release notes could not be loaded. Check <a class="rel-more" href="https://github.com/aurorax-neo/chatgptx/releases" target="_blank" rel="noopener">Releases</a> for the latest version.</p>'
-          : '<p class="rel-empty">更新摘要暂时无法加载，到 <a class="rel-more" href="https://github.com/aurorax-neo/chatgptx/releases" target="_blank" rel="noopener">Releases</a> 查看最新版本。</p>';
+          ? '<p class="rel-empty">Release notes could not be loaded. Check <a class="rel-more" href="https://github.com/aurorax-neo/swivox/releases" target="_blank" rel="noopener">Releases</a> for the latest version.</p>'
+          : '<p class="rel-empty">更新摘要暂时无法加载，到 <a class="rel-more" href="https://github.com/aurorax-neo/swivox/releases" target="_blank" rel="noopener">Releases</a> 查看最新版本。</p>';
       });
   })();
 

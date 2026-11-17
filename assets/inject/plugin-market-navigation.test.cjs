@@ -66,19 +66,19 @@ function fixture(layout = "sidebar") {
   const aside = document.body.appendChild(new Element("aside")); aside.className = "app-shell-left-panel";
   const nav = aside.appendChild(new Element("nav", layout === "rail" ? { "data-app-navigation-rail": "" } : { role: "navigation" }));
   const anchor = nav.appendChild(new Element("button", { "data-sidebar-destination": "builtin:home", "aria-label": "Home" }));
-  const sidebarAnchor = nav.appendChild(new Element("div", { id: "chatgptx-sidebar-nav" }));
+  const sidebarAnchor = nav.appendChild(new Element("div", { id: "swivox-sidebar-nav" }));
   const calls = [];
-  const extension = node => !!node?.closest('[data-chatgptx-ext], [data-chatgptx-rail], .registered-extension');
+  const extension = node => !!node?.closest('[data-swivox-ext], [data-swivox-rail], .registered-extension');
   const context = vm.createContext({ document, window: {}, Element, HTMLElement: Element,
-    chatgptxSidebarPluginMarketId: "chatgptx-sidebar-plugin-market", chatgptxRailPluginMarketId: "chatgptx-rail-plugin-market",
-    chatgptxSidebarNavId: "chatgptx-sidebar-nav", chatgptxMenuId: "chatgptx-menu", chatgptxPageClass: "chatgptx-page",
-    chatgptxRailNavId: "chatgptx-rail-nav", chatgptxRailExtensionsId: "chatgptx-rail-extensions", chatgptxRailSponsorId: "chatgptx-rail-sponsor",
-    chatgptxRailSelector: 'nav[data-app-navigation-rail]', chatgptxRailDestinationSelector: "[data-sidebar-destination]",
-    chatgptxDefaultExtensionIconPath: "", chatgptxExtensionConstants: { extensionAttribute: "data-chatgptx-ext" },
-    chatgptxBackendStatus: { status: "ok" }, chatgptxActiveEntry: () => "", setChatGPTXSidebarNavActive() {},
-    closeChatGPTXPage() {}, closeChatGPTXPageAfterNativeNavigation() {}, clearPluginMarketplaceQueryCache() {},
-    openChatGPTXPage() {}, openChatGPTXExtensions() {}, openChatGPTXSponsor() {},
-    markChatGPTXExtensionNode: (node, owner) => node.setAttribute("data-chatgptx-ext", owner),
+    swivoxSidebarPluginMarketId: "swivox-sidebar-plugin-market", swivoxRailPluginMarketId: "swivox-rail-plugin-market",
+    swivoxSidebarNavId: "swivox-sidebar-nav", swivoxMenuId: "swivox-menu", swivoxPageClass: "swivox-page",
+    swivoxRailNavId: "swivox-rail-nav", swivoxRailExtensionsId: "swivox-rail-extensions", swivoxRailSponsorId: "swivox-rail-sponsor",
+    swivoxRailSelector: 'nav[data-app-navigation-rail]', swivoxRailDestinationSelector: "[data-sidebar-destination]",
+    swivoxDefaultExtensionIconPath: "", swivoxExtensionConstants: { extensionAttribute: "data-swivox-ext" },
+    swivoxBackendStatus: { status: "ok" }, swivoxActiveEntry: () => "", setSwivoxSidebarNavActive() {},
+    closeSwivoxPage() {}, closeSwivoxPageAfterNativeNavigation() {}, clearPluginMarketplaceQueryCache() {},
+    openSwivoxPage() {}, openSwivoxExtensions() {}, openSwivoxSponsor() {},
+    markSwivoxExtensionNode: (node, owner) => node.setAttribute("data-swivox-ext", owner),
     isExtensionUiNode: extension,
     visibleElement: node => node.isConnected && node.visible,
     postJson: async (path, payload) => { calls.push({ path, payload }); return { status: "ok" }; },
@@ -87,19 +87,19 @@ function fixture(layout = "sidebar") {
     codexPluginMarketplacePatchEnabled: () => false, nodeOrAncestorLooksLikeCodexUserBubble: () => false, nodeLooksLikeCodexUserBubble: () => false,
   });
   const functions = [
-    extract(adapter, "chatgptxNativePluginNavigationEntry"), extract(adapter, "openChatGPTXNativePluginMarket"),
-    ...["chatgptxRailTemplateButton", "chatgptxRailPrimaryAnchor", "createChatGPTXRailButton", "installChatGPTXRailNavigation", "installChatGPTXSidebarNavigation", "detachChatGPTXSidebarNavigation", "removeChatGPTXRailNavigation"].map(name => extract(navigation, name)),
-    extract(entryNavigation, "installChatGPTXNavigationEntries"),
+    extract(adapter, "swivoxNativePluginNavigationEntry"), extract(adapter, "openSwivoxNativePluginMarket"),
+    ...["swivoxRailTemplateButton", "swivoxRailPrimaryAnchor", "createSwivoxRailButton", "installSwivoxRailNavigation", "installSwivoxSidebarNavigation", "detachSwivoxSidebarNavigation", "removeSwivoxRailNavigation"].map(name => extract(navigation, name)),
+    extract(entryNavigation, "installSwivoxNavigationEntries"),
     ...["scanRelevantSelector", "nodeSelfOrAncestorMatchesScanRelevance", "isScanRelevantNode", "isChatContentMutation", "shouldScheduleScan"].map(name => extract(scheduler, name)),
   ].join("\n");
   vm.runInContext(functions, context);
-  const install = () => context.installChatGPTXNavigationEntries();
-  const fallback = () => document.getElementById(layout === "rail" ? "chatgptx-rail-plugin-market" : "chatgptx-sidebar-plugin-market");
+  const install = () => context.installSwivoxNavigationEntries();
+  const fallback = () => document.getElementById(layout === "rail" ? "swivox-rail-plugin-market" : "swivox-sidebar-plugin-market");
   const native = (attrs = {}) => nav.appendChild(new Element("button", { "data-sidebar-destination": "builtin:plugins", "aria-label": "Plugins", ...attrs }));
   const legacy = (kind = layout, parent = nav) => {
     const wrapper = parent.appendChild(new Element("div", {
-      id: kind === "rail" ? "chatgptx-rail-plugin-market" : "chatgptx-sidebar-plugin-market",
-      "data-chatgptx-ext": "builtin-plugin-market",
+      id: kind === "rail" ? "swivox-rail-plugin-market" : "swivox-sidebar-plugin-market",
+      "data-swivox-ext": "builtin-plugin-market",
     }));
     wrapper.appendChild(new Element("button", { "aria-label": "Codex 插件市场" }));
     return wrapper;
@@ -128,22 +128,22 @@ for (const layout of ["sidebar", "rail"]) {
     const aside = f.nav.parentElement; f.nav.remove();
     const next = aside.appendChild(new Element("nav", layout === "rail" ? { "data-app-navigation-rail": "" } : { role: "navigation" }));
     const anchor = next.appendChild(new Element("button", { "data-sidebar-destination": "builtin:home", "aria-label": "Home" }));
-    const entry = next.appendChild(new Element("div", { id: "chatgptx-sidebar-nav" }));
+    const entry = next.appendChild(new Element("div", { id: "swivox-sidebar-nav" }));
     const stale = f.legacy(layout, next);
     const install = f.install;
     install(); assert.ok(!f.fallback()); assert.equal(stale.isConnected, false);
     const native = next.appendChild(new Element("button", { "data-sidebar-destination": "plugins" }));
     install(); assert.ok(!f.fallback());
-    f.context.openChatGPTXNativePluginMarket(); assert.equal(native.clicks, 1);
+    f.context.openSwivoxNativePluginMarket(); assert.equal(native.clicks, 1);
   });
 }
 
 test("extension/self entries cannot impersonate native plugins or cause recursive clicks", () => {
   const f = fixture();
-  const owned = f.native({ "data-chatgptx-ext": "example-script" });
+  const owned = f.native({ "data-swivox-ext": "example-script" });
   const registered = f.native(); registered.className = "registered-extension";
   f.install(); assert.ok(!f.fallback());
-  f.context.openChatGPTXNativePluginMarket();
+  f.context.openSwivoxNativePluginMarket();
   assert.equal(owned.clicks, 0); assert.equal(registered.clicks, 0);
   assert.equal(f.calls.length, 1); assert.equal(f.calls[0].path, "/manager/open");
   assert.equal(f.calls[0].payload.page, "pluginMarket");
@@ -151,33 +151,33 @@ test("extension/self entries cannot impersonate native plugins or cause recursiv
 
 test("legacy injected IDs and non-navigation Plugins buttons cannot masquerade as native", () => {
   const f = fixture();
-  const fallback = f.legacy(); fallback.removeAttribute("data-chatgptx-ext");
+  const fallback = f.legacy(); fallback.removeAttribute("data-swivox-ext");
   const button = fallback.querySelector("button"); button.setAttribute("data-sidebar-destination", "plugins"); button.setAttribute("aria-label", "Plugins");
   const outside = f.document.body.appendChild(new Element("button", { "data-sidebar-destination": "plugins", "aria-label": "Plugins" }));
-  f.context.openChatGPTXNativePluginMarket();
+  f.context.openSwivoxNativePluginMarket();
   assert.equal(button.clicks, 0); assert.equal(outside.clicks, 0); assert.equal(f.calls.length, 1);
 });
 
 test("disabled native navigation does not create a duplicate and activation opens the manager", () => {
   const f = fixture(); const native = f.native(); native.disabled = true;
   f.install(); assert.ok(!f.fallback());
-  f.context.openChatGPTXNativePluginMarket(); assert.equal(native.clicks, 0); assert.equal(f.calls.length, 1);
+  f.context.openSwivoxNativePluginMarket(); assert.equal(native.clicks, 0); assert.equal(f.calls.length, 1);
 });
 
 test("native activation rechecks rebuilt DOM and never clicks a stale or invisible entry", () => {
   const f = fixture("rail"); const first = f.native();
-  f.context.openChatGPTXNativePluginMarket(); assert.equal(first.clicks, 1);
+  f.context.openSwivoxNativePluginMarket(); assert.equal(first.clicks, 1);
   first.remove(); const next = f.native();
-  f.context.openChatGPTXNativePluginMarket(); assert.equal(next.clicks, 1); assert.equal(first.clicks, 1);
+  f.context.openSwivoxNativePluginMarket(); assert.equal(next.clicks, 1); assert.equal(first.clicks, 1);
   next.visible = false;
-  f.context.openChatGPTXNativePluginMarket(); assert.equal(next.clicks, 1); assert.equal(f.calls.length, 1);
+  f.context.openSwivoxNativePluginMarket(); assert.equal(next.clicks, 1); assert.equal(f.calls.length, 1);
 });
 
 test("classic navigation without destination attributes recognizes Chinese and English native labels", () => {
   for (const label of ["插件", "Plugins"]) {
     const f = fixture(); const native = f.native(); native.removeAttribute("data-sidebar-destination"); native.setAttribute("aria-label", label);
     f.install(); assert.ok(!f.fallback());
-    f.context.openChatGPTXNativePluginMarket(); assert.equal(native.clicks, 1);
+    f.context.openSwivoxNativePluginMarket(); assert.equal(native.clicks, 1);
   }
 });
 

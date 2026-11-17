@@ -114,7 +114,7 @@ await evaluate(`(() => {
           ? { status: "ok", settings: { userScriptsEnabled: true, enhancementsEnabled: true } }
           : { status: "ok" },
   );
-  window.__chatgptxBridgeHealth = { lastInjectionAt: Date.now(), lastSuccessAt: Date.now(), lastAttemptAt: Date.now() };
+  window.__swivoxBridgeHealth = { lastInjectionAt: Date.now(), lastSuccessAt: Date.now(), lastAttemptAt: Date.now() };
   return true;
 })()`);
 
@@ -128,12 +128,12 @@ const opened = await evaluate(`(async () => {
   const deadline = Date.now() + 10000;
   let rail = null;
   while (Date.now() < deadline) {
-    rail = document.getElementById("chatgptx-rail-extensions");
+    rail = document.getElementById("swivox-rail-extensions");
     if (rail) break;
     await new Promise((r) => setTimeout(r, 100));
   }
   if (!rail) {
-    const ids = Array.from(document.querySelectorAll("[id^='chatgptx-rail']")).map((n) => n.id);
+    const ids = Array.from(document.querySelectorAll("[id^='swivox-rail']")).map((n) => n.id);
     return { ok: false, railIds: ids };
   }
   // 入口是 DIV 包着一个原生 button，真正的点击目标与状态载体是里面那个 button。
@@ -151,7 +151,7 @@ const selected = await evaluate(`(async () => {
   const deadline = Date.now() + 8000;
   let first = null;
   while (Date.now() < deadline) {
-    first = document.querySelector(".chatgptx-page-nav-item");
+    first = document.querySelector(".swivox-page-nav-item");
     if (first) break;
     await new Promise((r) => setTimeout(r, 100));
   }
@@ -165,10 +165,10 @@ console.log("选中条条目:", JSON.stringify(selected));
 const report = await evaluate(`(() => {
   const out = { rows: [], detail: null, layout: null };
 
-  const layout = document.querySelector(".chatgptx-page-layout");
+  const layout = document.querySelector(".swivox-page-layout");
   if (layout) {
-    const nav = layout.querySelector(".chatgptx-page-nav");
-    const main = layout.querySelector(".chatgptx-page-main");
+    const nav = layout.querySelector(".swivox-page-nav");
+    const main = layout.querySelector(".swivox-page-main");
     const lw = layout.getBoundingClientRect();
     out.layout = {
       totalWidth: Math.round(lw.width),
@@ -178,18 +178,18 @@ const report = await evaluate(`(() => {
     };
   }
 
-  const rows = document.querySelectorAll(".chatgptx-page-nav-item");
+  const rows = document.querySelectorAll(".swivox-page-nav-item");
   rows.forEach((row, index) => {
     if (index >= 4) return;
-    const body = row.querySelector(".chatgptx-extensions-item-body");
-    const icon = row.querySelector(".chatgptx-extensions-icon");
-    const name = row.querySelector(".chatgptx-extensions-item-name");
-    const desc = row.querySelector(".chatgptx-extensions-item-description");
-    const footer = row.querySelector(".chatgptx-extensions-item-footer");
-    const publisher = row.querySelector(".chatgptx-extensions-item-publisher");
-    const button = row.querySelector(".chatgptx-extensions-item-button");
-    const img = row.querySelector(".chatgptx-extensions-icon-img");
-    const svg = row.querySelector(".chatgptx-extensions-icon svg");
+    const body = row.querySelector(".swivox-extensions-item-body");
+    const icon = row.querySelector(".swivox-extensions-icon");
+    const name = row.querySelector(".swivox-extensions-item-name");
+    const desc = row.querySelector(".swivox-extensions-item-description");
+    const footer = row.querySelector(".swivox-extensions-item-footer");
+    const publisher = row.querySelector(".swivox-extensions-item-publisher");
+    const button = row.querySelector(".swivox-extensions-item-button");
+    const img = row.querySelector(".swivox-extensions-icon-img");
+    const svg = row.querySelector(".swivox-extensions-icon svg");
     const rect = row.getBoundingClientRect();
     out.rows.push({
       active: row.getAttribute("data-active"),
@@ -207,20 +207,20 @@ const report = await evaluate(`(() => {
     });
   });
 
-  const detail = document.querySelector("[data-chatgptx-extensions-detail]");
+  const detail = document.querySelector("[data-swivox-extensions-detail]");
   if (detail) {
-    const head = detail.querySelector(".chatgptx-extensions-detail-head");
-    const title = detail.querySelector(".chatgptx-extensions-detail-title");
-    const body = detail.querySelector(".chatgptx-extensions-detail-body");
+    const head = detail.querySelector(".swivox-extensions-detail-head");
+    const title = detail.querySelector(".swivox-extensions-detail-title");
+    const body = detail.querySelector(".swivox-extensions-detail-body");
     out.detail = {
       hasHead: !!head,
       hasBody: !!body,
       title: title ? title.textContent.trim() : null,
       iconSize: (() => {
-        const el = detail.querySelector(".chatgptx-extensions-detail-icon svg, .chatgptx-extensions-detail-icon img");
+        const el = detail.querySelector(".swivox-extensions-detail-icon svg, .swivox-extensions-detail-icon img");
         return el ? Math.round(el.getBoundingClientRect().width) : null;
       })(),
-      actions: Array.from(detail.querySelectorAll(".chatgptx-extensions-detail-actions button")).map((b) => b.textContent.trim()),
+      actions: Array.from(detail.querySelectorAll(".swivox-extensions-detail-actions button")).map((b) => b.textContent.trim()),
     };
   }
   return out;

@@ -1,22 +1,22 @@
   // 特效只观察原生编辑事件；不写输入框、不改选区，也不触发 React 输入事务。
-  window.__chatgptxTypingEffectsRuntime?.dispose?.();
-  const chatgptxTypingEffects = {
+  window.__swivoxTypingEffectsRuntime?.dispose?.();
+  const swivoxTypingEffects = {
     installed: false, disposed: false, mode: "off", canvas: null, context: null,
     bounds: null, particles: [], frame: null, frameAt: 0, lastBurstAt: -Infinity,
     editor: null, composition: null, compositionFrame: null, media: null,
   };
-  const chatgptxTypingEffectMaxParticles = 180;
-  const chatgptxTypingEffectInterval = 40;
-  const chatgptxTypingEffectOwner = "builtin-typing-effects";
-  registerChatGPTXExtensionSelector('[data-chatgptx-ext="builtin-typing-effects"]');
+  const swivoxTypingEffectMaxParticles = 180;
+  const swivoxTypingEffectInterval = 40;
+  const swivoxTypingEffectOwner = "builtin-typing-effects";
+  registerSwivoxExtensionSelector('[data-swivox-ext="builtin-typing-effects"]');
 
-  function chatgptxTypingEffectMode() {
-    const value = chatgptxSettings().typingEffect;
+  function swivoxTypingEffectMode() {
+    const value = swivoxSettings().typingEffect;
     return ["rainbow", "fireworks", "stars"].includes(value) ? value : "off";
   }
 
-  function clearChatGPTXTypingEffects(resetComposition = true) {
-    const state = chatgptxTypingEffects;
+  function clearSwivoxTypingEffects(resetComposition = true) {
+    const state = swivoxTypingEffects;
     if (state.frame !== null) cancelAnimationFrame(state.frame);
     state.frame = null;
     state.canvas?.remove();
@@ -31,14 +31,14 @@
     state.lastBurstAt = -Infinity;
   }
 
-  function syncChatGPTXTypingEffects() {
-    const state = chatgptxTypingEffects;
-    const mode = chatgptxTypingEffectMode();
-    if (state.mode !== mode || mode === "off" || state.media?.matches || document.hidden) clearChatGPTXTypingEffects();
+  function syncSwivoxTypingEffects() {
+    const state = swivoxTypingEffects;
+    const mode = swivoxTypingEffectMode();
+    if (state.mode !== mode || mode === "off" || state.media?.matches || document.hidden) clearSwivoxTypingEffects();
     state.mode = mode;
   }
 
-  function chatgptxTypingEffectEditor(target) {
+  function swivoxTypingEffectEditor(target) {
     const editor = target?.closest?.('.ProseMirror[contenteditable="true"], textarea, [role="textbox"][contenteditable="true"]');
     if (!editor?.isConnected || editor.matches(':disabled, [readonly], [contenteditable="false"]')
         || isExtensionUiNode(editor) || editor.closest('[inert], [aria-hidden="true"]') || !visibleElement(editor)) return null;
@@ -54,11 +54,11 @@
     return composer && (document.activeElement === editor || editor.contains(document.activeElement)) ? editor : null;
   }
 
-  function chatgptxTypingEffectText(editor) {
+  function swivoxTypingEffectText(editor) {
     return editor instanceof HTMLTextAreaElement ? editor.value : editor.textContent || "";
   }
 
-  function chatgptxTypingEffectTextareaCaret(editor) {
+  function swivoxTypingEffectTextareaCaret(editor) {
     const style = getComputedStyle(editor);
     const rect = editor.getBoundingClientRect();
     const width = editor.offsetWidth || rect.width;
@@ -67,7 +67,7 @@
     const mirrorWidth = editor.clientWidth > 0
       ? editor.clientWidth + (parseFloat(style.borderLeftWidth) || 0) + (parseFloat(style.borderRightWidth) || 0) : width;
     const mirror = document.createElement("div");
-    mirror.setAttribute("data-chatgptx-ext", chatgptxTypingEffectOwner);
+    mirror.setAttribute("data-swivox-ext", swivoxTypingEffectOwner);
     mirror.setAttribute("aria-hidden", "true");
     // offsetWidth 使用布局尺寸，最终按真实 rect 缩放，兼容编辑器祖先上的 CSS zoom。
     const properties = ["direction", "fontFamily", "fontSize", "fontWeight", "fontStyle", "fontVariant", "fontStretch",
@@ -100,10 +100,10 @@
     } finally { mirror.remove(); }
   }
 
-  function chatgptxTypingEffectCaret(editor) {
+  function swivoxTypingEffectCaret(editor) {
     const box = editor.getBoundingClientRect();
     let point;
-    if (editor instanceof HTMLTextAreaElement) point = chatgptxTypingEffectTextareaCaret(editor);
+    if (editor instanceof HTMLTextAreaElement) point = swivoxTypingEffectTextareaCaret(editor);
     else {
       const selection = window.getSelection?.();
       if (!selection?.rangeCount || !editor.contains(selection.anchorNode) || !editor.contains(selection.focusNode)) return null;
@@ -146,11 +146,11 @@
     return { x: Math.max(box.left, Math.min(box.right, point.x)), y: Math.max(box.top, Math.min(box.bottom, point.y)) };
   }
 
-  function createChatGPTXTypingEffectCanvas() {
-    const state = chatgptxTypingEffects;
+  function createSwivoxTypingEffectCanvas() {
+    const state = swivoxTypingEffects;
     if (state.canvas?.isConnected) return true;
     const canvas = document.createElement("canvas");
-    canvas.setAttribute("data-chatgptx-ext", chatgptxTypingEffectOwner);
+    canvas.setAttribute("data-swivox-ext", swivoxTypingEffectOwner);
     canvas.setAttribute("aria-hidden", "true");
     Object.assign(canvas.style, {
       position: "fixed", top: "0", left: "0", width: "100%", height: "100%", pointerEvents: "none",
@@ -168,12 +168,12 @@
     return true;
   }
 
-  function drawChatGPTXTypingEffects(timestamp) {
-    const state = chatgptxTypingEffects;
+  function drawSwivoxTypingEffects(timestamp) {
+    const state = swivoxTypingEffects;
     state.frame = null;
-    if (state.disposed || state.mode !== chatgptxTypingEffectMode() || state.media?.matches || document.hidden
-        || !state.editor?.isConnected || chatgptxTypingEffectEditor(document.activeElement) !== state.editor || !state.canvas?.isConnected) {
-      clearChatGPTXTypingEffects(); return;
+    if (state.disposed || state.mode !== swivoxTypingEffectMode() || state.media?.matches || document.hidden
+        || !state.editor?.isConnected || swivoxTypingEffectEditor(document.activeElement) !== state.editor || !state.canvas?.isConnected) {
+      clearSwivoxTypingEffects(); return;
     }
     const elapsed = state.frameAt ? Math.max(0, Math.min(32, timestamp - state.frameAt)) : 16;
     state.frameAt = timestamp;
@@ -204,22 +204,22 @@
       context.restore();
       return true;
     });
-    if (state.particles.length) state.frame = requestAnimationFrame(drawChatGPTXTypingEffects);
-    else clearChatGPTXTypingEffects(false);
+    if (state.particles.length) state.frame = requestAnimationFrame(drawSwivoxTypingEffects);
+    else clearSwivoxTypingEffects(false);
   }
 
-  function emitChatGPTXTypingEffects(editor) {
-    const state = chatgptxTypingEffects;
-    syncChatGPTXTypingEffects();
+  function emitSwivoxTypingEffects(editor) {
+    const state = swivoxTypingEffects;
+    syncSwivoxTypingEffects();
     if (state.disposed || state.mode === "off" || state.media?.matches || document.hidden) return false;
     const now = performance.now();
-    if (now - state.lastBurstAt < chatgptxTypingEffectInterval) return false;
-    const point = chatgptxTypingEffectCaret(editor);
-    if (!point || !createChatGPTXTypingEffectCanvas()) return false;
+    if (now - state.lastBurstAt < swivoxTypingEffectInterval) return false;
+    const point = swivoxTypingEffectCaret(editor);
+    if (!point || !createSwivoxTypingEffectCanvas()) return false;
     state.lastBurstAt = now;
     state.editor = editor;
     const count = state.mode === "fireworks" ? 26 : state.mode === "stars" ? 10 : 16;
-    const available = Math.max(0, chatgptxTypingEffectMaxParticles - state.particles.length);
+    const available = Math.max(0, swivoxTypingEffectMaxParticles - state.particles.length);
     if (!available) return false;
     const hue = now / 9 % 360;
     for (let index = 0; index < Math.min(count, available); index++) {
@@ -233,23 +233,23 @@
         color: `hsl(${state.mode === "stars" ? 38 + Math.random() * 22 : hue + index * 360 / count} 95% 68%)`,
       });
     }
-    if (state.particles.length && state.frame === null) state.frame = requestAnimationFrame(drawChatGPTXTypingEffects);
+    if (state.particles.length && state.frame === null) state.frame = requestAnimationFrame(drawSwivoxTypingEffects);
     return true;
   }
 
-  function createChatGPTXTypingEffectComposition(editor, before = chatgptxTypingEffectText(editor)) {
+  function createSwivoxTypingEffectComposition(editor, before = swivoxTypingEffectText(editor)) {
     return { editor, before, ended: false, emitted: false, lastEmittedText: null, lastInputText: before, sawTrustedInput: false, attempts: 0 };
   }
 
-  function commitChatGPTXTypingEffectComposition(composition) {
-    const state = chatgptxTypingEffects;
+  function commitSwivoxTypingEffectComposition(composition) {
+    const state = swivoxTypingEffects;
     if (state.composition !== composition || !composition.data || !composition.trusted
-        || !chatgptxTypingEffectEditor(composition.editor)) return false;
-    const text = chatgptxTypingEffectText(composition.editor);
+        || !swivoxTypingEffectEditor(composition.editor)) return false;
+    const text = swivoxTypingEffectText(composition.editor);
     if (composition.emitted && text === composition.committed) return true;
     // 最终 input 通常紧接组词 input；同一份已绘制文本不重复发射。
     if (text !== composition.lastEmittedText) {
-      if (text === composition.before || !emitChatGPTXTypingEffects(composition.editor)) return false;
+      if (text === composition.before || !emitSwivoxTypingEffects(composition.editor)) return false;
     }
     composition.emitted = true;
     composition.committed = text;
@@ -257,15 +257,15 @@
     return true;
   }
 
-  function updateChatGPTXTypingEffectComposition(composition) {
-    const state = chatgptxTypingEffects;
-    if (state.composition !== composition || state.disposed || !chatgptxTypingEffectEditor(composition.editor)) return;
+  function updateSwivoxTypingEffectComposition(composition) {
+    const state = swivoxTypingEffects;
+    if (state.composition !== composition || state.disposed || !swivoxTypingEffectEditor(composition.editor)) return;
     let emitted;
-    if (composition.ended) emitted = commitChatGPTXTypingEffectComposition(composition);
+    if (composition.ended) emitted = commitSwivoxTypingEffectComposition(composition);
     else {
-      const text = chatgptxTypingEffectText(composition.editor);
+      const text = swivoxTypingEffectText(composition.editor);
       emitted = text === composition.lastEmittedText || (composition.lastInputData === "" && !composition.backwardDeletion);
-      if (!emitted && (text !== composition.before || composition.backwardDeletion) && emitChatGPTXTypingEffects(composition.editor)) {
+      if (!emitted && (text !== composition.before || composition.backwardDeletion) && emitSwivoxTypingEffects(composition.editor)) {
         composition.lastEmittedText = text;
         emitted = true;
       }
@@ -279,26 +279,26 @@
       state.compositionFrame = requestAnimationFrame(() => {
         state.compositionFrame = null;
         composition.attempts += 1;
-        updateChatGPTXTypingEffectComposition(composition);
+        updateSwivoxTypingEffectComposition(composition);
       });
     }
   }
 
-  function chatgptxTypingEffectInput(event) {
+  function swivoxTypingEffectInput(event) {
     if (event.isTrusted !== true) return;
     const backwardDeletion = ["deleteContentBackward", "deleteWordBackward", "deleteSoftLineBackward", "deleteHardLineBackward"].includes(event.inputType);
     if (!backwardDeletion && !["insertText", "insertLineBreak", "insertParagraph", "insertCompositionText", "insertFromComposition"].includes(event.inputType)) return;
-    const editor = chatgptxTypingEffectEditor(event.target);
+    const editor = swivoxTypingEffectEditor(event.target);
     if (!editor) return;
-    const state = chatgptxTypingEffects;
+    const state = swivoxTypingEffects;
     let composition = state.composition;
     const compositionInput = event.isComposing || ["insertCompositionText", "insertFromComposition"].includes(event.inputType);
     if (compositionInput && (!composition || composition.editor !== editor
-        || (composition.ended && composition.emitted && (event.isComposing || chatgptxTypingEffectText(editor) !== composition.committed)))) {
+        || (composition.ended && composition.emitted && (event.isComposing || swivoxTypingEffectText(editor) !== composition.committed)))) {
       // 部分输入法不会派发 compositionstart，但仍有可信的原生组词 input。
       if (state.compositionFrame !== null) cancelAnimationFrame(state.compositionFrame);
       state.compositionFrame = null;
-      composition = state.composition = createChatGPTXTypingEffectComposition(editor, null);
+      composition = state.composition = createSwivoxTypingEffectComposition(editor, null);
       if (event.inputType === "insertFromComposition") Object.assign(composition, { ended: true, data: event.data, trusted: true });
     }
     if (composition?.editor === editor) {
@@ -306,94 +306,94 @@
         if (state.compositionFrame !== null) cancelAnimationFrame(state.compositionFrame);
         state.compositionFrame = null;
         state.composition = null;
-        emitChatGPTXTypingEffects(editor);
+        emitSwivoxTypingEffects(editor);
         return;
       }
       if (!composition.ended || !composition.emitted) {
-        const text = chatgptxTypingEffectText(editor);
+        const text = swivoxTypingEffectText(editor);
         // 输入法退格也可能沿用 insertCompositionText，且清空组词时 data 为空。
         const shorterPreedit = compositionInput && typeof composition.lastInputText === "string" && text.length < composition.lastInputText.length;
         Object.assign(composition, {
           sawTrustedInput: true, lastInputData: event.data, lastInputText: text,
           backwardDeletion: backwardDeletion || shorterPreedit, attempts: 0,
         });
-        updateChatGPTXTypingEffectComposition(composition);
+        updateSwivoxTypingEffectComposition(composition);
         return;
       }
-      if (chatgptxTypingEffectText(editor) === composition.committed) return;
+      if (swivoxTypingEffectText(editor) === composition.committed) return;
       state.composition = null;
     }
     if (event.isComposing || (!backwardDeletion && !["insertText", "insertLineBreak", "insertParagraph"].includes(event.inputType))) return;
     if (event.inputType === "insertText" && !event.data) return;
-    emitChatGPTXTypingEffects(editor);
+    emitSwivoxTypingEffects(editor);
   }
 
-  function chatgptxTypingEffectCompositionStart(event) {
+  function swivoxTypingEffectCompositionStart(event) {
     if (event.isTrusted !== true) return;
-    syncChatGPTXTypingEffects();
-    if (chatgptxTypingEffects.mode === "off" || chatgptxTypingEffects.media?.matches || document.hidden) return;
-    const editor = chatgptxTypingEffectEditor(event.target);
+    syncSwivoxTypingEffects();
+    if (swivoxTypingEffects.mode === "off" || swivoxTypingEffects.media?.matches || document.hidden) return;
+    const editor = swivoxTypingEffectEditor(event.target);
     if (editor) {
-      if (chatgptxTypingEffects.compositionFrame !== null) cancelAnimationFrame(chatgptxTypingEffects.compositionFrame);
-      chatgptxTypingEffects.compositionFrame = null;
-      chatgptxTypingEffects.composition = createChatGPTXTypingEffectComposition(editor);
+      if (swivoxTypingEffects.compositionFrame !== null) cancelAnimationFrame(swivoxTypingEffects.compositionFrame);
+      swivoxTypingEffects.compositionFrame = null;
+      swivoxTypingEffects.composition = createSwivoxTypingEffectComposition(editor);
     }
   }
 
-  function chatgptxTypingEffectCompositionEnd(event) {
-    const composition = chatgptxTypingEffects.composition;
-    if (!composition || composition.editor !== chatgptxTypingEffectEditor(event.target)) return;
+  function swivoxTypingEffectCompositionEnd(event) {
+    const composition = swivoxTypingEffects.composition;
+    if (!composition || composition.editor !== swivoxTypingEffectEditor(event.target)) return;
     // 有些输入法/宿主转发结束事件，isTrusted 为 false；仅接纳之前已观察到的可信组词内容。
     if (event.isTrusted !== true && (!composition.sawTrustedInput || (event.data && event.data !== composition.lastInputData))) return;
     if (!event.data) {
-      chatgptxTypingEffects.composition = null;
-      if (chatgptxTypingEffects.compositionFrame !== null) cancelAnimationFrame(chatgptxTypingEffects.compositionFrame);
-      chatgptxTypingEffects.compositionFrame = null;
+      swivoxTypingEffects.composition = null;
+      if (swivoxTypingEffects.compositionFrame !== null) cancelAnimationFrame(swivoxTypingEffects.compositionFrame);
+      swivoxTypingEffects.compositionFrame = null;
       return;
     }
     Object.assign(composition, { ended: true, data: event.data, trusted: event.isTrusted === true || composition.sawTrustedInput });
     queueMicrotask(() => {
-      updateChatGPTXTypingEffectComposition(composition);
+      updateSwivoxTypingEffectComposition(composition);
     });
   }
 
-  function chatgptxTypingEffectFocusOut(event) {
-    const state = chatgptxTypingEffects;
-    if (event.target === state.editor || event.target === state.composition?.editor) clearChatGPTXTypingEffects();
+  function swivoxTypingEffectFocusOut(event) {
+    const state = swivoxTypingEffects;
+    if (event.target === state.editor || event.target === state.composition?.editor) clearSwivoxTypingEffects();
   }
 
-  function installChatGPTXTypingEffects() {
-    const state = chatgptxTypingEffects;
+  function installSwivoxTypingEffects() {
+    const state = swivoxTypingEffects;
     if (state.disposed) return;
     if (!state.installed) {
       state.installed = true;
       state.media = window.matchMedia?.("(prefers-reduced-motion: reduce)") || null;
-      document.addEventListener("input", chatgptxTypingEffectInput, true);
-      document.addEventListener("compositionstart", chatgptxTypingEffectCompositionStart, true);
-      document.addEventListener("compositionend", chatgptxTypingEffectCompositionEnd, true);
-      document.addEventListener("focusout", chatgptxTypingEffectFocusOut, true);
-      document.addEventListener("visibilitychange", syncChatGPTXTypingEffects);
-      window.addEventListener("blur", clearChatGPTXTypingEffects);
-      window.addEventListener("resize", clearChatGPTXTypingEffects);
-      state.media?.addEventListener?.("change", syncChatGPTXTypingEffects);
+      document.addEventListener("input", swivoxTypingEffectInput, true);
+      document.addEventListener("compositionstart", swivoxTypingEffectCompositionStart, true);
+      document.addEventListener("compositionend", swivoxTypingEffectCompositionEnd, true);
+      document.addEventListener("focusout", swivoxTypingEffectFocusOut, true);
+      document.addEventListener("visibilitychange", syncSwivoxTypingEffects);
+      window.addEventListener("blur", clearSwivoxTypingEffects);
+      window.addEventListener("resize", clearSwivoxTypingEffects);
+      state.media?.addEventListener?.("change", syncSwivoxTypingEffects);
     }
-    syncChatGPTXTypingEffects();
+    syncSwivoxTypingEffects();
   }
 
-  window.__chatgptxTypingEffectsRuntime = {
+  window.__swivoxTypingEffectsRuntime = {
     dispose() {
-      const state = chatgptxTypingEffects;
+      const state = swivoxTypingEffects;
       state.disposed = true;
-      clearChatGPTXTypingEffects();
+      clearSwivoxTypingEffects();
       if (!state.installed) return;
-      document.removeEventListener("input", chatgptxTypingEffectInput, true);
-      document.removeEventListener("compositionstart", chatgptxTypingEffectCompositionStart, true);
-      document.removeEventListener("compositionend", chatgptxTypingEffectCompositionEnd, true);
-      document.removeEventListener("focusout", chatgptxTypingEffectFocusOut, true);
-      document.removeEventListener("visibilitychange", syncChatGPTXTypingEffects);
-      window.removeEventListener("blur", clearChatGPTXTypingEffects);
-      window.removeEventListener("resize", clearChatGPTXTypingEffects);
-      state.media?.removeEventListener?.("change", syncChatGPTXTypingEffects);
+      document.removeEventListener("input", swivoxTypingEffectInput, true);
+      document.removeEventListener("compositionstart", swivoxTypingEffectCompositionStart, true);
+      document.removeEventListener("compositionend", swivoxTypingEffectCompositionEnd, true);
+      document.removeEventListener("focusout", swivoxTypingEffectFocusOut, true);
+      document.removeEventListener("visibilitychange", syncSwivoxTypingEffects);
+      window.removeEventListener("blur", clearSwivoxTypingEffects);
+      window.removeEventListener("resize", clearSwivoxTypingEffects);
+      state.media?.removeEventListener?.("change", syncSwivoxTypingEffects);
       state.installed = false;
     },
   };

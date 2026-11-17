@@ -7,7 +7,7 @@ const begin = source.indexOf('  const officialUsageWindowMarker =');
 const end = source.indexOf('  function sessionCopyMenuRow', begin);
 assert.ok(begin >= 0 && end > begin);
 const profile = source.slice(source.indexOf('  function codexRemoteSessionActiveProfile()'), source.indexOf('  function codexRemoteSessionProviderPatchEnabled()'));
-const install = `(function(){let chatgptxBackendSettings={};let chatgptxBackendSettingsLoaded=false;const sendChatGPTXDiagnostic=()=>{};${profile}\n${source.slice(begin, end)}})()`;
+const install = `(function(){let swivoxBackendSettings={};let swivoxBackendSettingsLoaded=false;const sendSwivoxDiagnostic=()=>{};${profile}\n${source.slice(begin, end)}})()`;
 const settings = mixed => ({ relayProfilesEnabled: true, activeRelayId: "active", relayProfiles: [{ id: "active", relayMode: "official", officialMixApiKey: mixed }] });
 const usage = (allowed = false) => ({ plan_type: "free", account_id: "account", user_id: "user", rate_limit: { allowed, limit_reached: !allowed, primary_window: { used_percent: allowed ? 0 : 100 } }, rate_limit_warning: { title: "low" } });
 
@@ -22,7 +22,7 @@ function fixture({ copyOnPublish = false } = {}) {
     setAttribute(key,value) { this.attrs[key]=value; }
     removeAttribute(key) { delete this.attrs[key]; }
     hasAttribute(key) { return key in this.attrs; }
-    matches(selector) { return selector.split(",").some(s=>{s=s.trim();return s==="aside"?this.tagName==="ASIDE":s==='[role="status"]'?this.attrs.role==="status":s.includes("data-chatgptx-official-usage-window")&&this.hasAttribute("data-chatgptx-official-usage-window");}); }
+    matches(selector) { return selector.split(",").some(s=>{s=s.trim();return s==="aside"?this.tagName==="ASIDE":s==='[role="status"]'?this.attrs.role==="status":s.includes("data-swivox-official-usage-window")&&this.hasAttribute("data-swivox-official-usage-window");}); }
     querySelectorAll(selector) { return this.children.flatMap(c=>[...(c.matches(selector)?[c]:[]),...c.querySelectorAll(selector)]); }
   }
   const body = new Element("body");
@@ -35,9 +35,9 @@ function fixture({ copyOnPublish = false } = {}) {
   const image = new Query(["rate-limit-status","image-generation"], usage());
   const cache = { getAll:()=>queries, findAll:()=>queries, find:({queryKey})=>queries.find(q=>JSON.stringify(q.queryKey)===JSON.stringify(queryKey)), subscribe:f=>{listeners.push(f);return()=>listeners.splice(listeners.indexOf(f),1);} };
   const client = { getQueryCache:()=>cache, setQueryData:(key,value)=>{const q=queries.find(q=>JSON.stringify(q.queryKey)===JSON.stringify(key));return q?.setData(typeof value==="function"?value(q.state.data):value);}, invalidateQueries:()=>new Promise(()=>{}) };
-  const window = { __CHATGPTX_TEST_RATE_LIMIT_UNLOCK__:true, __REACT_QUERY_CLIENT__:client };
+  const window = { __SWIVOX_TEST_RATE_LIMIT_UNLOCK__:true, __REACT_QUERY_CLIENT__:client };
   const context = vm.createContext({window,document,Node:{ELEMENT_NODE:1},MutationObserver:Observer,setTimeout,clearTimeout});
-  const load = () => {vm.runInContext(install,context);return window.__chatgptxRateLimitUnlockTest;};
+  const load = () => {vm.runInContext(install,context);return window.__swivoxRateLimitUnlockTest;};
   const inject = mixed => {const api=load();api.setBackendSettings(settings(mixed));api.install();return api;};
   const deliver = records => { for(const o of observers)if(o.active)o.callback(records); };
   const card = text => {const e=body.append(new Element("section",text));e.setAttribute("role","status");e.className="rounded-2xl ring-border";return e;};

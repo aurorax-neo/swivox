@@ -1,5 +1,5 @@
 /**
- * 用 CDP 在真实 Codex 页面上端到端验证拓展 UI 接口（window.chatgptx）。
+ * 用 CDP 在真实 Codex 页面上端到端验证拓展 UI 接口（window.swivox）。
  *
  * 验证的是「测试断言不了的」那一层：选择器在真实 Codex DOM 里能否命中、
  * 注册后 UI 是否真的出现、宿主重建后是否还在。renderer-inject.test.ts 只能
@@ -80,9 +80,9 @@ await evaluate(`(() => {
     window.__probeCalls.push({ path, payload });
     return Promise.resolve({ status: "ok", message: "probe-ok" });
   };
-  window.__chatgptxBridgeHealth = { lastInjectionAt: Date.now(), lastSuccessAt: Date.now(), lastAttemptAt: Date.now() };
+  window.__swivoxBridgeHealth = { lastInjectionAt: Date.now(), lastSuccessAt: Date.now(), lastAttemptAt: Date.now() };
   // 用户脚本运行时状态：接口层靠它做归属与失败上报，桩成空表即可。
-  window.__chatgptxUserScripts = { scripts: {}, currentKey: null, registerCleanup() {} };
+  window.__swivoxUserScripts = { scripts: {}, currentKey: null, registerCleanup() {} };
   return true;
 })()`);
 
@@ -92,7 +92,7 @@ await evaluate(`${source}\n;undefined`);
 
 // ── 2. 接口对象形状 ────────────────────────────────────────────────
 const shape = await evaluate(`(() => {
-  const api = window.chatgptx;
+  const api = window.swivox;
   if (!api) return { present: false };
   return {
     present: true,
@@ -107,7 +107,7 @@ const shape = await evaluate(`(() => {
     constants: api.constants ? Object.keys(api.constants).sort() : [],
   };
 })()`);
-check("window.chatgptx 已挂载", shape.present === true, shape.version);
+check("window.swivox 已挂载", shape.present === true, shape.version);
 check("apiVersion 为 1", shape.apiVersion === 1, shape.apiVersion);
 check(
   "方法齐全",
@@ -119,9 +119,9 @@ check("constants 暴露类名契约", Array.isArray(shape.constants) && shape.co
 // ── 3. 路由白名单 ──────────────────────────────────────────────────
 const routes = await evaluate(`(async () => {
   const out = {};
-  try { await window.chatgptx.call("/diagnostics/log", { event: "probe" }); out.allowed = true; }
+  try { await window.swivox.call("/diagnostics/log", { event: "probe" }); out.allowed = true; }
   catch (e) { out.allowed = false; out.allowedError = e.message; }
-  try { await window.chatgptx.call("/settings/set", { x: 1 }); out.blocked = false; }
+  try { await window.swivox.call("/settings/set", { x: 1 }); out.blocked = false; }
   catch (e) { out.blocked = true; out.blockedError = e.message; }
   return out;
 })()`);
@@ -131,12 +131,12 @@ check("未开放路由被拦截", routes.blocked === true, routes.blockedError);
 // ── 4. 注册整页视图 + 图标栏入口 ───────────────────────────────────
 const registered = await evaluate(`(async () => {
   window.__probePageRenders = 0;
-  window.__probeDispose = window.chatgptx.registerPage(
+  window.__probeDispose = window.swivox.registerPage(
     {
       title: "探针面板",
       render: ({ container, script }) => {
         window.__probePageRenders += 1;
-        container.innerHTML = '<div class="chatgptx-row" data-probe-body="true">探针内容 ' + script + "</div>";
+        container.innerHTML = '<div class="swivox-row" data-probe-body="true">探针内容 ' + script + "</div>";
       },
     },
     { navLabel: "探针面板", icon: "P" },
@@ -145,7 +145,7 @@ const registered = await evaluate(`(async () => {
   const deadline = Date.now() + 10000;
   let entry = null;
   while (Date.now() < deadline) {
-    entry = document.querySelector('[data-chatgptx-ext] #chatgptx-ext-rail, [id^="chatgptx-ext-rail-"]');
+    entry = document.querySelector('[data-swivox-ext] #swivox-ext-rail, [id^="swivox-ext-rail-"]');
     if (entry) break;
     await new Promise((r) => setTimeout(r, 100));
   }
@@ -164,10 +164,10 @@ const opened = await evaluate(`(async () => {
   if (!entry) return { ok: false };
   (entry.querySelector("button") || entry).click();
   await new Promise((r) => setTimeout(r, 500));
-  const overlay = document.querySelector(".chatgptx-page-overlay");
+  const overlay = document.querySelector(".swivox-page-overlay");
   const body = overlay?.querySelector("[data-probe-body]");
-  const railActive = document.querySelector('[data-chatgptx-ext-rail-active="true"]');
-  const nativeSuppressed = document.documentElement.hasAttribute("data-chatgptx-page-open");
+  const railActive = document.querySelector('[data-swivox-ext-rail-active="true"]');
+  const nativeSuppressed = document.documentElement.hasAttribute("data-swivox-page-open");
   const rect = overlay ? overlay.getBoundingClientRect() : null;
   const rail = document.querySelector("nav[data-app-navigation-rail]");
   return {
@@ -180,7 +180,7 @@ const opened = await evaluate(`(async () => {
     nativeSuppressed,
     overlayLeft: rect ? Math.round(rect.left) : null,
     railWidth: rail ? Math.round(rail.getBoundingClientRect().width) : null,
-    zoomApplied: overlay ? getComputedStyle(overlay).getPropertyValue("--chatgptx-zoom") || "unset" : null,
+    zoomApplied: overlay ? getComputedStyle(overlay).getPropertyValue("--swivox-zoom") || "unset" : null,
   };
 })()`);
 check("整页 overlay 已创建", opened.overlay === true);
@@ -197,18 +197,18 @@ check(
 
 // ── 6. 关闭后重建：overlay 被清掉，但注册项还在 ────────────────────
 const rebuilt = await evaluate(`(async () => {
-  document.querySelector(".chatgptx-modal-close")?.click();
+  document.querySelector(".swivox-modal-close")?.click();
   // 内置页面靠 header 的关闭按钮；拓展页面没有，直接移除模拟宿主重建。
-  document.querySelectorAll(".chatgptx-page-overlay").forEach((n) => n.remove());
+  document.querySelectorAll(".swivox-page-overlay").forEach((n) => n.remove());
   await new Promise((r) => setTimeout(r, 200));
-  const gone = !document.querySelector(".chatgptx-page-overlay");
+  const gone = !document.querySelector(".swivox-page-overlay");
   // 再点一次入口：注册表持久，应当能重新打开并重跑 render。
   const entry = document.getElementById("${registered.id || "none"}");
   (entry?.querySelector("button") || entry)?.click();
   await new Promise((r) => setTimeout(r, 400));
   return {
     closed: gone,
-    reopened: !!document.querySelector(".chatgptx-page-overlay [data-probe-body]"),
+    reopened: !!document.querySelector(".swivox-page-overlay [data-probe-body]"),
     renderCount: window.__probePageRenders,
   };
 })()`);
@@ -219,10 +219,10 @@ check("宿主重建后 render 被重新调用", rebuilt.renderCount === 2, rebui
 // ── 7. toast 队列与类型 ────────────────────────────────────────────
 const toasts = await evaluate(`(async () => {
   document.querySelectorAll(".codex-delete-toast").forEach((n) => n.remove());
-  window.chatgptx.toast("第一条", { type: "success" });
-  window.chatgptx.toast("第二条", { type: "error" });
-  window.chatgptx.toast("第三条");
-  window.chatgptx.toast("第四条");
+  window.swivox.toast("第一条", { type: "success" });
+  window.swivox.toast("第二条", { type: "error" });
+  window.swivox.toast("第三条");
+  window.swivox.toast("第四条");
   await new Promise((r) => setTimeout(r, 300));
   const live = Array.from(document.querySelectorAll(".codex-delete-toast"));
   return {
@@ -241,25 +241,25 @@ check("多条 toast 错开纵向位置", new Set(toasts.bottoms).size === toasts
 // ── 8. 配额与失败隔离 ──────────────────────────────────────────────
 const limits = await evaluate(`(() => {
   const out = { perScript: null, illegalSelector: null, callbackError: null };
-  window.__chatgptxUserScripts.currentKey = "user:probe.js";
+  window.__swivoxUserScripts.currentKey = "user:probe.js";
   const disposers = [];
   for (let i = 0; i < 16; i += 1) {
-    try { disposers.push(window.chatgptx.registerRowAction({ label: "项" + i, onActivate() {} })); }
+    try { disposers.push(window.swivox.registerRowAction({ label: "项" + i, onActivate() {} })); }
     catch (e) { out.perScript = e.message; break; }
   }
-  try { window.chatgptx.registerRowAction({ label: "溢出", onActivate() {} }); out.perScript = "NO_ERROR"; }
+  try { window.swivox.registerRowAction({ label: "溢出", onActivate() {} }); out.perScript = "NO_ERROR"; }
   catch (e) { out.perScript = e.message; }
   // 回调抛错不应冒泡到调用方。
-  const entry = document.querySelector('[id^="chatgptx-ext-rail-"]');
+  const entry = document.querySelector('[id^="swivox-ext-rail-"]');
   try {
-    window.__chatgptxUserScripts.scripts["user:probe.js"] = { key: "user:probe.js", status: "loaded", error: "" };
-    const bad = window.chatgptx.registerPage({ title: "坏页面", render: () => { throw new Error("render-boom"); } });
+    window.__swivoxUserScripts.scripts["user:probe.js"] = { key: "user:probe.js", status: "loaded", error: "" };
+    const bad = window.swivox.registerPage({ title: "坏页面", render: () => { throw new Error("render-boom"); } });
     bad();
     out.callbackError = "no-error-recorded";
   } catch (e) { out.callbackError = "THREW_TO_CALLER:" + e.message; }
-  out.recordedFailures = (window.__chatgptxExtensionFailures || []).length;
+  out.recordedFailures = (window.__swivoxExtensionFailures || []).length;
   disposers.forEach((d) => d());
-  window.__chatgptxUserScripts.currentKey = null;
+  window.__swivoxUserScripts.currentKey = null;
   return out;
 })()`);
 check("单脚本配额生效", /最多注册 16 项/.test(String(limits.perScript)), limits.perScript);
@@ -271,8 +271,8 @@ const disposed = await evaluate(`(async () => {
   await new Promise((r) => setTimeout(r, 300));
   return {
     railGone: !document.getElementById("${registered.id || "none"}"),
-    overlayGone: !document.querySelector(".chatgptx-page-overlay"),
-    registryLog: (window.__chatgptxRegistryLog || []).length,
+    overlayGone: !document.querySelector(".swivox-page-overlay"),
+    registryLog: (window.__swivoxRegistryLog || []).length,
   };
 })()`);
 check("dispose 后图标栏入口消失", disposed.railGone === true);
@@ -280,7 +280,7 @@ check("注册流水有记录", disposed.registryLog > 0, disposed.registryLog);
 
 // ── 10. 崩溃与报错摘要 ─────────────────────────────────────────────
 const errors = await evaluate(`(() => ({
-  failures: (window.__chatgptxExtensionFailures || []).map((f) => f.message).slice(0, 5),
+  failures: (window.__swivoxExtensionFailures || []).map((f) => f.message).slice(0, 5),
   probeCalls: (window.__probeCalls || []).map((c) => c.path),
 }))()`);
 console.log("\n诊断:", JSON.stringify(errors, null, 2));

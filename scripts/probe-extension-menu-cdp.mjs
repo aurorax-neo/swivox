@@ -74,8 +74,8 @@ await evaluate(`(() => {
     path === "/settings/get"
       ? { status: "ok", settings: { enhancementsEnabled: true, userScriptsEnabled: true } }
       : { status: "ok", message: "" });
-  window.__chatgptxBridgeHealth = { lastInjectionAt: Date.now(), lastSuccessAt: Date.now(), lastAttemptAt: Date.now() };
-  window.__chatgptxUserScripts = { scripts: { "user:menu-probe.js": { key: "user:menu-probe.js", status: "loaded", error: "" } }, currentKey: null, registerCleanup() {} };
+  window.__swivoxBridgeHealth = { lastInjectionAt: Date.now(), lastSuccessAt: Date.now(), lastAttemptAt: Date.now() };
+  window.__swivoxUserScripts = { scripts: { "user:menu-probe.js": { key: "user:menu-probe.js", status: "loaded", error: "" } }, currentKey: null, registerCleanup() {} };
   return true;
 })()`);
 
@@ -86,8 +86,8 @@ await evaluate(`${await readFile(path.join(root, "assets/inject/renderer-inject.
 const navReady = await evaluate(`(async () => {
   const deadline = Date.now() + 20000;
   while (Date.now() < deadline) {
-    if (document.getElementById("chatgptx-rail-nav")
-      || document.getElementById("chatgptx-sidebar-nav")) return true;
+    if (document.getElementById("swivox-rail-nav")
+      || document.getElementById("swivox-sidebar-nav")) return true;
     await new Promise((r) => setTimeout(r, 300));
   }
   return false;
@@ -98,32 +98,32 @@ check("导航入口已渲染", navReady === true);
 const beforeOpen = await evaluate(`(async () => {
   window.__toggleState = false;
   window.__activations = 0;
-  window.__disposeMenu = window.chatgptx.registerMenuItem(
+  window.__disposeMenu = window.swivox.registerMenuItem(
     { label: "探针开关", description: "一个开关", onChange: (v) => { window.__toggleState = v; }, toggleValue: () => window.__toggleState },
     { id: "probe-toggle" },
   );
-  window.__disposeButton = window.chatgptx.registerMenuItem(
+  window.__disposeButton = window.swivox.registerMenuItem(
     { label: "探针按钮", description: "一个动作", buttonLabel: "执行", onActivate: () => { window.__activations += 1; } },
     { id: "probe-button" },
   );
-  // 打开 ChatGPTX 菜单
-  document.getElementById("chatgptx-rail-nav")?.querySelector("button")?.click();
+  // 打开 Swivox 菜单
+  document.getElementById("swivox-rail-nav")?.querySelector("button")?.click();
   await new Promise((r) => setTimeout(r, 600));
-  const panel = document.querySelector('[data-chatgptx-panel="home"]');
-  const block = panel?.querySelector("[data-chatgptx-ext-menu]");
+  const panel = document.querySelector('[data-swivox-panel="home"]');
+  const block = panel?.querySelector("[data-swivox-ext-menu]");
   return {
     menuOpened: !!panel,
     blockPresent: !!block,
-    rowCount: block ? block.querySelectorAll("[data-chatgptx-ext-row]").length : 0,
-    toggle: !!block?.querySelector("[data-chatgptx-ext-setting]"),
-    action: !!block?.querySelector("[data-chatgptx-ext-action]"),
-    labels: block ? Array.from(block.querySelectorAll(".chatgptx-row-title")).map((n) => n.textContent) : [],
+    rowCount: block ? block.querySelectorAll("[data-swivox-ext-row]").length : 0,
+    toggle: !!block?.querySelector("[data-swivox-ext-setting]"),
+    action: !!block?.querySelector("[data-swivox-ext-action]"),
+    labels: block ? Array.from(block.querySelectorAll(".swivox-row-title")).map((n) => n.textContent) : [],
     // 拓展项必须排在所有内置项之后
     lastBuiltinBeforeExt: (() => {
       if (!block || !panel) return null;
-      const all = Array.from(panel.querySelectorAll(".chatgptx-row"));
-      const extIdx = all.findIndex((r) => r.hasAttribute("data-chatgptx-ext-row"));
-      const builtinsAfter = all.slice(extIdx).filter((r) => !r.hasAttribute("data-chatgptx-ext-row"));
+      const all = Array.from(panel.querySelectorAll(".swivox-row"));
+      const extIdx = all.findIndex((r) => r.hasAttribute("data-swivox-ext-row"));
+      const builtinsAfter = all.slice(extIdx).filter((r) => !r.hasAttribute("data-swivox-ext-row"));
       return builtinsAfter.length;
     })(),
   };
@@ -137,7 +137,7 @@ check("拓展项排在所有内置项之后", beforeOpen.lastBuiltinBeforeExt ==
 
 // ── 2. 开关可切换 ──────────────────────────────────────────────────
 const toggled = await evaluate(`(async () => {
-  const btn = document.querySelector("[data-chatgptx-ext-setting]");
+  const btn = document.querySelector("[data-swivox-ext-setting]");
   const before = btn.getAttribute("data-enabled");
   btn.click();
   await new Promise((r) => setTimeout(r, 200));
@@ -150,7 +150,7 @@ check("aria-pressed 同步", toggled.aria === "true");
 
 // ── 3. 动作按钮可点击 ──────────────────────────────────────────────
 const activated = await evaluate(`(async () => {
-  const btn = document.querySelector("[data-chatgptx-ext-action]");
+  const btn = document.querySelector("[data-swivox-ext-action]");
   btn.click();
   await new Promise((r) => setTimeout(r, 200));
   return { count: window.__activations };
@@ -159,13 +159,13 @@ check("onActivate 被调用", activated.count === 1, activated.count);
 
 // ── 4. 菜单已打开时注册：应当立刻出现 ──────────────────────────────
 const late = await evaluate(`(async () => {
-  window.chatgptx.registerMenuItem({ label: "后注册项", buttonLabel: "走", onActivate: () => {} }, { id: "probe-late" });
+  window.swivox.registerMenuItem({ label: "后注册项", buttonLabel: "走", onActivate: () => {} }, { id: "probe-late" });
   await new Promise((r) => setTimeout(r, 300));
-  const block = document.querySelector("[data-chatgptx-ext-menu]");
+  const block = document.querySelector("[data-swivox-ext-menu]");
   return {
-    rowCount: block ? block.querySelectorAll("[data-chatgptx-ext-row]").length : 0,
-    hasLate: !!document.querySelector('[data-chatgptx-ext-row*="probe-late"]'),
-    blocks: document.querySelectorAll("[data-chatgptx-ext-menu]").length,
+    rowCount: block ? block.querySelectorAll("[data-swivox-ext-row]").length : 0,
+    hasLate: !!document.querySelector('[data-swivox-ext-row*="probe-late"]'),
+    blocks: document.querySelectorAll("[data-swivox-ext-menu]").length,
   };
 })()`);
 check("已打开的菜单会即时补上", late.hasLate === true);
@@ -174,11 +174,11 @@ check("没有重复的拓展块", late.blocks === 1, late.blocks);
 
 // ── 5. 菜单重新打开时状态从 toggleValue 重读 ───────────────────────
 const reopened = await evaluate(`(async () => {
-  document.querySelector(".chatgptx-modal-close")?.click();
+  document.querySelector(".swivox-modal-close")?.click();
   await new Promise((r) => setTimeout(r, 300));
-  document.getElementById("chatgptx-rail-nav")?.querySelector("button")?.click();
+  document.getElementById("swivox-rail-nav")?.querySelector("button")?.click();
   await new Promise((r) => setTimeout(r, 600));
-  const btn = document.querySelector("[data-chatgptx-ext-setting]");
+  const btn = document.querySelector("[data-swivox-ext-setting]");
   return { present: !!btn, enabled: btn?.getAttribute("data-enabled") };
 })()`);
 check("重新打开后拓展项仍在", reopened.present === true);
@@ -189,14 +189,14 @@ const disposed = await evaluate(`(async () => {
   window.__disposeMenu();
   window.__disposeButton();
   await new Promise((r) => setTimeout(r, 300));
-  // 按 id 精确定位，不要用 [data-chatgptx-ext-action] —— probe-late 也是动作
+  // 按 id 精确定位，不要用 [data-swivox-ext-action] —— probe-late 也是动作
   // 按钮，取「第一个」会拿到它，断言就失去意义了。
-  const rowOf = (id) => document.querySelector('[data-chatgptx-ext-row$="' + id + '"]');
+  const rowOf = (id) => document.querySelector('[data-swivox-ext-row$="' + id + '"]');
   return {
     menuGone: !rowOf("probe-toggle"),
     buttonGone: !rowOf("probe-button"),
     lateStillThere: !!rowOf("probe-late"),
-    blockStillThere: !!document.querySelector("[data-chatgptx-ext-menu]"),
+    blockStillThere: !!document.querySelector("[data-swivox-ext-menu]"),
   };
 })()`);
 check("dispose 后开关消失", disposed.menuGone === true);
@@ -206,31 +206,31 @@ check("未 dispose 的项保留", disposed.lateStillThere === true);
 // ── 7. 回调抛错不冒泡，且记入失败通道 ──────────────────────────────
 // 先让菜单重新打开一次，把剩下那项拿回来
 const resilient = await evaluate(`(async () => {
-  document.querySelector(".chatgptx-modal-close")?.click();
+  document.querySelector(".swivox-modal-close")?.click();
   await new Promise((r) => setTimeout(r, 300));
-  document.getElementById("chatgptx-rail-nav")?.querySelector("button")?.click();
+  document.getElementById("swivox-rail-nav")?.querySelector("button")?.click();
   await new Promise((r) => setTimeout(r, 600));
-  window.__chatgptxUserScripts.currentKey = "user:menu-probe.js";
-  window.chatgptx.registerMenuItem(
+  window.__swivoxUserScripts.currentKey = "user:menu-probe.js";
+  window.swivox.registerMenuItem(
     { label: "会炸的项", buttonLabel: "炸", onActivate: () => { throw new Error("menu-boom"); } },
     { id: "probe-boom" },
   );
   await new Promise((r) => setTimeout(r, 300));
-  const before = (window.__chatgptxExtensionFailures || []).length;
+  const before = (window.__swivoxExtensionFailures || []).length;
   // 同样要精确定位到 boom 那一行：页面上此刻有多个拓展项。
-  const boomRow = document.querySelector('[data-chatgptx-ext-row$="probe-boom"]');
-  const btn = boomRow?.querySelector("[data-chatgptx-ext-action]");
+  const boomRow = document.querySelector('[data-swivox-ext-row$="probe-boom"]');
+  const btn = boomRow?.querySelector("[data-swivox-ext-action]");
   if (!btn) return { noBoomButton: true };
   let threw = false;
   try { btn.click(); } catch { threw = true; }
   await new Promise((r) => setTimeout(r, 200));
-  window.__chatgptxUserScripts.currentKey = null;
-  const after = (window.__chatgptxExtensionFailures || []).length;
+  window.__swivoxUserScripts.currentKey = null;
+  const after = (window.__swivoxExtensionFailures || []).length;
   return {
     threwToCaller: threw,
     failuresDelta: after - before,
-    lastMessage: (window.__chatgptxExtensionFailures || []).slice(-1)[0]?.message || "",
-    menuStillUsable: !!document.querySelector("[data-chatgptx-panel='home']"),
+    lastMessage: (window.__swivoxExtensionFailures || []).slice(-1)[0]?.message || "",
+    menuStillUsable: !!document.querySelector("[data-swivox-panel='home']"),
   };
 })()`);
 check("回调抛错不冒泡到点击处理", resilient.threwToCaller === false);

@@ -125,12 +125,12 @@ for (const modern of [false, true]) {
 {
   const { root, api } = fixture();
   const pane = root.append(new Element("main"));
-  pane.append(new Element("header")).append(new Element("button", "codex-session-share-button", { "data-chatgptx-ext": "session-share" }));
+  pane.append(new Element("header")).append(new Element("button", "codex-session-share-button", { "data-swivox-ext": "session-share" }));
   const scroll = pane.append(new Element("div", "thread-scroll-container"));
   const content = scroll.append(new Element("div", "", { "data-thread-user-message-navigation-content": "" }));
   const footer = pane.append(new Element("div", widthClasses, { "data-thread-scroll-footer": "true" }));
   const composer = footer.append(new Element("div", widthClasses));
-  composer.append(new Element("button", "", { "data-chatgptx-ext": "builtin-dictation" }));
+  composer.append(new Element("button", "", { "data-swivox-ext": "builtin-dictation" }));
   assert.equal(api.content(), content); assert.equal(api.composer(), composer);
   api.resolve(); assert.equal(api.state.composerEl, composer, "layout consumers receive the same scoped composer");
 }

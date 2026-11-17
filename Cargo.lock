@@ -1024,112 +1024,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "chatgptx-backend"
-version = "0.1.5"
-dependencies = [
- "anyhow",
- "chatgptx-core",
- "chatgptx-data",
- "chatgptx-launcher",
- "chrono",
- "directories",
- "regex",
- "rusqlite",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "toml_edit 0.22.27",
-]
-
-[[package]]
-name = "chatgptx-core"
-version = "0.1.5"
-dependencies = [
- "aes-gcm",
- "anyhow",
- "async-trait",
- "base64",
- "directories",
- "fs2",
- "futures-util",
- "qrcode",
- "reqwest",
- "rusqlite",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "sherpa-onnx",
- "tempfile",
- "thiserror 2.0.18",
- "tokio",
- "tokio-tungstenite",
- "toml 0.8.23",
- "toml_edit 0.22.27",
- "url",
- "uuid",
- "windows 0.58.0",
- "wiremock",
- "zip",
- "zstd",
-]
-
-[[package]]
-name = "chatgptx-data"
-version = "0.1.5"
-dependencies = [
- "anyhow",
- "base64",
- "chatgptx-core",
- "chrono",
- "fs2",
- "rusqlite",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "tempfile",
- "thiserror 2.0.18",
- "toml 0.8.23",
- "uuid",
-]
-
-[[package]]
-name = "chatgptx-gpui"
-version = "0.1.5"
-dependencies = [
- "anyhow",
- "chatgptx-backend",
- "chatgptx-core",
- "chatgptx-data",
- "chatgptx-launcher",
- "core-foundation 0.10.1",
- "core-graphics 0.24.0",
- "gpui-kit",
- "png 0.17.16",
- "rfd",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tray-icon",
- "winresource",
-]
-
-[[package]]
-name = "chatgptx-launcher"
-version = "0.1.5"
-dependencies = [
- "anyhow",
- "async-trait",
- "chatgptx-core",
- "chatgptx-data",
- "directories",
- "serde_json",
- "tempfile",
- "tokio",
-]
-
-[[package]]
 name = "chrono"
 version = "0.4.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7738,6 +7632,112 @@ dependencies = [
  "skrifa 0.44.0",
  "yazi",
  "zeno",
+]
+
+[[package]]
+name = "swivox-backend"
+version = "0.1.5"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "directories",
+ "regex",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "swivox-core",
+ "swivox-data",
+ "swivox-launcher",
+ "tempfile",
+ "tokio",
+ "toml_edit 0.22.27",
+]
+
+[[package]]
+name = "swivox-core"
+version = "0.1.5"
+dependencies = [
+ "aes-gcm",
+ "anyhow",
+ "async-trait",
+ "base64",
+ "directories",
+ "fs2",
+ "futures-util",
+ "qrcode",
+ "reqwest",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "sherpa-onnx",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-tungstenite",
+ "toml 0.8.23",
+ "toml_edit 0.22.27",
+ "url",
+ "uuid",
+ "windows 0.58.0",
+ "wiremock",
+ "zip",
+ "zstd",
+]
+
+[[package]]
+name = "swivox-data"
+version = "0.1.5"
+dependencies = [
+ "anyhow",
+ "base64",
+ "chrono",
+ "fs2",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "swivox-core",
+ "tempfile",
+ "thiserror 2.0.18",
+ "toml 0.8.23",
+ "uuid",
+]
+
+[[package]]
+name = "swivox-gpui"
+version = "0.1.5"
+dependencies = [
+ "anyhow",
+ "core-foundation 0.10.1",
+ "core-graphics 0.24.0",
+ "gpui-kit",
+ "png 0.17.16",
+ "rfd",
+ "serde",
+ "serde_json",
+ "swivox-backend",
+ "swivox-core",
+ "swivox-data",
+ "swivox-launcher",
+ "tempfile",
+ "tokio",
+ "tray-icon",
+ "winresource",
+]
+
+[[package]]
+name = "swivox-launcher"
+version = "0.1.5"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "directories",
+ "serde_json",
+ "swivox-core",
+ "swivox-data",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]

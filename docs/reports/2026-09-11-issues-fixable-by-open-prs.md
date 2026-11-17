@@ -19,9 +19,9 @@
 
 ## 1. #2154 → 修 #2148（唯一一条显式链接的）
 
-**#2148**：Windows 升 1.3.0 后点"重启 ChatGPTX"报 `此应用不支持指定的合约或未安装该应用。 (0x80270254)`。
+**#2148**：Windows 升 1.3.0 后点"重启 Swivox"报 `此应用不支持指定的合约或未安装该应用。 (0x80270254)`。
 
-**PR #2154**（Story19240，+91/-1，2 文件）：根因是 `packaged_app_user_model_id`（[app_paths.rs:488](crates/chatgptx-core/src/app_paths.rs:488)）把 AUMID 应用段硬编码成 `App`，而 ChatGPT Desktop `1.2026.190.0` 更新后 manifest 里的 `<Application Id>` 已不是 `App`。改成从包内 `AppxManifest.xml` 读第一个 `<Application>` 的 `Id`，读不到再回退旧值。
+**PR #2154**（Story19240，+91/-1，2 文件）：根因是 `packaged_app_user_model_id`（[app_paths.rs:488](crates/swivox-core/src/app_paths.rs:488)）把 AUMID 应用段硬编码成 `App`，而 ChatGPT Desktop `1.2026.190.0` 更新后 manifest 里的 `<Application Id>` 已不是 `App`。改成从包内 `AppxManifest.xml` 读第一个 `<Application>` 的 `Id`，读不到再回退旧值。
 
 **我的验证**：新增的两个测试 `packaged_app_user_model_id_reads_application_id_from_manifest` / `..._falls_back_to_default_id_without_manifest` → **2 passed**。回退分支保证了 `OpenAI.Codex` / `CodexBeta` 行为不变。
 
@@ -33,7 +33,7 @@
 
 ## 2. #2136 → 能关 #2150
 
-**#2150**："chatgptx 好几个版本在 chat 协议下无法使用，grok 和 claude 都接不进来，客户端各个高低版本都试过了"。
+**#2150**："swivox 好几个版本在 chat 协议下无法使用，grok 和 claude 都接不进来，客户端各个高低版本都试过了"。
 
 **PR #2136**：Codex 26.901 起 `wire_api = "chat"` 会让**整份 config.toml 判为无效**、静默回退内置默认模型。PR 把三处写出路径全部改成恒写 `responses`，chat 上游由 `protocol_proxy` 做 responses→chat 转换。
 
@@ -63,7 +63,7 @@ src/App.tsx(10289,21): error TS2304: Cannot find name 'noAuth'.
 
 - 前端 `npm test` → **159 passed / 0 failed**
 - 本地 `git rebase main`（从 `48d4315` 到 `be6a458`）→ **干净通过，无冲突**
-- rebase 后 `cargo test -p chatgptx-core --test launcher` → **83 passed / 0 failed**
+- rebase 后 `cargo test -p swivox-core --test launcher` → **83 passed / 0 failed**
 
 rebase 前 `tests/launcher.rs` 那条失败（`a_busy_floating_helper_port_fails_immediately_without_waiting`）**确认是过期 base 造成的**：main 已用 #2098 把它重写成 `..._respects_the_platform_retry_budget`（macOS 断言重试 31 次）。**rebase 后 CI 就该绿了**，不用再让作者改代码。
 
@@ -87,13 +87,13 @@ rebase 前 `tests/launcher.rs` 那条失败（`a_busy_floating_helper_port_fails
 
 | issue | 已合并的修复 | 需要确认 |
 |---|---|---|
-| #1480 纯 API 图片生成不出来 | #2104（本地代理加 `/v1/images/generations` 路由，我已在 [protocol_proxy.rs:523](crates/chatgptx-core/src/protocol_proxy.rs:523) 确认落地） | 让用户复测 |
+| #1480 纯 API 图片生成不出来 | #2104（本地代理加 `/v1/images/generations` 路由，我已在 [protocol_proxy.rs:523](crates/swivox-core/src/protocol_proxy.rs:523) 确认落地） | 让用户复测 |
 | #2064 换肤后首页输入框不可见 | #1712（`fix: clip home composer corners on Windows` / `round home composer corners` 都在 main） | 让用户复测 |
-| #2026 deepseek 反复循环对话 | #1964 `fix(proxy): preserve ctc_ IDs for custom tool calls`（[protocol_proxy.rs:2336](crates/chatgptx-core/src/protocol_proxy.rs:2336) 已落地） | 让用户复测 |
+| #2026 deepseek 反复循环对话 | #1964 `fix(proxy): preserve ctc_ IDs for custom tool calls`（[protocol_proxy.rs:2336](crates/swivox-core/src/protocol_proxy.rs:2336) 已落地） | 让用户复测 |
 | #1748 Agent 工具调用无限循环 | 同上（#1964 的 ID 保真问题） | 让用户复测 |
-| #2016 Kimi 所有请求报错（`$ref` sibling） | #2106（`inline_ref_siblings` 已在 [protocol_proxy.rs:3385](crates/chatgptx-core/src/protocol_proxy.rs:3385) 落地） | 让用户复测 |
-| #2076 `failed to bind helper runtime on 57321` | #2098（macOS 主进程探测） | 需确认是否 Windows 也覆盖 |
-| #2073 会话仍然无法删除 / #2079 删除不同步 | #2092（`remove_thread_sidebar_references` 已在 [provider_sync.rs:2815](crates/chatgptx-data/src/provider_sync.rs:2815) 落地） | #2142 说明覆盖不全，见下 |
+| #2016 Kimi 所有请求报错（`$ref` sibling） | #2106（`inline_ref_siblings` 已在 [protocol_proxy.rs:3385](crates/swivox-core/src/protocol_proxy.rs:3385) 落地） | 让用户复测 |
+| #2076 `failed to bind helper runtime on 58321` | #2098（macOS 主进程探测） | 需确认是否 Windows 也覆盖 |
+| #2073 会话仍然无法删除 / #2079 删除不同步 | #2092（`remove_thread_sidebar_references` 已在 [provider_sync.rs:2815](crates/swivox-data/src/provider_sync.rs:2815) 落地） | #2142 说明覆盖不全，见下 |
 | #1948 历史会话全部消失 | #1969 | 关联弱，建议只当作参考 |
 | #1439 GPT 5.6 不能开 fast | main 的 `assets/gpt56-model-metadata-compat.json` 里 `gpt-5.6-sol` / `terra` 都已带 `additional_speed_tiers: ["fast"]` | 直接可关 |
 

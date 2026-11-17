@@ -159,8 +159,8 @@ def build(source, copy):
 
 if __name__ == "__main__":
     try:
-        source = pathlib.Path(os.environ["CHATGPTX_CLAUDE_SOURCE"])
-        copy = pathlib.Path(os.environ["CHATGPTX_CLAUDE_COPY"])
+        source = pathlib.Path(os.environ["SWIVOX_CLAUDE_SOURCE"])
+        copy = pathlib.Path(os.environ["SWIVOX_CLAUDE_COPY"])
         if "--check" in sys.argv:
             check(source, copy)
         else:

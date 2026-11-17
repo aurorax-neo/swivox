@@ -77,12 +77,12 @@ jobs:
           if (-not $makensis) { throw "NSIS 安装失败或编译器不可用，停止发布构建。" }
 
       - name: Build application
-        run: cargo build --release -p chatgptx-gpui --bin chatgptx
+        run: cargo build --release -p swivox-gpui --bin swivox
       - name: Stage Windows app files
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist/windows/app | Out-Null
-          Copy-Item target/release/chatgptx.exe dist/windows/app/
+          Copy-Item target/release/swivox.exe dist/windows/app/
           if ((Get-ChildItem dist/windows/app -Filter *.exe).Count -ne 1) { throw "Windows 安装包必须只有一个应用程序。" }
 
       - name: Build Windows zip asset
@@ -90,7 +90,7 @@ jobs:
         run: |
           $version = ($env:RELEASE_TAG).TrimStart("v", "V")
           New-Item -ItemType Directory -Force dist/windows | Out-Null
-          Compress-Archive -Path dist/windows/app/* -DestinationPath "dist/windows/ChatGPTX-$version-windows-x64.zip" -Force
+          Compress-Archive -Path dist/windows/app/* -DestinationPath "dist/windows/Swivox-$version-windows-x64.zip" -Force
 
       - name: Build Windows installer
         shell: pwsh
@@ -111,7 +111,7 @@ jobs:
           }
           Push-Location scripts/installer/windows
           try {
-            & $makensis "/INPUTCHARSET" "UTF8" "/DVERSION=$version" ChatGPTX.nsi
+            & $makensis "/INPUTCHARSET" "UTF8" "/DVERSION=$version" Swivox.nsi
             if ($LASTEXITCODE -ne 0) { throw "NSIS 打包失败，退出码 $LASTEXITCODE" }
           } finally {
             Pop-Location
@@ -190,7 +190,7 @@ jobs:
           KEY_PATH="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
           echo "$APPLE_API_KEY_P8" | base64 --decode > "$KEY_PATH"
           chmod 600 "$KEY_PATH"
-          xcrun notarytool store-credentials "chatgptx-notary" \
+          xcrun notarytool store-credentials "swivox-notary" \
             --key "$KEY_PATH" \
             --key-id "$APPLE_API_KEY_ID" \
             --issuer "$APPLE_API_ISSUER_ID"
@@ -215,7 +215,7 @@ jobs:
           VERSION="${RELEASE_TAG#v}"
           VERSION="${VERSION#V}"
           if [ -n "${APPLE_API_KEY_P8:-}" ] && [ -n "${MACOS_SIGNING_IDENTITY:-}" ]; then
-            export MACOS_NOTARY_PROFILE="chatgptx-notary"
+            export MACOS_NOTARY_PROFILE="swivox-notary"
           fi
           # 若配置了 MACOS_SIGNING_IDENTITY 则走正式签名+公证，未配置则自动回退 ad-hoc 签名。
           bash scripts/installer/macos/build-universal.sh "$VERSION"
@@ -229,19 +229,19 @@ jobs:
           apps=(dist/macos/stage/*.app)
           test "${#apps[@]}" = "2"
           test -f "dist/macos/stage/.hidden"
-          grep -qx "ChatGPTX 管理工具.app" "dist/macos/stage/.hidden"
-          for app in "dist/macos/stage/ChatGPTX.app" "dist/macos/stage/ChatGPTX 管理工具.app"; do
+          grep -qx "Swivox 管理工具.app" "dist/macos/stage/.hidden"
+          for app in "dist/macos/stage/Swivox.app" "dist/macos/stage/Swivox 管理工具.app"; do
             test -f "$app/Contents/Info.plist"
             test -f "$app/Contents/PkgInfo"
             test -x "$app/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")"
             if [[ "$app" == *"管理工具.app" ]]; then
-              test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = "com.chatgptx.app.manager"
-              test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")" = "ChatGPTXManager"
+              test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = "com.swivox.app.manager"
+              test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")" = "SwivoxManager"
             else
-              test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = "com.chatgptx.app"
-              test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")" = "ChatGPTX"
+              test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = "com.swivox.app"
+              test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")" = "Swivox"
             fi
-            test "$(/usr/libexec/PlistBuddy -c 'Print :ChatGPTXUnifiedApp' "$app/Contents/Info.plist")" = "true"
+            test "$(/usr/libexec/PlistBuddy -c 'Print :SwivoxUnifiedApp' "$app/Contents/Info.plist")" = "true"
             plutil -lint "$app/Contents/Info.plist" >/dev/null
             codesign -dv "$app" >/dev/null 2>&1
             # 真签名时额外校验签名有效性与 Gatekeeper 判定，防止"签了但无效"混过去。
@@ -299,9 +299,9 @@ jobs:
           const tag = release.tagName || process.env.TAG;
           const version = tag.replace(/^v/i, "");
           const required = [
-            "ChatGPTX-" + version + "-windows-x64-setup.exe",
-            "ChatGPTX-" + version + "-windows-x64.zip",
-            "ChatGPTX-" + version + "-macos-universal.dmg"
+            "Swivox-" + version + "-windows-x64-setup.exe",
+            "Swivox-" + version + "-windows-x64.zip",
+            "Swivox-" + version + "-macos-universal.dmg"
           ];
           for (const name of required) {
             if (!(release.assets || []).some((asset) => asset.name === name && asset.size > 0)) {

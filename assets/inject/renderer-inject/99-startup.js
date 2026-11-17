@@ -2,22 +2,22 @@
    * 多开实例身份提示。
    *
    * 启动器会在独立 Codex 实例的 renderer 注入前设置
-   * `window.__CHATGPTX_INSTANCE_LABEL__`（或兼容用的
-   * `window.__CHATGPTX_INSTANCE_ID__`）。普通主实例没有这些值，因此不会
+   * `window.__SWIVOX_INSTANCE_LABEL__`（或兼容用的
+   * `window.__SWIVOX_INSTANCE_ID__`）。普通主实例没有这些值，因此不会
    * 渲染提示。节点带有扩展归属标记，避免被扫描调度器当成 Codex 原生节点
-   * 触发自喂循环；也不占用公开的 window.chatgptx API 名称。
+   * 触发自喂循环；也不占用公开的 window.swivox API 名称。
    */
-  function installChatGPTXInstanceIdentity() {
-    const raw = window.__CHATGPTX_INSTANCE_LABEL__ || window.__CHATGPTX_INSTANCE_ID__;
+  function installSwivoxInstanceIdentity() {
+    const raw = window.__SWIVOX_INSTANCE_LABEL__ || window.__SWIVOX_INSTANCE_ID__;
     const label = String(raw || "").replace(/\s+/g, " ").trim();
     if (!label) return;
     const mount = () => {
       if (!document.body) return false;
-      let node = document.getElementById("chatgptx-instance-identity");
+      let node = document.getElementById("swivox-instance-identity");
       if (!node) {
         node = document.createElement("div");
-        node.id = "chatgptx-instance-identity";
-        node.setAttribute("data-chatgptx-ext", "instance-identity");
+        node.id = "swivox-instance-identity";
+        node.setAttribute("data-swivox-ext", "instance-identity");
         node.setAttribute("role", "status");
         node.style.cssText = [
           "position:fixed",
@@ -43,8 +43,8 @@
         ].join(";");
         document.body.appendChild(node);
       }
-      node.textContent = `ChatGPTX 多开 · ${label}`;
-      node.setAttribute("aria-label", `当前 ChatGPTX 多开身份：${label}`);
+      node.textContent = `Swivox 多开 · ${label}`;
+      node.setAttribute("aria-label", `当前 Swivox 多开身份：${label}`);
       return true;
     };
     if (mount()) return;
@@ -59,19 +59,19 @@
     }
   }
 
-  installChatGPTXForceChineseLocale();
-  installChatGPTXInstanceIdentity();
-  runScanStep(installChatGPTXTypingEffects);
-  runScanStep(syncChatGPTXWhaleWidget);
-  let chatgptxResizeRafId = 0;
-  window.__chatgptxResizeHandler = () => {
-    cancelAnimationFrame(chatgptxResizeRafId);
-    chatgptxResizeRafId = requestAnimationFrame(() => {
+  installSwivoxForceChineseLocale();
+  installSwivoxInstanceIdentity();
+  runScanStep(installSwivoxTypingEffects);
+  runScanStep(syncSwivoxWhaleWidget);
+  let swivoxResizeRafId = 0;
+  window.__swivoxResizeHandler = () => {
+    cancelAnimationFrame(swivoxResizeRafId);
+    swivoxResizeRafId = requestAnimationFrame(() => {
       syncActionGroupsLayout(true);
       runScanStep(refreshConversationView);
     });
   };
-  window.addEventListener("resize", window.__chatgptxResizeHandler);
+  window.addEventListener("resize", window.__swivoxResizeHandler);
   window.__codexSessionDeleteObserver?.disconnect();
   window.__codexSessionDeleteObserver = new MutationObserver(scheduleScan);
   window.__codexSessionDeleteObserver.observe(document.body || document.documentElement, {
@@ -90,6 +90,6 @@
   window.__codexSessionActionTriggerClickHandler = rememberSessionActionTrigger;
   document.addEventListener("click", window.__codexSessionActionTriggerClickHandler, true);
   // 对外接口层在此刻挂载：此时所有分片都已执行完毕，闭包里的函数全部就绪。
-  // 放在 99-tail 收尾之前，确保 IIFE 结束前 window.chatgptx 已经可用——
+  // 放在 99-tail 收尾之前，确保 IIFE 结束前 window.swivox 已经可用——
   // 用户脚本的注入晚于本脚本，不会撞上这个时间点。
-  window.chatgptx = buildChatGPTXExtensionApi();
+  window.swivox = buildSwivoxExtensionApi();

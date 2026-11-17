@@ -1,13 +1,13 @@
-# Contributing to ChatGPTX
+# Contributing to Swivox
 
-Thank you for your interest in contributing to ChatGPTX!
+Thank you for your interest in contributing to Swivox!
 
 ## Development Setup
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/aurorax-neo/chatgptx.git
-   cd chatgptx
+   git clone https://github.com/aurorax-neo/swivox.git
+   cd swivox
    ```
 
 2. **Install Rust toolchain**
@@ -30,13 +30,13 @@ Thank you for your interest in contributing to ChatGPTX!
 ## Project Structure
 
 ```
-ChatGPTX/
+Swivox/
 ├── apps/
-│   ├── chatgptx-launcher/  # Silent launcher
-│   └── chatgptx-manager/   # Tauri manager
+│   ├── swivox-launcher/  # Silent launcher
+│   └── swivox-manager/   # Tauri manager
 ├── crates/
-│   ├── chatgptx-data/    # Data handling and provider sync
-│   └── chatgptx-core/    # Core ChatGPTX logic
+│   ├── swivox-data/    # Data handling and provider sync
+│   └── swivox-core/    # Core Swivox logic
 └── README.md               # Project documentation
 ```
 

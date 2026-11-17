@@ -126,15 +126,15 @@ if (require.main === module) {
       module: { exports: {} },
       window: {
         ...events,
-        chatgptxNativeQuotaSettings(payload) { requests.push(JSON.parse(payload)); },
-        __chatgptxNativeQuotaRuntime: { update(settings) { updates.push(settings); } },
+        swivoxNativeQuotaSettings(payload) { requests.push(JSON.parse(payload)); },
+        __swivoxNativeQuotaRuntime: { update(settings) { updates.push(settings); } },
       },
       document: { ...events, visibilityState: "visible" },
       setTimeout() { timers.add(++nextTimer); return nextTimer; },
       clearTimeout(id) { timers.delete(id); },
     };
     vm.runInNewContext(process.argv[2], context);
-    const bootstrap = context.window.__chatgptxNativeQuotaBootstrap;
+    const bootstrap = context.window.__swivoxNativeQuotaBootstrap;
     assert.equal(callbacks.size, 3);
     assert.equal(timers.size, 1);
     assert.equal(requests.length, 1);
@@ -142,7 +142,7 @@ if (require.main === module) {
     assert.equal(callbacks.size, 0);
     assert.equal(timers.size, 0);
     assert.equal(updates.at(-1), null);
-    assert.equal(context.window.__chatgptxNativeQuotaBootstrap, undefined);
+    assert.equal(context.window.__swivoxNativeQuotaBootstrap, undefined);
     bootstrap.request();
     bootstrap.accept(requests[0].sequence, { activeRelayId: "mix" });
     assert.equal(requests.length, 1);
@@ -150,7 +150,7 @@ if (require.main === module) {
     vm.runInNewContext(process.argv[2], context);
     assert.equal(requests.length, 2);
     assert.equal(callbacks.size, 3);
-    context.window.__chatgptxNativeQuotaBootstrap.dispose();
+    context.window.__swivoxNativeQuotaBootstrap.dispose();
     console.log("Native quota bootstrap cancellation and reinstallation passed");
   }
 }

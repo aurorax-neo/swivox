@@ -1,6 +1,6 @@
 (() => {
   const runtimeVersion = "7";
-  const existing = window.__chatgptxPetRealMouseLook;
+  const existing = window.__swivoxPetRealMouseLook;
   if (existing?.version === runtimeVersion && existing?.isReady?.()) return;
   existing?.stop?.();
 
@@ -12,7 +12,7 @@
   const interactionOwner = "real-mouse";
 
   const interaction = (() => {
-    const key = "__chatgptxPetInteraction";
+    const key = "__swivoxPetInteraction";
     const current = window[key];
     if (current?.version === 1 && typeof current.begin === "function") return current;
     const state = { pointerId: null, owner: "", captureTarget: null };
@@ -294,8 +294,8 @@
     window.removeEventListener("blur", onWindowBlur);
     interaction.cancel(interactionOwner);
     unsubscribe?.();
-    if (window.__chatgptxPetRealMouseLook?.version === runtimeVersion) {
-      delete window.__chatgptxPetRealMouseLook;
+    if (window.__swivoxPetRealMouseLook?.version === runtimeVersion) {
+      delete window.__swivoxPetRealMouseLook;
     }
   }
 
@@ -324,5 +324,5 @@
       return true;
     },
   };
-  window.__chatgptxPetRealMouseLook = runtime;
+  window.__swivoxPetRealMouseLook = runtime;
 })();

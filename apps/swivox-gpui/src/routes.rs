@@ -180,7 +180,7 @@ impl Route {
                 t("免 TUN 代理启动、可逆界面汉化、上下文监控圆环与设备指纹保护")
             }
             Route::Lamplighter => {
-                t("监控多服务 5 小时与 7 天额度、窗口重置自动点火、趋势曲线与 Bark / Webhook 推送")
+                t("监控已支持客户端（Codex / Antigravity）账号的 5 小时与 7 天额度、窗口重置自动点火、趋势曲线与 Bark / Webhook 推送")
             }
             Route::Sessions => t("查看、删除和修复 Codex 本地会话"),
             Route::Context => t("独立管理 MCP 服务器与插件"),

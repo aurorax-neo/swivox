@@ -185,7 +185,7 @@ async fn handle_mcp_jsonrpc(raw_body: &str) -> Value {
                 "tools": [
                     {
                         "name": "list_quotas",
-                        "description": "查询当前监控的所有 Codex / Antigravity / Claude / Kimi / Grok 账号脱敏额度与下次自动点火计划",
+                        "description": "查询当前监控的所有已支持客户端（Codex 与 Antigravity）账号脱敏额度与下次自动点火计划",
                         "inputSchema": { "type": "object", "properties": {} }
                     },
                     {

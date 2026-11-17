@@ -1,4 +1,4 @@
-//! Lamplighter 多服务统一账号汇聚（Swivox 原生 Codex + Swivox 原生 Antigravity + 扩展 Claude/Kimi/Grok + 可选 CPA）与配额查询。
+//! Lamplighter 已支持客户端账号汇聚（Swivox 原生 Codex + Swivox 原生 Antigravity）与配额查询。
 
 use std::collections::{BTreeMap, HashMap};
 use std::time::Duration;
@@ -10,11 +10,9 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use super::config::{
-    LamplighterConfig, canonical_provider_id, client_id_for_credential_source,
-    plan_display_and_default_weight, provider_display_title,
+    LamplighterConfig, plan_display_and_default_weight, provider_display_title,
     proxy_client_key_for_lamplighter_client,
 };
-use super::store::load_external_accounts;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -42,9 +40,9 @@ pub struct RawQuotaGroup {
 
 #[derive(Debug, Clone)]
 pub struct UnifiedCredential {
-    /// 物理隔离客户端域：`"codex"` | `"antigravity"` | `"external"`
+    /// 物理隔离客户端域：`"codex"` | `"antigravity"`
     pub client_id: String,
-    /// 稳定全局键：`swivox_codex:<id>` | `swivox_ag:<id>` | `ext:<id>` | `cpa:<file>`
+    /// 稳定全局键：`swivox_codex:<id>` | `swivox_ag:<id>`
     pub account_key: String,
     pub provider: String,
     pub email: String,
@@ -55,7 +53,6 @@ pub struct UnifiedCredential {
     pub refresh_token: Option<String>,
     pub chatgpt_account_id: Option<String>,
     pub google_project_id: Option<String>,
-    pub domain: Option<String>,
     pub proxy_spec: Option<String>,
     pub cached_plan: Option<String>,
 }
@@ -112,7 +109,6 @@ pub fn collect_unified_credentials(cfg: &LamplighterConfig) -> Vec<(UnifiedCrede
             refresh_token: acc.tokens.refresh_token.clone(),
             chatgpt_account_id: acc.account_id.clone(),
             google_project_id: None,
-            domain: None,
             proxy_spec,
             cached_plan: acc
                 .plan_type
@@ -143,140 +139,12 @@ pub fn collect_unified_credentials(cfg: &LamplighterConfig) -> Vec<(UnifiedCrede
             refresh_token: Some(acc.token.refresh_token.clone()),
             chatgpt_account_id: None,
             google_project_id: acc.token.project_id.clone(),
-            domain: None,
             proxy_spec,
             cached_plan: acc.quota.as_ref().and_then(|q| q.raw_tier_id.clone()),
         });
     }
 
-    // 3. Lamplighter 独立添加的多服务凭据（Claude / Kimi / Grok 等）
-    for ext in load_external_accounts() {
-        let prov = canonical_provider_id(&ext.provider).to_string();
-        let client_id = client_id_for_credential_source("ext", &prov).to_string();
-        let proxy_spec = ext
-            .proxy_url
-            .filter(|s| !s.trim().is_empty())
-            .and_then(|raw| {
-                crate::network_proxies::resolve_account_or_client_proxy_spec(
-                    if raw.starts_with("node:") || raw.eq_ignore_ascii_case("direct") {
-                        &raw
-                    } else {
-                        "custom"
-                    },
-                    Some(&raw),
-                    proxy_client_key_for_lamplighter_client(&client_id),
-                )
-            })
-            .or_else(|| {
-                crate::network_proxies::resolve_client_proxy_spec(
-                    proxy_client_key_for_lamplighter_client(&client_id),
-                )
-            });
-        creds.push(UnifiedCredential {
-            client_id,
-            account_key: format!("ext:{}", ext.id),
-            provider: prov,
-            email: ext.email,
-            note_name: ext.label,
-            source_kind: "ext",
-            raw_account_id: ext.id,
-            access_token: ext.access_token,
-            refresh_token: ext.refresh_token,
-            chatgpt_account_id: None,
-            google_project_id: None,
-            domain: ext.domain,
-            proxy_spec,
-            cached_plan: None,
-        });
-    }
-
-    // 4. 可选外部 CPA 凭证目录扫描
-    if cfg.cpa_enabled && !cfg.cpa_auth_dir.trim().is_empty()
-        && let Ok(entries) = std::fs::read_dir(cfg.cpa_auth_dir.trim())
-    {
-        for entry in entries.flatten() {
-            let p = entry.path();
-            if p.extension().is_some_and(|e| e == "json")
-                && let Ok(raw) = std::fs::read_to_string(&p)
-                && let Ok(val) = serde_json::from_str::<Value>(&raw)
-            {
-                let prov_raw = val
-                    .get("type")
-                    .or_else(|| val.get("provider"))
-                    .and_then(Value::as_str)
-                    .unwrap_or("codex");
-                let prov = canonical_provider_id(prov_raw).to_string();
-                let at = val
-                    .get("access_token")
-                    .and_then(Value::as_str)
-                    .unwrap_or("")
-                    .to_string();
-                let rt = val
-                    .get("refresh_token")
-                    .and_then(Value::as_str)
-                    .map(ToString::to_string);
-                if at.is_empty() && rt.as_deref().unwrap_or("").is_empty() {
-                    continue;
-                }
-                let fname = p
-                    .file_name()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("auth.json")
-                    .to_string();
-                let email = val
-                    .get("email")
-                    .and_then(Value::as_str)
-                    .unwrap_or(&fname)
-                    .to_string();
-                let note = val
-                    .get("note")
-                    .and_then(Value::as_str)
-                    .and_then(|s| s.lines().next())
-                    .map(str::trim)
-                    .filter(|s| !s.is_empty())
-                    .map(ToString::to_string);
-                let client_id = client_id_for_credential_source("cpa", &prov).to_string();
-                let proxy_spec = val
-                    .get("proxy_url")
-                    .and_then(Value::as_str)
-                    .map(str::trim)
-                    .filter(|s| !s.is_empty())
-                    .map(ToString::to_string)
-                    .or_else(|| {
-                        crate::network_proxies::resolve_client_proxy_spec(
-                            proxy_client_key_for_lamplighter_client(&client_id),
-                        )
-                    });
-                creds.push(UnifiedCredential {
-                    client_id,
-                    account_key: format!("cpa:{fname}"),
-                    provider: prov,
-                    email,
-                    note_name: note,
-                    source_kind: "cpa",
-                    raw_account_id: fname,
-                    access_token: at,
-                    refresh_token: rt,
-                    chatgpt_account_id: val
-                        .get("account_id")
-                        .and_then(Value::as_str)
-                        .map(ToString::to_string),
-                    google_project_id: val
-                        .get("project_id")
-                        .and_then(Value::as_str)
-                        .map(ToString::to_string),
-                    domain: val
-                        .get("domain")
-                        .and_then(Value::as_str)
-                        .map(ToString::to_string),
-                    proxy_spec,
-                    cached_plan: None,
-                });
-            }
-        }
-    }
-
-    // 过滤未启用监控的服务
+    // 过滤未启用监控的已支持客户端服务
     creds.retain(|c| cfg.provider_rule(&c.provider).monitor);
 
     // 按 account_order 排序
@@ -396,7 +264,7 @@ fn parse_epoch_or_rfc3339(val: Option<&Value>) -> Option<i64> {
     DateTime::parse_from_rfc3339(s).ok().map(|d| d.timestamp())
 }
 
-/// 主动查询单个统一账号的最新额度组列表（Codex 与 Antigravity 源支持自动刷新过期 Token）。
+/// 主动查询单个已支持客户端账号的最新额度组列表（Codex 与 Antigravity 支持自动刷新过期 Token）。
 pub async fn query_credential_quotas(
     cred: &mut UnifiedCredential,
     timeout_secs: u64,
@@ -404,9 +272,6 @@ pub async fn query_credential_quotas(
     match cred.provider.as_str() {
         "codex" => query_codex_quota(cred, timeout_secs).await,
         "antigravity" => query_antigravity_quota(cred).await,
-        "claude" => query_claude_quota(cred, timeout_secs).await,
-        "kimi" => query_kimi_quota(cred, timeout_secs).await,
-        "xai" => query_xai_quota(cred, timeout_secs).await,
         other => bail!("不支持的额度监控服务: {other}"),
     }
 }
@@ -598,196 +463,7 @@ async fn query_antigravity_quota(cred: &mut UnifiedCredential) -> anyhow::Result
     Ok(groups)
 }
 
-async fn query_claude_quota(
-    cred: &UnifiedCredential,
-    timeout_secs: u64,
-) -> anyhow::Result<Vec<RawQuotaGroup>> {
-    let ua = "claude-cli/2.1.280 (external, cli)";
-    let client = build_account_http_client(cred, timeout_secs, ua)?;
-    let resp = client
-        .get("https://api.anthropic.com/api/oauth/usage")
-        .bearer_auth(cred.access_token.trim())
-        .header("anthropic-beta", "oauth-2025-04-20")
-        .header("Content-Type", "application/json")
-        .send()
-        .await
-        .context("请求 Claude OAuth 额度接口失败")?;
-    let status = resp.status();
-    let text = resp.text().await.unwrap_or_default();
-    if !status.is_success() {
-        bail!("HTTP {}: {}", status.as_u16(), text.chars().take(240).collect::<String>());
-    }
-    let val: Value = serde_json::from_str(&text).context("解析 Claude 额度 JSON 失败")?;
-
-    let mut plan = None;
-    if let Ok(prof_resp) = client
-        .get("https://api.anthropic.com/api/oauth/profile")
-        .bearer_auth(cred.access_token.trim())
-        .header("anthropic-beta", "oauth-2025-04-20")
-        .send()
-        .await
-        && prof_resp.status().is_success()
-        && let Ok(prof) = prof_resp.json::<Value>().await
-    {
-        let org_type = prof
-            .pointer("/organization/organization_type")
-            .and_then(Value::as_str)
-            .unwrap_or("");
-        let tier = prof
-            .pointer("/organization/rate_limit_tier")
-            .and_then(Value::as_str)
-            .unwrap_or("");
-        let combined = format!("{org_type} {tier}").trim().to_string();
-        if !combined.is_empty() {
-            plan = Some(combined);
-        }
-    }
-
-    let mut windows = Vec::new();
-    for (field, wid, short_l, disp_l, is_5h) in [
-        ("five_hour", "five-hour", "5h", "5 小时", true),
-        ("seven_day", "seven-day", "7d", "7 天", false),
-    ] {
-        if let Some(obj) = val.get(field)
-            && let Some(util) = obj.get("utilization").and_then(Value::as_f64)
-        {
-            windows.push(QuotaWindowReading {
-                id: wid.to_string(),
-                short_label: short_l.to_string(),
-                display_label: disp_l.to_string(),
-                is_five_hour: is_5h,
-                remaining_percent: (100.0 - util).clamp(0.0, 100.0),
-                reset_at: parse_epoch_or_rfc3339(obj.get("resets_at")),
-            });
-        }
-    }
-
-    Ok(vec![RawQuotaGroup {
-        raw_group_key: "claude:main".to_string(),
-        source_label: "Claude".to_string(),
-        windows,
-        detected_plan: plan,
-    }])
-}
-
-async fn query_kimi_quota(
-    cred: &UnifiedCredential,
-    timeout_secs: u64,
-) -> anyhow::Result<Vec<RawQuotaGroup>> {
-    let is_global = cred
-        .domain
-        .as_deref()
-        .unwrap_or("")
-        .contains("kimi.ai");
-    let url = if is_global {
-        "https://api.kimi.ai/coding/v1/usages"
-    } else {
-        "https://api.kimi.com/coding/v1/usages"
-    };
-    let client = build_account_http_client(cred, timeout_secs, "kimi-cli/1.0")?;
-    let resp = client
-        .get(url)
-        .bearer_auth(cred.access_token.trim())
-        .send()
-        .await
-        .context("请求 Kimi 额度接口失败")?;
-    let status = resp.status();
-    let text = resp.text().await.unwrap_or_default();
-    if !status.is_success() {
-        bail!("HTTP {}: {}", status.as_u16(), text.chars().take(240).collect::<String>());
-    }
-    let val: Value = serde_json::from_str(&text)?;
-    let mut windows = Vec::new();
-    if let Some(limits) = val.get("limits").and_then(Value::as_array) {
-        for item in limits {
-            let detail = item.get("detail").unwrap_or(item);
-            let limit = detail.get("limit").and_then(Value::as_f64).unwrap_or(0.0);
-            let used = detail.get("used").and_then(Value::as_f64).unwrap_or(0.0);
-            if limit <= 0.0 {
-                continue;
-            }
-            let rem = ((1.0 - used / limit) * 100.0).clamp(0.0, 100.0);
-            let dur = item
-                .pointer("/window/duration")
-                .and_then(Value::as_i64)
-                .unwrap_or(5);
-            let is_5h = dur <= 6;
-            windows.push(QuotaWindowReading {
-                id: if is_5h {
-                    "five-hour".to_string()
-                } else {
-                    "seven-day".to_string()
-                },
-                short_label: if is_5h {
-                    "5h".to_string()
-                } else {
-                    "7d".to_string()
-                },
-                display_label: if is_5h {
-                    "5 小时".to_string()
-                } else {
-                    "7 天".to_string()
-                },
-                is_five_hour: is_5h,
-                remaining_percent: rem,
-                reset_at: parse_epoch_or_rfc3339(
-                    detail.get("reset_at").or_else(|| detail.get("resetTime")),
-                ),
-            });
-        }
-    }
-    Ok(vec![RawQuotaGroup {
-        raw_group_key: "kimi:main".to_string(),
-        source_label: "Kimi".to_string(),
-        windows,
-        detected_plan: None,
-    }])
-}
-
-async fn query_xai_quota(
-    cred: &UnifiedCredential,
-    timeout_secs: u64,
-) -> anyhow::Result<Vec<RawQuotaGroup>> {
-    let ua = "grok-pager/1.0.46 grok-shell/1.0.46 (macos; aarch64)";
-    let client = build_account_http_client(cred, timeout_secs, ua)?;
-    let resp = client
-        .get("https://cli-chat-proxy.grok.com/v1/billing?format=credits")
-        .bearer_auth(cred.access_token.trim())
-        .header("x-xai-token-auth", "xai-grok-cli")
-        .header("x-grok-client-version", "1.0.46")
-        .send()
-        .await
-        .context("请求 Grok 额度接口失败")?;
-    let status = resp.status();
-    let text = resp.text().await.unwrap_or_default();
-    if !status.is_success() {
-        bail!("HTTP {}: {}", status.as_u16(), text.chars().take(240).collect::<String>());
-    }
-    let val: Value = serde_json::from_str(&text)?;
-    let used_pct = val
-        .pointer("/config/creditUsagePercent")
-        .and_then(Value::as_f64)
-        .context("该 Grok 账号为按 API 用量计费模式，没有周期额度百分比可查")?;
-    let reset_at = parse_epoch_or_rfc3339(
-        val.pointer("/config/currentPeriod/end")
-            .or_else(|| val.get("billingPeriodEnd")),
-    );
-    Ok(vec![RawQuotaGroup {
-        raw_group_key: "xai:main".to_string(),
-        source_label: "Grok".to_string(),
-        windows: vec![QuotaWindowReading {
-            id: "seven-day".to_string(),
-            short_label: "7d".to_string(),
-            display_label: "7 天".to_string(),
-            is_five_hour: false,
-            remaining_percent: (100.0 - used_pct).clamp(0.0, 100.0),
-            reset_at,
-        }],
-        detected_plan: None,
-    }])
-}
-
-/// 从 `protocol_proxy` 捕获的 Codex / Claude 上游响应头解析被动额度（零额外请求开销）。
+/// 从 `protocol_proxy` 捕获的 Codex 上游响应头解析被动额度（零额外请求开销）。
 pub fn parse_passive_response_headers(
     headers: &BTreeMap<String, String>,
     requested_at: i64,
@@ -797,7 +473,7 @@ pub fn parse_passive_response_headers(
         .map(|(k, v)| (k.to_ascii_lowercase(), v.as_str()))
         .collect();
 
-    // 1. Codex 响应头: x-codex-primary-used-percent / x-codex-secondary-used-percent
+    // Codex 响应头: x-codex-primary-used-percent / x-codex-secondary-used-percent
     if lower.contains_key("x-codex-primary-used-percent")
         || lower.contains_key("x-codex-secondary-used-percent")
     {
@@ -846,44 +522,6 @@ pub fn parse_passive_response_headers(
         }
         if !wins.is_empty() {
             return Some(("codex", wins));
-        }
-    }
-
-    // 2. Anthropic 响应头: anthropic-ratelimit-unified-5h-utilization
-    if lower.contains_key("anthropic-ratelimit-unified-5h-utilization")
-        || lower.contains_key("anthropic-ratelimit-unified-7d-utilization")
-    {
-        let mut wins = Vec::new();
-        for (seg, is_5h) in [("5h", true), ("7d", false)] {
-            let Some(u_str) = lower.get(&format!("anthropic-ratelimit-unified-{seg}-utilization"))
-            else {
-                continue;
-            };
-            let Ok(u_frac) = u_str.trim().parse::<f64>() else {
-                continue;
-            };
-            let rst = lower
-                .get(&format!("anthropic-ratelimit-unified-{seg}-reset"))
-                .and_then(|s| s.trim().parse::<i64>().ok());
-            wins.push(QuotaWindowReading {
-                id: if is_5h {
-                    "five-hour".to_string()
-                } else {
-                    "seven-day".to_string()
-                },
-                short_label: seg.to_string(),
-                display_label: if is_5h {
-                    "5 小时".to_string()
-                } else {
-                    "7 天".to_string()
-                },
-                is_five_hour: is_5h,
-                remaining_percent: (100.0 - u_frac * 100.0).clamp(0.0, 100.0),
-                reset_at: rst,
-            });
-        }
-        if !wins.is_empty() {
-            return Some(("claude", wins));
         }
     }
 

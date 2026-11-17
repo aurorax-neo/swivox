@@ -1,4 +1,4 @@
-//! Lamplighter（点灯人）核心协调引擎：多服务额度监控、5h 窗口自动点火、趋势曲线、Bark/Webhook 提醒与本地 `/mcp` 服务。
+//! Lamplighter（点灯人）核心协调引擎：已支持客户端（Codex / Antigravity）额度监控、5h 窗口自动点火、趋势曲线、Bark/Webhook 提醒与本地 `/mcp` 服务。
 
 pub mod config;
 pub mod ignite;
@@ -14,7 +14,6 @@ use std::time::Duration;
 use anyhow::{Context, bail};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 pub use config::{
     DEFAULT_LAMPLIGHTER_MCP_LISTEN, ISOLATED_CLIENT_IDS, IgnitionConfig, LamplighterConfig,
@@ -23,9 +22,7 @@ pub use config::{
     plan_display_and_default_weight, provider_display_title, provider_supports_ignition,
     proxy_client_key_for_lamplighter_client,
 };
-pub use store::{
-    ExternalLamplighterAccount, HistorySamplePoint, HistorySeries, LamplighterEventRecord,
-};
+pub use store::{HistorySamplePoint, HistorySeries, LamplighterEventRecord};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -62,23 +59,11 @@ pub struct MonitoredGroupView {
 pub struct LamplighterSnapshot {
     pub config: LamplighterConfig,
     pub groups: Vec<MonitoredGroupView>,
-    pub external_accounts: Vec<RedactedExternalAccount>,
     pub history_series: Vec<HistorySeries>,
     pub events: Vec<LamplighterEventRecord>,
     pub client_effective_proxies: BTreeMap<String, String>,
     pub last_poll_at: i64,
     pub next_poll_at: i64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RedactedExternalAccount {
-    pub id: String,
-    pub provider: String,
-    pub email: String,
-    pub label: Option<String>,
-    pub domain: Option<String>,
-    pub proxy_url: Option<String>,
 }
 
 #[derive(Default)]
@@ -130,7 +115,6 @@ fn build_client_effective_proxies() -> BTreeMap<String, String> {
         "antigravity_ide".to_string(),
         snap.effective_antigravity_ide,
     );
-    map.insert("external".to_string(), snap.effective_external);
     map
 }
 
@@ -363,22 +347,6 @@ pub fn get_lamplighter_snapshot_for_client(
         store::query_history_and_events(history_hours, None, &label_map)
     };
 
-    let external_accounts = store::load_external_accounts()
-        .into_iter()
-        .filter(|a| {
-            let cid = client_id_for_credential_source("ext", &a.provider);
-            target_clients.contains(&cid)
-        })
-        .map(|a| RedactedExternalAccount {
-            id: a.id,
-            provider: a.provider,
-            email: a.email,
-            label: a.label,
-            domain: a.domain,
-            proxy_url: a.proxy_url,
-        })
-        .collect();
-
     let poll_int = cfg.poll_interval_seconds.max(60) as i64;
     let next_poll = if min_next_poll < i64::MAX && min_next_poll > now {
         min_next_poll
@@ -389,7 +357,6 @@ pub fn get_lamplighter_snapshot_for_client(
     LamplighterSnapshot {
         config: cfg,
         groups,
-        external_accounts,
         history_series,
         events,
         client_effective_proxies: build_client_effective_proxies(),
@@ -511,52 +478,6 @@ pub async fn send_test_notification(cfg_override: Option<LamplighterConfig>) -> 
     };
     notify::send_notification(&cfg, &msg).await?;
     Ok("测试推送已成功送达。".to_string())
-}
-
-/// 添加或更新独立监控凭据（Claude / Kimi / Grok 等）。
-pub fn upsert_external_account(
-    provider: String,
-    email: String,
-    label: Option<String>,
-    access_token: String,
-    refresh_token: Option<String>,
-    domain: Option<String>,
-    proxy_url: Option<String>,
-) -> anyhow::Result<()> {
-    if email.trim().is_empty() || access_token.trim().is_empty() {
-        bail!("账号标识与 Access Token 不能为空。");
-    }
-    let prov = canonical_provider_id(&provider).to_string();
-    let mut list = store::load_external_accounts();
-    if let Some(existing) = list
-        .iter_mut()
-        .find(|a| a.provider == prov && a.email.eq_ignore_ascii_case(email.trim()))
-    {
-        existing.label = label.filter(|s| !s.trim().is_empty());
-        existing.access_token = access_token.trim().to_string();
-        existing.refresh_token = refresh_token.filter(|s| !s.trim().is_empty());
-        existing.domain = domain.filter(|s| !s.trim().is_empty());
-        existing.proxy_url = proxy_url.filter(|s| !s.trim().is_empty());
-    } else {
-        list.push(ExternalLamplighterAccount {
-            id: Uuid::new_v4().to_string(),
-            provider: prov,
-            email: email.trim().to_string(),
-            label: label.filter(|s| !s.trim().is_empty()),
-            access_token: access_token.trim().to_string(),
-            refresh_token: refresh_token.filter(|s| !s.trim().is_empty()),
-            domain: domain.filter(|s| !s.trim().is_empty()),
-            proxy_url: proxy_url.filter(|s| !s.trim().is_empty()),
-            created_at: Utc::now().timestamp(),
-        });
-    }
-    store::save_external_accounts(&list)
-}
-
-pub fn delete_external_account(id: &str) -> anyhow::Result<()> {
-    let mut list = store::load_external_accounts();
-    list.retain(|a| a.id != id);
-    store::save_external_accounts(&list)
 }
 
 /// 供 `protocol_proxy.rs` 按实际发起请求的账号凭据异步记录被动响应头额度（严格按客户端与账号精确匹配，绝不跨账号串扰）。
@@ -681,7 +602,7 @@ async fn run_poll_and_ignition_cycle_for_client(
 
         for (mut cred, base_label) in client_creds {
             if !force_active
-                && matches!(cred.provider.as_str(), "codex" | "claude")
+                && cred.provider == "codex"
                 && cfg.passive_skip_seconds > 0
             {
                 let skip = runtime_cache().lock().ok().is_some_and(|c| {

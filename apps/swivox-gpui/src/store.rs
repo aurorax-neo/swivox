@@ -2771,7 +2771,6 @@ impl AppStore {
             "codex" => clients.codex = selection,
             "antigravity_desktop" => clients.antigravity_desktop = selection,
             "antigravity_ide" => clients.antigravity_ide = selection,
-            "external" => clients.external = selection,
             _ => {}
         }
         let res = commands::save_network_proxy_assignments(app_self, clients);

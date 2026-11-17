@@ -5,27 +5,25 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 pub const DEFAULT_LAMPLIGHTER_MCP_LISTEN: &str = "127.0.0.1:58318";
-pub const ISOLATED_CLIENT_IDS: [&str; 3] = ["codex", "antigravity", "external"];
+pub const ISOLATED_CLIENT_IDS: [&str; 2] = ["codex", "antigravity"];
 
-/// 将任意客户端标识归一化为三大物理隔离域：`"codex"` | `"antigravity"` | `"external"`。
+/// 将任意客户端标识归一化为 Swivox 已支持的两大物理隔离客户端域：`"codex"` | `"antigravity"`。
 pub fn normalize_client_id(raw: &str) -> &'static str {
     match raw.trim().to_ascii_lowercase().as_str() {
-        "codex" | "swivox_codex" | "chatgpt" | "openai" | "gpt" => "codex",
         "antigravity" | "swivox_ag" | "antigravity_desktop" | "antigravity_ide" | "google"
         | "gemini" => "antigravity",
-        _ => "external",
+        _ => "codex",
     }
 }
 
 /// 根据凭据来源与服务类型返回其归属的物理隔离客户端 ID。
 pub fn client_id_for_credential_source(source_kind: &str, provider: &str) -> &'static str {
     match source_kind.trim() {
-        "swivox_codex" => "codex",
         "swivox_ag" => "antigravity",
+        "swivox_codex" => "codex",
         _ => match canonical_provider_id(provider) {
-            "codex" => "codex",
             "antigravity" => "antigravity",
-            _ => "external",
+            _ => "codex",
         },
     }
 }
@@ -33,9 +31,8 @@ pub fn client_id_for_credential_source(source_kind: &str, provider: &str) -> &'s
 /// 将 Lamplighter 客户端域映射为 `network_proxies` 的客户端代理键。
 pub fn proxy_client_key_for_lamplighter_client(client_id: &str) -> &'static str {
     match normalize_client_id(client_id) {
-        "codex" => "codex",
         "antigravity" => "antigravity_desktop",
-        _ => "external",
+        _ => "codex",
     }
 }
 
@@ -171,17 +168,11 @@ pub struct LamplighterConfig {
     pub account_weights: BTreeMap<String, f64>,
     pub account_order: Vec<String>,
     pub ignition: IgnitionConfig,
-    /// 各客户端独立隔离的自动点火开关与时段参数（`"codex"` / `"antigravity"` / `"external"`）
+    /// 各已支持客户端独立隔离的自动点火开关与时段参数（`"codex"` / `"antigravity"`）
     #[serde(default)]
     pub client_ignition: BTreeMap<String, IgnitionConfig>,
     pub providers: BTreeMap<String, ProviderRuleConfig>,
     pub codex_reset_updates: CodexResetUpdatesConfig,
-    // 可选外部 CLIProxyAPI (CPA) 接入
-    pub cpa_enabled: bool,
-    pub cpa_base_url: String,
-    pub cpa_management_key: String,
-    pub cpa_auth_dir: String,
-    pub models_api_key: String,
     // 可选本地 MCP Streamable HTTP 额度查询接口
     pub mcp_enabled: bool,
     pub mcp_listen: String,
@@ -201,42 +192,12 @@ pub fn default_providers_map() -> BTreeMap<String, ProviderRuleConfig> {
         },
     );
     m.insert(
-        "claude".to_string(),
-        ProviderRuleConfig {
-            monitor: true,
-            ignite: true,
-            model: String::new(),
-            groups: Vec::new(),
-            models: BTreeMap::new(),
-        },
-    );
-    m.insert(
         "antigravity".to_string(),
         ProviderRuleConfig {
             monitor: true,
             ignite: false,
             model: String::new(),
             groups: vec!["Gemini".to_string()],
-            models: BTreeMap::new(),
-        },
-    );
-    m.insert(
-        "kimi".to_string(),
-        ProviderRuleConfig {
-            monitor: true,
-            ignite: false,
-            model: String::new(),
-            groups: Vec::new(),
-            models: BTreeMap::new(),
-        },
-    );
-    m.insert(
-        "xai".to_string(),
-        ProviderRuleConfig {
-            monitor: true,
-            ignite: false,
-            model: String::new(),
-            groups: Vec::new(),
             models: BTreeMap::new(),
         },
     );
@@ -278,11 +239,6 @@ impl Default for LamplighterConfig {
                 .collect(),
             providers: default_providers_map(),
             codex_reset_updates: CodexResetUpdatesConfig::default(),
-            cpa_enabled: false,
-            cpa_base_url: "http://127.0.0.1:8317".to_string(),
-            cpa_management_key: String::new(),
-            cpa_auth_dir: String::new(),
-            models_api_key: String::new(),
             mcp_enabled: false,
             mcp_listen: DEFAULT_LAMPLIGHTER_MCP_LISTEN.to_string(),
             mcp_key: String::new(),
@@ -306,31 +262,20 @@ fn sanitize_reminder_mode(raw: &str, fallback: &str) -> String {
 
 pub fn canonical_provider_id(raw: &str) -> &'static str {
     match raw.trim().to_ascii_lowercase().as_str() {
-        "codex" | "chatgpt" | "openai" | "gpt" => "codex",
-        "claude" | "anthropic" => "claude",
         "antigravity" | "google" | "gemini" => "antigravity",
-        "kimi" | "kimi-ai" | "kimi.ai" | "kimi.com" | "moonshot" => "kimi",
-        "xai" | "x-ai" | "x.ai" | "grok" => "xai",
         _ => "codex",
     }
 }
 
 pub fn provider_display_title(provider_id: &str) -> &'static str {
     match canonical_provider_id(provider_id) {
-        "codex" => "GPT",
-        "claude" => "Claude",
         "antigravity" => "Antigravity",
-        "kimi" => "Kimi",
-        "xai" => "Grok",
         _ => "GPT",
     }
 }
 
 pub fn provider_supports_ignition(provider_id: &str) -> bool {
-    matches!(
-        canonical_provider_id(provider_id),
-        "codex" | "claude" | "antigravity"
-    )
+    matches!(canonical_provider_id(provider_id), "codex" | "antigravity")
 }
 
 impl LamplighterConfig {
@@ -419,23 +364,23 @@ impl LamplighterConfig {
         let defaults = default_providers_map();
         let mut normalized_providers = BTreeMap::new();
         for (k, v) in std::mem::take(&mut self.providers) {
-            let cid = canonical_provider_id(&k).to_string();
+            let trimmed = k.trim().to_ascii_lowercase();
+            let cid = match trimmed.as_str() {
+                "codex" | "chatgpt" | "openai" | "gpt" => "codex",
+                "antigravity" | "google" | "gemini" => "antigravity",
+                _ => continue,
+            };
             let mut rule = v;
-            if !provider_supports_ignition(&cid) {
+            if !provider_supports_ignition(cid) {
                 rule.ignite = false;
             }
-            normalized_providers.insert(cid, rule);
+            normalized_providers.insert(cid.to_string(), rule);
         }
         for (k, def) in defaults {
             normalized_providers.entry(k).or_insert(def);
         }
         self.providers = normalized_providers;
 
-        if self.cpa_base_url.trim().is_empty() {
-            self.cpa_base_url = "http://127.0.0.1:8317".to_string();
-        } else {
-            self.cpa_base_url = self.cpa_base_url.trim().trim_end_matches('/').to_string();
-        }
         if self.mcp_listen.trim().is_empty() {
             self.mcp_listen = DEFAULT_LAMPLIGHTER_MCP_LISTEN.to_string();
         }
@@ -501,21 +446,6 @@ pub fn plan_display_and_default_weight(provider_id: &str, raw_plan: Option<&str>
             "edu_pro" => ("Edu Pro".to_string(), 1.0),
             _ => (raw.to_string(), 1.0),
         },
-        "claude" => {
-            if lower.contains("20x") {
-                ("Max 20x".to_string(), 20.0)
-            } else if lower.contains("5x") || lower.contains("claude_max") || lower == "max" {
-                ("Max 5x".to_string(), 5.0)
-            } else if lower.contains("enterprise") {
-                ("Enterprise".to_string(), 1.0)
-            } else if lower.contains("team") {
-                ("Team".to_string(), 1.0)
-            } else if lower.contains("pro") {
-                ("Pro".to_string(), 1.0)
-            } else {
-                (raw.to_string(), 1.0)
-            }
-        }
         "antigravity" => {
             if lower.contains("ultra") || lower.contains("helium") {
                 ("Ultra".to_string(), 1.0)
@@ -545,6 +475,7 @@ mod tests {
         };
         cfg.account_weights.insert("bad".to_string(), -2.0);
         cfg.account_weights.insert("good".to_string(), 5.0);
+        cfg.providers.insert("claude".to_string(), ProviderRuleConfig::default());
         cfg.normalize();
 
         assert_eq!(cfg.notice_threshold, 25.0);
@@ -552,10 +483,15 @@ mod tests {
         assert_eq!(cfg.critical_threshold, 25.0);
         assert!(!cfg.account_weights.contains_key("bad"));
         assert_eq!(cfg.account_weights.get("good"), Some(&5.0));
+        assert_eq!(
+            cfg.providers.keys().cloned().collect::<Vec<_>>(),
+            vec!["antigravity".to_string(), "codex".to_string()]
+        );
     }
 
     #[test]
-    fn maps_codex_claude_and_antigravity_plan_weights() {
+    fn maps_codex_and_antigravity_plan_weights() {
+        assert_eq!(ISOLATED_CLIENT_IDS, ["codex", "antigravity"]);
         assert_eq!(
             plan_display_and_default_weight("codex", Some("pro")),
             ("Pro $200".to_string(), 10.0)
@@ -563,10 +499,6 @@ mod tests {
         assert_eq!(
             plan_display_and_default_weight("codex", Some("free")),
             ("Free".to_string(), 0.1)
-        );
-        assert_eq!(
-            plan_display_and_default_weight("claude", Some("claude_max 20x")),
-            ("Max 20x".to_string(), 20.0)
         );
         assert_eq!(
             plan_display_and_default_weight("antigravity", Some("g1-pro-tier")),

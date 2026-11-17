@@ -1,4 +1,4 @@
-//! Lamplighter 状态持久化（`state.json`）、额外凭据库（`accounts.json`）与额度历史曲线（`history/YYYY-MM-DD.jsonl`）。
+//! Lamplighter 按已支持客户端隔离的状态持久化（`clients/<client_id>/state.json`）与额度历史曲线（`clients/<client_id>/history/YYYY-MM-DD.jsonl`）。
 
 use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader, Write};
@@ -35,10 +35,6 @@ fn legacy_state_file_path() -> PathBuf {
     lamplighter_root_dir().join("state.json")
 }
 
-fn external_accounts_file_path() -> PathBuf {
-    lamplighter_root_dir().join("accounts.json")
-}
-
 fn legacy_history_dir() -> PathBuf {
     lamplighter_root_dir().join("history")
 }
@@ -63,35 +59,9 @@ pub fn key_belongs_to_client(key: &str, client_id: &str) -> bool {
     let cid = normalize_client_id(client_id);
     let trimmed = key.trim();
     match cid {
-        "codex" => trimmed.starts_with("codex:") || trimmed.starts_with("swivox_codex:"),
         "antigravity" => trimmed.starts_with("antigravity:") || trimmed.starts_with("swivox_ag:"),
-        _ => {
-            !trimmed.starts_with("codex:")
-                && !trimmed.starts_with("swivox_codex:")
-                && !trimmed.starts_with("antigravity:")
-                && !trimmed.starts_with("swivox_ag:")
-        }
+        _ => trimmed.starts_with("codex:") || trimmed.starts_with("swivox_codex:"),
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub struct ExternalLamplighterAccount {
-    pub id: String,
-    /// `"claude"` | `"kimi"` | `"xai"` | `"codex"` | `"antigravity"`
-    pub provider: String,
-    pub email: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub label: Option<String>,
-    pub access_token: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub refresh_token: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub domain: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub proxy_url: Option<String>,
-    #[serde(default)]
-    pub created_at: i64,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -340,18 +310,6 @@ pub fn save_client_state(client_id: &str, state: &LamplighterState) -> anyhow::R
     atomic_write_json(&client_state_file_path(client_id), state)
 }
 
-pub fn load_external_accounts() -> Vec<ExternalLamplighterAccount> {
-    let path = external_accounts_file_path();
-    std::fs::read_to_string(&path)
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default()
-}
-
-pub fn save_external_accounts(accounts: &[ExternalLamplighterAccount]) -> anyhow::Result<()> {
-    atomic_write_json(&external_accounts_file_path(), &accounts)
-}
-
 fn client_history_file_for_timestamp(client_id: &str, ts: i64) -> PathBuf {
     let dt = Utc
         .timestamp_opt(ts, 0)
@@ -409,12 +367,10 @@ pub fn append_history_sample(
     reset_at: Option<i64>,
     source: &str,
 ) {
-    let cid = if key_belongs_to_client(group_key, "codex") {
-        "codex"
-    } else if key_belongs_to_client(group_key, "antigravity") {
+    let cid = if key_belongs_to_client(group_key, "antigravity") {
         "antigravity"
     } else {
-        "external"
+        "codex"
     };
     append_client_history_sample(cid, timestamp, group_key, window_id, remaining, reset_at, source);
 }
@@ -451,12 +407,10 @@ pub fn append_client_event_record(client_id: &str, ev: &LamplighterEventRecord) 
 }
 
 pub fn append_event_record(ev: &LamplighterEventRecord) {
-    let cid = if key_belongs_to_client(&ev.group_key, "codex") {
-        "codex"
-    } else if key_belongs_to_client(&ev.group_key, "antigravity") {
+    let cid = if key_belongs_to_client(&ev.group_key, "antigravity") {
         "antigravity"
     } else {
-        "external"
+        "codex"
     };
     append_client_event_record(cid, ev);
 }
@@ -475,7 +429,7 @@ pub fn history_bucket_seconds(span_seconds: i64) -> i64 {
     }
 }
 
-/// 读取单个隔离客户端（`"codex"` / `"antigravity"` / `"external"`）最近事件与降采样曲线数据。
+/// 读取单个已支持隔离客户端（`"codex"` / `"antigravity"`）最近事件与降采样曲线数据。
 pub fn query_client_history_and_events(
     client_id: &str,
     hours: u64,

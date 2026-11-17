@@ -563,7 +563,7 @@ impl Render for SettingsView {
                                 div()
                                     .text_xs()
                                     .text_color(cx.theme().muted_foreground)
-                                    .child(t("Swivox 本程序、Codex、Antigravity 桌面版、Antigravity IDE 与扩展监控各自从上方代理列表中独立选择、互不串流；Lamplighter 配额轮询与 5h 点火严格复用所属客户端及账号代理")),
+                                    .child(t("Swivox 本程序、Codex、Antigravity 桌面版与 Antigravity IDE 各自从上方代理列表中独立选择、互不串流；Lamplighter 配额轮询与 5h 点火严格复用所属客户端及账号代理")),
                             ),
                     )
                     .child(self.render_proxy_assignment_row(
@@ -603,16 +603,6 @@ impl Render for SettingsView {
                         t("用于 Antigravity IDE 免 TUN 独立代理启动（与桌面版代理完全隔离）"),
                         &px_snap.config.clients.antigravity_ide,
                         &px_snap.effective_antigravity_ide,
-                        true,
-                        &nodes,
-                    ))
-                    .child(self.render_proxy_assignment_row(
-                        cx,
-                        "external",
-                        t("扩展监控凭据（Claude / Kimi / Grok）代理"),
-                        t("用于独立扩展凭据的额度查询与 Claude 自动点火"),
-                        &px_snap.config.clients.external,
-                        &px_snap.effective_external,
                         true,
                         &nodes,
                     )),

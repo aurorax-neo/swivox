@@ -1,4 +1,4 @@
-//! Lamplighter（点灯人）原生 GPUI 管理视图：多服务额度卡片、5h 自动点火计划与立即点火、额度变化趋势柱线图、事件流与完整推送/MCP 设置。
+//! Lamplighter（点灯人）原生 GPUI 管理视图：已支持客户端（Codex / Antigravity）额度卡片、5h 自动点火计划与立即点火、额度变化趋势柱线图、事件流与完整推送/MCP 设置。
 
 use chrono::{Local, TimeZone};
 use gpui_kit::assets::IconName;

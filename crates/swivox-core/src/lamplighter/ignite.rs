@@ -228,11 +228,6 @@ fn default_candidate_models(provider: &str, group_label: &str) -> Vec<String> {
             "gpt-5-codex".to_string(),
             "gpt-5".to_string(),
         ],
-        "claude" => vec![
-            "claude-haiku-4-5-20251001".to_string(),
-            "claude-3-5-haiku-latest".to_string(),
-            "claude-sonnet-4-5-20250929".to_string(),
-        ],
         "antigravity" => {
             if group_label.to_ascii_lowercase().contains("claude") {
                 vec![
@@ -437,26 +432,6 @@ async fn send_minimal_streaming_prompt(
                 .bearer_auth(cred.access_token.trim())
                 .header("Content-Type", "application/json")
                 .json(&body)
-                .send()
-                .await
-                .map_err(|e| (None, e.to_string()))?
-        }
-        "claude" => {
-            let ua = "claude-cli/2.1.280 (external, cli)";
-            let client = build_account_http_client(cred, 45, ua)
-                .map_err(|e| (None, e.to_string()))?;
-            client
-                .post("https://api.anthropic.com/v1/messages")
-                .bearer_auth(cred.access_token.trim())
-                .header("anthropic-beta", "oauth-2025-04-20")
-                .header("anthropic-version", "2023-06-01")
-                .header("Content-Type", "application/json")
-                .json(&json!({
-                    "model": model,
-                    "max_tokens": 16,
-                    "stream": true,
-                    "messages": [{ "role": "user", "content": IGNITION_TRIGGER_PROMPT }]
-                }))
                 .send()
                 .await
                 .map_err(|e| (None, e.to_string()))?

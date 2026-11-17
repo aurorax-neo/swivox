@@ -1,4 +1,4 @@
-//! 全局代理节点列表、Swivox 本程序自身代理与各客户端（Codex / Antigravity Desktop / Antigravity IDE / 扩展监控）互相隔离的代理分配引擎。
+//! 全局代理节点列表、Swivox 本程序自身代理与已支持客户端（Codex / Antigravity Desktop / Antigravity IDE）互相隔离的代理分配引擎。
 
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
@@ -62,8 +62,6 @@ pub struct ClientProxyAssignments {
     pub antigravity_desktop: String,
     #[serde(default = "default_system_selection")]
     pub antigravity_ide: String,
-    #[serde(default = "default_system_selection")]
-    pub external: String,
 }
 
 impl Default for ClientProxyAssignments {
@@ -72,7 +70,6 @@ impl Default for ClientProxyAssignments {
             codex: default_system_selection(),
             antigravity_desktop: default_system_selection(),
             antigravity_ide: default_system_selection(),
-            external: default_system_selection(),
         }
     }
 }
@@ -109,7 +106,6 @@ pub struct NetworkProxySnapshot {
     pub effective_codex: String,
     pub effective_antigravity_desktop: String,
     pub effective_antigravity_ide: String,
-    pub effective_external: String,
 }
 
 fn sanitize_selection(raw: &str, allow_app: bool, nodes: &[ProxyNodeEntry]) -> String {
@@ -160,7 +156,6 @@ impl NetworkProxyConfig {
             sanitize_selection(&self.clients.antigravity_desktop, true, &self.nodes);
         self.clients.antigravity_ide =
             sanitize_selection(&self.clients.antigravity_ide, true, &self.nodes);
-        self.clients.external = sanitize_selection(&self.clients.external, true, &self.nodes);
     }
 
     pub fn find_node(&self, node_id: &str) -> Option<&ProxyNodeEntry> {
@@ -173,7 +168,6 @@ impl NetworkProxyConfig {
             "codex" => &self.clients.codex,
             "antigravity" | "antigravity_desktop" | "desktop" => &self.clients.antigravity_desktop,
             "antigravity_ide" | "ide" => &self.clients.antigravity_ide,
-            "external" | "claude" | "kimi" | "xai" => &self.clients.external,
             _ => &self.clients.codex,
         }
     }
@@ -400,7 +394,7 @@ pub fn resolve_app_self_proxy_spec() -> Option<String> {
     resolve_app_self_proxy_spec_from(&cfg)
 }
 
-/// 解析指定隔离客户端（`"codex"` | `"antigravity_desktop"` | `"antigravity_ide"` | `"external"`）的生效代理。
+/// 解析指定隔离客户端（`"codex"` | `"antigravity_desktop"` | `"antigravity_ide"`）的生效代理。
 pub fn resolve_client_proxy_spec_from(cfg: &NetworkProxyConfig, client_key: &str) -> Option<String> {
     match cfg.client_selection(client_key).trim() {
         "direct" => Some("direct".to_string()),
@@ -494,7 +488,6 @@ pub fn get_network_proxy_snapshot() -> NetworkProxySnapshot {
         effective_codex: describe_selection(&cfg, &cfg.clients.codex),
         effective_antigravity_desktop: describe_selection(&cfg, &cfg.clients.antigravity_desktop),
         effective_antigravity_ide: describe_selection(&cfg, &cfg.clients.antigravity_ide),
-        effective_external: describe_selection(&cfg, &cfg.clients.external),
         config: cfg,
     }
 }
@@ -532,7 +525,6 @@ mod tests {
                 codex: format!("node:{us_id}"),
                 antigravity_desktop: "direct".to_string(),
                 antigravity_ide: format!("node:{jp_id}"),
-                external: "app".to_string(),
             },
         )
         .unwrap();
@@ -551,10 +543,6 @@ mod tests {
         );
         assert_eq!(
             resolve_client_proxy_spec("antigravity_ide").as_deref(),
-            Some("http://127.0.0.1:7891")
-        );
-        assert_eq!(
-            resolve_client_proxy_spec("external").as_deref(),
             Some("http://127.0.0.1:7891")
         );
 

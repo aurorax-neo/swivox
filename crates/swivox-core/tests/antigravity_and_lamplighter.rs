@@ -191,11 +191,9 @@ fn lamplighter_config_normalization_and_passive_header_hooks_work() {
     assert!(generate_mcp_bearer_key().len() >= 32);
 
     assert_eq!(canonical_provider_id("openai"), "codex");
-    assert_eq!(canonical_provider_id("grok"), "xai");
+    assert_eq!(canonical_provider_id("gemini"), "antigravity");
     assert!(provider_supports_ignition("codex"));
-    assert!(provider_supports_ignition("claude"));
     assert!(provider_supports_ignition("antigravity"));
-    assert!(!provider_supports_ignition("kimi"));
 
     let (default_plan, default_w) = plan_display_and_default_weight("codex", Some("pro"));
     assert_eq!(default_plan, "Pro $200");
@@ -225,21 +223,13 @@ fn lamplighter_config_normalization_and_passive_header_hooks_work() {
     assert_eq!(wins[1].id, "seven-day");
     assert!((wins[1].remaining_percent - 88.0).abs() < 1e-6);
 
-    // 验证 Anthropic 上游响应头被动额度解析
-    let mut claude_headers = BTreeMap::new();
-    claude_headers.insert(
+    // 验证未支持服务的响应头不会被误接入
+    let mut unsupported_headers = BTreeMap::new();
+    unsupported_headers.insert(
         "anthropic-ratelimit-unified-5h-utilization".to_string(),
         "0.25".to_string(),
     );
-    claude_headers.insert(
-        "anthropic-ratelimit-unified-5h-reset".to_string(),
-        "1700003600".to_string(),
-    );
-    let (c_prov, c_wins) =
-        parse_passive_response_headers(&claude_headers, 1_700_000_000).expect("parse claude");
-    assert_eq!(c_prov, "claude");
-    assert_eq!(c_wins.len(), 1);
-    assert!((c_wins[0].remaining_percent - 75.0).abs() < 1e-6);
+    assert!(parse_passive_response_headers(&unsupported_headers, 1_700_000_000).is_none());
 
     // 验证长跨度历史分桶粒度
     assert_eq!(history_bucket_seconds(24 * 3600), 0);
@@ -403,7 +393,6 @@ fn network_proxies_and_lamplighter_clients_and_accounts_are_strictly_isolated() 
             codex: format!("node:{codex_node}"),
             antigravity_desktop: format!("node:{ag_desk_node}"),
             antigravity_ide: format!("node:{ag_ide_node}"),
-            external: "direct".to_string(),
         },
     )
     .unwrap();
@@ -438,7 +427,6 @@ fn network_proxies_and_lamplighter_clients_and_accounts_are_strictly_isolated() 
         refresh_token: None,
         chatgpt_account_id: Some("ws-alpha".to_string()),
         google_project_id: None,
-        domain: None,
         proxy_spec: None,
         cached_plan: None,
     };
@@ -454,7 +442,6 @@ fn network_proxies_and_lamplighter_clients_and_accounts_are_strictly_isolated() 
         refresh_token: Some("1//0g-studio".to_string()),
         chatgpt_account_id: None,
         google_project_id: None,
-        domain: None,
         proxy_spec: None,
         cached_plan: None,
     };

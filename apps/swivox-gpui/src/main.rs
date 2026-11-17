@@ -167,7 +167,22 @@ fn main() {
             })
             .detach();
 
-            let tray = ManagedTray::install().ok().map(Rc::new);
+            let tray = match ManagedTray::install() {
+                Ok(installed) => {
+                    let _ = swivox_core::diagnostic_log::append_diagnostic_log(
+                        "manager.tray_installed",
+                        serde_json::json!({ "rect": installed.rect_debug() }),
+                    );
+                    Some(Rc::new(installed))
+                }
+                Err(err) => {
+                    let _ = swivox_core::diagnostic_log::append_diagnostic_log(
+                        "manager.tray_install_failed",
+                        serde_json::json!({ "error": err.to_string() }),
+                    );
+                    None
+                }
+            };
 
             // 若设置了 SWIVOX_CAPTURE_TOUR_DIR，则在窗口就绪后自动巡检各路由并导出实拍截图供 UI 走查
             if let Ok(tour_dir) = std::env::var("SWIVOX_CAPTURE_TOUR_DIR")

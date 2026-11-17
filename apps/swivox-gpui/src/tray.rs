@@ -7,7 +7,7 @@ use tray_icon::{Icon, MouseButton, TrayIcon, TrayIconBuilder, TrayIconEvent};
 pub const TRAY_MENU_SHOW: &str = "tray_show_main";
 pub const TRAY_MENU_QUIT: &str = "tray_quit_app";
 
-const TRAY_ICON_PNG: &[u8] = include_bytes!("../icons/icon.png");
+const TRAY_ICON_PNG: &[u8] = include_bytes!("../icons/tray-icon.png");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrayAction {
@@ -36,16 +36,28 @@ impl ManagedTray {
 
         #[cfg(target_os = "macos")]
         {
-            // 保留品牌渐变云朵色彩，禁用黑白模板模式。
+            // 保留品牌渐变 S 丝带色彩，禁用黑白模板模式。
             builder = builder.with_icon_as_template(false);
         }
 
         let tray = builder.build()?;
+        #[cfg(target_os = "macos")]
+        {
+            // tray-icon 0.23 在 macOS 上先调用 button.setImage 再调用 nsimage.setSize(18, 18)；
+            // 构建完成后主动刷新 set_icon_as_template(false) 与 set_tooltip，强制 NSStatusBarButton
+            // 按 18pt 重新度量宽度并同步点击热区，防止菜单栏条目因初始像素尺寸过大而被刘海隐藏。
+            tray.set_icon_as_template(false);
+            let _ = tray.set_tooltip(Some("Swivox"));
+        }
         Ok(Self {
             _tray: tray,
             show_item,
             quit_item,
         })
+    }
+
+    pub fn rect_debug(&self) -> Option<String> {
+        self._tray.rect().map(|r| format!("{r:?}"))
     }
 
     pub fn refresh_labels(&self) {
@@ -111,11 +123,16 @@ mod tests {
     #[test]
     fn tray_icon_preserves_brand_colour_and_transparency() {
         let (rgba, width, height) = decode_brand_tray_rgba().unwrap();
-        assert_eq!(width, height);
-        assert!(width > 0);
+        assert_eq!(width, 36);
+        assert_eq!(height, 36);
+        // 四角必须完全透明（不得包含深色圆角底块）
+        for &(x, y) in &[(0usize, 0usize), (35, 0), (0, 35), (35, 35)] {
+            let idx = (y * (width as usize) + x) * 4;
+            assert_eq!(rgba[idx + 3], 0, "corner ({x}, {y}) must be transparent");
+        }
         assert!(
             rgba.chunks_exact(4)
-                .any(|pixel| pixel[3] > 0 && pixel[2] > pixel[0])
+                .any(|pixel| pixel[3] > 200 && pixel[2] > pixel[0])
         );
         assert!(rgba.chunks_exact(4).any(|pixel| pixel[3] == 0));
     }

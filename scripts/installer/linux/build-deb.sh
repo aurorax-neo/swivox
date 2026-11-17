@@ -83,7 +83,7 @@ build_frontend() {
 build_rust() {
     echo ">>> 构建 Rust 二进制..."
     export PATH="$HOME/.cargo/bin:$PATH"
-    cargo build --release -p chatgptx-manager
+    cargo build --release -p chatgptx-gpui --bin chatgptx
     echo ">>> Rust 构建完成"
 }
 

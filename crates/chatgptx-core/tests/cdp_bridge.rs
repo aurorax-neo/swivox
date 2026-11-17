@@ -4811,16 +4811,15 @@ fn manager_ui_exposes_pure_api_relay_mode_button() {
         .parent()
         .and_then(std::path::Path::parent)
         .expect("core crate should live under crates/chatgptx-core");
-    let source = std::fs::read_to_string(repo.join("apps/chatgptx-manager/src/App.tsx")).unwrap();
-    let commands =
-        std::fs::read_to_string(repo.join("apps/chatgptx-manager/src-tauri/src/lib.rs")).unwrap();
+    let gpui_relay =
+        std::fs::read_to_string(repo.join("apps/chatgptx-gpui/src/views/relay.rs")).unwrap();
+    let backend_cmds =
+        std::fs::read_to_string(repo.join("crates/chatgptx-backend/src/commands.rs")).unwrap();
 
-    assert!(source.contains("官方混入 API Key"));
-    assert!(!source.contains("关闭官方低额度提示"));
-    assert!(source.contains("hideOfficialUsageAlert"));
-    assert!(source.contains("纯 API"));
-    assert!(source.contains("apply_pure_api_injection"));
-    assert!(commands.contains("commands::apply_pure_api_injection"));
+    assert!(gpui_relay.contains("纯 API Key"));
+    assert!(gpui_relay.contains("官方登录 + 第三方 API"));
+    assert!(!gpui_relay.contains("关闭官方低额度提示"));
+    assert!(backend_cmds.contains("pub fn apply_pure_api_injection"));
 }
 
 #[test]
@@ -4829,10 +4828,11 @@ fn manager_ui_omits_plugin_auto_expand() {
         .parent()
         .and_then(std::path::Path::parent)
         .expect("core crate should live under crates/chatgptx-core");
-    let source = std::fs::read_to_string(repo.join("apps/chatgptx-manager/src/App.tsx")).unwrap();
+    let gpui_enhance =
+        std::fs::read_to_string(repo.join("apps/chatgptx-gpui/src/views/enhance.rs")).unwrap();
 
-    assert!(!source.contains("codexAppPluginAutoExpand"));
-    assert!(!source.contains("插件列表全量展示"));
+    assert!(!gpui_enhance.contains("codexAppPluginAutoExpand"));
+    assert!(!gpui_enhance.contains("插件列表全量展示"));
 }
 
 #[test]

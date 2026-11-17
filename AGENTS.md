@@ -11,8 +11,10 @@
 ## 仓库结构
 
 - `crates/chatgptx-core/` — 核心 Rust 库（配置生成、catalog 解析、数据模型）
-- `apps/chatgptx-manager/` — Tauri 桌面应用，前端 React+TS
-- `crates/chatgptx-data/` — 数据持久化
+- `crates/chatgptx-backend/` — 纯 Rust 业务服务、命令集、中英 i18n 与 UI 规则层
+- `apps/chatgptx-gpui/` — GPUI 原生桌面管理应用（产生物理二进制 `chatgptx` 与 `chatgptx-legacy-shim`）
+- `apps/chatgptx-launcher/` — Codex 进程启动、单实例唤醒与协议代理守护
+- `crates/chatgptx-data/` — 数据持久化与会话 SQLite 管理
 - `docs/` — 项目的设计文档、调研、计划
 
 ## 关键代码位置
@@ -21,7 +23,7 @@
 - 配置生成：`crates/chatgptx-core/src/relay_config.rs` 的 `apply_context_limits_to_config`
 - catalog 解析：`crates/chatgptx-core/src/model_catalog.rs` 的 `parse_model_catalog_json_models`
 - apply 流程入口：`crates/chatgptx-core/src/relay_config.rs` 的 `apply_relay_profile_to_home_with_switch_rules`
-- 前端模型列表：`apps/chatgptx-manager/src/App.tsx` 的 `modelList` textarea
+- 前端模型窗口表：`apps/chatgptx-gpui/src/views/relay.rs` 与 `crates/chatgptx-backend/src/phase3_rules.rs`
 
 ## 安全规则
 
@@ -67,10 +69,9 @@
 
 每次改动完成、测试通过后，必须构建并启动本地实例，供用户在应用里实测：
 
-1. 前端 `npm run vite:build`（在 `apps/chatgptx-manager`）
-2. `cargo build --release -p chatgptx-manager`
-3. 把 `target/release/chatgptx` 装入本地 `.app`（如 `dist/local-build-*/ChatGPTX.app/Contents/MacOS/ChatGPTX`），
-   `codesign --force --deep --sign - <app>` 后 `open`，确认进程与 `manager.start` 日志正常
+1. `cargo build --release -p chatgptx-gpui --bin chatgptx`
+2. 把 `target/release/chatgptx` 装入本地 `.app`（如 `dist/local-build-*/ChatGPTX.app/Contents/MacOS/ChatGPTX`），
+   `codesign --force --deep --sign - <app>` 后 `open`，确认进程与 `manager.start` 日志正常，并通过自截屏走查界面视觉表现
 
 不要在只跑完测试就交付；构建启动属于交付的一部分。
 

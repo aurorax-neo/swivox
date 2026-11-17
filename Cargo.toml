@@ -3,8 +3,9 @@ resolver = "2"
 members = [
   "crates/chatgptx-core",
   "crates/chatgptx-data",
+  "crates/chatgptx-backend",
   "apps/chatgptx-launcher",
-  "apps/chatgptx-manager/src-tauri",
+  "apps/chatgptx-gpui",
 ]
 
 [workspace.package]

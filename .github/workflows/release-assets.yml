@@ -44,13 +44,6 @@ jobs:
         with:
           ref: ${{ env.RELEASE_TAG }}
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: "npm"
-          cache-dependency-path: apps/chatgptx-manager/package-lock.json
-
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -83,16 +76,8 @@ jobs:
           }
           if (-not $makensis) { throw "NSIS 安装失败或编译器不可用，停止发布构建。" }
 
-      - name: Install frontend dependencies
-        working-directory: apps/chatgptx-manager
-        run: npm ci
-
-      - name: Build frontend
-        working-directory: apps/chatgptx-manager
-        run: npm run vite:build
-
       - name: Build application
-        run: cargo build --release -p chatgptx-manager --bin chatgptx
+        run: cargo build --release -p chatgptx-gpui --bin chatgptx
       - name: Stage Windows app files
         shell: pwsh
         run: |
@@ -211,13 +196,6 @@ jobs:
             --issuer "$APPLE_API_ISSUER_ID"
           rm -f "$KEY_PATH"
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: "npm"
-          cache-dependency-path: apps/chatgptx-manager/package-lock.json
-
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -228,13 +206,6 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-
-      - name: Install frontend dependencies
-        working-directory: apps/chatgptx-manager
-        run: npm ci
-      - name: Build frontend
-        working-directory: apps/chatgptx-manager
-        run: npm run vite:build
 
       - name: Build universal macOS DMG
         env:

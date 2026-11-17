@@ -24,7 +24,7 @@ cd "$ROOT"
 
 for target in x86_64-apple-darwin aarch64-apple-darwin; do
   echo "==> 构建 $target" >&2
-  cargo build --release --target "$target" -p chatgptx-manager --bins
+  cargo build --release --target "$target" -p chatgptx-gpui --bins
 done
 
 rm -rf "$UNIVERSAL_DIR"

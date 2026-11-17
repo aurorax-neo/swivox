@@ -19,8 +19,8 @@ SetCompressor /SOLID lzma
 Var ExistingInstall
 Var HadDesktopEntry
 
-!define MUI_ICON "${ROOT}\apps\chatgptx-manager\src-tauri\icons\icon.ico"
-!define MUI_UNICON "${ROOT}\apps\chatgptx-manager\src-tauri\icons\icon.ico"
+!define MUI_ICON "${ROOT}\apps\chatgptx-gpui\icons\icon.ico"
+!define MUI_UNICON "${ROOT}\apps\chatgptx-gpui\icons\icon.ico"
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY

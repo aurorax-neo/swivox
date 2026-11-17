@@ -66,26 +66,14 @@ jobs:
         working-directory: apps/chatgptx-manager
         run: npm ci
 
-      - name: Frontend tests
-        working-directory: apps/chatgptx-manager
-        run: npm test
-
       - name: Check native browser inspector bundle
         run: node scripts/assemble-native-browser-inspector.mjs --check
-
-      - name: TypeScript check
-        working-directory: apps/chatgptx-manager
-        run: npm run check
-
-      - name: Build frontend
-        working-directory: apps/chatgptx-manager
-        run: npm run vite:build
 
       - name: Rust tests
         run: cargo test --workspace --lib --bins
 
       - name: Build release application
-        run: cargo build --release -p chatgptx-manager --bin chatgptx
+        run: cargo build --release -p chatgptx-gpui --bin chatgptx
       - name: Stage Windows app files
         shell: pwsh
         run: |
@@ -169,10 +157,6 @@ jobs:
       - name: Check native browser inspector bundle
         run: node scripts/assemble-native-browser-inspector.mjs --check
 
-      - name: Build frontend
-        working-directory: apps/chatgptx-manager
-        run: npm run vite:build
-
       - name: Build macOS DMG
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
@@ -181,7 +165,7 @@ jobs:
           if [ -z "$VERSION" ] || [ "$VERSION" = "main" ]; then
             VERSION="0.0.0-${GITHUB_RUN_NUMBER}"
           fi
-          cargo build --release -p chatgptx-manager --bins
+          cargo build --release -p chatgptx-gpui --bins
           BINARY_DIR="target/release" bash scripts/installer/macos/package-dmg.sh "$VERSION" universal
       - name: Verify macOS bundle structure
         run: |

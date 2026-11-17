@@ -893,8 +893,9 @@ fn retired_plugin_cache_features_have_no_command_or_startup_entrypoints() {
     let core_source = include_str!("../src/lib.rs");
     let launcher_binary_source = include_str!("../../../apps/chatgptx-launcher/src/main.rs");
     let relay_source = include_str!("../src/relay_config.rs");
-    let command_source = include_str!("../../../apps/chatgptx-manager/src-tauri/src/commands.rs");
-    let command_registry = include_str!("../../../apps/chatgptx-manager/src-tauri/src/lib.rs");
+    let command_source = include_str!("../../chatgptx-backend/src/commands.rs");
+    let command_registry = include_str!("../../chatgptx-backend/src/lib.rs");
+    let gpui_entry = include_str!("../../../apps/chatgptx-gpui/src/main.rs");
 
     assert!(!core_source.contains("pub mod plugin_marketplace;"));
     assert!(!launcher_source.contains("ensure_plugin_marketplace_config"));
@@ -909,6 +910,7 @@ fn retired_plugin_cache_features_have_no_command_or_startup_entrypoints() {
     ] {
         assert!(!command_source.contains(command));
         assert!(!command_registry.contains(command));
+        assert!(!gpui_entry.contains(command));
     }
     assert!(core_source.contains("pub mod skills;"));
     assert!(relay_source.contains("preserve_live_marketplace_configs"));

@@ -523,24 +523,41 @@ pub fn hot_reload_desktop_language_server(reapply_credentials: impl Fn()) -> boo
     false
 }
 
-/// 解析免 TUN 启动代理：`"direct"` 返回 `Some("direct")`，`"custom"` 返回自定义地址，`"inherit"` 复用 Swivox 全局/系统代理。
-pub fn resolve_launch_proxy(proxy_mode: &str, custom_proxy_url: &str) -> Option<String> {
-    match proxy_mode.trim() {
+/// 按客户端类型（桌面版 `antigravity_desktop` 与编辑器 `antigravity_ide` 完全隔离）解析免 TUN 启动代理。
+pub fn resolve_launch_proxy_for_target(
+    kind: AntigravityClientKind,
+    proxy_mode: &str,
+    custom_proxy_url: &str,
+) -> Option<String> {
+    let trimmed = proxy_mode.trim();
+    match trimmed {
         "direct" => Some("direct".to_string()),
+        m if m.starts_with("node:") => {
+            let cfg = crate::network_proxies::load_network_proxy_config();
+            cfg.find_node(m)
+                .map(|n| n.url.clone())
+                .or_else(|| crate::network_proxies::resolve_client_proxy_spec(if kind == AntigravityClientKind::Ide {
+                    "antigravity_ide"
+                } else {
+                    "antigravity_desktop"
+                }))
+        }
         "custom" if !custom_proxy_url.trim().is_empty() => {
             Some(custom_proxy_url.trim().to_string())
         }
         _ => {
-            let official = crate::official_accounts::load_official_accounts_state();
-            match official.global_proxy_mode.trim() {
-                "direct" => Some("direct".to_string()),
-                "custom" if !official.global_proxy_url.trim().is_empty() => {
-                    Some(official.global_proxy_url.trim().to_string())
-                }
-                _ => crate::proxy::detect_system_proxy(),
-            }
+            let client_key = if kind == AntigravityClientKind::Ide {
+                "antigravity_ide"
+            } else {
+                "antigravity_desktop"
+            };
+            crate::network_proxies::resolve_client_proxy_spec(client_key)
         }
     }
+}
+
+pub fn resolve_launch_proxy(proxy_mode: &str, custom_proxy_url: &str) -> Option<String> {
+    resolve_launch_proxy_for_target(AntigravityClientKind::Desktop, proxy_mode, custom_proxy_url)
 }
 
 /// 免 TUN 代理启动 Antigravity（同时注入 Chromium `--proxy-server`、8 项代理环境变量与本地回环 CDP 端口）。
@@ -594,7 +611,7 @@ pub fn launch_antigravity_instance(
         crate::ports::find_available_loopback_port()
     };
 
-    let effective_proxy = resolve_launch_proxy(proxy_mode, custom_proxy_url);
+    let effective_proxy = resolve_launch_proxy_for_target(target, proxy_mode, custom_proxy_url);
 
     // 若已在受管运行且非强制重开，在 macOS 上直接前置激活应用窗口
     if install.running && install.managed_cdp_ready && !force_clean_conflict {

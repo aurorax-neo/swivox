@@ -240,7 +240,14 @@ pub fn export_antigravity_accounts() -> CommandResult<AntigravityExportPayload> 
 pub async fn switch_antigravity_account(
     account_id: String,
 ) -> CommandResult<AntigravitySnapshotPayload> {
-    match antigravity::switch_active_account(&account_id).await {
+    switch_antigravity_account_with_mode(account_id, "desktop_hot".to_string()).await
+}
+
+pub async fn switch_antigravity_account_with_mode(
+    account_id: String,
+    switch_mode: String,
+) -> CommandResult<AntigravitySnapshotPayload> {
+    match antigravity::switch_active_account_with_mode(&account_id, &switch_mode).await {
         Ok(msg) => ok(
             msg,
             AntigravitySnapshotPayload {
@@ -346,6 +353,7 @@ pub async fn save_antigravity_enhance_settings(
     state.launch_proxy_mode = match launch_proxy_mode.trim() {
         "direct" => "direct".to_string(),
         "custom" => "custom".to_string(),
+        m if m.starts_with("node:") => m.to_string(),
         _ => "inherit".to_string(),
     };
     state.launch_proxy_url = launch_proxy_url.trim().to_string();
@@ -387,10 +395,27 @@ pub async fn save_antigravity_enhance_settings(
 pub async fn launch_antigravity(
     force_clean_conflict: bool,
 ) -> CommandResult<AntigravityLaunchPayload> {
+    let preferred = antigravity::load_antigravity_state().preferred_target;
+    let target_str = match preferred {
+        AntigravityClientKind::Ide => "ide",
+        _ => "desktop",
+    };
+    launch_antigravity_target(target_str.to_string(), force_clean_conflict).await
+}
+
+pub async fn launch_antigravity_target(
+    target_kind: String,
+    force_clean_conflict: bool,
+) -> CommandResult<AntigravityLaunchPayload> {
+    let explicit_kind = match target_kind.trim().to_ascii_lowercase().as_str() {
+        "ide" | "antigravity_ide" => AntigravityClientKind::Ide,
+        "desktop" | "antigravity_desktop" => AntigravityClientKind::Desktop,
+        _ => antigravity::load_antigravity_state().preferred_target,
+    };
     let state = antigravity::load_antigravity_state();
     let res = tokio::task::spawn_blocking(move || {
         antigravity::launch_antigravity_instance(
-            state.preferred_target,
+            explicit_kind,
             Some(&state.custom_desktop_path),
             Some(&state.custom_ide_path),
             &state.launch_proxy_mode,
@@ -413,7 +438,6 @@ pub async fn launch_antigravity(
                     },
                 }
             } else {
-                // 启动后短暂等待并自动挂载一次可逆汉化与圆环
                 let st = antigravity::load_antigravity_state();
                 if st.enable_ui_localization || st.enable_context_ring {
                     let port = outcome.cdp_port;
@@ -466,11 +490,30 @@ pub async fn stop_antigravity() -> CommandResult<AntigravitySnapshotPayload> {
         Some(&state.custom_ide_path),
         state.cdp_port,
     );
-    let is_ide = target == AntigravityClientKind::Ide;
+    let target_str = if target == AntigravityClientKind::Ide {
+        "ide"
+    } else {
+        "desktop"
+    };
+    stop_antigravity_target(target_str.to_string()).await
+}
+
+pub async fn stop_antigravity_target(
+    target_kind: String,
+) -> CommandResult<AntigravitySnapshotPayload> {
+    let is_ide = matches!(
+        target_kind.trim().to_ascii_lowercase().as_str(),
+        "ide" | "antigravity_ide"
+    );
+    let label = if is_ide {
+        "Antigravity IDE"
+    } else {
+        "Antigravity 桌面版"
+    };
     let res = tokio::task::spawn_blocking(move || antigravity::stop_antigravity_target(is_ide)).await;
     match res {
         Ok(Ok(_)) => ok(
-            "已停止 Antigravity。",
+            format!("已停止 {label}。"),
             AntigravitySnapshotPayload {
                 snapshot: antigravity::build_antigravity_snapshot(),
             },

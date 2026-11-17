@@ -164,15 +164,19 @@ fn build_antigravity_health_items(snap: Option<&AntigravitySnapshot>) -> Vec<Hea
                 .clone()
                 .or_else(|| s.live_ide_email.clone())
                 .unwrap_or_else(|| t("未检测到在线登录"));
-            let proxy = s
-                .effective_launch_proxy
+            let desk_proxy = s
+                .effective_desktop_proxy
+                .clone()
+                .unwrap_or_else(|| t("系统直连"));
+            let ide_proxy = s
+                .effective_ide_proxy
                 .clone()
                 .unwrap_or_else(|| t("系统直连"));
             HealthCardData {
-                title: t("账号与免 TUN 代理"),
+                title: t("账号与免 TUN 隔离代理"),
                 status: "ready".to_string(),
                 ok: !s.accounts.is_empty() || s.live_desktop_email.is_some(),
-                detail: format!("{email} · {proxy}"),
+                detail: format!("{email} · {}: {desk_proxy} · IDE: {ide_proxy}", t("桌面版")),
             }
         }
         None => HealthCardData {

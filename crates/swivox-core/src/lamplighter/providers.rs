@@ -10,8 +10,9 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use super::config::{
-    LamplighterConfig, canonical_provider_id, plan_display_and_default_weight,
-    provider_display_title,
+    LamplighterConfig, canonical_provider_id, client_id_for_credential_source,
+    plan_display_and_default_weight, provider_display_title,
+    proxy_client_key_for_lamplighter_client,
 };
 use super::store::load_external_accounts;
 
@@ -41,6 +42,8 @@ pub struct RawQuotaGroup {
 
 #[derive(Debug, Clone)]
 pub struct UnifiedCredential {
+    /// 物理隔离客户端域：`"codex"` | `"antigravity"` | `"external"`
+    pub client_id: String,
     /// 稳定全局键：`swivox_codex:<id>` | `swivox_ag:<id>` | `ext:<id>` | `cpa:<file>`
     pub account_key: String,
     pub provider: String,
@@ -98,6 +101,7 @@ pub fn collect_unified_credentials(cfg: &LamplighterConfig) -> Vec<(UnifiedCrede
         }
         let proxy_spec = crate::official_accounts::effective_proxy_for_account(Some(acc));
         creds.push(UnifiedCredential {
+            client_id: "codex".to_string(),
             account_key: format!("swivox_codex:{}", acc.id),
             provider: "codex".to_string(),
             email: acc.email.clone(),
@@ -128,6 +132,7 @@ pub fn collect_unified_credentials(cfg: &LamplighterConfig) -> Vec<(UnifiedCrede
                 .ok()
                 .flatten();
         creds.push(UnifiedCredential {
+            client_id: "antigravity".to_string(),
             account_key: format!("swivox_ag:{}", acc.id),
             provider: "antigravity".to_string(),
             email: acc.email.clone(),
@@ -147,7 +152,28 @@ pub fn collect_unified_credentials(cfg: &LamplighterConfig) -> Vec<(UnifiedCrede
     // 3. Lamplighter 独立添加的多服务凭据（Claude / Kimi / Grok 等）
     for ext in load_external_accounts() {
         let prov = canonical_provider_id(&ext.provider).to_string();
+        let client_id = client_id_for_credential_source("ext", &prov).to_string();
+        let proxy_spec = ext
+            .proxy_url
+            .filter(|s| !s.trim().is_empty())
+            .and_then(|raw| {
+                crate::network_proxies::resolve_account_or_client_proxy_spec(
+                    if raw.starts_with("node:") || raw.eq_ignore_ascii_case("direct") {
+                        &raw
+                    } else {
+                        "custom"
+                    },
+                    Some(&raw),
+                    proxy_client_key_for_lamplighter_client(&client_id),
+                )
+            })
+            .or_else(|| {
+                crate::network_proxies::resolve_client_proxy_spec(
+                    proxy_client_key_for_lamplighter_client(&client_id),
+                )
+            });
         creds.push(UnifiedCredential {
+            client_id,
             account_key: format!("ext:{}", ext.id),
             provider: prov,
             email: ext.email,
@@ -159,7 +185,7 @@ pub fn collect_unified_credentials(cfg: &LamplighterConfig) -> Vec<(UnifiedCrede
             chatgpt_account_id: None,
             google_project_id: None,
             domain: ext.domain,
-            proxy_spec: ext.proxy_url,
+            proxy_spec,
             cached_plan: None,
         });
     }
@@ -209,7 +235,20 @@ pub fn collect_unified_credentials(cfg: &LamplighterConfig) -> Vec<(UnifiedCrede
                     .map(str::trim)
                     .filter(|s| !s.is_empty())
                     .map(ToString::to_string);
+                let client_id = client_id_for_credential_source("cpa", &prov).to_string();
+                let proxy_spec = val
+                    .get("proxy_url")
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(ToString::to_string)
+                    .or_else(|| {
+                        crate::network_proxies::resolve_client_proxy_spec(
+                            proxy_client_key_for_lamplighter_client(&client_id),
+                        )
+                    });
                 creds.push(UnifiedCredential {
+                    client_id,
                     account_key: format!("cpa:{fname}"),
                     provider: prov,
                     email,
@@ -230,10 +269,7 @@ pub fn collect_unified_credentials(cfg: &LamplighterConfig) -> Vec<(UnifiedCrede
                         .get("domain")
                         .and_then(Value::as_str)
                         .map(ToString::to_string),
-                    proxy_spec: val
-                        .get("proxy_url")
-                        .and_then(Value::as_str)
-                        .map(ToString::to_string),
+                    proxy_spec,
                     cached_plan: None,
                 });
             }
@@ -304,13 +340,23 @@ pub fn email_last_two_chars(email: &str) -> String {
     }
 }
 
+/// 按账号与所属客户端隔离代理解析 HTTP 客户端（点火与额度轮询严守客户端代理隔离，绝不混用本程序或其他客户端代理）。
+pub fn resolve_effective_ignition_proxy_spec(cred: &UnifiedCredential) -> Option<String> {
+    if let Some(spec) = cred.proxy_spec.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        return Some(spec.to_string());
+    }
+    crate::network_proxies::resolve_client_proxy_spec(proxy_client_key_for_lamplighter_client(
+        &cred.client_id,
+    ))
+}
+
 pub fn build_account_http_client(
     cred: &UnifiedCredential,
     timeout_secs: u64,
     user_agent: &str,
 ) -> anyhow::Result<reqwest::Client> {
     let dur = Duration::from_secs(timeout_secs.clamp(5, 120));
-    match cred.proxy_spec.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+    match resolve_effective_ignition_proxy_spec(cred).as_deref() {
         Some(spec) if spec.eq_ignore_ascii_case("direct") => Ok(reqwest::Client::builder()
             .no_proxy()
             .user_agent(user_agent)
@@ -318,7 +364,7 @@ pub fn build_account_http_client(
             .build()?),
         Some(spec) => {
             let proxy = reqwest::Proxy::all(spec)
-                .with_context(|| format!("账号专属代理无效: {spec}"))?
+                .with_context(|| format!("账号或客户端专属代理无效: {spec}"))?
                 .no_proxy(reqwest::NoProxy::from_string("localhost,127.0.0.1,::1"));
             Ok(reqwest::Client::builder()
                 .proxy(proxy)
@@ -326,7 +372,11 @@ pub fn build_account_http_client(
                 .timeout(dur)
                 .build()?)
         }
-        None => crate::http_client::proxied_client_with_timeout(user_agent, dur),
+        None => Ok(reqwest::Client::builder()
+            .no_proxy()
+            .user_agent(user_agent)
+            .timeout(dur)
+            .build()?),
     }
 }
 

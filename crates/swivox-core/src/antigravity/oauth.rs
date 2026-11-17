@@ -135,7 +135,16 @@ fn alternate_client_credentials(primary_key: &str) -> (&'static str, &'static st
 pub fn build_http_client_for_proxy(proxy_spec: Option<&str>, timeout_secs: u64) -> anyhow::Result<reqwest::Client> {
     let mut builder = reqwest::Client::builder()
         .timeout(Duration::from_secs(timeout_secs.max(5)));
-    match proxy_spec.map(str::trim).filter(|s| !s.is_empty()) {
+    let fallback_spec = if proxy_spec.map(str::trim).filter(|s| !s.is_empty()).is_none() {
+        crate::network_proxies::resolve_client_proxy_spec("antigravity_desktop")
+    } else {
+        None
+    };
+    let effective = proxy_spec
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .or(fallback_spec.as_deref());
+    match effective {
         Some(spec) if spec.eq_ignore_ascii_case("direct") => {
             builder = builder.no_proxy();
         }
@@ -146,10 +155,7 @@ pub fn build_http_client_for_proxy(proxy_spec: Option<&str>, timeout_secs: u64) 
             builder = builder.proxy(proxy);
         }
         None => {
-            return crate::http_client::proxied_client_with_timeout(
-                OAUTH_USER_AGENT,
-                Duration::from_secs(timeout_secs.max(5)),
-            );
+            builder = builder.no_proxy();
         }
     }
     Ok(builder.user_agent(OAUTH_USER_AGENT).build()?)

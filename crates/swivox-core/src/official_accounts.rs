@@ -278,7 +278,14 @@ impl CodexLaunchProxy {
 }
 
 pub fn normalize_proxy_mode(mode: &str) -> String {
-    match mode.trim().to_ascii_lowercase().as_str() {
+    let trimmed = mode.trim();
+    if trimmed.starts_with("node:") {
+        let node_id = trimmed.trim_start_matches("node:").trim();
+        if !node_id.is_empty() {
+            return format!("node:{node_id}");
+        }
+    }
+    match trimmed.to_ascii_lowercase().as_str() {
         "direct" => "direct".to_string(),
         "custom" => "custom".to_string(),
         _ => "inherit".to_string(),
@@ -1997,36 +2004,29 @@ fn build_http_client_with_optional_proxy(
 }
 
 pub fn effective_proxy_for_account(account: Option<&OfficialAccount>) -> Option<String> {
-    let state = load_official_accounts_state();
     if let Some(acct) = account {
-        match acct.proxy_mode.trim() {
-            "direct" => return Some("direct".to_string()),
-            "custom" => {
-                if let Some(url) = acct
-                    .egress_proxy_url
-                    .as_deref()
-                    .map(str::trim)
-                    .filter(|s| !s.is_empty())
-                {
-                    return Some(url.to_string());
-                }
-            }
-            _ => {}
+        let mode = acct.proxy_mode.trim();
+        if mode.eq_ignore_ascii_case("direct")
+            || mode.starts_with("node:")
+            || mode.eq_ignore_ascii_case("custom")
+        {
+            return crate::network_proxies::resolve_account_or_client_proxy_spec(
+                mode,
+                acct.egress_proxy_url.as_deref(),
+                "codex",
+            );
         }
     }
+    if let Some(spec) = crate::network_proxies::resolve_client_proxy_spec("codex") {
+        return Some(spec);
+    }
+    let state = load_official_accounts_state();
     match state.global_proxy_mode.trim() {
         "direct" => Some("direct".to_string()),
         "custom" if !state.global_proxy_url.trim().is_empty() => {
             Some(state.global_proxy_url.trim().to_string())
         }
-        _ => {
-            let env_map: std::collections::HashMap<String, String> = std::env::vars().collect();
-            if crate::proxy::has_proxy_environment(&env_map) {
-                None
-            } else {
-                crate::proxy::detect_system_proxy()
-            }
-        }
+        _ => None,
     }
 }
 
@@ -2355,7 +2355,11 @@ fn persist_account_quota(account_id: &str, quota: &OfficialQuota) {
 /// 4. 默认 `CodexLaunchProxy::Inherit`
 pub fn resolve_codex_launch_proxy(settings: &BackendSettings) -> CodexLaunchProxy {
     let state = load_official_accounts_state();
-    resolve_codex_launch_proxy_from(&state, settings)
+    let from_state = resolve_codex_launch_proxy_from(&state, settings);
+    if from_state != CodexLaunchProxy::Inherit {
+        return from_state;
+    }
+    crate::network_proxies::resolve_client_launch_proxy("codex")
 }
 
 pub fn resolve_codex_launch_proxy_from(
@@ -2375,6 +2379,12 @@ pub fn resolve_codex_launch_proxy_from(
             if spec.eq_ignore_ascii_case("direct") {
                 return CodexLaunchProxy::Direct;
             }
+            if spec.starts_with("node:") {
+                let cfg = crate::network_proxies::load_network_proxy_config();
+                if let Some(node) = cfg.find_node(spec) {
+                    return CodexLaunchProxy::Proxy(node.url.clone());
+                }
+            }
             if let Ok(normalized) = normalize_proxy_url_input(spec) {
                 return CodexLaunchProxy::Proxy(normalized);
             }
@@ -2392,6 +2402,12 @@ pub fn resolve_codex_launch_proxy_from(
         if let Some(acct) = state.accounts.iter().find(|a| a.id == acct_id) {
             match acct.proxy_mode.trim() {
                 "direct" => return CodexLaunchProxy::Direct,
+                m if m.starts_with("node:") => {
+                    let cfg = crate::network_proxies::load_network_proxy_config();
+                    if let Some(node) = cfg.find_node(m) {
+                        return CodexLaunchProxy::Proxy(node.url.clone());
+                    }
+                }
                 "custom" => {
                     if let Some(url) = acct
                         .egress_proxy_url

@@ -26,6 +26,8 @@ pub struct OfficialAccountsView {
     import_label_input: Entity<InputState>,
     import_body_input: Entity<TextareaState>,
     edit_label_input: Entity<InputState>,
+    edit_proxy_input: Entity<InputState>,
+    edit_proxy_mode: String,
 }
 
 impl OfficialAccountsView {
@@ -48,6 +50,8 @@ impl OfficialAccountsView {
         });
         let edit_label_input =
             cx.new(|cx| InputState::new(window, cx).placeholder(t("例如：主力 Plus")));
+        let edit_proxy_input =
+            cx.new(|cx| InputState::new(window, cx).placeholder("http://127.0.0.1:7890"));
 
         let store_for_search = store.clone();
         cx.subscribe(&search_input, move |_this, input, event: &InputEvent, cx| {
@@ -72,6 +76,8 @@ impl OfficialAccountsView {
             import_label_input,
             import_body_input,
             edit_label_input,
+            edit_proxy_input,
+            edit_proxy_mode: "inherit".to_string(),
         }
     }
 
@@ -466,8 +472,12 @@ impl OfficialAccountsView {
         let store_quota = self.store.clone();
         let acc_id_edit = acc.id.clone();
         let initial_edit_label = acc.label.clone().unwrap_or_default();
+        let initial_edit_pmode = acc.proxy_mode.clone();
+        let initial_edit_purl = acc.egress_proxy_url.clone().unwrap_or_default();
         let edit_input = self.edit_label_input.clone();
+        let edit_proxy_inp = self.edit_proxy_input.clone();
         let store_edit_toggle = self.store.clone();
+        let proxy_nodes = data.network_proxy_snapshot.config.nodes.clone();
         let acc_del = acc.clone();
         let store_del = self.store.clone();
 
@@ -647,12 +657,46 @@ impl OfficialAccountsView {
             None
         };
 
-        // 编辑备注内联框
+        // 编辑备注与专属代理内联框
         let inline_edit_box: Option<AnyElement> = if is_editing {
             let acc_save = acc.clone();
             let store_save = self.store.clone();
             let store_cancel_edit = self.store.clone();
             let edit_input_read = self.edit_label_input.clone();
+            let edit_proxy_read = self.edit_proxy_input.clone();
+            let cur_pmode = self.edit_proxy_mode.clone();
+
+            let mut proxy_choices: Vec<(String, String)> = vec![
+                ("inherit".to_string(), t("跟随 Codex 客户端代理")),
+                ("direct".to_string(), t("强制直连")),
+            ];
+            for n in &proxy_nodes {
+                proxy_choices.push((format!("node:{}", n.id), n.name.clone()));
+            }
+            proxy_choices.push(("custom".to_string(), t("自定义地址")));
+
+            let pmode_btns: Vec<AnyElement> = proxy_choices
+                .into_iter()
+                .map(|(m, lbl)| {
+                    let selected = self.edit_proxy_mode == m;
+                    let btn = AppButton::new(SharedString::from(format!(
+                        "official-pmode-{}-{}",
+                        acc.id, m
+                    )))
+                    .small()
+                    .label(lbl);
+                    let btn = if selected {
+                        btn.selected(true)
+                    } else {
+                        btn.outline()
+                    };
+                    btn.on_click(cx.listener(move |view, _, _, cx| {
+                        view.edit_proxy_mode = m.clone();
+                        cx.notify();
+                    }))
+                    .into_any_element()
+                })
+                .collect();
 
             Some(
                 div()
@@ -676,6 +720,21 @@ impl OfficialAccountsView {
                     )
                     .child(
                         div()
+                            .v_flex()
+                            .gap_1p5()
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(cx.theme().muted_foreground)
+                                    .child(t("账号专属配额与点火代理（可从设置页代理列表中选取）")),
+                            )
+                            .child(div().h_flex().flex_wrap().gap_1p5().children(pmode_btns))
+                            .when(self.edit_proxy_mode == "custom", |col| {
+                                col.child(Input::new(&self.edit_proxy_input))
+                            }),
+                    )
+                    .child(
+                        div()
                             .h_flex()
                             .items_center()
                             .gap_2()
@@ -689,9 +748,11 @@ impl OfficialAccountsView {
                                 .label(t("保存"))
                                 .on_click(move |_, _, cx| {
                                     let val = edit_input_read.read(cx).value().to_string();
+                                    let purl = edit_proxy_read.read(cx).value().to_string();
                                     let target = acc_save.clone();
+                                    let pm = cur_pmode.clone();
                                     store_save.update(cx, |s, cx| {
-                                        s.save_official_account_label(target, val, cx);
+                                        s.save_official_account_meta(target, val, pm, purl, cx);
                                     });
                                 }),
                             )
@@ -769,6 +830,9 @@ impl OfficialAccountsView {
                                             .when(!plan_label.is_empty(), |d| {
                                                 d.child(AppBadge::secondary(plan_label))
                                             })
+                                            .when(acc.is_active, |d| {
+                                                d.child(AppBadge::good(t("当前生效")))
+                                            })
                                             .when_some(
                                                 acc.label
                                                     .as_ref()
@@ -798,10 +862,9 @@ impl OfficialAccountsView {
                                     )))
                                     .secondary()
                                     .small()
-                                    .selected(true)
                                     .disabled(switching)
-                                    .icon(IconName::CircleCheck)
-                                    .label(t("使用中"))
+                                    .icon(IconName::RefreshCw)
+                                    .label(t("重新应用"))
                                 } else {
                                     AppButton::new(SharedString::from(format!(
                                         "official-use-{}",
@@ -810,8 +873,8 @@ impl OfficialAccountsView {
                                     .outline()
                                     .small()
                                     .disabled(switching)
-                                    .icon(IconName::CircleCheck)
-                                    .label(t("使用"))
+                                    .icon(IconName::ArrowLeftRight)
+                                    .label(t("切换使用"))
                                 }
                                 .on_click(move |_, _, cx| {
                                     let target = acc_use.clone();
@@ -863,12 +926,17 @@ impl OfficialAccountsView {
                                 .small_icon()
                                 .selected(is_editing)
                                 .icon(IconName::SquarePen)
-                                .tooltip(t("编辑备注"))
-                                .on_click(move |_, window, cx| {
+                                .tooltip(t("备注与专属代理"))
+                                .on_click(cx.listener(move |view, _, window, cx| {
                                     let id = acc_id_edit.clone();
                                     let draft = initial_edit_label.clone();
+                                    let purl = initial_edit_purl.clone();
+                                    view.edit_proxy_mode = initial_edit_pmode.clone();
                                     edit_input.update(cx, |inp, cx| {
                                         inp.set_value(draft, window, cx);
+                                    });
+                                    edit_proxy_inp.update(cx, |inp, cx| {
+                                        inp.set_value(purl, window, cx);
                                     });
                                     store_edit_toggle.update(cx, |s, cx| {
                                         if s.editing_account_id.as_deref() == Some(id.as_str()) {
@@ -878,7 +946,7 @@ impl OfficialAccountsView {
                                         }
                                         cx.notify();
                                     });
-                                }),
+                                })),
                             )
                             .child(
                                 AppButton::new(SharedString::from(format!(
@@ -946,165 +1014,6 @@ impl OfficialAccountsView {
             )
             .when_some(inline_edit_box, |d, edit| d.child(edit))
             .into_any_element()
-    }
-
-    fn render_modals(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let data = self.store.read(cx);
-        if let Some(target) = data.use_confirm_account.clone() {
-            let email = target.email.clone();
-            let id_only = target.id.clone();
-            let id_restart = target.id.clone();
-            let store_cancel = self.store.clone();
-            let store_only = self.store.clone();
-            let store_restart = self.store.clone();
-
-            return Some(
-                div()
-                    .v_flex()
-                    .w_full()
-                    .gap_3()
-                    .p_4()
-                    .rounded(px(11.))
-                    .bg(cx.theme().popover)
-                    .border_1()
-                    .border_color(cx.theme().primary.opacity(0.6))
-                    .child(
-                        div()
-                            .text_base()
-                            .font_semibold()
-                            .text_color(cx.theme().foreground)
-                            .child(t("切换官方账号")),
-                    )
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(cx.theme().muted_foreground)
-                            .child(format!(
-                                "{}「{}」{}",
-                                t("请选择切换官方账号"),
-                                email,
-                                t("后的生效方式：")
-                            )),
-                    )
-                    .child(
-                        div()
-                            .h_flex()
-                            .items_center()
-                            .justify_end()
-                            .gap_2()
-                            .child(
-                                AppButton::new("confirm-use-cancel")
-                                    .outline()
-                                    .small()
-                                    .label(t("取消"))
-                                    .on_click(move |_, _, cx| {
-                                        store_cancel.update(cx, |s, cx| {
-                                            s.use_confirm_account = None;
-                                            cx.notify();
-                                        });
-                                    }),
-                            )
-                            .child(
-                                AppButton::new("confirm-use-only")
-                                    .secondary()
-                                    .small()
-                                    .icon(IconName::CircleCheck)
-                                    .label(t("仅使用（重启生效）"))
-                                    .on_click(move |_, _, cx| {
-                                        let id = id_only.clone();
-                                        store_only.update(cx, |s, cx| {
-                                            s.switch_official_account(id, false, cx)
-                                        });
-                                    }),
-                            )
-                            .child(
-                                AppButton::new("confirm-use-and-restart")
-                                    .primary()
-                                    .small()
-                                    .icon(IconName::Rocket)
-                                    .label(t("使用并重启 Codex"))
-                                    .on_click(move |_, _, cx| {
-                                        let id = id_restart.clone();
-                                        store_restart.update(cx, |s, cx| {
-                                            s.switch_official_account(id, true, cx)
-                                        });
-                                    }),
-                            ),
-                    )
-                    .into_any_element(),
-            );
-        }
-
-        if let Some(target) = data.delete_confirm_account.clone() {
-            let email = target.email.clone();
-            let store_cancel = self.store.clone();
-            let store_confirm = self.store.clone();
-
-            return Some(
-                div()
-                    .v_flex()
-                    .w_full()
-                    .gap_3()
-                    .p_4()
-                    .rounded(px(11.))
-                    .bg(cx.theme().popover)
-                    .border_1()
-                    .border_color(cx.theme().danger.opacity(0.6))
-                    .child(
-                        div()
-                            .text_base()
-                            .font_semibold()
-                            .text_color(cx.theme().foreground)
-                            .child(t("删除官方账号")),
-                    )
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(cx.theme().muted_foreground)
-                            .child(format!(
-                                "{}「{}」{}",
-                                t("确定删除官方账号"),
-                                email,
-                                t("吗？删除后将从本地账号列表中移除。")
-                            )),
-                    )
-                    .child(
-                        div()
-                            .h_flex()
-                            .items_center()
-                            .justify_end()
-                            .gap_2()
-                            .child(
-                                AppButton::new("confirm-del-cancel")
-                                    .secondary()
-                                    .small()
-                                    .label(t("取消"))
-                                    .on_click(move |_, _, cx| {
-                                        store_cancel.update(cx, |s, cx| {
-                                            s.delete_confirm_account = None;
-                                            cx.notify();
-                                        });
-                                    }),
-                            )
-                            .child(
-                                AppButton::new("confirm-del-execute")
-                                    .danger()
-                                    .small()
-                                    .icon(IconName::Trash)
-                                    .label(t("确认删除"))
-                                    .on_click(move |_, _, cx| {
-                                        let acc = target.clone();
-                                        store_confirm.update(cx, |s, cx| {
-                                            s.delete_official_account(acc, cx)
-                                        });
-                                    }),
-                            ),
-                    )
-                    .into_any_element(),
-            );
-        }
-
-        None
     }
 }
 
@@ -1184,7 +1093,6 @@ impl Render for OfficialAccountsView {
         let oauth_box = self.render_oauth_box(cx);
         let import_box = self.render_import_box(cx);
         let export_box = self.render_export_box(cx);
-        let modal_box = self.render_modals(cx);
 
         let accounts_content: AnyElement = if loading && !has_accounts {
             div()
@@ -1332,7 +1240,6 @@ impl Render for OfficialAccountsView {
                             }),
                     ),
             )
-            .when_some(modal_box, |d, modal| d.child(modal))
             .child(panel_card(
                 cx,
                 div()

@@ -21,7 +21,11 @@ pub use cdp_enhance::{AntigravityEnhanceStatus, apply_cdp_enhancements_once, ens
 pub use db::{AntigravityClientKind, desktop_user_data_dir, ide_user_data_dir, state_vscdb_path, storage_json_path, user_data_dir_for};
 pub use device::{AntigravityDeviceHistoryEntry, AntigravityDeviceProfile, ensure_device_baseline_saved, generate_device_profile, load_device_baseline, read_device_profile_from_storage_json, write_device_profile_to_storage_json};
 pub use oauth::{AntigravityOAuthStartResponse, TOKEN_REFRESH_SKEW_SECONDS, cancel_pending_oauth_session, complete_manual_oauth_callback, refresh_google_access_token, start_oauth_login, wait_for_oauth_callback};
-pub use process::{AntigravityInstallation, AntigravityLaunchOutcome, DEFAULT_ANTIGRAVITY_CDP_PORT, discover_installation, launch_antigravity_instance, resolve_effective_target, resolve_launch_proxy, stop_antigravity_target};
+pub use process::{
+    AntigravityInstallation, AntigravityLaunchOutcome, DEFAULT_ANTIGRAVITY_CDP_PORT,
+    discover_installation, launch_antigravity_instance, resolve_effective_target,
+    resolve_launch_proxy, resolve_launch_proxy_for_target, stop_antigravity_target,
+};
 pub use quota::{ANTIGRAVITY_HUB_USER_AGENT, AntigravityGroupQuota, AntigravityQuotaSnapshot, fetch_antigravity_quota, normalize_subscription_tier};
 
 static AG_STATE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
@@ -177,6 +181,8 @@ pub struct AntigravitySnapshot {
     pub launch_proxy_mode: String,
     pub launch_proxy_url: String,
     pub effective_launch_proxy: Option<String>,
+    pub effective_desktop_proxy: Option<String>,
+    pub effective_ide_proxy: Option<String>,
     pub enable_ui_localization: bool,
     pub enable_context_ring: bool,
     pub cdp_port: u16,
@@ -231,6 +237,12 @@ pub fn effective_proxy_for_ag_account(
     if let Some(acc) = account {
         match acc.proxy_mode.trim() {
             "direct" => return Ok(Some("direct".to_string())),
+            m if m.starts_with("node:") => {
+                let cfg = crate::network_proxies::load_network_proxy_config();
+                if let Some(node) = cfg.find_node(m) {
+                    return Ok(Some(node.url.clone()));
+                }
+            }
             "custom" => {
                 let url = acc
                     .egress_proxy_url
@@ -243,7 +255,8 @@ pub fn effective_proxy_for_ag_account(
             _ => {}
         }
     }
-    Ok(resolve_launch_proxy(
+    Ok(resolve_launch_proxy_for_target(
+        AntigravityClientKind::Desktop,
         &state.launch_proxy_mode,
         &state.launch_proxy_url,
     ))
@@ -368,7 +381,18 @@ pub fn build_antigravity_snapshot() -> AntigravitySnapshot {
         custom_ide_path: state.custom_ide_path.clone(),
         launch_proxy_mode: state.launch_proxy_mode.clone(),
         launch_proxy_url: state.launch_proxy_url.clone(),
-        effective_launch_proxy: resolve_launch_proxy(
+        effective_launch_proxy: resolve_launch_proxy_for_target(
+            state.preferred_target,
+            &state.launch_proxy_mode,
+            &state.launch_proxy_url,
+        ),
+        effective_desktop_proxy: resolve_launch_proxy_for_target(
+            AntigravityClientKind::Desktop,
+            &state.launch_proxy_mode,
+            &state.launch_proxy_url,
+        ),
+        effective_ide_proxy: resolve_launch_proxy_for_target(
+            AntigravityClientKind::Ide,
             &state.launch_proxy_mode,
             &state.launch_proxy_url,
         ),
@@ -780,11 +804,15 @@ pub async fn refresh_all_account_quotas() -> (usize, usize) {
     (ok_count, fail_count)
 }
 
-/// 切换本机当前激活的 Antigravity 账号：
-/// 1. 自动确保 `access_token` 鲜活（提前 15m 刷新）与专属设备指纹已绑定；
-/// 2. 对目标客户端执行三层凭据同步（系统钥匙串 + `~/.gemini/` + `state.vscdb` + `storage.json`）；
-/// 3. 若桌面版正在运行，优先执行**无感热切号**（仅重启 `language_server` 子进程保留窗口）；若 IDE 正在运行则优雅重启切换。
-pub async fn switch_active_account(account_id: &str) -> anyhow::Result<String> {
+/// 按显式生效模式切换本机当前激活的 Antigravity 账号：
+/// - `"write_only"`：仅将凭据与专属设备指纹写入本地（不重启客户端，下次启动生效）
+/// - `"desktop_hot"`：桌面版运行中时执行无感热重载 `language_server`，未运行时免 TUN 拉起桌面版
+/// - `"desktop_restart"`：切换并完整重启 Antigravity 桌面版
+/// - `"ide_restart"`：同步 IDE `state.vscdb` 并重启/拉起 Antigravity IDE
+pub async fn switch_active_account_with_mode(
+    account_id: &str,
+    switch_mode: &str,
+) -> anyhow::Result<String> {
     let mut acc = ensure_fresh_account_token(account_id).await?;
     let mut state = load_antigravity_state();
 
@@ -812,12 +840,6 @@ pub async fn switch_active_account(account_id: &str) -> anyhow::Result<String> {
     } else {
         state.cdp_port
     };
-    let (target_kind, install) = resolve_effective_target(
-        state.preferred_target,
-        Some(&state.custom_desktop_path),
-        Some(&state.custom_ide_path),
-        cdp_port,
-    );
 
     let apply_for_target = |kind: AntigravityClientKind| -> anyhow::Result<()> {
         let data_dir = user_data_dir_for(kind);
@@ -847,53 +869,102 @@ pub async fn switch_active_account(account_id: &str) -> anyhow::Result<String> {
         Ok(())
     };
 
-    // 若桌面版目录与 IDE 目录已存在，按首选目标写入（Auto 时若两端均已安装则双端同步）
-    apply_for_target(target_kind)?;
-    if state.preferred_target == AntigravityClientKind::Auto {
-        let other = if target_kind == AntigravityClientKind::Ide {
-            AntigravityClientKind::Desktop
-        } else {
-            AntigravityClientKind::Ide
-        };
-        if user_data_dir_for(other).exists() {
-            let _ = apply_for_target(other);
+    let mode = switch_mode.trim().to_ascii_lowercase();
+    match mode.as_str() {
+        "write_only" | "only" => {
+            apply_for_target(AntigravityClientKind::Desktop)?;
+            if user_data_dir_for(AntigravityClientKind::Ide).exists() {
+                let _ = apply_for_target(AntigravityClientKind::Ide);
+            }
+            Ok(format!(
+                "已将 {} 写入本机 Antigravity 凭据与设备指纹（重启客户端后生效）。",
+                acc.email
+            ))
         }
-    }
-
-    if install.running {
-        if target_kind == AntigravityClientKind::Desktop {
-            let hot_ok = process::hot_reload_desktop_language_server(|| {
-                let _ = apply_for_target(AntigravityClientKind::Desktop);
-            });
-            if hot_ok {
+        "ide_restart" | "ide" => {
+            apply_for_target(AntigravityClientKind::Ide)?;
+            let _ = stop_antigravity_target(true);
+            apply_for_target(AntigravityClientKind::Ide)?;
+            launch_antigravity_instance(
+                AntigravityClientKind::Ide,
+                Some(&state.custom_desktop_path),
+                Some(&state.custom_ide_path),
+                &state.launch_proxy_mode,
+                &state.launch_proxy_url,
+                cdp_port,
+                true,
+            )?;
+            Ok(format!(
+                "已切换至 {} 并启动/重启 Antigravity IDE 生效。",
+                acc.email
+            ))
+        }
+        "desktop_restart" => {
+            apply_for_target(AntigravityClientKind::Desktop)?;
+            let _ = stop_antigravity_target(false);
+            apply_for_target(AntigravityClientKind::Desktop)?;
+            launch_antigravity_instance(
+                AntigravityClientKind::Desktop,
+                Some(&state.custom_desktop_path),
+                Some(&state.custom_ide_path),
+                &state.launch_proxy_mode,
+                &state.launch_proxy_url,
+                cdp_port,
+                true,
+            )?;
+            Ok(format!(
+                "已切换至 {} 并重启 Antigravity 桌面版生效。",
+                acc.email
+            ))
+        }
+        _ => {
+            apply_for_target(AntigravityClientKind::Desktop)?;
+            if user_data_dir_for(AntigravityClientKind::Ide).exists() {
+                let _ = apply_for_target(AntigravityClientKind::Ide);
+            }
+            let desktop_inst = discover_installation(
+                AntigravityClientKind::Desktop,
+                Some(&state.custom_desktop_path),
+                cdp_port,
+            );
+            if desktop_inst.running {
+                let hot_ok = process::hot_reload_desktop_language_server(|| {
+                    let _ = apply_for_target(AntigravityClientKind::Desktop);
+                });
+                if hot_ok {
+                    return Ok(format!(
+                        "已无感热切换至 {}（主窗口保持运行，语言服务已重载新凭据）。",
+                        acc.email
+                    ));
+                }
+                let _ = stop_antigravity_target(false);
+                apply_for_target(AntigravityClientKind::Desktop)?;
+            }
+            if desktop_inst.found {
+                let _ = launch_antigravity_instance(
+                    AntigravityClientKind::Desktop,
+                    Some(&state.custom_desktop_path),
+                    Some(&state.custom_ide_path),
+                    &state.launch_proxy_mode,
+                    &state.launch_proxy_url,
+                    cdp_port,
+                    true,
+                );
                 return Ok(format!(
-                    "已无感热切换至 {}（主窗口保持运行，语言服务已重载新凭据）。",
+                    "已切换至 {} 并拉起 Antigravity 桌面版生效。",
                     acc.email
                 ));
             }
+            Ok(format!(
+                "已将 {} 写入本机 Antigravity 凭据与设备指纹，下次启动立即生效。",
+                acc.email
+            ))
         }
-        // IDE 或热切未命中时执行优雅重启
-        let _ = stop_antigravity_target(target_kind == AntigravityClientKind::Ide);
-        apply_for_target(target_kind)?;
-        let _ = launch_antigravity_instance(
-            target_kind,
-            Some(&state.custom_desktop_path),
-            Some(&state.custom_ide_path),
-            &state.launch_proxy_mode,
-            &state.launch_proxy_url,
-            cdp_port,
-            false,
-        );
-        return Ok(format!(
-            "已切换至 {} 并自动重启 Antigravity 生效。",
-            acc.email
-        ));
     }
+}
 
-    Ok(format!(
-        "已将 {} 写入本机 Antigravity 凭据与设备指纹，下次启动立即生效。",
-        acc.email
-    ))
+pub async fn switch_active_account(account_id: &str) -> anyhow::Result<String> {
+    switch_active_account_with_mode(account_id, "desktop_hot").await
 }
 
 pub fn update_account_metadata(
@@ -913,10 +984,15 @@ pub fn update_account_metadata(
         acc.label = (!trimmed.is_empty()).then(|| trimmed.to_string());
     }
     if let Some(mode) = proxy_mode {
-        acc.proxy_mode = match mode.trim() {
-            "direct" => "direct".to_string(),
-            "custom" => "custom".to_string(),
-            _ => "inherit".to_string(),
+        let m = mode.trim();
+        acc.proxy_mode = if m.starts_with("node:") && m.len() > 5 {
+            m.to_string()
+        } else {
+            match m {
+                "direct" => "direct".to_string(),
+                "custom" => "custom".to_string(),
+                _ => "inherit".to_string(),
+            }
         };
     }
     if let Some(url) = egress_proxy_url {

@@ -17,9 +17,11 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub use config::{
-    DEFAULT_LAMPLIGHTER_MCP_LISTEN, IgnitionConfig, LamplighterConfig, ProviderRuleConfig,
-    WebhookConfig, WindowModes, canonical_provider_id, generate_mcp_bearer_key,
+    DEFAULT_LAMPLIGHTER_MCP_LISTEN, ISOLATED_CLIENT_IDS, IgnitionConfig, LamplighterConfig,
+    ProviderRuleConfig, WebhookConfig, WindowModes, canonical_provider_id,
+    client_id_for_credential_source, generate_mcp_bearer_key, normalize_client_id,
     plan_display_and_default_weight, provider_display_title, provider_supports_ignition,
+    proxy_client_key_for_lamplighter_client,
 };
 pub use store::{
     ExternalLamplighterAccount, HistorySamplePoint, HistorySeries, LamplighterEventRecord,
@@ -28,6 +30,7 @@ pub use store::{
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MonitoredGroupView {
+    pub client_id: String,
     pub group_key: String,
     pub account_key: String,
     pub provider: String,
@@ -38,6 +41,7 @@ pub struct MonitoredGroupView {
     pub plan_name: String,
     pub weight: f64,
     pub custom_weight: bool,
+    pub effective_proxy: String,
     pub windows: Vec<providers::QuotaWindowReading>,
     pub ignite_supported: bool,
     pub ignite_enabled: bool,
@@ -61,6 +65,7 @@ pub struct LamplighterSnapshot {
     pub external_accounts: Vec<RedactedExternalAccount>,
     pub history_series: Vec<HistorySeries>,
     pub events: Vec<LamplighterEventRecord>,
+    pub client_effective_proxies: BTreeMap<String, String>,
     pub last_poll_at: i64,
     pub next_poll_at: i64,
 }
@@ -78,9 +83,9 @@ pub struct RedactedExternalAccount {
 
 #[derive(Default)]
 struct RuntimeCache {
-    groups: Vec<MonitoredGroupView>,
-    last_poll_at: i64,
-    next_poll_at: i64,
+    groups_by_client: BTreeMap<String, Vec<MonitoredGroupView>>,
+    last_poll_by_client: BTreeMap<String, i64>,
+    next_poll_by_client: BTreeMap<String, i64>,
     last_passive_at: BTreeMap<String, i64>,
     last_active_at: BTreeMap<String, i64>,
 }
@@ -106,26 +111,84 @@ fn severity_for_remaining(cfg: &LamplighterConfig, remaining: f64) -> u8 {
     }
 }
 
-/// 根据磁盘缓存与内存快照组装即时可读的 `LamplighterSnapshot`（不发起网络请求，毫秒级返回）。
-pub fn get_lamplighter_snapshot_with_hours(history_hours: u64) -> LamplighterSnapshot {
+fn describe_cred_effective_proxy(cred: &providers::UnifiedCredential) -> String {
+    match providers::resolve_effective_ignition_proxy_spec(cred) {
+        Some(s) => s,
+        None => "system (direct)".to_string(),
+    }
+}
+
+fn build_client_effective_proxies() -> BTreeMap<String, String> {
+    let snap = crate::network_proxies::get_network_proxy_snapshot();
+    let mut map = BTreeMap::new();
+    map.insert("codex".to_string(), snap.effective_codex);
+    map.insert(
+        "antigravity".to_string(),
+        snap.effective_antigravity_desktop,
+    );
+    map.insert(
+        "antigravity_ide".to_string(),
+        snap.effective_antigravity_ide,
+    );
+    map.insert("external".to_string(), snap.effective_external);
+    map
+}
+
+/// 根据客户端隔离范围组装即时可读的 `LamplighterSnapshot`（`client_filter = Some("codex")` 或 `Some("antigravity")` 仅返回对应客户端物理隔离的数据）。
+pub fn get_lamplighter_snapshot_for_client(
+    client_filter: Option<&str>,
+    history_hours: u64,
+) -> LamplighterSnapshot {
     let cfg = store::load_config();
-    let state = store::load_state();
     let now = Utc::now().timestamp();
+    let target_clients: Vec<&'static str> = match client_filter.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(raw) => vec![normalize_client_id(raw)],
+        None => ISOLATED_CLIENT_IDS.to_vec(),
+    };
 
-    let creds = providers::collect_unified_credentials(&cfg);
-    let cached_groups = runtime_cache()
-        .lock()
-        .ok()
-        .map(|c| (c.groups.clone(), c.last_poll_at, c.next_poll_at))
-        .unwrap_or_default();
-
-    let mut groups = cached_groups.0;
+    let all_creds = providers::collect_unified_credentials(&cfg);
+    let mut groups: Vec<MonitoredGroupView> = Vec::new();
     let mut label_map: BTreeMap<String, (String, String, f64)> = BTreeMap::new();
+    let mut max_last_poll = 0i64;
+    let mut min_next_poll = i64::MAX;
 
-    // 若引擎尚未完成首轮网络轮询，直接利用 state.json 或 Swivox 已有缓存快照即时渲染账号卡片
-    if groups.is_empty() {
-        for (cred, disp_label) in &creds {
-            let cached_plan = state
+    for cid in &target_clients {
+        let client_state = store::load_client_state(cid);
+        let cached_for_client = runtime_cache()
+            .lock()
+            .ok()
+            .map(|c| {
+                (
+                    c.groups_by_client.get(*cid).cloned().unwrap_or_default(),
+                    c.last_poll_by_client.get(*cid).copied().unwrap_or(0),
+                    c.next_poll_by_client.get(*cid).copied().unwrap_or(0),
+                )
+            })
+            .unwrap_or_default();
+
+        max_last_poll = max_last_poll.max(cached_for_client.1);
+        if cached_for_client.2 > now {
+            min_next_poll = min_next_poll.min(cached_for_client.2);
+        }
+
+        if !cached_for_client.0.is_empty() {
+            for mut g in cached_for_client.0 {
+                // 实时刷新每个账号当前解析出的点火代理描述，便于修改代理后立即反映
+                if let Some((cred, _)) = all_creds.iter().find(|(c, _)| c.account_key == g.account_key) {
+                    g.effective_proxy = describe_cred_effective_proxy(cred);
+                }
+                label_map.insert(
+                    g.group_key.clone(),
+                    (g.provider.clone(), g.display_label.clone(), g.weight),
+                );
+                groups.push(g);
+            }
+            continue;
+        }
+
+        // 若该客户端尚未完成首轮网络轮询，利用其专属 state.json 与 Swivox 本地缓存即时渲染卡片
+        for (cred, disp_label) in all_creds.iter().filter(|(c, _)| c.client_id == *cid) {
+            let cached_plan = client_state
                 .plans
                 .get(&cred.account_key)
                 .map(|p| p.plan.clone())
@@ -136,6 +199,7 @@ pub fn get_lamplighter_snapshot_with_hours(history_hours: u64) -> LamplighterSna
                 &cred.provider,
                 cached_plan.as_deref(),
             );
+            let effective_proxy = describe_cred_effective_proxy(cred);
             let rule = cfg.provider_rule(&cred.provider);
             let gkey = format!("{}:{}:{}:main", cred.provider, cred.account_key, cred.provider);
             let mut wins = Vec::new();
@@ -199,11 +263,18 @@ pub fn get_lamplighter_snapshot_with_hours(history_hours: u64) -> LamplighterSna
                         let sub_lbl = format!("{disp_label} · {}", grp.display_name);
                         let ignite_allowed = rule.ignite
                             && (rule.groups.is_empty()
-                                || rule.groups.iter().any(|g| g.eq_ignore_ascii_case(&grp.display_name)));
-                        let ts = state.scheduler.get(&sub_gkey).cloned().unwrap_or_default();
+                                || rule
+                                    .groups
+                                    .iter()
+                                    .any(|g| g.eq_ignore_ascii_case(&grp.display_name)));
+                        let ts = client_state
+                            .scheduler
+                            .get(&sub_gkey)
+                            .cloned()
+                            .unwrap_or_default();
                         let reset_5h = gwins.iter().find(|w| w.is_five_hour).and_then(|w| w.reset_at);
                         let next_ig = if ignite_allowed {
-                            ignite::compute_next_ignition_due(&cfg, &ts, reset_5h, now)
+                            ignite::compute_next_ignition_due_for_client(&cfg, cid, &ts, reset_5h, now)
                         } else {
                             None
                         };
@@ -212,6 +283,7 @@ pub fn get_lamplighter_snapshot_with_hours(history_hours: u64) -> LamplighterSna
                             (cred.provider.clone(), sub_lbl.clone(), weight),
                         );
                         groups.push(MonitoredGroupView {
+                            client_id: (*cid).to_string(),
                             group_key: sub_gkey,
                             account_key: cred.account_key.clone(),
                             provider: cred.provider.clone(),
@@ -222,6 +294,7 @@ pub fn get_lamplighter_snapshot_with_hours(history_hours: u64) -> LamplighterSna
                             plan_name: plan_name.clone(),
                             weight,
                             custom_weight,
+                            effective_proxy: effective_proxy.clone(),
                             windows: gwins,
                             ignite_supported: true,
                             ignite_enabled: ignite_allowed,
@@ -240,13 +313,13 @@ pub fn get_lamplighter_snapshot_with_hours(history_hours: u64) -> LamplighterSna
             let ignite_sup = provider_supports_ignition(&cred.provider)
                 && wins.iter().any(|w| w.is_five_hour);
             let ignite_en = ignite_sup && rule.ignite;
-            let ts = state.scheduler.get(&gkey).cloned().unwrap_or_default();
+            let ts = client_state.scheduler.get(&gkey).cloned().unwrap_or_default();
             let reset_5h = wins.iter().find(|w| w.is_five_hour).and_then(|w| w.reset_at);
             let seven_exh = wins
                 .iter()
                 .any(|w| !w.is_five_hour && w.remaining_percent <= 0.01);
             let next_ig = if ignite_en && !seven_exh {
-                ignite::compute_next_ignition_due(&cfg, &ts, reset_5h, now)
+                ignite::compute_next_ignition_due_for_client(&cfg, cid, &ts, reset_5h, now)
             } else {
                 None
             };
@@ -255,6 +328,7 @@ pub fn get_lamplighter_snapshot_with_hours(history_hours: u64) -> LamplighterSna
                 (cred.provider.clone(), disp_label.clone(), weight),
             );
             groups.push(MonitoredGroupView {
+                client_id: (*cid).to_string(),
                 group_key: gkey,
                 account_key: cred.account_key.clone(),
                 provider: cred.provider.clone(),
@@ -265,6 +339,7 @@ pub fn get_lamplighter_snapshot_with_hours(history_hours: u64) -> LamplighterSna
                 plan_name,
                 weight,
                 custom_weight,
+                effective_proxy,
                 windows: wins,
                 ignite_supported: ignite_sup,
                 ignite_enabled: ignite_en,
@@ -273,21 +348,27 @@ pub fn get_lamplighter_snapshot_with_hours(history_hours: u64) -> LamplighterSna
                 last_ignition_at: (ts.last_success_at > 0).then_some(ts.last_success_at),
                 last_ignition_model: ts.last_model,
                 paused_reason: ts.paused_reason,
-                last_updated_at: state.groups.get(&cred.account_key).map(|g| g.last_seen).unwrap_or(0),
+                last_updated_at: client_state
+                    .groups
+                    .get(&cred.account_key)
+                    .map(|g| g.last_seen)
+                    .unwrap_or(0),
             });
-        }
-    } else {
-        for g in &groups {
-            label_map.insert(
-                g.group_key.clone(),
-                (g.provider.clone(), g.display_label.clone(), g.weight),
-            );
         }
     }
 
-    let (history_series, events) = store::query_history_and_events(history_hours, None, &label_map);
+    let (history_series, events) = if target_clients.len() == 1 {
+        store::query_client_history_and_events(target_clients[0], history_hours, None, &label_map)
+    } else {
+        store::query_history_and_events(history_hours, None, &label_map)
+    };
+
     let external_accounts = store::load_external_accounts()
         .into_iter()
+        .filter(|a| {
+            let cid = client_id_for_credential_source("ext", &a.provider);
+            target_clients.contains(&cid)
+        })
         .map(|a| RedactedExternalAccount {
             id: a.id,
             provider: a.provider,
@@ -299,8 +380,8 @@ pub fn get_lamplighter_snapshot_with_hours(history_hours: u64) -> LamplighterSna
         .collect();
 
     let poll_int = cfg.poll_interval_seconds.max(60) as i64;
-    let next_poll = if cached_groups.2 > now {
-        cached_groups.2
+    let next_poll = if min_next_poll < i64::MAX && min_next_poll > now {
+        min_next_poll
     } else {
         ((now / poll_int) + 1) * poll_int
     };
@@ -311,31 +392,44 @@ pub fn get_lamplighter_snapshot_with_hours(history_hours: u64) -> LamplighterSna
         external_accounts,
         history_series,
         events,
-        last_poll_at: cached_groups.1,
+        client_effective_proxies: build_client_effective_proxies(),
+        last_poll_at: max_last_poll,
         next_poll_at: next_poll,
     }
 }
 
+/// 根据磁盘缓存与内存快照组装全局即时可读的 `LamplighterSnapshot`（不发起网络请求，毫秒级返回）。
+pub fn get_lamplighter_snapshot_with_hours(history_hours: u64) -> LamplighterSnapshot {
+    get_lamplighter_snapshot_for_client(None, history_hours)
+}
+
 pub fn get_lamplighter_snapshot() -> LamplighterSnapshot {
-    get_lamplighter_snapshot_with_hours(12)
+    get_lamplighter_snapshot_for_client(None, 12)
+}
+
+/// 按指定客户端隔离范围立即主动刷新配额与自动点火计划。
+pub async fn refresh_client_now(client_filter: Option<&str>) -> anyhow::Result<LamplighterSnapshot> {
+    run_poll_and_ignition_cycle_for_client(client_filter, true).await?;
+    Ok(get_lamplighter_snapshot_for_client(client_filter, 12))
 }
 
 /// 立即主动刷新全部监控账号的配额、评估阈值/恢复/套餐变化提醒并刷新自动点火计划。
 pub async fn refresh_all_now() -> anyhow::Result<LamplighterSnapshot> {
-    run_poll_and_ignition_cycle(true).await?;
-    Ok(get_lamplighter_snapshot())
+    refresh_client_now(None).await
 }
 
-/// 手动点击「立即点火」：对指定 `group_key` 立即发送最小点火请求（失败不计入自动熔断计数，成功则恢复熔断）。
+/// 手动点击「立即点火」：对指定 `group_key` 使用其所属客户端与账号隔离代理立即发送最小点火请求。
 pub async fn manual_ignite_group(group_key: &str) -> anyhow::Result<String> {
     let cfg = store::load_config();
     let creds = providers::collect_unified_credentials(&cfg);
-    let mut state = store::load_state();
 
     let (mut target_cred, disp_label) = creds
         .into_iter()
         .find(|(c, _)| group_key.contains(&format!(":{}:", c.account_key)))
         .context("未找到该额度组对应的账号凭据")?;
+
+    let client_id = target_cred.client_id.clone();
+    let mut state = store::load_client_state(&client_id);
 
     let group_label = if group_key.ends_with("claude_gpt") {
         "Claude / GPT"
@@ -358,35 +452,44 @@ pub async fn manual_ignite_group(group_key: &str) -> anyhow::Result<String> {
             ts.rolling_reset = false;
             ts.last_reset_seen = res.confirmed_reset_at;
             ts.last_seen_at = now;
-            let _ = store::save_state(&state);
+            let _ = store::save_client_state(&client_id, &state);
 
             let clock = notify::format_local_mmdd_hhmm(res.confirmed_reset_at);
-            store::append_event_record(&LamplighterEventRecord {
-                timestamp: now,
-                group_key: group_key.to_string(),
-                kind: "ignite".to_string(),
-                level: "info".to_string(),
-                label: disp_label.clone(),
-                message: format!("{disp_label} 手动点火成功（{}），下次重置 {clock}", res.model_used),
-                detail: Some(format!("model={} · reset={clock}", res.model_used)),
-            });
+            store::append_client_event_record(
+                &client_id,
+                &LamplighterEventRecord {
+                    timestamp: now,
+                    group_key: group_key.to_string(),
+                    kind: "ignite".to_string(),
+                    level: "info".to_string(),
+                    label: disp_label.clone(),
+                    message: format!(
+                        "{disp_label} 手动点火成功（{}），下次重置 {clock}",
+                        res.model_used
+                    ),
+                    detail: Some(format!("model={} · reset={clock}", res.model_used)),
+                },
+            );
 
-            let _ = run_poll_and_ignition_cycle(true).await;
+            let _ = run_poll_and_ignition_cycle_for_client(Some(&client_id), true).await;
             Ok(format!(
                 "{disp_label} 点火成功（模型：{}），新 5 小时窗口将于 {clock} 重置。",
                 res.model_used
             ))
         }
         Err(err) => {
-            store::append_event_record(&LamplighterEventRecord {
-                timestamp: now,
-                group_key: group_key.to_string(),
-                kind: "ignite_failed".to_string(),
-                level: "error".to_string(),
-                label: disp_label.clone(),
-                message: format!("{disp_label} 手动点火失败：{}", err),
-                detail: None,
-            });
+            store::append_client_event_record(
+                &client_id,
+                &LamplighterEventRecord {
+                    timestamp: now,
+                    group_key: group_key.to_string(),
+                    kind: "ignite_failed".to_string(),
+                    level: "error".to_string(),
+                    label: disp_label.clone(),
+                    message: format!("{disp_label} 手动点火失败：{}", err),
+                    detail: None,
+                },
+            );
             Err(err)
         }
     }
@@ -456,8 +559,13 @@ pub fn delete_external_account(id: &str) -> anyhow::Result<()> {
     store::save_external_accounts(&list)
 }
 
-/// 供 `protocol_proxy.rs` 异步非阻塞调用的被动响应头钩子（队列绝不阻塞主请求流）。
-pub fn observe_passive_headers(headers: &BTreeMap<String, String>, requested_at: i64) {
+/// 供 `protocol_proxy.rs` 按实际发起请求的账号凭据异步记录被动响应头额度（严格按客户端与账号精确匹配，绝不跨账号串扰）。
+pub fn observe_passive_headers_for_account(
+    headers: &BTreeMap<String, String>,
+    chatgpt_account_id: Option<&str>,
+    access_token: Option<&str>,
+    requested_at: i64,
+) {
     let Some((provider, windows)) =
         providers::parse_passive_response_headers(headers, requested_at)
     else {
@@ -468,450 +576,548 @@ pub fn observe_passive_headers(headers: &BTreeMap<String, String>, requested_at:
         return;
     }
     let creds = providers::collect_unified_credentials(&cfg);
-    let Some((cred, _)) = creds.into_iter().find(|(c, _)| c.provider == provider) else {
+    let target_cred = if provider == "codex" {
+        let aid = chatgpt_account_id.map(str::trim).filter(|s| !s.is_empty());
+        let at = access_token.map(str::trim).filter(|s| !s.is_empty());
+        if let Some(target_aid) = aid {
+            creds
+                .iter()
+                .find(|(c, _)| {
+                    c.client_id == "codex"
+                        && c.chatgpt_account_id.as_deref().map(str::trim) == Some(target_aid)
+                        && (at.is_none() || Some(c.access_token.trim()) == at)
+                })
+                .or_else(|| {
+                    creds.iter().find(|(c, _)| {
+                        c.client_id == "codex"
+                            && c.chatgpt_account_id.as_deref().map(str::trim) == Some(target_aid)
+                    })
+                })
+                .map(|(c, _)| c.clone())
+        } else if let Some(target_at) = at {
+            creds
+                .into_iter()
+                .find(|(c, _)| c.client_id == "codex" && c.access_token.trim() == target_at)
+                .map(|(c, _)| c)
+        } else {
+            let active_id = crate::official_accounts::load_official_accounts_state().active_account_id;
+            active_id.and_then(|act| {
+                creds
+                    .into_iter()
+                    .find(|(c, _)| c.source_kind == "swivox_codex" && c.raw_account_id == act)
+                    .map(|(c, _)| c)
+            })
+        }
+    } else {
+        let at = access_token.map(str::trim).filter(|s| !s.is_empty());
+        if let Some(target_at) = at {
+            creds
+                .into_iter()
+                .find(|(c, _)| c.provider == provider && c.access_token.trim() == target_at)
+                .map(|(c, _)| c)
+        } else {
+            let matches: Vec<_> = creds
+                .into_iter()
+                .filter(|(c, _)| c.provider == provider)
+                .collect();
+            (matches.len() == 1).then(|| matches.into_iter().next().map(|(c, _)| c)).flatten()
+        }
+    };
+
+    let Some(cred) = target_cred else {
         return;
     };
+
     let gkey = format!("{provider}:{}:{provider}:main", cred.account_key);
     let now = Utc::now().timestamp();
     for w in &windows {
-        store::append_history_sample(now, &gkey, &w.id, w.remaining_percent, w.reset_at, "passive");
+        store::append_client_history_sample(
+            &cred.client_id,
+            now,
+            &gkey,
+            &w.id,
+            w.remaining_percent,
+            w.reset_at,
+            "passive",
+        );
     }
     if let Ok(mut cache) = runtime_cache().lock() {
         cache.last_passive_at.insert(cred.account_key, now);
     }
 }
 
-async fn run_poll_and_ignition_cycle(force_active: bool) -> anyhow::Result<()> {
+pub fn observe_passive_headers(headers: &BTreeMap<String, String>, requested_at: i64) {
+    observe_passive_headers_for_account(headers, None, None, requested_at);
+}
+
+async fn run_poll_and_ignition_cycle_for_client(
+    client_filter: Option<&str>,
+    force_active: bool,
+) -> anyhow::Result<()> {
     let cfg = store::load_config();
     if !cfg.enabled && !force_active {
         return Ok(());
     }
 
-    let mut state = store::load_state();
-    let creds = providers::collect_unified_credentials(&cfg);
+    let target_clients: Vec<&'static str> = match client_filter.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(raw) => vec![normalize_client_id(raw)],
+        None => ISOLATED_CLIENT_IDS.to_vec(),
+    };
+
+    let all_creds = providers::collect_unified_credentials(&cfg);
     let now = Utc::now().timestamp();
-    let mut updated_views: Vec<MonitoredGroupView> = Vec::new();
+    let poll_int = cfg.poll_interval_seconds.max(60) as i64;
+    let next_poll = ((now / poll_int) + 1) * poll_int;
     let mut pending_notifications: Vec<notify::OutboundNotification> = Vec::new();
 
-    for (mut cred, base_label) in creds {
-        // 被动跳过判断
-        if !force_active && matches!(cred.provider.as_str(), "codex" | "claude") && cfg.passive_skip_seconds > 0 {
-            let skip = runtime_cache()
-                .lock()
-                .ok()
-                .is_some_and(|c| {
+    for cid in target_clients {
+        let mut state = store::load_client_state(cid);
+        let client_creds: Vec<_> = all_creds
+            .iter()
+            .filter(|(c, _)| c.client_id == cid)
+            .cloned()
+            .collect();
+        let mut updated_views: Vec<MonitoredGroupView> = Vec::new();
+
+        for (mut cred, base_label) in client_creds {
+            if !force_active
+                && matches!(cred.provider.as_str(), "codex" | "claude")
+                && cfg.passive_skip_seconds > 0
+            {
+                let skip = runtime_cache().lock().ok().is_some_and(|c| {
                     let lp = c.last_passive_at.get(&cred.account_key).copied().unwrap_or(0);
                     let la = c.last_active_at.get(&cred.account_key).copied().unwrap_or(0);
                     now - lp <= cfg.passive_skip_seconds as i64
                         && now - la < (cfg.passive_skip_max_minutes as i64 * 60)
                 });
-            if skip {
-                continue;
+                if skip {
+                    continue;
+                }
             }
-        }
 
-        let rule = cfg.provider_rule(&cred.provider);
-        match providers::query_credential_quotas(&mut cred, cfg.request_timeout_seconds).await {
-            Ok(raw_groups) => {
-                if let Ok(mut cache) = runtime_cache().lock() {
-                    cache.last_active_at.insert(cred.account_key.clone(), now);
-                }
+            let rule = cfg.provider_rule(&cred.provider);
+            let effective_proxy = describe_cred_effective_proxy(&cred);
 
-                // 恢复非点火确认的查询故障态
-                if let Some(ct) = state.credentials.get_mut(&cred.account_key) {
-                    ct.consecutive_query_failures = 0;
-                    if !ct.problem_kind.is_empty() && !ct.from_ignition {
-                        if ct.notified {
-                            pending_notifications.push(notify::OutboundNotification {
-                                kind: "credential_ok".to_string(),
-                                priority: "normal",
-                                title: format!("✅ {base_label} 凭证已恢复"),
-                                body: "额度查询已恢复正常。".to_string(),
-                                jump_url: None,
-                            });
-                        }
-                        *ct = store::CredentialTrackState::default();
+            match providers::query_credential_quotas(&mut cred, cfg.request_timeout_seconds).await {
+                Ok(raw_groups) => {
+                    if let Ok(mut cache) = runtime_cache().lock() {
+                        cache.last_active_at.insert(cred.account_key.clone(), now);
                     }
-                }
 
-                // 套餐变化检测
-                let detected_raw_plan = raw_groups
-                    .iter()
-                    .find_map(|g| g.detected_plan.clone())
-                    .or_else(|| cred.cached_plan.clone());
-                let (plan_name, weight, custom_weight) = providers::resolve_account_plan_and_weight(
-                    &cfg,
-                    &cred.account_key,
-                    &cred.provider,
-                    detected_raw_plan.as_deref(),
-                );
-                let mut plan_rebased = false;
-                if !plan_name.is_empty() {
-                    let pt = state.plans.entry(cred.account_key.clone()).or_default();
-                    if !pt.plan.is_empty() && pt.plan != plan_name {
-                        let old_plan = pt.plan.clone();
-                        plan_rebased = true;
-                        store::append_event_record(&LamplighterEventRecord {
-                            timestamp: now,
-                            group_key: cred.account_key.clone(),
-                            kind: "plan_change".to_string(),
-                            level: "info".to_string(),
-                            label: base_label.clone(),
-                            message: format!("{base_label} 套餐变更：{old_plan} → {plan_name}"),
-                            detail: None,
-                        });
-                        pending_notifications.push(notify::OutboundNotification {
-                            kind: "plan".to_string(),
-                            priority: "high",
-                            title: format!("🎫 {base_label} · 套餐 {old_plan} → {plan_name}"),
-                            body: "该账号的额度提醒基线已按新套餐重新开始。".to_string(),
-                            jump_url: None,
-                        });
-                    }
-                    pt.plan = plan_name.clone();
-                    pt.checked_at = now;
-                }
-
-                for rg in raw_groups {
-                    let gkey = format!("{}:{}:{}", cred.provider, cred.account_key, rg.raw_group_key);
-                    let full_label = if cred.provider == "antigravity" {
-                        format!("{base_label} · {}", rg.source_label)
-                    } else {
-                        base_label.clone()
-                    };
-
-                    // 写入历史曲线样本并执行告警状态机
-                    let gs = state.groups.entry(gkey.clone()).or_default();
-                    gs.label = full_label.clone();
-                    gs.last_seen = now;
-                    gs.active_windows = Some(rg.windows.iter().map(|w| w.id.clone()).collect());
-
-                    let all_lines: Vec<String> = rg
-                        .windows
-                        .iter()
-                        .map(|w| {
-                            notify::format_window_summary_line(
-                                &w.short_label,
-                                w.remaining_percent,
-                                w.reset_at,
-                                now,
-                                false,
-                            )
-                        })
-                        .collect();
-
-                    for w in &rg.windows {
-                        store::append_history_sample(
-                            now,
-                            &gkey,
-                            &w.id,
-                            w.remaining_percent,
-                            w.reset_at,
-                            "active",
-                        );
-                        let sev = severity_for_remaining(&cfg, w.remaining_percent);
-                        let is_first = !gs.windows.contains_key(&w.id);
-                        let ws = gs.windows.entry(w.id.clone()).or_default();
-
-                        if is_first || ws.rebase || plan_rebased {
-                            ws.remaining = w.remaining_percent;
-                            ws.reset = w.reset_at.unwrap_or(0);
-                            ws.read_at = now;
-                            ws.notified_severity = sev;
-                            ws.exhausted = sev >= 4;
-                            ws.rebase = false;
-                            continue;
-                        }
-
-                        // 防重置后短暂回跳（Bounced）
-                        if let Some(rst) = w.reset_at
-                            && ws.ended_reset > 0
-                            && (rst - ws.ended_reset).abs() <= 10
-                            && rst > now
-                        {
-                            ws.bounce_readings += 1;
-                            if ws.bounce_since == 0 {
-                                ws.bounce_since = now;
-                            }
-                            if ws.bounce_readings >= 3 && now - ws.bounce_since >= 1800 {
-                                ws.ended_reset = 0;
-                                ws.notified_severity = sev;
-                            }
-                            continue;
-                        }
-                        ws.bounce_readings = 0;
-                        ws.bounce_since = 0;
-
-                        // 检测窗口周期重置恢复
-                        let prev_rst = ws.reset;
-                        let new_rst = w.reset_at.unwrap_or(0);
-                        let cycle_reset = (prev_rst > 0 && new_rst > prev_rst + 60)
-                            || (ws.remaining + 20.0 < w.remaining_percent && w.remaining_percent >= 95.0);
-
-                        if cycle_reset {
-                            let prev_rem = ws.remaining;
-                            let was_exhausted = ws.exhausted;
-                            ws.ended_reset = prev_rst;
-                            ws.notified_severity = sev;
-                            ws.exhausted = sev >= 4;
-
-                            let rec_mode = if w.is_five_hour {
-                                cfg.recovery_notify.five_hour.as_str()
-                            } else {
-                                cfg.recovery_notify.seven_day.as_str()
-                            };
-                            let should_notify = match rec_mode {
-                                "all" => prev_rem < 99.5,
-                                "after_exhausted" => was_exhausted,
-                                _ => false,
-                            };
-                            if should_notify {
-                                let mut body_lines = vec![format!(
-                                    "上周期剩余：{} {:.0}%",
-                                    w.short_label, prev_rem
-                                )];
-                                body_lines.extend(all_lines.clone());
+                    if let Some(ct) = state.credentials.get_mut(&cred.account_key) {
+                        ct.consecutive_query_failures = 0;
+                        if !ct.problem_kind.is_empty() && !ct.from_ignition {
+                            if ct.notified {
                                 pending_notifications.push(notify::OutboundNotification {
-                                    kind: "recovery".to_string(),
+                                    kind: "credential_ok".to_string(),
                                     priority: "normal",
-                                    title: format!("✅ {full_label} · {} 已恢复", w.short_label),
-                                    body: body_lines.join("\n"),
+                                    title: format!("✅ {base_label} 凭证已恢复"),
+                                    body: "额度查询已恢复正常。".to_string(),
                                     jump_url: None,
                                 });
                             }
-                        } else if sev > ws.notified_severity {
-                            ws.notified_severity = sev;
-                            if sev >= 4 {
-                                ws.exhausted = true;
-                            }
-                            let emoji = if sev == 1 { "🟡" } else { "🔴" };
-                            let prio = if sev >= 3 { "high" } else { "normal" };
-                            let dur = w
-                                .reset_at
-                                .map(|r| format!(" | {}", notify::compact_duration_label(r - now, false)))
-                                .unwrap_or_default();
+                            *ct = store::CredentialTrackState::default();
+                        }
+                    }
+
+                    let detected_raw_plan = raw_groups
+                        .iter()
+                        .find_map(|g| g.detected_plan.clone())
+                        .or_else(|| cred.cached_plan.clone());
+                    let (plan_name, weight, custom_weight) =
+                        providers::resolve_account_plan_and_weight(
+                            &cfg,
+                            &cred.account_key,
+                            &cred.provider,
+                            detected_raw_plan.as_deref(),
+                        );
+                    let mut plan_rebased = false;
+                    if !plan_name.is_empty() {
+                        let pt = state.plans.entry(cred.account_key.clone()).or_default();
+                        if !pt.plan.is_empty() && pt.plan != plan_name {
+                            let old_plan = pt.plan.clone();
+                            plan_rebased = true;
+                            store::append_client_event_record(
+                                cid,
+                                &LamplighterEventRecord {
+                                    timestamp: now,
+                                    group_key: cred.account_key.clone(),
+                                    kind: "plan_change".to_string(),
+                                    level: "info".to_string(),
+                                    label: base_label.clone(),
+                                    message: format!("{base_label} 套餐变更：{old_plan} → {plan_name}"),
+                                    detail: None,
+                                },
+                            );
                             pending_notifications.push(notify::OutboundNotification {
-                                kind: "quota".to_string(),
-                                priority: prio,
-                                title: format!(
-                                    "{emoji} {full_label} · {} {:.0}%{dur}",
-                                    w.short_label, w.remaining_percent
-                                ),
-                                body: all_lines.join("\n"),
+                                kind: "plan".to_string(),
+                                priority: "high",
+                                title: format!("🎫 {base_label} · 套餐 {old_plan} → {plan_name}"),
+                                body: "该账号的额度提醒基线已按新套餐重新开始。".to_string(),
                                 jump_url: None,
                             });
                         }
+                        pt.plan = plan_name.clone();
+                        pt.checked_at = now;
+                    }
 
-                        // 重置前提醒（5h 提前 1 小时，7d 提前 24 小时）
-                        if let Some(rst) = w.reset_at.filter(|r| *r > now) {
-                            let lead = if w.is_five_hour { 3600 } else { 86_400 };
-                            let rem_mode = if w.is_five_hour {
-                                cfg.reset_reminder.five_hour.as_str()
-                            } else {
-                                cfg.reset_reminder.seven_day.as_str()
-                            };
-                            let remind_ok = match rem_mode {
-                                "all" => true,
-                                "has_remaining" => w.remaining_percent > cfg.critical_threshold,
-                                _ => false,
-                            };
-                            if remind_ok
-                                && rst - now <= lead
-                                && (ws.reset_notice_sent_for - rst).abs() > 60
+                    for rg in raw_groups {
+                        let gkey = format!("{}:{}:{}", cred.provider, cred.account_key, rg.raw_group_key);
+                        let full_label = if cred.provider == "antigravity" {
+                            format!("{base_label} · {}", rg.source_label)
+                        } else {
+                            base_label.clone()
+                        };
+
+                        let gs = state.groups.entry(gkey.clone()).or_default();
+                        gs.label = full_label.clone();
+                        gs.last_seen = now;
+                        gs.active_windows = Some(rg.windows.iter().map(|w| w.id.clone()).collect());
+
+                        let all_lines: Vec<String> = rg
+                            .windows
+                            .iter()
+                            .map(|w| {
+                                notify::format_window_summary_line(
+                                    &w.short_label,
+                                    w.remaining_percent,
+                                    w.reset_at,
+                                    now,
+                                    false,
+                                )
+                            })
+                            .collect();
+
+                        for w in &rg.windows {
+                            store::append_client_history_sample(
+                                cid,
+                                now,
+                                &gkey,
+                                &w.id,
+                                w.remaining_percent,
+                                w.reset_at,
+                                "active",
+                            );
+                            let sev = severity_for_remaining(&cfg, w.remaining_percent);
+                            let is_first = !gs.windows.contains_key(&w.id);
+                            let ws = gs.windows.entry(w.id.clone()).or_default();
+
+                            if is_first || ws.rebase || plan_rebased {
+                                ws.remaining = w.remaining_percent;
+                                ws.reset = w.reset_at.unwrap_or(0);
+                                ws.read_at = now;
+                                ws.notified_severity = sev;
+                                ws.exhausted = sev >= 4;
+                                ws.rebase = false;
+                                continue;
+                            }
+
+                            if let Some(rst) = w.reset_at
+                                && ws.ended_reset > 0
+                                && (rst - ws.ended_reset).abs() <= 10
+                                && rst > now
                             {
-                                ws.reset_notice_sent_for = rst;
+                                ws.bounce_readings += 1;
+                                if ws.bounce_since == 0 {
+                                    ws.bounce_since = now;
+                                }
+                                if ws.bounce_readings >= 3 && now - ws.bounce_since >= 1800 {
+                                    ws.ended_reset = 0;
+                                    ws.notified_severity = sev;
+                                }
+                                continue;
+                            }
+                            ws.bounce_readings = 0;
+                            ws.bounce_since = 0;
+
+                            let prev_rst = ws.reset;
+                            let new_rst = w.reset_at.unwrap_or(0);
+                            let cycle_reset = (prev_rst > 0 && new_rst > prev_rst + 60)
+                                || (ws.remaining + 20.0 < w.remaining_percent
+                                    && w.remaining_percent >= 95.0);
+
+                            if cycle_reset {
+                                let prev_rem = ws.remaining;
+                                let was_exhausted = ws.exhausted;
+                                ws.ended_reset = prev_rst;
+                                ws.notified_severity = sev;
+                                ws.exhausted = sev >= 4;
+
+                                let rec_mode = if w.is_five_hour {
+                                    cfg.recovery_notify.five_hour.as_str()
+                                } else {
+                                    cfg.recovery_notify.seven_day.as_str()
+                                };
+                                let should_notify = match rec_mode {
+                                    "all" => prev_rem < 99.5,
+                                    "after_exhausted" => was_exhausted,
+                                    _ => false,
+                                };
+                                if should_notify {
+                                    let mut body_lines = vec![format!(
+                                        "上周期剩余：{} {:.0}%",
+                                        w.short_label, prev_rem
+                                    )];
+                                    body_lines.extend(all_lines.clone());
+                                    pending_notifications.push(notify::OutboundNotification {
+                                        kind: "recovery".to_string(),
+                                        priority: "normal",
+                                        title: format!("✅ {full_label} · {} 已恢复", w.short_label),
+                                        body: body_lines.join("\n"),
+                                        jump_url: None,
+                                    });
+                                }
+                            } else if sev > ws.notified_severity {
+                                ws.notified_severity = sev;
+                                if sev >= 4 {
+                                    ws.exhausted = true;
+                                }
+                                let emoji = if sev == 1 { "🟡" } else { "🔴" };
+                                let prio = if sev >= 3 { "high" } else { "normal" };
+                                let dur = w
+                                    .reset_at
+                                    .map(|r| {
+                                        format!(" | {}", notify::compact_duration_label(r - now, false))
+                                    })
+                                    .unwrap_or_default();
                                 pending_notifications.push(notify::OutboundNotification {
-                                    kind: "reminder".to_string(),
-                                    priority: "normal",
-                                    title: format!("⏰ {full_label} · {} 重置提醒", w.short_label),
+                                    kind: "quota".to_string(),
+                                    priority: prio,
+                                    title: format!(
+                                        "{emoji} {full_label} · {} {:.0}%{dur}",
+                                        w.short_label, w.remaining_percent
+                                    ),
                                     body: all_lines.join("\n"),
                                     jump_url: None,
                                 });
                             }
-                        }
 
-                        ws.remaining = w.remaining_percent;
-                        ws.reset = new_rst;
-                        ws.read_at = now;
-                    }
-
-                    // 更新并评估 5h 自动点火计划
-                    let w5 = rg.windows.iter().find(|w| w.is_five_hour);
-                    let seven_exhausted = rg
-                        .windows
-                        .iter()
-                        .any(|w| !w.is_five_hour && w.remaining_percent <= 0.01);
-                    let ignite_supported = provider_supports_ignition(&cred.provider) && w5.is_some();
-                    let ignite_enabled = ignite_supported
-                        && rule.ignite
-                        && (cred.provider != "antigravity"
-                            || rule.groups.is_empty()
-                            || rule
-                                .groups
-                                .iter()
-                                .any(|g| g.eq_ignore_ascii_case(&rg.source_label)));
-
-                    let ts = state.scheduler.entry(gkey.clone()).or_default();
-                    if let Some(win5) = w5 {
-                        ignite::observe_five_hour_reset(ts, win5.reset_at, now, false);
-                    }
-
-                    let mut next_due = if ignite_enabled && !seven_exhausted {
-                        ignite::compute_next_ignition_due(
-                            &cfg,
-                            ts,
-                            w5.and_then(|w| w.reset_at),
-                            now,
-                        )
-                    } else {
-                        None
-                    };
-
-                    // 若当前已到自动点火时刻，立即执行自动点火！
-                    if let Some(due) = next_due
-                        && due <= now
-                        && cfg.ignition.enabled
-                    {
-                        match ignite::execute_ignition_once(
-                            &cfg,
-                            &mut cred,
-                            &gkey,
-                            &rg.source_label,
-                        )
-                        .await
-                        {
-                            Ok(res) => {
-                                ts.last_success_at = now;
-                                ts.last_model = Some(res.model_used.clone());
-                                ts.consecutive_failures = 0;
-                                ts.retry_at = 0;
-                                ts.paused_until = 0;
-                                ts.paused_reason = None;
-                                ts.rolling_reset = false;
-                                ts.last_reset_seen = res.confirmed_reset_at;
-                                ts.last_seen_at = now;
-                                next_due = ignite::compute_next_ignition_due(
-                                    &cfg,
-                                    ts,
-                                    Some(res.confirmed_reset_at),
-                                    now,
-                                );
-                                let clock = notify::format_local_mmdd_hhmm(res.confirmed_reset_at);
-                                store::append_event_record(&LamplighterEventRecord {
-                                    timestamp: now,
-                                    group_key: gkey.clone(),
-                                    kind: "ignite".to_string(),
-                                    level: "info".to_string(),
-                                    label: full_label.clone(),
-                                    message: format!(
-                                        "{full_label} 自动点火成功（{}），下次重置 {clock}",
-                                        res.model_used
-                                    ),
-                                    detail: None,
-                                });
-                            }
-                            Err(err) => {
-                                let err_s = err.to_string();
-                                store::append_event_record(&LamplighterEventRecord {
-                                    timestamp: now,
-                                    group_key: gkey.clone(),
-                                    kind: "ignite_failed".to_string(),
-                                    level: "warn".to_string(),
-                                    label: full_label.clone(),
-                                    message: format!("{full_label} 自动点火失败：{err_s}"),
-                                    detail: None,
-                                });
-                                if let Some((summary, pause_to)) =
-                                    ignite::record_auto_ignition_failure(&cfg, ts, &err_s, now)
+                            if let Some(rst) = w.reset_at.filter(|r| *r > now) {
+                                let lead = if w.is_five_hour { 3600 } else { 86_400 };
+                                let rem_mode = if w.is_five_hour {
+                                    cfg.reset_reminder.five_hour.as_str()
+                                } else {
+                                    cfg.reset_reminder.seven_day.as_str()
+                                };
+                                let remind_ok = match rem_mode {
+                                    "all" => true,
+                                    "has_remaining" => w.remaining_percent > cfg.critical_threshold,
+                                    _ => false,
+                                };
+                                if remind_ok
+                                    && rst - now <= lead
+                                    && (ws.reset_notice_sent_for - rst).abs() > 60
                                 {
-                                    let clock = notify::format_local_mmdd_hhmm(pause_to);
+                                    ws.reset_notice_sent_for = rst;
                                     pending_notifications.push(notify::OutboundNotification {
-                                        kind: "circuit".to_string(),
-                                        priority: "high",
-                                        title: format!("⚠️ {full_label} 自动点火已暂停"),
-                                        body: format!(
-                                            "连续或高风险错误触发保护，暂停自动重试至 {clock}。\n{summary}"
-                                        ),
+                                        kind: "reminder".to_string(),
+                                        priority: "normal",
+                                        title: format!("⏰ {full_label} · {} 重置提醒", w.short_label),
+                                        body: all_lines.join("\n"),
                                         jump_url: None,
                                     });
                                 }
-                                next_due = ignite::compute_next_ignition_due(
-                                    &cfg,
-                                    ts,
-                                    w5.and_then(|w| w.reset_at),
-                                    now,
-                                );
+                            }
+
+                            ws.remaining = w.remaining_percent;
+                            ws.reset = new_rst;
+                            ws.read_at = now;
+                        }
+
+                        let w5 = rg.windows.iter().find(|w| w.is_five_hour);
+                        let seven_exhausted = rg
+                            .windows
+                            .iter()
+                            .any(|w| !w.is_five_hour && w.remaining_percent <= 0.01);
+                        let ignite_supported =
+                            provider_supports_ignition(&cred.provider) && w5.is_some();
+                        let ignite_enabled = ignite_supported
+                            && rule.ignite
+                            && (cred.provider != "antigravity"
+                                || rule.groups.is_empty()
+                                || rule
+                                    .groups
+                                    .iter()
+                                    .any(|g| g.eq_ignore_ascii_case(&rg.source_label)));
+
+                        let ts = state.scheduler.entry(gkey.clone()).or_default();
+                        if let Some(win5) = w5 {
+                            ignite::observe_five_hour_reset(ts, win5.reset_at, now, false);
+                        }
+
+                        let mut next_due = if ignite_enabled && !seven_exhausted {
+                            ignite::compute_next_ignition_due_for_client(
+                                &cfg,
+                                cid,
+                                ts,
+                                w5.and_then(|w| w.reset_at),
+                                now,
+                            )
+                        } else {
+                            None
+                        };
+
+                        if let Some(due) = next_due
+                            && due <= now
+                            && cfg.ignition_for_client(cid).enabled
+                        {
+                            match ignite::execute_ignition_once(
+                                &cfg,
+                                &mut cred,
+                                &gkey,
+                                &rg.source_label,
+                            )
+                            .await
+                            {
+                                Ok(res) => {
+                                    ts.last_success_at = now;
+                                    ts.last_model = Some(res.model_used.clone());
+                                    ts.consecutive_failures = 0;
+                                    ts.retry_at = 0;
+                                    ts.paused_until = 0;
+                                    ts.paused_reason = None;
+                                    ts.rolling_reset = false;
+                                    ts.last_reset_seen = res.confirmed_reset_at;
+                                    ts.last_seen_at = now;
+                                    next_due = ignite::compute_next_ignition_due_for_client(
+                                        &cfg,
+                                        cid,
+                                        ts,
+                                        Some(res.confirmed_reset_at),
+                                        now,
+                                    );
+                                    let clock = notify::format_local_mmdd_hhmm(res.confirmed_reset_at);
+                                    store::append_client_event_record(
+                                        cid,
+                                        &LamplighterEventRecord {
+                                            timestamp: now,
+                                            group_key: gkey.clone(),
+                                            kind: "ignite".to_string(),
+                                            level: "info".to_string(),
+                                            label: full_label.clone(),
+                                            message: format!(
+                                                "{full_label} 自动点火成功（{}），下次重置 {clock}",
+                                                res.model_used
+                                            ),
+                                            detail: None,
+                                        },
+                                    );
+                                }
+                                Err(err) => {
+                                    let err_s = err.to_string();
+                                    store::append_client_event_record(
+                                        cid,
+                                        &LamplighterEventRecord {
+                                            timestamp: now,
+                                            group_key: gkey.clone(),
+                                            kind: "ignite_failed".to_string(),
+                                            level: "warn".to_string(),
+                                            label: full_label.clone(),
+                                            message: format!("{full_label} 自动点火失败：{err_s}"),
+                                            detail: None,
+                                        },
+                                    );
+                                    if let Some((summary, pause_to)) =
+                                        ignite::record_auto_ignition_failure_for_client(
+                                            &cfg, cid, ts, &err_s, now,
+                                        )
+                                    {
+                                        let clock = notify::format_local_mmdd_hhmm(pause_to);
+                                        pending_notifications.push(notify::OutboundNotification {
+                                            kind: "circuit".to_string(),
+                                            priority: "high",
+                                            title: format!("⚠️ {full_label} 自动点火已暂停"),
+                                            body: format!(
+                                                "连续或高风险错误触发保护，暂停自动重试至 {clock}。\n{summary}"
+                                            ),
+                                            jump_url: None,
+                                        });
+                                    }
+                                    next_due = ignite::compute_next_ignition_due_for_client(
+                                        &cfg,
+                                        cid,
+                                        ts,
+                                        w5.and_then(|w| w.reset_at),
+                                        now,
+                                    );
+                                }
                             }
                         }
-                    }
 
-                    updated_views.push(MonitoredGroupView {
-                        group_key: gkey,
-                        account_key: cred.account_key.clone(),
-                        provider: cred.provider.clone(),
-                        account_email: cred.email.clone(),
-                        source_kind: cred.source_kind.to_string(),
-                        display_label: full_label,
-                        group_title: rg.source_label,
-                        plan_name: plan_name.clone(),
-                        weight,
-                        custom_weight,
-                        windows: rg.windows,
-                        ignite_supported,
-                        ignite_enabled,
-                        seven_day_exhausted: seven_exhausted,
-                        next_ignition_at: next_due,
-                        last_ignition_at: (ts.last_success_at > 0).then_some(ts.last_success_at),
-                        last_ignition_model: ts.last_model.clone(),
-                        paused_reason: ts.paused_reason.clone(),
-                        last_updated_at: now,
-                    });
-                }
-            }
-            Err(err) => {
-                let msg = err.to_string();
-                let lower = msg.to_ascii_lowercase();
-                if lower.contains("401") || lower.contains("invalid_grant") || lower.contains("unauthorized") {
-                    let ct = state.credentials.entry(cred.account_key.clone()).or_default();
-                    ct.consecutive_query_failures += 1;
-                    if ct.first_failure_at == 0 {
-                        ct.first_failure_at = now;
-                    }
-                    if ct.consecutive_query_failures >= 3
-                        && now - ct.first_failure_at >= 1800
-                        && !ct.notified
-                    {
-                        ct.problem_kind = "auth".to_string();
-                        ct.summary = msg.chars().take(160).collect();
-                        ct.fingerprint = cred.credential_fingerprint();
-                        ct.notified = true;
-                        pending_notifications.push(notify::OutboundNotification {
-                            kind: "credential".to_string(),
-                            priority: "high",
-                            title: format!("🔑 {base_label} 凭证失效"),
-                            body: format!("{}\n来源：额度查询\n重新登录或刷新凭证后将自动恢复。", ct.summary),
-                            jump_url: None,
+                        updated_views.push(MonitoredGroupView {
+                            client_id: cid.to_string(),
+                            group_key: gkey,
+                            account_key: cred.account_key.clone(),
+                            provider: cred.provider.clone(),
+                            account_email: cred.email.clone(),
+                            source_kind: cred.source_kind.to_string(),
+                            display_label: full_label,
+                            group_title: rg.source_label,
+                            plan_name: plan_name.clone(),
+                            weight,
+                            custom_weight,
+                            effective_proxy: effective_proxy.clone(),
+                            windows: rg.windows,
+                            ignite_supported,
+                            ignite_enabled,
+                            seven_day_exhausted: seven_exhausted,
+                            next_ignition_at: next_due,
+                            last_ignition_at: (ts.last_success_at > 0).then_some(ts.last_success_at),
+                            last_ignition_model: ts.last_model.clone(),
+                            paused_reason: ts.paused_reason.clone(),
+                            last_updated_at: now,
                         });
                     }
                 }
+                Err(err) => {
+                    let msg = err.to_string();
+                    let lower = msg.to_ascii_lowercase();
+                    if lower.contains("401")
+                        || lower.contains("invalid_grant")
+                        || lower.contains("unauthorized")
+                    {
+                        let ct = state.credentials.entry(cred.account_key.clone()).or_default();
+                        ct.consecutive_query_failures += 1;
+                        if ct.first_failure_at == 0 {
+                            ct.first_failure_at = now;
+                        }
+                        if ct.consecutive_query_failures >= 3
+                            && now - ct.first_failure_at >= 1800
+                            && !ct.notified
+                        {
+                            ct.problem_kind = "auth".to_string();
+                            ct.summary = msg.chars().take(160).collect();
+                            ct.fingerprint = cred.credential_fingerprint();
+                            ct.notified = true;
+                            pending_notifications.push(notify::OutboundNotification {
+                                kind: "credential".to_string(),
+                                priority: "high",
+                                title: format!("🔑 {base_label} 凭证失效"),
+                                body: format!(
+                                    "{}\n来源：额度查询\n重新登录或刷新凭证后将自动恢复。",
+                                    ct.summary
+                                ),
+                                jump_url: None,
+                            });
+                        }
+                    }
+                }
             }
         }
-    }
 
-    // 轮询 Did Codex Reset 公开信号
-    let reset_msgs = notify::poll_did_codex_reset(&cfg, &mut state.codex_reset).await;
-    pending_notifications.extend(reset_msgs);
-
-    let _ = store::save_state(&state);
-
-    let poll_int = cfg.poll_interval_seconds.max(60) as i64;
-    let next_poll = ((now / poll_int) + 1) * poll_int;
-    if let Ok(mut cache) = runtime_cache().lock() {
-        if !updated_views.is_empty() {
-            cache.groups = updated_views;
+        if cid == "codex" {
+            let reset_msgs = notify::poll_did_codex_reset(&cfg, &mut state.codex_reset).await;
+            pending_notifications.extend(reset_msgs);
         }
-        cache.last_poll_at = now;
-        cache.next_poll_at = next_poll;
+
+        let _ = store::save_client_state(cid, &state);
+        if let Ok(mut cache) = runtime_cache().lock() {
+            if !updated_views.is_empty() {
+                cache.groups_by_client.insert(cid.to_string(), updated_views);
+            }
+            cache.last_poll_by_client.insert(cid.to_string(), now);
+            cache.next_poll_by_client.insert(cid.to_string(), next_poll);
+        }
     }
 
     if cfg.notifications_configured() {
@@ -921,6 +1127,10 @@ async fn run_poll_and_ignition_cycle(force_active: bool) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+async fn run_poll_and_ignition_cycle(force_active: bool) -> anyhow::Result<()> {
+    run_poll_and_ignition_cycle_for_client(None, force_active).await
 }
 
 /// 启动全局单例 Lamplighter 后台调度守护（整点对齐轮询 + 重置前后 30 秒探针 + 自动点火唤醒 + MCP 服务同步）。
@@ -952,7 +1162,7 @@ pub fn ensure_lamplighter_engine_started(handle: tokio::runtime::Handle) {
 
             // 检查是否有更早的自动点火时间或 reset ± 30s 探针时间
             if let Ok(cache) = runtime_cache().lock() {
-                for g in &cache.groups {
+                for g in cache.groups_by_client.values().flatten() {
                     if let Some(ig) = g.next_ignition_at
                         && ig > now
                         && ig < next_wake

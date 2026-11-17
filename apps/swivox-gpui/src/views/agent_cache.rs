@@ -4,7 +4,6 @@ use gpui_kit::assets::IconName;
 use gpui_kit::component::checkbox::Checkbox;
 use gpui_kit::component::theme::ActiveTheme as _;
 use gpui_kit::component::StyledExt as _;
-use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 use crate::store::AppStore;
@@ -15,7 +14,6 @@ pub fn render_agent_cache(store: &Entity<AppStore>, cx: &App) -> impl IntoElemen
     let data = store.read(cx);
     let scanning = data.cache_scanning;
     let cleaning = data.cache_cleaning;
-    let confirm_open = data.cache_confirm_open;
     let selected_ids = data.cache_selected_ids.clone();
     let report = data.cache_report.clone();
 
@@ -37,69 +35,6 @@ pub fn render_agent_cache(store: &Entity<AppStore>, cx: &App) -> impl IntoElemen
     let store_sel_all = store.clone();
     let store_sel_none = store.clone();
     let store_open_confirm = store.clone();
-
-    let confirm_banner: Option<AnyElement> = confirm_open.then(|| {
-        let store_cancel = store.clone();
-        let store_exec = store.clone();
-        div()
-            .v_flex()
-            .w_full()
-            .gap_3()
-            .p_4()
-            .rounded(px(11.))
-            .bg(cx.theme().popover)
-            .border_1()
-            .border_color(cx.theme().danger.opacity(0.6))
-            .child(
-                div()
-                    .text_sm()
-                    .font_semibold()
-                    .text_color(cx.theme().foreground)
-                    .child(t("确认执行缓存清理")),
-            )
-            .child(
-                div()
-                    .text_xs()
-                    .text_color(cx.theme().muted_foreground)
-                    .child(tf(
-                        "即将清理 {0} 个过期缓存文件，预计释放 {1}（自动保留最近 24 小时内的活跃文件，绝不触碰会话与凭据）。",
-                        &[
-                            &selected_files.to_string(),
-                            &format_bytes_human(selected_bytes),
-                        ],
-                    )),
-            )
-            .child(
-                div()
-                    .h_flex()
-                    .justify_end()
-                    .gap_2()
-                    .child(
-                        AppButton::new("cache-confirm-cancel")
-                            .secondary()
-                            .small()
-                            .label(t("取消"))
-                            .on_click(move |_, _, cx| {
-                                store_cancel.update(cx, |s, cx| {
-                                    s.cache_confirm_open = false;
-                                    cx.notify();
-                                });
-                            }),
-                    )
-                    .child(
-                        AppButton::new("cache-confirm-exec")
-                            .danger()
-                            .small()
-                            .icon(IconName::Trash)
-                            .label(t("确认清理"))
-                            .on_click(move |_, _, cx| {
-                                store_exec
-                                    .update(cx, |s, cx| s.clean_selected_agent_cache(cx));
-                            }),
-                    ),
-            )
-            .into_any_element()
-    });
 
     let group_rows: AnyElement = if groups.is_empty() {
         div()
@@ -279,7 +214,6 @@ pub fn render_agent_cache(store: &Entity<AppStore>, cx: &App) -> impl IntoElemen
                         ),
                 ),
         )
-        .when_some(confirm_banner, |d, b| d.child(b))
         .child(panel_card(
             cx,
             div()

@@ -24,7 +24,111 @@ use gpui_kit::component::{Sizable as _, StyledExt as _};
 use gpui_kit::*;
 
 use crate::routes::{StatusTone, status_label, status_tone};
-use crate::widgets::AppBadge;
+use crate::widgets::{AppBadge, AppButton};
+
+/// 渲染全局统一居中遮罩二次确认弹窗（`deferred` + 全窗半透明遮罩 + `.occlude()`，0 布局位移）。
+pub fn modal_dialog_overlay<F>(
+    cx: &App,
+    dialog_id: impl Into<SharedString>,
+    title: impl Into<SharedString>,
+    body: impl Into<SharedString>,
+    danger_border: bool,
+    on_dismiss: F,
+    actions: Vec<AnyElement>,
+) -> AnyElement
+where
+    F: Fn(&mut Window, &mut App) + 'static,
+{
+    let dialog_id = dialog_id.into();
+    let backdrop_id = SharedString::from(format!("{dialog_id}-backdrop"));
+    let close_id = SharedString::from(format!("{dialog_id}-close"));
+    let on_dismiss = std::rc::Rc::new(on_dismiss);
+    let on_backdrop = on_dismiss.clone();
+    let on_close = on_dismiss;
+
+    let border_col = if danger_border {
+        cx.theme().danger.opacity(0.65)
+    } else {
+        cx.theme().primary.opacity(0.55)
+    };
+
+    deferred(
+        div()
+            .id(backdrop_id)
+            .occlude()
+            .absolute()
+            .inset_0()
+            .bg(hsla(0.0, 0.0, 0.0, 0.54))
+            .flex()
+            .items_center()
+            .justify_center()
+            .p_6()
+            .on_click(move |_, window, cx| {
+                on_backdrop(window, cx);
+            })
+            .child(
+                div()
+                    .id(dialog_id)
+                    .occlude()
+                    .v_flex()
+                    .w(px(620.))
+                    .max_w_full()
+                    .gap_4()
+                    .p_5()
+                    .rounded(px(12.))
+                    .bg(cx.theme().popover)
+                    .border_1()
+                    .border_color(border_col)
+                    .shadow_xl()
+                    .on_click(|_, _, cx| {
+                        cx.stop_propagation();
+                    })
+                    .child(
+                        div()
+                            .h_flex()
+                            .w_full()
+                            .items_center()
+                            .justify_between()
+                            .gap_3()
+                            .child(
+                                div()
+                                    .text_base()
+                                    .font_semibold()
+                                    .text_color(cx.theme().foreground)
+                                    .child(title.into()),
+                            )
+                            .child(
+                                AppButton::new(close_id)
+                                    .ghost()
+                                    .small_icon()
+                                    .icon(IconName::X)
+                                    .on_click(move |_, window, cx| {
+                                        on_close(window, cx);
+                                    }),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .text_sm()
+                            .text_color(cx.theme().muted_foreground)
+                            .child(body.into()),
+                    )
+                    .child(
+                        div()
+                            .h_flex()
+                            .w_full()
+                            .flex_wrap()
+                            .items_center()
+                            .justify_end()
+                            .gap_2()
+                            .pt_1()
+                            .children(actions),
+                    ),
+            ),
+    )
+    .with_priority(20)
+    .into_any_element()
+}
 
 pub fn status_badge(status: &str) -> AppBadge {
     let label = status_label(status);

@@ -658,184 +658,6 @@ impl RelayView {
         )
     }
 
-    fn render_list_modals(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let data = self.store.read(cx);
-
-        if let Some(target_id) = data.use_confirm_relay_id.clone() {
-            let display_name = data
-                .settings
-                .relay_profiles
-                .iter()
-                .find(|p| p.id == target_id)
-                .map(|p| {
-                    if p.name.trim().is_empty() {
-                        p.id.clone()
-                    } else {
-                        p.name.clone()
-                    }
-                })
-                .unwrap_or_else(|| target_id.clone());
-
-            let id_only = target_id.clone();
-            let id_restart = target_id;
-            let store_cancel = self.store.clone();
-            let store_only = self.store.clone();
-            let store_restart = self.store.clone();
-
-            return Some(
-                div()
-                    .v_flex()
-                    .w_full()
-                    .gap_3()
-                    .p_4()
-                    .rounded(px(11.))
-                    .bg(cx.theme().popover)
-                    .border_1()
-                    .border_color(cx.theme().primary.opacity(0.6))
-                    .child(
-                        div()
-                            .text_base()
-                            .font_semibold()
-                            .text_color(cx.theme().foreground)
-                            .child(t("切换供应商配置")),
-                    )
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(cx.theme().muted_foreground)
-                            .child(format!(
-                                "{}「{}」{}",
-                                t("请选择切换供应商"),
-                                display_name,
-                                t("后的生效方式：")
-                            )),
-                    )
-                    .child(
-                        div()
-                            .h_flex()
-                            .items_center()
-                            .justify_end()
-                            .gap_2()
-                            .child(
-                                AppButton::new("relay-use-cancel")
-                                    .outline()
-                                    .small()
-                                    .label(t("取消"))
-                                    .on_click(move |_, _, cx| {
-                                        store_cancel.update(cx, |s, cx| {
-                                            s.use_confirm_relay_id = None;
-                                            cx.notify();
-                                        });
-                                    }),
-                            )
-                            .child(
-                                AppButton::new("relay-use-only")
-                                    .secondary()
-                                    .small()
-                                    .icon(IconName::CircleCheck)
-                                    .label(t("仅使用（重启生效）"))
-                                    .on_click(move |_, _, cx| {
-                                        let id = id_only.clone();
-                                        store_only.update(cx, |s, cx| {
-                                            s.switch_relay_profile(id, false, cx)
-                                        });
-                                    }),
-                            )
-                            .child(
-                                AppButton::new("relay-use-restart")
-                                    .primary()
-                                    .small()
-                                    .icon(IconName::Rocket)
-                                    .label(t("使用并重启 Codex"))
-                                    .on_click(move |_, _, cx| {
-                                        let id = id_restart.clone();
-                                        store_restart.update(cx, |s, cx| {
-                                            s.switch_relay_profile(id, true, cx)
-                                        });
-                                    }),
-                            ),
-                    )
-                    .into_any_element(),
-            );
-        }
-
-        if let Some(del_id) = data.delete_confirm_relay_id.clone() {
-            let display_name = data
-                .settings
-                .relay_profiles
-                .iter()
-                .find(|p| p.id == del_id)
-                .map(|p| {
-                    if p.name.trim().is_empty() {
-                        p.id.clone()
-                    } else {
-                        p.name.clone()
-                    }
-                })
-                .unwrap_or_else(|| del_id.clone());
-            let store_cancel = self.store.clone();
-            let store_del = self.store.clone();
-
-            return Some(
-                div()
-                    .v_flex()
-                    .w_full()
-                    .gap_3()
-                    .p_4()
-                    .rounded(px(11.))
-                    .bg(cx.theme().popover)
-                    .border_1()
-                    .border_color(cx.theme().danger.opacity(0.6))
-                    .child(
-                        div()
-                            .text_base()
-                            .font_semibold()
-                            .text_color(cx.theme().foreground)
-                            .child(t("删除供应商")),
-                    )
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(cx.theme().muted_foreground)
-                            .child(tf("确定删除供应商「{0}」吗？", &[&display_name])),
-                    )
-                    .child(
-                        div()
-                            .h_flex()
-                            .items_center()
-                            .justify_end()
-                            .gap_2()
-                            .child(
-                                AppButton::new("relay-del-cancel")
-                                    .secondary()
-                                    .small()
-                                    .label(t("取消"))
-                                    .on_click(move |_, _, cx| {
-                                        store_cancel.update(cx, |s, cx| {
-                                            s.delete_confirm_relay_id = None;
-                                            cx.notify();
-                                        });
-                                    }),
-                            )
-                            .child(
-                                AppButton::new("relay-del-confirm")
-                                    .danger()
-                                    .small()
-                                    .icon(IconName::Trash)
-                                    .label(t("确认删除"))
-                                    .on_click(move |_, _, cx| {
-                                        let id = del_id.clone();
-                                        store_del.update(cx, |s, cx| s.delete_relay(id, cx));
-                                    }),
-                            ),
-                    )
-                    .into_any_element(),
-            );
-        }
-
-        None
-    }
-
     fn render_list_subscreen(&self, cx: &mut Context<Self>) -> AnyElement {
         let data = self.store.read(cx);
         let master_enabled = data.settings.relay_profiles_enabled;
@@ -1176,7 +998,7 @@ impl RelayView {
                                                         .child(title_text),
                                                 )
                                                 .when(is_active, |d| {
-                                                    d.child(AppBadge::good(t("使用中")))
+                                                    d.child(AppBadge::good(t("当前生效")))
                                                 })
                                                 .when_some(bound_email, |d, em| {
                                                     d.child(AppBadge::info(format!(
@@ -1208,10 +1030,9 @@ impl RelayView {
                                         )))
                                         .secondary()
                                         .small()
-                                        .selected(true)
                                         .disabled(relay_switching)
-                                        .icon(IconName::CircleCheck)
-                                        .label(t("使用中"))
+                                        .icon(IconName::RefreshCw)
+                                        .label(t("重新应用"))
                                     } else {
                                         AppButton::new(SharedString::from(format!(
                                             "relay-use-{}",
@@ -1220,8 +1041,8 @@ impl RelayView {
                                         .outline()
                                         .small()
                                         .disabled(relay_switching)
-                                        .icon(IconName::CircleCheck)
-                                        .label(t("使用"))
+                                        .icon(IconName::ArrowLeftRight)
+                                        .label(t("切换使用"))
                                     }
                                     .on_click(move |_, _, cx| {
                                         let id = pid_use.clone();
@@ -1390,7 +1211,6 @@ impl RelayView {
         let env_banner = self.render_env_conflict_banner(cx);
         let url_banner = self.render_pending_url_import_banner(cx);
         let ccs_drawer = self.render_ccs_import_drawer(cx);
-        let modals = self.render_list_modals(cx);
 
         div()
             .v_flex()
@@ -1426,7 +1246,6 @@ impl RelayView {
             )
             .when_some(url_banner, |d, b| d.child(b))
             .when_some(env_banner, |d, b| d.child(b))
-            .when_some(modals, |d, b| d.child(b))
             .when_some(ccs_drawer, |d, b| d.child(b))
             .child(panel_card(
                 cx,

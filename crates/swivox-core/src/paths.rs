@@ -13,6 +13,7 @@ const SKILLS_DIR: &str = "skills";
 const SKILL_BACKUPS_DIR: &str = "skill-backups";
 const PENDING_MANAGER_NAVIGATION_FILE: &str = "pending-manager-navigation.json";
 const OFFICIAL_ACCOUNTS_FILE: &str = "official-accounts.json";
+const NETWORK_PROXIES_FILE: &str = "network-proxies.json";
 const ANTIGRAVITY_STATE_FILE: &str = "antigravity-accounts.json";
 const ANTIGRAVITY_DEVICE_BASELINE_FILE: &str = "antigravity-device-original.json";
 const LAMPLIGHTER_DIR: &str = "lamplighter";
@@ -97,6 +98,11 @@ pub fn default_official_accounts_path() -> PathBuf {
     default_app_state_dir().join(OFFICIAL_ACCOUNTS_FILE)
 }
 
+/// 全局代理节点池、Swivox 本程序自身代理与各客户端独立隔离代理配置路径（`~/.swivox/network-proxies.json`）。
+pub fn default_network_proxies_path() -> PathBuf {
+    default_app_state_dir().join(NETWORK_PROXIES_FILE)
+}
+
 /// 用户自定义拓展脚本目录（统一收拢在 `~/.swivox/user_scripts`）。
 pub fn default_user_scripts_dir() -> PathBuf {
     default_app_state_dir().join(USER_SCRIPTS_DIR)
@@ -136,6 +142,26 @@ pub fn default_lamplighter_accounts_path() -> PathBuf {
 
 pub fn default_lamplighter_history_dir() -> PathBuf {
     default_lamplighter_dir().join("history")
+}
+
+/// 按客户端隔离的 Lamplighter 目录（`~/.swivox/lamplighter/clients/<client_id>`）。
+pub fn default_lamplighter_client_dir(client_id: &str) -> PathBuf {
+    let safe: String = client_id
+        .trim()
+        .to_ascii_lowercase()
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
+        .collect();
+    let folder = if safe.is_empty() { "codex" } else { safe.as_str() };
+    default_lamplighter_dir().join("clients").join(folder)
+}
+
+pub fn default_lamplighter_client_state_path(client_id: &str) -> PathBuf {
+    default_lamplighter_client_dir(client_id).join("state.json")
+}
+
+pub fn default_lamplighter_client_history_dir(client_id: &str) -> PathBuf {
+    default_lamplighter_client_dir(client_id).join("history")
 }
 
 fn settings_path_for_tests() -> Option<PathBuf> {

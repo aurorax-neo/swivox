@@ -2463,9 +2463,22 @@ async fn open_responses_proxy_request_with_settings_and_user_agent(
                     passive_headers.insert(k.as_str().to_ascii_lowercase(), text.to_string());
                 }
             }
+            let passive_account_id = official_credential.as_ref().map(|c| c.account_id.clone());
+            let passive_access_token = official_credential
+                .as_ref()
+                .map(|c| c.access_token.clone())
+                .or_else(|| {
+                    let k = relay.api_key.trim();
+                    (!k.is_empty()).then(|| k.to_string())
+                });
             let now_ts = chrono::Utc::now().timestamp();
             let _ = tokio::task::spawn_blocking(move || {
-                crate::lamplighter::observe_passive_headers(&passive_headers, now_ts);
+                crate::lamplighter::observe_passive_headers_for_account(
+                    &passive_headers,
+                    passive_account_id.as_deref(),
+                    passive_access_token.as_deref(),
+                    now_ts,
+                );
             });
         }
 

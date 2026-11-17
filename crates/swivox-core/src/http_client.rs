@@ -50,16 +50,7 @@ pub fn proxied_client_with_timeouts(
         .timeout(total_timeout);
     let env_map: std::collections::HashMap<String, String> = std::env::vars().collect();
     if !crate::proxy::has_proxy_environment(&env_map) {
-        let configured_proxy = {
-            let state = crate::official_accounts::load_official_accounts_state();
-            match state.global_proxy_mode.trim() {
-                "direct" => Some("direct".to_string()),
-                "custom" if !state.global_proxy_url.trim().is_empty() => {
-                    Some(state.global_proxy_url.trim().to_string())
-                }
-                _ => crate::proxy::detect_system_proxy(),
-            }
-        };
+        let configured_proxy = crate::network_proxies::resolve_app_self_proxy_spec();
         if let Some(proxy_spec) = configured_proxy {
             if proxy_spec.eq_ignore_ascii_case("direct") {
                 builder = builder.no_proxy();

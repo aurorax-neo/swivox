@@ -10,31 +10,42 @@ use futures_util::StreamExt;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use super::config::LamplighterConfig;
+use super::config::{IgnitionConfig, LamplighterConfig, normalize_client_id};
 use super::providers::{UnifiedCredential, build_account_http_client, query_credential_quotas};
 use super::store::IgnitionTargetState;
 
 pub const IGNITION_TRIGGER_PROMPT: &str =
     "Reply with only OK. Do not think, do not use tools, do not do anything else.";
 
-static REFUSED_MODELS: OnceLock<Mutex<HashMap<(String, String), i64>>> = OnceLock::new();
+static REFUSED_MODELS: OnceLock<Mutex<HashMap<(String, String, String), i64>>> = OnceLock::new();
 
-fn refused_models_map() -> &'static Mutex<HashMap<(String, String), i64>> {
+fn refused_models_map() -> &'static Mutex<HashMap<(String, String, String), i64>> {
     REFUSED_MODELS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-fn is_model_refused(group_key: &str, model: &str, now: i64) -> bool {
+fn is_model_refused(client_id: &str, group_key: &str, model: &str, now: i64) -> bool {
     let Ok(mut map) = refused_models_map().lock() else {
         return false;
     };
     map.retain(|_, exp| *exp > now);
-    map.get(&(group_key.to_string(), model.to_string()))
-        .is_some_and(|exp| *exp > now)
+    map.get(&(
+        normalize_client_id(client_id).to_string(),
+        group_key.to_string(),
+        model.to_string(),
+    ))
+    .is_some_and(|exp| *exp > now)
 }
 
-fn mark_model_refused_24h(group_key: &str, model: &str, now: i64) {
+fn mark_model_refused_24h(client_id: &str, group_key: &str, model: &str, now: i64) {
     if let Ok(mut map) = refused_models_map().lock() {
-        map.insert((group_key.to_string(), model.to_string()), now + 86_400);
+        map.insert(
+            (
+                normalize_client_id(client_id).to_string(),
+                group_key.to_string(),
+                model.to_string(),
+            ),
+            now + 86_400,
+        );
     }
 }
 
@@ -66,7 +77,7 @@ pub fn observe_five_hour_reset(
     }
 }
 
-pub fn next_morning_start_epoch(cfg: &LamplighterConfig, after_epoch: i64) -> i64 {
+pub fn next_morning_start_epoch_for(ig_cfg: &IgnitionConfig, after_epoch: i64) -> i64 {
     let dt = Local
         .timestamp_opt(after_epoch, 0)
         .single()
@@ -76,7 +87,7 @@ pub fn next_morning_start_epoch(cfg: &LamplighterConfig, after_epoch: i64) -> i6
             dt.year(),
             dt.month(),
             dt.day(),
-            u32::from(cfg.ignition.start_hour),
+            u32::from(ig_cfg.start_hour),
             0,
             0,
         )
@@ -89,7 +100,11 @@ pub fn next_morning_start_epoch(cfg: &LamplighterConfig, after_epoch: i64) -> i6
     }
 }
 
-fn day_window_bounds(cfg: &LamplighterConfig, epoch: i64) -> (i64, i64) {
+pub fn next_morning_start_epoch(cfg: &LamplighterConfig, after_epoch: i64) -> i64 {
+    next_morning_start_epoch_for(&cfg.ignition, after_epoch)
+}
+
+fn day_window_bounds_for(ig_cfg: &IgnitionConfig, epoch: i64) -> (i64, i64) {
     let dt = Local
         .timestamp_opt(epoch, 0)
         .single()
@@ -99,7 +114,7 @@ fn day_window_bounds(cfg: &LamplighterConfig, epoch: i64) -> (i64, i64) {
             dt.year(),
             dt.month(),
             dt.day(),
-            u32::from(cfg.ignition.start_hour),
+            u32::from(ig_cfg.start_hour),
             0,
             0,
         )
@@ -110,39 +125,41 @@ fn day_window_bounds(cfg: &LamplighterConfig, epoch: i64) -> (i64, i64) {
             dt.year(),
             dt.month(),
             dt.day(),
-            u32::from(cfg.ignition.end_hour),
+            u32::from(ig_cfg.end_hour),
             0,
             0,
         )
         .single()
         .unwrap_or(dt);
-    let end = end_base + chrono::Duration::minutes(i64::from(cfg.ignition.end_grace_minutes));
+    let end = end_base + chrono::Duration::minutes(i64::from(ig_cfg.end_grace_minutes));
     (start.timestamp(), end.timestamp())
 }
 
-/// 计算某个支持点火的额度组下一次计划自动点火的 Unix 秒时间戳。
-pub fn compute_next_ignition_due(
+/// 按指定客户端独立隔离的点火配置计算额度组下一次计划自动点火时间。
+pub fn compute_next_ignition_due_for_client(
     cfg: &LamplighterConfig,
+    client_id: &str,
     ts: &IgnitionTargetState,
     current_5h_reset: Option<i64>,
     now: i64,
 ) -> Option<i64> {
-    if !cfg.ignition.enabled {
+    let ig_cfg = cfg.ignition_for_client(client_id);
+    if !ig_cfg.enabled {
         return None;
     }
     if ts.paused_until > now {
         return Some(ts.paused_until);
     }
 
-    let (today_start, today_end) = day_window_bounds(cfg, now);
+    let (today_start, today_end) = day_window_bounds_for(ig_cfg, now);
     if now < today_start {
         return Some(today_start);
     }
     if now > today_end {
-        return Some(next_morning_start_epoch(cfg, now));
+        return Some(next_morning_start_epoch_for(ig_cfg, now));
     }
 
-    let hold = (ts.last_success_at + cfg.ignition.post_success_hold_seconds as i64)
+    let hold = (ts.last_success_at + ig_cfg.post_success_hold_seconds as i64)
         .max(ts.retry_at)
         .max(now);
 
@@ -151,15 +168,25 @@ pub fn compute_next_ignition_due(
     }
 
     if let Some(rst) = current_5h_reset.filter(|v| *v > now) {
-        let target = rst + cfg.ignition.grace_seconds as i64;
-        let (target_day_start, target_day_end) = day_window_bounds(cfg, target);
+        let target = rst + ig_cfg.grace_seconds as i64;
+        let (target_day_start, target_day_end) = day_window_bounds_for(ig_cfg, target);
         if target >= target_day_start && target <= target_day_end {
             return Some(target.max(hold));
         }
-        return Some(next_morning_start_epoch(cfg, target));
+        return Some(next_morning_start_epoch_for(ig_cfg, target));
     }
 
     Some(hold)
+}
+
+/// 计算某个支持点火的额度组下一次计划自动点火的 Unix 秒时间戳（兼容默认客户端）。
+pub fn compute_next_ignition_due(
+    cfg: &LamplighterConfig,
+    ts: &IgnitionTargetState,
+    current_5h_reset: Option<i64>,
+    now: i64,
+) -> Option<i64> {
+    compute_next_ignition_due_for_client(cfg, "codex", ts, current_5h_reset, now)
 }
 
 fn numeric_segments(name: &str) -> Vec<u64> {
@@ -278,7 +305,7 @@ async fn resolve_ignition_candidates(
         candidates = default_candidate_models(&cred.provider, group_label);
     }
 
-    candidates.retain(|m| !is_model_refused(group_key, m, now));
+    candidates.retain(|m| !is_model_refused(&cred.client_id, group_key, m, now));
     candidates.truncate(5);
     candidates
 }
@@ -313,7 +340,7 @@ pub async fn execute_ignition_once(
             }
             Err((status_code, msg)) => {
                 if matches!(status_code, Some(400) | Some(404)) && idx == 0 && candidates.len() > 1 {
-                    mark_model_refused_24h(group_key, model, start_ts);
+                    mark_model_refused_24h(&cred.client_id, group_key, model, start_ts);
                     last_send_err = Some(msg);
                     continue;
                 }
@@ -503,13 +530,15 @@ fn sse_chunk_has_visible_output(chunk: &str) -> bool {
     false
 }
 
-/// 记录自动点火失败并应用 `5m -> 15m -> 次日 07:00` 熔断保护规则（返回是否需要发送熔断告警）。
-pub fn record_auto_ignition_failure(
+/// 记录指定客户端的自动点火失败并应用 `5m -> 15m -> 次日 07:00` 熔断保护规则（返回是否需要发送熔断告警）。
+pub fn record_auto_ignition_failure_for_client(
     cfg: &LamplighterConfig,
+    client_id: &str,
     ts: &mut IgnitionTargetState,
     err_msg: &str,
     now: i64,
 ) -> Option<(String, i64)> {
+    let ig_cfg = cfg.ignition_for_client(client_id);
     let lower = err_msg.to_ascii_lowercase();
     let is_hard = ["http 400", "http 401", "http 403", "http 404", "http 429", "尚未确认"]
         .iter()
@@ -518,8 +547,8 @@ pub fn record_auto_ignition_failure(
     ts.consecutive_failures = ts.consecutive_failures.saturating_add(1);
     let summary: String = err_msg.lines().next().unwrap_or(err_msg).chars().take(160).collect();
 
-    if is_hard || ts.consecutive_failures >= cfg.ignition.max_transient_failures {
-        let pause_to = next_morning_start_epoch(cfg, now);
+    if is_hard || ts.consecutive_failures >= ig_cfg.max_transient_failures {
+        let pause_to = next_morning_start_epoch_for(ig_cfg, now);
         ts.paused_until = pause_to;
         ts.paused_reason = Some(summary.clone());
         ts.retry_at = 0;
@@ -530,11 +559,19 @@ pub fn record_auto_ignition_failure(
         return None;
     }
 
-    let mult = cfg
-        .ignition
+    let mult = ig_cfg
         .failure_backoff_multiplier
         .saturating_pow(ts.consecutive_failures.saturating_sub(1));
-    let delay = cfg.ignition.failure_retry_seconds.saturating_mul(u64::from(mult));
+    let delay = ig_cfg.failure_retry_seconds.saturating_mul(u64::from(mult));
     ts.retry_at = now + delay as i64;
     None
+}
+
+pub fn record_auto_ignition_failure(
+    cfg: &LamplighterConfig,
+    ts: &mut IgnitionTargetState,
+    err_msg: &str,
+    now: i64,
+) -> Option<(String, i64)> {
+    record_auto_ignition_failure_for_client(cfg, "codex", ts, err_msg, now)
 }

@@ -26,6 +26,7 @@ pub mod model_suffix;
 pub mod models;
 pub mod native_browser;
 pub mod native_browser_connection;
+pub mod network_proxies;
 pub mod official_login;
 pub mod official_accounts;
 pub mod packaged_launch;

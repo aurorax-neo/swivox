@@ -54,7 +54,6 @@ impl Render for SessionsView {
         let group_mode = data.sessions_group_mode;
         let query = data.sessions_search_query.clone();
         let payload = data.sessions_payload.clone();
-        let del_confirm = data.session_delete_confirm.clone();
         let cleanup_preview = data.session_cleanup_preview.clone();
 
         let total_count = payload.as_ref().map(|p| p.total_count).unwrap_or(0);
@@ -83,68 +82,6 @@ impl Render for SessionsView {
         let store_by_proj = self.store.clone();
         let store_by_time = self.store.clone();
         let store_more = self.store.clone();
-
-        let delete_modal: Option<AnyElement> = del_confirm.map(|sess| {
-            let store_cancel = self.store.clone();
-            let store_ok = self.store.clone();
-            let title_disp = if sess.title.trim().is_empty() {
-                sess.id.clone()
-            } else {
-                sess.title.clone()
-            };
-            div()
-                .v_flex()
-                .w_full()
-                .gap_3()
-                .p_4()
-                .rounded(px(11.))
-                .bg(cx.theme().popover)
-                .border_1()
-                .border_color(cx.theme().danger.opacity(0.6))
-                .child(
-                    div()
-                        .text_sm()
-                        .font_semibold()
-                        .text_color(cx.theme().foreground)
-                        .child(format!("{}：「{title_disp}」", t("确认删除本地会话"))),
-                )
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(cx.theme().muted_foreground)
-                        .child(t("删除前将自动归档至本地备份存储，并同步移除 SQLite 与 session_index 记录。")),
-                )
-                .child(
-                    div()
-                        .h_flex()
-                        .justify_end()
-                        .gap_2()
-                        .child(
-                            AppButton::new("sess-del-cancel")
-                                .secondary()
-                                .small()
-                                .label(t("取消"))
-                                .on_click(move |_, _, cx| {
-                                    store_cancel.update(cx, |s, cx| {
-                                        s.session_delete_confirm = None;
-                                        cx.notify();
-                                    });
-                                }),
-                        )
-                        .child(
-                            AppButton::new("sess-del-ok")
-                                .danger()
-                                .small()
-                                .icon(IconName::Trash)
-                                .label(t("确认删除"))
-                                .on_click(move |_, _, cx| {
-                                    let target = sess.clone();
-                                    store_ok.update(cx, |s, cx| s.confirm_delete_session(target, cx));
-                                }),
-                        ),
-                )
-                .into_any_element()
-        });
 
         let cleanup_banner: Option<AnyElement> = cleanup_preview.map(|pv| {
             let cnt = pv.candidates.len();
@@ -447,7 +384,6 @@ impl Render for SessionsView {
                             ),
                     ),
             )
-            .when_some(delete_modal, |d, m| d.child(m))
             .when_some(cleanup_banner, |d, b| d.child(b))
             .child(panel_card(
                 cx,

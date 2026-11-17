@@ -1,4 +1,5 @@
-use swivox_backend::i18n::{Language, t};
+use swivox_backend::i18n::{Language, t, tf};
+use swivox_backend::phase5_rules::format_bytes_human;
 use swivox_backend::ui_prefs::UiThemeMode;
 use gpui_kit::assets::IconName;
 use gpui_kit::component::Icon;
@@ -387,14 +388,23 @@ impl ManagerShell {
             .unwrap_or("not_checked");
         let codex_running = codex_status == "running";
         let controls_disabled = data.launch_pending || data.overview.is_none();
-        let ag_running = data.antigravity_app_running();
+        let ag_desktop_running = data
+            .ag_snapshot
+            .as_ref()
+            .is_some_and(|s| s.desktop_install.running);
+        let ag_ide_running = data
+            .ag_snapshot
+            .as_ref()
+            .is_some_and(|s| s.ide_install.running);
         let ag_pending = data.ag_launch_pending;
         let ag_conflict = data.ag_launch_conflict;
 
         let store_stop = self.store.clone();
         let store_launch = self.store.clone();
-        let store_ag_stop = self.store.clone();
-        let store_ag_launch = self.store.clone();
+        let store_ag_desk_stop = self.store.clone();
+        let store_ag_desk_launch = self.store.clone();
+        let store_ag_ide_stop = self.store.clone();
+        let store_ag_ide_launch = self.store.clone();
         let store_ag_clean = self.store.clone();
 
         div()
@@ -480,32 +490,25 @@ impl ManagerShell {
                 )
             })
             .when(show_ag_controls, |bar| {
-                let status_str = if ag_running { "running" } else { "stopped" };
-                let badge = if ag_running {
-                    AppBadge::good(format!("Antigravity {}", status_label(status_str)))
+                let desk_status_str = if ag_desktop_running { "running" } else { "stopped" };
+                let desk_badge = if ag_desktop_running {
+                    AppBadge::good(format!("{} {}", t("桌面版"), status_label(desk_status_str)))
                 } else {
-                    AppBadge::warn(format!("Antigravity {}", status_label(status_str)))
+                    AppBadge::warn(format!("{} {}", t("桌面版"), status_label(desk_status_str)))
                 };
+                let ide_status_str = if ag_ide_running { "running" } else { "stopped" };
+                let ide_badge = if ag_ide_running {
+                    AppBadge::good(format!("IDE {}", status_label(ide_status_str)))
+                } else {
+                    AppBadge::warn(format!("IDE {}", status_label(ide_status_str)))
+                };
+
                 bar.child(
                     div()
                         .h_flex()
                         .flex_shrink_0()
                         .items_center()
-                        .gap_2p5()
-                        .child(badge)
-                        .when(ag_running, |row| {
-                            row.child(
-                                AppButton::new("topbar-stop-ag")
-                                    .secondary()
-                                    .small()
-                                    .disabled(ag_pending)
-                                    .icon(IconName::PowerOff)
-                                    .label(t("停止 Antigravity"))
-                                    .on_click(move |_, _, cx| {
-                                        store_ag_stop.update(cx, |s, cx| s.stop_antigravity(cx));
-                                    }),
-                            )
-                        })
+                        .gap_2()
                         .when(ag_conflict, |row| {
                             row.child(
                                 AppButton::new("topbar-clean-restart-ag")
@@ -513,27 +516,88 @@ impl ManagerShell {
                                     .small()
                                     .disabled(ag_pending)
                                     .icon(IconName::RotateCcw)
-                                    .label(t("清理冲突并重启"))
+                                    .label(t("清理冲突"))
                                     .on_click(move |_, _, cx| {
-                                        store_ag_clean
-                                            .update(cx, |s, cx| s.launch_antigravity(true, cx));
+                                        store_ag_clean.update(cx, |s, cx| {
+                                            s.launch_antigravity_by_target("desktop", true, cx)
+                                        });
+                                    }),
+                            )
+                        })
+                        .child(desk_badge)
+                        .when(ag_desktop_running, |row| {
+                            row.child(
+                                AppButton::new("topbar-stop-ag-desktop")
+                                    .outline()
+                                    .small()
+                                    .disabled(ag_pending)
+                                    .icon(IconName::PowerOff)
+                                    .label(t("停止桌面版"))
+                                    .on_click(move |_, _, cx| {
+                                        store_ag_desk_stop.update(cx, |s, cx| {
+                                            s.stop_antigravity_by_target("desktop", cx)
+                                        });
                                     }),
                             )
                         })
                         .child(
-                            AppButton::new("topbar-launch-ag")
+                            AppButton::new("topbar-launch-ag-desktop")
                                 .primary()
                                 .small()
                                 .disabled(ag_pending)
                                 .icon(IconName::Rocket)
-                                .label(if ag_running {
-                                    t("重启 Antigravity")
+                                .label(if ag_desktop_running {
+                                    t("重启桌面版")
                                 } else {
-                                    t("免 TUN 启动 Antigravity")
+                                    t("启动桌面版")
                                 })
                                 .on_click(move |_, _, cx| {
-                                    store_ag_launch.update(cx, |s, cx| {
-                                        s.launch_antigravity(ag_running, cx);
+                                    store_ag_desk_launch.update(cx, |s, cx| {
+                                        s.launch_antigravity_by_target(
+                                            "desktop",
+                                            ag_desktop_running,
+                                            cx,
+                                        );
+                                    });
+                                }),
+                        )
+                        .child(
+                            div()
+                                .w(px(1.))
+                                .h(px(18.))
+                                .mx_0p5()
+                                .bg(cx.theme().border),
+                        )
+                        .child(ide_badge)
+                        .when(ag_ide_running, |row| {
+                            row.child(
+                                AppButton::new("topbar-stop-ag-ide")
+                                    .outline()
+                                    .small()
+                                    .disabled(ag_pending)
+                                    .icon(IconName::PowerOff)
+                                    .label(t("停止 IDE"))
+                                    .on_click(move |_, _, cx| {
+                                        store_ag_ide_stop.update(cx, |s, cx| {
+                                            s.stop_antigravity_by_target("ide", cx)
+                                        });
+                                    }),
+                            )
+                        })
+                        .child(
+                            AppButton::new("topbar-launch-ag-ide")
+                                .secondary()
+                                .small()
+                                .disabled(ag_pending)
+                                .icon(IconName::Rocket)
+                                .label(if ag_ide_running {
+                                    t("重启 IDE")
+                                } else {
+                                    t("启动 IDE")
+                                })
+                                .on_click(move |_, _, cx| {
+                                    store_ag_ide_launch.update(cx, |s, cx| {
+                                        s.launch_antigravity_by_target("ide", ag_ide_running, cx);
                                     });
                                 }),
                         ),
@@ -645,6 +709,524 @@ impl ManagerShell {
         )
     }
 
+    fn render_confirm_modal_overlay(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let data = self.store.read(cx);
+
+        // 1. Codex 官方账号切换 / 重新应用确认弹窗
+        if let Some(target) = data.use_confirm_account.clone() {
+            let email = target.email.clone();
+            let is_reapply = target.is_active;
+            let id_only = target.id.clone();
+            let id_restart = target.id.clone();
+            let st_dismiss = self.store.clone();
+            let st_cancel = self.store.clone();
+            let st_only = self.store.clone();
+            let st_restart = self.store.clone();
+
+            let title = if is_reapply {
+                t("重新应用官方账号")
+            } else {
+                t("切换官方账号")
+            };
+            let body = tf("请选择官方账号「{0}」的生效方式：", &[&email]);
+
+            return Some(views::modal_dialog_overlay(
+                cx,
+                "modal-use-official-account",
+                title,
+                body,
+                false,
+                move |_, cx| {
+                    st_dismiss.update(cx, |s, cx| s.dismiss_all_confirm_modals(cx));
+                },
+                vec![
+                    AppButton::new("confirm-use-cancel")
+                        .outline()
+                        .small()
+                        .label(t("取消"))
+                        .on_click(move |_, _, cx| {
+                            st_cancel.update(cx, |s, cx| {
+                                s.use_confirm_account = None;
+                                cx.notify();
+                            });
+                        })
+                        .into_any_element(),
+                    AppButton::new("confirm-use-only")
+                        .secondary()
+                        .small()
+                        .icon(IconName::CircleCheck)
+                        .label(t("仅切换（重启生效）"))
+                        .on_click(move |_, _, cx| {
+                            let id = id_only.clone();
+                            st_only.update(cx, |s, cx| s.switch_official_account(id, false, cx));
+                        })
+                        .into_any_element(),
+                    AppButton::new("confirm-use-and-restart")
+                        .primary()
+                        .small()
+                        .icon(IconName::Rocket)
+                        .label(t("切换并重启 Codex"))
+                        .on_click(move |_, _, cx| {
+                            let id = id_restart.clone();
+                            st_restart.update(cx, |s, cx| s.switch_official_account(id, true, cx));
+                        })
+                        .into_any_element(),
+                ],
+            ));
+        }
+
+        // 2. Codex 官方账号删除确认弹窗
+        if let Some(target) = data.delete_confirm_account.clone() {
+            let email = target.email.clone();
+            let st_dismiss = self.store.clone();
+            let st_cancel = self.store.clone();
+            let st_exec = self.store.clone();
+
+            return Some(views::modal_dialog_overlay(
+                cx,
+                "modal-delete-official-account",
+                t("删除官方账号"),
+                tf("确定删除官方账号「{0}」吗？删除后将从本地账号列表中移除。", &[&email]),
+                true,
+                move |_, cx| {
+                    st_dismiss.update(cx, |s, cx| s.dismiss_all_confirm_modals(cx));
+                },
+                vec![
+                    AppButton::new("confirm-del-cancel")
+                        .outline()
+                        .small()
+                        .label(t("取消"))
+                        .on_click(move |_, _, cx| {
+                            st_cancel.update(cx, |s, cx| {
+                                s.delete_confirm_account = None;
+                                cx.notify();
+                            });
+                        })
+                        .into_any_element(),
+                    AppButton::new("confirm-del-execute")
+                        .danger()
+                        .small()
+                        .icon(IconName::Trash)
+                        .label(t("确认删除"))
+                        .on_click(move |_, _, cx| {
+                            let acc = target.clone();
+                            st_exec.update(cx, |s, cx| s.delete_official_account(acc, cx));
+                        })
+                        .into_any_element(),
+                ],
+            ));
+        }
+
+        // 3. Codex 供应商配置切换 / 重新应用确认弹窗
+        if let Some(target_id) = data.use_confirm_relay_id.clone() {
+            let is_reapply = data.settings.active_relay_id == target_id;
+            let display_name = data
+                .settings
+                .relay_profiles
+                .iter()
+                .find(|p| p.id == target_id)
+                .map(|p| {
+                    if p.name.trim().is_empty() {
+                        p.id.clone()
+                    } else {
+                        p.name.clone()
+                    }
+                })
+                .unwrap_or_else(|| target_id.clone());
+            let id_only = target_id.clone();
+            let id_restart = target_id;
+            let st_dismiss = self.store.clone();
+            let st_cancel = self.store.clone();
+            let st_only = self.store.clone();
+            let st_restart = self.store.clone();
+
+            let title = if is_reapply {
+                t("重新应用供应商配置")
+            } else {
+                t("切换供应商配置")
+            };
+            let body = tf("请选择供应商「{0}」的生效方式：", &[&display_name]);
+
+            return Some(views::modal_dialog_overlay(
+                cx,
+                "modal-use-relay-profile",
+                title,
+                body,
+                false,
+                move |_, cx| {
+                    st_dismiss.update(cx, |s, cx| s.dismiss_all_confirm_modals(cx));
+                },
+                vec![
+                    AppButton::new("relay-use-cancel")
+                        .outline()
+                        .small()
+                        .label(t("取消"))
+                        .on_click(move |_, _, cx| {
+                            st_cancel.update(cx, |s, cx| {
+                                s.use_confirm_relay_id = None;
+                                cx.notify();
+                            });
+                        })
+                        .into_any_element(),
+                    AppButton::new("relay-use-only")
+                        .secondary()
+                        .small()
+                        .icon(IconName::CircleCheck)
+                        .label(t("仅切换（重启生效）"))
+                        .on_click(move |_, _, cx| {
+                            let id = id_only.clone();
+                            st_only.update(cx, |s, cx| s.switch_relay_profile(id, false, cx));
+                        })
+                        .into_any_element(),
+                    AppButton::new("relay-use-restart")
+                        .primary()
+                        .small()
+                        .icon(IconName::Rocket)
+                        .label(t("切换并重启 Codex"))
+                        .on_click(move |_, _, cx| {
+                            let id = id_restart.clone();
+                            st_restart.update(cx, |s, cx| s.switch_relay_profile(id, true, cx));
+                        })
+                        .into_any_element(),
+                ],
+            ));
+        }
+
+        // 4. Codex 供应商删除确认弹窗
+        if let Some(del_id) = data.delete_confirm_relay_id.clone() {
+            let display_name = data
+                .settings
+                .relay_profiles
+                .iter()
+                .find(|p| p.id == del_id)
+                .map(|p| {
+                    if p.name.trim().is_empty() {
+                        p.id.clone()
+                    } else {
+                        p.name.clone()
+                    }
+                })
+                .unwrap_or_else(|| del_id.clone());
+            let st_dismiss = self.store.clone();
+            let st_cancel = self.store.clone();
+            let st_del = self.store.clone();
+
+            return Some(views::modal_dialog_overlay(
+                cx,
+                "modal-delete-relay-profile",
+                t("删除供应商"),
+                tf("确定删除供应商「{0}」吗？", &[&display_name]),
+                true,
+                move |_, cx| {
+                    st_dismiss.update(cx, |s, cx| s.dismiss_all_confirm_modals(cx));
+                },
+                vec![
+                    AppButton::new("relay-del-cancel")
+                        .outline()
+                        .small()
+                        .label(t("取消"))
+                        .on_click(move |_, _, cx| {
+                            st_cancel.update(cx, |s, cx| {
+                                s.delete_confirm_relay_id = None;
+                                cx.notify();
+                            });
+                        })
+                        .into_any_element(),
+                    AppButton::new("relay-del-confirm")
+                        .danger()
+                        .small()
+                        .icon(IconName::Trash)
+                        .label(t("确认删除"))
+                        .on_click(move |_, _, cx| {
+                            let id = del_id.clone();
+                            st_del.update(cx, |s, cx| s.delete_relay(id, cx));
+                        })
+                        .into_any_element(),
+                ],
+            ));
+        }
+
+        // 5. Antigravity 账号切换 / 重新应用确认弹窗
+        if let Some(target) = data.ag_use_confirm_account.clone() {
+            let email = target.email.clone();
+            let is_reapply = target.is_active;
+            let id_write = target.id.clone();
+            let id_desk = target.id.clone();
+            let id_ide = target.id.clone();
+            let st_dismiss = self.store.clone();
+            let st_cancel = self.store.clone();
+            let st_write = self.store.clone();
+            let st_desk = self.store.clone();
+            let st_ide = self.store.clone();
+
+            let title = if is_reapply {
+                t("重新应用 Antigravity 账号")
+            } else {
+                t("切换 Antigravity 账号")
+            };
+            let body = tf(
+                "请选择 Antigravity 账号「{0}」的生效方式（将同步写入独立设备指纹、state.vscdb 与系统钥匙串）：",
+                &[&email],
+            );
+
+            return Some(views::modal_dialog_overlay(
+                cx,
+                "modal-use-ag-account",
+                title,
+                body,
+                false,
+                move |_, cx| {
+                    st_dismiss.update(cx, |s, cx| s.dismiss_all_confirm_modals(cx));
+                },
+                vec![
+                    AppButton::new("ag-confirm-use-cancel")
+                        .outline()
+                        .small()
+                        .label(t("取消"))
+                        .on_click(move |_, _, cx| {
+                            st_cancel.update(cx, |s, cx| {
+                                s.ag_use_confirm_account = None;
+                                cx.notify();
+                            });
+                        })
+                        .into_any_element(),
+                    AppButton::new("ag-confirm-use-write-only")
+                        .secondary()
+                        .small()
+                        .icon(IconName::CircleCheck)
+                        .label(t("仅写入凭据（重启生效）"))
+                        .on_click(move |_, _, cx| {
+                            let id = id_write.clone();
+                            st_write.update(cx, |s, cx| {
+                                s.switch_antigravity_account_with_mode(id, "write_only", cx)
+                            });
+                        })
+                        .into_any_element(),
+                    AppButton::new("ag-confirm-use-ide")
+                        .outline()
+                        .small()
+                        .icon(IconName::Rocket)
+                        .label(t("切换并重启 IDE"))
+                        .on_click(move |_, _, cx| {
+                            let id = id_ide.clone();
+                            st_ide.update(cx, |s, cx| {
+                                s.switch_antigravity_account_with_mode(id, "ide_restart", cx)
+                            });
+                        })
+                        .into_any_element(),
+                    AppButton::new("ag-confirm-use-desktop")
+                        .primary()
+                        .small()
+                        .icon(IconName::Zap)
+                        .label(t("切换并热重载桌面版"))
+                        .on_click(move |_, _, cx| {
+                            let id = id_desk.clone();
+                            st_desk.update(cx, |s, cx| {
+                                s.switch_antigravity_account_with_mode(id, "desktop_hot", cx)
+                            });
+                        })
+                        .into_any_element(),
+                ],
+            ));
+        }
+
+        // 6. Antigravity 账号删除确认弹窗
+        if let Some(del_id) = data.ag_delete_confirm_id.clone() {
+            let email = data
+                .ag_snapshot
+                .as_ref()
+                .and_then(|s| s.accounts.iter().find(|a| a.id == del_id))
+                .map(|a| a.email.clone())
+                .unwrap_or_else(|| del_id.clone());
+            let st_dismiss = self.store.clone();
+            let st_cancel = self.store.clone();
+            let st_exec = self.store.clone();
+
+            return Some(views::modal_dialog_overlay(
+                cx,
+                "modal-delete-ag-account",
+                t("删除 Antigravity 账号"),
+                tf(
+                    "确定从 Swivox 移除 Antigravity 账号「{0}」吗？",
+                    &[&email],
+                ),
+                true,
+                move |_, cx| {
+                    st_dismiss.update(cx, |s, cx| s.dismiss_all_confirm_modals(cx));
+                },
+                vec![
+                    AppButton::new("ag-del-cancel")
+                        .outline()
+                        .small()
+                        .label(t("取消"))
+                        .on_click(move |_, _, cx| {
+                            st_cancel.update(cx, |s, cx| {
+                                s.ag_delete_confirm_id = None;
+                                cx.notify();
+                            });
+                        })
+                        .into_any_element(),
+                    AppButton::new("ag-del-confirm")
+                        .danger()
+                        .small()
+                        .icon(IconName::Trash)
+                        .label(t("确认删除"))
+                        .on_click(move |_, _, cx| {
+                            let id = del_id.clone();
+                            st_exec.update(cx, |s, cx| s.delete_antigravity_account(id, cx));
+                        })
+                        .into_any_element(),
+                ],
+            ));
+        }
+
+        // 7. 设置页恢复默认设置确认弹窗
+        if data.reset_confirm_open {
+            let st_dismiss = self.store.clone();
+            let st_cancel = self.store.clone();
+            let st_exec = self.store.clone();
+
+            return Some(views::modal_dialog_overlay(
+                cx,
+                "modal-reset-settings",
+                t("确认恢复默认设置？"),
+                t("此操作会将增强开关与常规偏好重置为出厂默认值（已保存的账号凭据与代理列表不受影响）。"),
+                true,
+                move |_, cx| {
+                    st_dismiss.update(cx, |s, cx| s.dismiss_all_confirm_modals(cx));
+                },
+                vec![
+                    AppButton::new("set-reset-cancel")
+                        .outline()
+                        .small()
+                        .label(t("取消"))
+                        .on_click(move |_, _, cx| {
+                            st_cancel.update(cx, |s, cx| {
+                                s.reset_confirm_open = false;
+                                cx.notify();
+                            });
+                        })
+                        .into_any_element(),
+                    AppButton::new("set-reset-exec")
+                        .danger()
+                        .small()
+                        .icon(IconName::Trash)
+                        .label(t("确认重置"))
+                        .on_click(move |_, _, cx| {
+                            st_exec.update(cx, |s, cx| s.reset_all_settings_now(cx));
+                        })
+                        .into_any_element(),
+                ],
+            ));
+        }
+
+        // 8. 本地会话删除确认弹窗
+        if let Some(sess) = data.session_delete_confirm.clone() {
+            let title_disp = if sess.title.trim().is_empty() {
+                sess.id.clone()
+            } else {
+                sess.title.clone()
+            };
+            let st_dismiss = self.store.clone();
+            let st_cancel = self.store.clone();
+            let st_exec = self.store.clone();
+
+            return Some(views::modal_dialog_overlay(
+                cx,
+                "modal-delete-session",
+                format!("{}：「{title_disp}」", t("确认删除本地会话")),
+                t("删除前将自动归档至本地备份存储，并同步移除 SQLite 与 session_index 记录。"),
+                true,
+                move |_, cx| {
+                    st_dismiss.update(cx, |s, cx| s.dismiss_all_confirm_modals(cx));
+                },
+                vec![
+                    AppButton::new("sess-del-cancel")
+                        .outline()
+                        .small()
+                        .label(t("取消"))
+                        .on_click(move |_, _, cx| {
+                            st_cancel.update(cx, |s, cx| {
+                                s.session_delete_confirm = None;
+                                cx.notify();
+                            });
+                        })
+                        .into_any_element(),
+                    AppButton::new("sess-del-ok")
+                        .danger()
+                        .small()
+                        .icon(IconName::Trash)
+                        .label(t("确认删除"))
+                        .on_click(move |_, _, cx| {
+                            let target = sess.clone();
+                            st_exec.update(cx, |s, cx| s.confirm_delete_session(target, cx));
+                        })
+                        .into_any_element(),
+                ],
+            ));
+        }
+
+        // 9. Agent 缓存清理确认弹窗
+        if data.cache_confirm_open {
+            let (selected_files, selected_bytes) = data
+                .cache_report
+                .as_ref()
+                .map(|r| {
+                    r.groups
+                        .iter()
+                        .filter(|g| data.cache_selected_ids.contains(&g.id))
+                        .fold((0usize, 0u64), |(fc, bc), g| {
+                            (fc + g.eligible_files, bc + g.eligible_bytes)
+                        })
+                })
+                .unwrap_or((0, 0));
+            let st_dismiss = self.store.clone();
+            let st_cancel = self.store.clone();
+            let st_exec = self.store.clone();
+
+            return Some(views::modal_dialog_overlay(
+                cx,
+                "modal-clean-cache",
+                t("确认执行缓存清理"),
+                tf(
+                    "即将清理 {0} 个过期缓存文件，预计释放 {1}（自动保留最近 24 小时内的活跃文件，绝不触碰会话与凭据）。",
+                    &[
+                        &selected_files.to_string(),
+                        &format_bytes_human(selected_bytes),
+                    ],
+                ),
+                true,
+                move |_, cx| {
+                    st_dismiss.update(cx, |s, cx| s.dismiss_all_confirm_modals(cx));
+                },
+                vec![
+                    AppButton::new("cache-confirm-cancel")
+                        .outline()
+                        .small()
+                        .label(t("取消"))
+                        .on_click(move |_, _, cx| {
+                            st_cancel.update(cx, |s, cx| {
+                                s.cache_confirm_open = false;
+                                cx.notify();
+                            });
+                        })
+                        .into_any_element(),
+                    AppButton::new("cache-confirm-exec")
+                        .danger()
+                        .small()
+                        .icon(IconName::Trash)
+                        .label(t("确认清理"))
+                        .on_click(move |_, _, cx| {
+                            st_exec.update(cx, |s, cx| s.clean_selected_agent_cache(cx));
+                        })
+                        .into_any_element(),
+                ],
+            ));
+        }
+
+        None
+    }
+
     fn render_active_screen(&self, cx: &mut Context<Self>) -> AnyElement {
         let route = self.store.read(cx).route;
         match route {
@@ -690,6 +1272,7 @@ impl Render for ManagerShell {
             self.rebuild_localized_views(window, cx);
         }
         let floating_toast = self.render_floating_toast(cx);
+        let confirm_modal = self.render_confirm_modal_overlay(cx);
         let canvas_bg = if cx.theme().is_dark() {
             cx.theme().background
         } else {
@@ -697,6 +1280,7 @@ impl Render for ManagerShell {
         };
 
         div()
+            .relative()
             .h_flex()
             .size_full()
             .bg(canvas_bg)
@@ -723,5 +1307,6 @@ impl Render for ManagerShell {
                     )
                     .when_some(floating_toast, |pane, toast| pane.child(toast)),
             )
+            .when_some(confirm_modal, |root, modal| root.child(modal))
     }
 }

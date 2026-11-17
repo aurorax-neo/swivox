@@ -5,6 +5,39 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 pub const DEFAULT_LAMPLIGHTER_MCP_LISTEN: &str = "127.0.0.1:58318";
+pub const ISOLATED_CLIENT_IDS: [&str; 3] = ["codex", "antigravity", "external"];
+
+/// 将任意客户端标识归一化为三大物理隔离域：`"codex"` | `"antigravity"` | `"external"`。
+pub fn normalize_client_id(raw: &str) -> &'static str {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "codex" | "swivox_codex" | "chatgpt" | "openai" | "gpt" => "codex",
+        "antigravity" | "swivox_ag" | "antigravity_desktop" | "antigravity_ide" | "google"
+        | "gemini" => "antigravity",
+        _ => "external",
+    }
+}
+
+/// 根据凭据来源与服务类型返回其归属的物理隔离客户端 ID。
+pub fn client_id_for_credential_source(source_kind: &str, provider: &str) -> &'static str {
+    match source_kind.trim() {
+        "swivox_codex" => "codex",
+        "swivox_ag" => "antigravity",
+        _ => match canonical_provider_id(provider) {
+            "codex" => "codex",
+            "antigravity" => "antigravity",
+            _ => "external",
+        },
+    }
+}
+
+/// 将 Lamplighter 客户端域映射为 `network_proxies` 的客户端代理键。
+pub fn proxy_client_key_for_lamplighter_client(client_id: &str) -> &'static str {
+    match normalize_client_id(client_id) {
+        "codex" => "codex",
+        "antigravity" => "antigravity_desktop",
+        _ => "external",
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "snake_case")]
@@ -138,6 +171,9 @@ pub struct LamplighterConfig {
     pub account_weights: BTreeMap<String, f64>,
     pub account_order: Vec<String>,
     pub ignition: IgnitionConfig,
+    /// 各客户端独立隔离的自动点火开关与时段参数（`"codex"` / `"antigravity"` / `"external"`）
+    #[serde(default)]
+    pub client_ignition: BTreeMap<String, IgnitionConfig>,
     pub providers: BTreeMap<String, ProviderRuleConfig>,
     pub codex_reset_updates: CodexResetUpdatesConfig,
     // 可选外部 CLIProxyAPI (CPA) 接入
@@ -236,6 +272,10 @@ impl Default for LamplighterConfig {
             account_weights: BTreeMap::new(),
             account_order: Vec::new(),
             ignition: IgnitionConfig::default(),
+            client_ignition: ISOLATED_CLIENT_IDS
+                .iter()
+                .map(|cid| ((*cid).to_string(), IgnitionConfig::default()))
+                .collect(),
             providers: default_providers_map(),
             codex_reset_updates: CodexResetUpdatesConfig::default(),
             cpa_enabled: false,
@@ -356,6 +396,24 @@ impl LamplighterConfig {
         self.ignition.max_transient_failures = self.ignition.max_transient_failures.clamp(1, 10);
         self.ignition.post_success_hold_seconds = self.ignition.post_success_hold_seconds.max(15);
 
+        let mut normalized_client_ig = BTreeMap::new();
+        for (raw_cid, mut icfg) in std::mem::take(&mut self.client_ignition) {
+            let cid = normalize_client_id(&raw_cid).to_string();
+            icfg.start_hour = icfg.start_hour.min(23);
+            icfg.end_hour = icfg.end_hour.min(23);
+            icfg.failure_retry_seconds = icfg.failure_retry_seconds.max(60);
+            icfg.failure_backoff_multiplier = icfg.failure_backoff_multiplier.clamp(1, 10);
+            icfg.max_transient_failures = icfg.max_transient_failures.clamp(1, 10);
+            icfg.post_success_hold_seconds = icfg.post_success_hold_seconds.max(15);
+            normalized_client_ig.insert(cid, icfg);
+        }
+        for cid in ISOLATED_CLIENT_IDS {
+            normalized_client_ig
+                .entry(cid.to_string())
+                .or_insert_with(|| self.ignition.clone());
+        }
+        self.client_ignition = normalized_client_ig;
+
         self.codex_reset_updates.poll_seconds = self.codex_reset_updates.poll_seconds.max(300);
 
         let defaults = default_providers_map();
@@ -393,6 +451,17 @@ impl LamplighterConfig {
     pub fn provider_rule(&self, provider_id: &str) -> ProviderRuleConfig {
         let cid = canonical_provider_id(provider_id);
         self.providers.get(cid).cloned().unwrap_or_default()
+    }
+
+    pub fn ignition_for_client(&self, client_id: &str) -> &IgnitionConfig {
+        let cid = normalize_client_id(client_id);
+        self.client_ignition.get(cid).unwrap_or(&self.ignition)
+    }
+
+    pub fn ignition_for_client_mut(&mut self, client_id: &str) -> &mut IgnitionConfig {
+        let cid = normalize_client_id(client_id).to_string();
+        let fallback = self.ignition.clone();
+        self.client_ignition.entry(cid).or_insert(fallback)
     }
 }
 

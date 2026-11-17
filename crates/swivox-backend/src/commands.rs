@@ -6930,6 +6930,62 @@ pub async fn test_launch_proxy(
     }
 }
 
+pub fn load_network_proxies() -> CommandResult<swivox_core::network_proxies::NetworkProxySnapshot> {
+    ok(
+        "已加载网络代理列表与各客户端隔离配置。",
+        swivox_core::network_proxies::get_network_proxy_snapshot(),
+    )
+}
+
+pub fn upsert_network_proxy_node(
+    id: Option<String>,
+    name: String,
+    url: String,
+    note: Option<String>,
+) -> CommandResult<swivox_core::network_proxies::NetworkProxySnapshot> {
+    match swivox_core::network_proxies::upsert_proxy_node(id, name, url, note) {
+        Ok(_) => ok(
+            "已保存代理节点。",
+            swivox_core::network_proxies::get_network_proxy_snapshot(),
+        ),
+        Err(err) => failed(
+            &format!("保存代理节点失败：{err}"),
+            swivox_core::network_proxies::get_network_proxy_snapshot(),
+        ),
+    }
+}
+
+pub fn delete_network_proxy_node(
+    node_id: String,
+) -> CommandResult<swivox_core::network_proxies::NetworkProxySnapshot> {
+    match swivox_core::network_proxies::delete_proxy_node(&node_id) {
+        Ok(_) => ok(
+            "已删除代理节点。",
+            swivox_core::network_proxies::get_network_proxy_snapshot(),
+        ),
+        Err(err) => failed(
+            &format!("删除代理节点失败：{err}"),
+            swivox_core::network_proxies::get_network_proxy_snapshot(),
+        ),
+    }
+}
+
+pub fn save_network_proxy_assignments(
+    app_self_proxy: String,
+    clients: swivox_core::network_proxies::ClientProxyAssignments,
+) -> CommandResult<swivox_core::network_proxies::NetworkProxySnapshot> {
+    match swivox_core::network_proxies::update_proxy_assignments(app_self_proxy, clients) {
+        Ok(_) => ok(
+            "已更新本程序与各客户端隔离代理配置。",
+            swivox_core::network_proxies::get_network_proxy_snapshot(),
+        ),
+        Err(err) => failed(
+            &format!("保存代理分配失败：{err}"),
+            swivox_core::network_proxies::get_network_proxy_snapshot(),
+        ),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

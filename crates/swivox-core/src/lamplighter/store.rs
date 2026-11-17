@@ -2,13 +2,77 @@
 
 use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use chrono::{TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 
-use super::config::LamplighterConfig;
+use super::config::{ISOLATED_CLIENT_IDS, LamplighterConfig, normalize_client_id};
+
+thread_local! {
+    static TEST_LAMPLIGHTER_ROOT_DIR: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
+}
+
+/// 仅供测试在当前线程内隔离 Lamplighter 状态与历史目录。
+#[doc(hidden)]
+pub fn set_lamplighter_dir_for_tests(path: Option<PathBuf>) -> Option<PathBuf> {
+    TEST_LAMPLIGHTER_ROOT_DIR.with(|slot| std::mem::replace(&mut *slot.borrow_mut(), path))
+}
+
+fn lamplighter_root_dir() -> PathBuf {
+    if let Some(p) = TEST_LAMPLIGHTER_ROOT_DIR.with(|slot| slot.borrow().clone()) {
+        return p;
+    }
+    crate::paths::default_lamplighter_dir()
+}
+
+fn config_file_path() -> PathBuf {
+    lamplighter_root_dir().join("config.json")
+}
+
+fn legacy_state_file_path() -> PathBuf {
+    lamplighter_root_dir().join("state.json")
+}
+
+fn external_accounts_file_path() -> PathBuf {
+    lamplighter_root_dir().join("accounts.json")
+}
+
+fn legacy_history_dir() -> PathBuf {
+    lamplighter_root_dir().join("history")
+}
+
+pub fn client_state_file_path(client_id: &str) -> PathBuf {
+    let cid = normalize_client_id(client_id);
+    lamplighter_root_dir()
+        .join("clients")
+        .join(cid)
+        .join("state.json")
+}
+
+pub fn client_history_dir(client_id: &str) -> PathBuf {
+    let cid = normalize_client_id(client_id);
+    lamplighter_root_dir()
+        .join("clients")
+        .join(cid)
+        .join("history")
+}
+
+pub fn key_belongs_to_client(key: &str, client_id: &str) -> bool {
+    let cid = normalize_client_id(client_id);
+    let trimmed = key.trim();
+    match cid {
+        "codex" => trimmed.starts_with("codex:") || trimmed.starts_with("swivox_codex:"),
+        "antigravity" => trimmed.starts_with("antigravity:") || trimmed.starts_with("swivox_ag:"),
+        _ => {
+            !trimmed.starts_with("codex:")
+                && !trimmed.starts_with("swivox_codex:")
+                && !trimmed.starts_with("antigravity:")
+                && !trimmed.starts_with("swivox_ag:")
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -208,7 +272,7 @@ fn atomic_write_json<T: Serialize>(path: &Path, value: &T) -> anyhow::Result<()>
 }
 
 pub fn load_config() -> LamplighterConfig {
-    let path = crate::paths::default_lamplighter_config_path();
+    let path = config_file_path();
     let mut cfg: LamplighterConfig = std::fs::read_to_string(&path)
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
@@ -219,11 +283,11 @@ pub fn load_config() -> LamplighterConfig {
 
 pub fn save_config(cfg: &mut LamplighterConfig) -> anyhow::Result<()> {
     cfg.normalize();
-    atomic_write_json(&crate::paths::default_lamplighter_config_path(), cfg)
+    atomic_write_json(&config_file_path(), cfg)
 }
 
 pub fn load_state() -> LamplighterState {
-    let path = crate::paths::default_lamplighter_state_path();
+    let path = legacy_state_file_path();
     std::fs::read_to_string(&path)
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
@@ -231,11 +295,53 @@ pub fn load_state() -> LamplighterState {
 }
 
 pub fn save_state(state: &LamplighterState) -> anyhow::Result<()> {
-    atomic_write_json(&crate::paths::default_lamplighter_state_path(), state)
+    atomic_write_json(&legacy_state_file_path(), state)
+}
+
+/// 读取指定客户端物理隔离的 `clients/<client_id>/state.json`（首次自动从旧版全局 `state.json` 按客户端前缀拆分迁移）。
+pub fn load_client_state(client_id: &str) -> LamplighterState {
+    let cid = normalize_client_id(client_id);
+    let path = client_state_file_path(cid);
+    if let Ok(raw) = std::fs::read_to_string(&path)
+        && let Ok(parsed) = serde_json::from_str::<LamplighterState>(&raw)
+    {
+        return parsed;
+    }
+
+    let legacy = load_state();
+    let mut migrated = LamplighterState::default();
+    for (k, v) in legacy.groups {
+        if key_belongs_to_client(&k, cid) {
+            migrated.groups.insert(k, v);
+        }
+    }
+    for (k, v) in legacy.scheduler {
+        if key_belongs_to_client(&k, cid) {
+            migrated.scheduler.insert(k, v);
+        }
+    }
+    for (k, v) in legacy.plans {
+        if key_belongs_to_client(&k, cid) {
+            migrated.plans.insert(k, v);
+        }
+    }
+    for (k, v) in legacy.credentials {
+        if key_belongs_to_client(&k, cid) {
+            migrated.credentials.insert(k, v);
+        }
+    }
+    if cid == "codex" {
+        migrated.codex_reset = legacy.codex_reset;
+    }
+    migrated
+}
+
+pub fn save_client_state(client_id: &str, state: &LamplighterState) -> anyhow::Result<()> {
+    atomic_write_json(&client_state_file_path(client_id), state)
 }
 
 pub fn load_external_accounts() -> Vec<ExternalLamplighterAccount> {
-    let path = crate::paths::default_lamplighter_accounts_path();
+    let path = external_accounts_file_path();
     std::fs::read_to_string(&path)
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
@@ -243,19 +349,20 @@ pub fn load_external_accounts() -> Vec<ExternalLamplighterAccount> {
 }
 
 pub fn save_external_accounts(accounts: &[ExternalLamplighterAccount]) -> anyhow::Result<()> {
-    atomic_write_json(&crate::paths::default_lamplighter_accounts_path(), &accounts)
+    atomic_write_json(&external_accounts_file_path(), &accounts)
 }
 
-fn history_file_for_timestamp(ts: i64) -> std::path::PathBuf {
+fn client_history_file_for_timestamp(client_id: &str, ts: i64) -> PathBuf {
     let dt = Utc
         .timestamp_opt(ts, 0)
         .single()
         .unwrap_or_else(Utc::now);
     let date_name = format!("{}.jsonl", dt.format("%Y-%m-%d"));
-    crate::paths::default_lamplighter_history_dir().join(date_name)
+    client_history_dir(client_id).join(date_name)
 }
 
-pub fn append_history_sample(
+pub fn append_client_history_sample(
+    client_id: &str,
     timestamp: i64,
     group_key: &str,
     window_id: &str,
@@ -263,7 +370,7 @@ pub fn append_history_sample(
     reset_at: Option<i64>,
     source: &str,
 ) {
-    let path = history_file_for_timestamp(timestamp);
+    let path = client_history_file_for_timestamp(client_id, timestamp);
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
@@ -294,8 +401,26 @@ pub fn append_history_sample(
     }
 }
 
-pub fn append_event_record(ev: &LamplighterEventRecord) {
-    let path = history_file_for_timestamp(ev.timestamp);
+pub fn append_history_sample(
+    timestamp: i64,
+    group_key: &str,
+    window_id: &str,
+    remaining: f64,
+    reset_at: Option<i64>,
+    source: &str,
+) {
+    let cid = if key_belongs_to_client(group_key, "codex") {
+        "codex"
+    } else if key_belongs_to_client(group_key, "antigravity") {
+        "antigravity"
+    } else {
+        "external"
+    };
+    append_client_history_sample(cid, timestamp, group_key, window_id, remaining, reset_at, source);
+}
+
+pub fn append_client_event_record(client_id: &str, ev: &LamplighterEventRecord) {
+    let path = client_history_file_for_timestamp(client_id, ev.timestamp);
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
@@ -325,6 +450,17 @@ pub fn append_event_record(ev: &LamplighterEventRecord) {
     }
 }
 
+pub fn append_event_record(ev: &LamplighterEventRecord) {
+    let cid = if key_belongs_to_client(&ev.group_key, "codex") {
+        "codex"
+    } else if key_belongs_to_client(&ev.group_key, "antigravity") {
+        "antigravity"
+    } else {
+        "external"
+    };
+    append_client_event_record(cid, ev);
+}
+
 pub fn history_bucket_seconds(span_seconds: i64) -> i64 {
     if span_seconds <= 2 * 86_400 {
         0
@@ -339,19 +475,26 @@ pub fn history_bucket_seconds(span_seconds: i64) -> i64 {
     }
 }
 
-/// 读取最近事件与指定时间范围（`hours` 小时）的降采样曲线数据。
-pub fn query_history_and_events(
+/// 读取单个隔离客户端（`"codex"` / `"antigravity"` / `"external"`）最近事件与降采样曲线数据。
+pub fn query_client_history_and_events(
+    client_id: &str,
     hours: u64,
     window_filter: Option<&str>,
     group_labels: &BTreeMap<String, (String, String, f64)>,
 ) -> (Vec<HistorySeries>, Vec<LamplighterEventRecord>) {
+    let cid = normalize_client_id(client_id);
     let now = Utc::now().timestamp();
     let span = (hours.clamp(1, 24 * 90) as i64) * 3600;
     let from = now - span;
     let lead_from = from - 86_400;
     let bucket = history_bucket_seconds(span);
 
-    let dir = crate::paths::default_lamplighter_history_dir();
+    let isolated_dir = client_history_dir(cid);
+    let (dir, filter_legacy_prefix) = if isolated_dir.is_dir() {
+        (isolated_dir, false)
+    } else {
+        (legacy_history_dir(), true)
+    };
     let Ok(entries) = std::fs::read_dir(&dir) else {
         return (Vec::new(), Vec::new());
     };
@@ -363,7 +506,7 @@ pub fn query_history_and_events(
         .format("%Y-%m-%d")
         .to_string();
 
-    let mut files: Vec<(String, std::path::PathBuf)> = entries
+    let mut files: Vec<(String, PathBuf)> = entries
         .flatten()
         .filter_map(|e| {
             let p = e.path();
@@ -391,6 +534,9 @@ pub fn query_history_and_events(
             let Ok(rec) = serde_json::from_str::<RawJsonlEntry>(trimmed) else {
                 continue;
             };
+            if filter_legacy_prefix && !key_belongs_to_client(&rec.g, cid) {
+                continue;
+            }
             if rec.k == "e" {
                 events.push(LamplighterEventRecord {
                     timestamp: rec.t,
@@ -460,4 +606,22 @@ pub fn query_history_and_events(
     events.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
     events.truncate(100);
     (out_series, events)
+}
+
+/// 读取全客户端聚合的最近事件与指定时间范围（`hours` 小时）的降采样曲线数据（供本地 `/mcp` 全局视图使用）。
+pub fn query_history_and_events(
+    hours: u64,
+    window_filter: Option<&str>,
+    group_labels: &BTreeMap<String, (String, String, f64)>,
+) -> (Vec<HistorySeries>, Vec<LamplighterEventRecord>) {
+    let mut all_series = Vec::new();
+    let mut all_events = Vec::new();
+    for cid in ISOLATED_CLIENT_IDS {
+        let (s, e) = query_client_history_and_events(cid, hours, window_filter, group_labels);
+        all_series.extend(s);
+        all_events.extend(e);
+    }
+    all_events.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    all_events.truncate(100);
+    (all_series, all_events)
 }

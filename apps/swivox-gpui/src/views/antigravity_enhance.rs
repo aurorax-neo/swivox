@@ -5,7 +5,6 @@ use gpui_kit::component::input::{Input, InputState};
 use gpui_kit::component::switch::Switch;
 use gpui_kit::component::theme::ActiveTheme as _;
 use gpui_kit::component::StyledExt as _;
-use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 use swivox_backend::i18n::t;
 
@@ -146,22 +145,65 @@ impl AntigravityEnhanceView {
 
 impl Render for AntigravityEnhanceView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let snap = self.store.read(cx).ag_snapshot.clone();
-        let eff_proxy = snap
+        let (snap, px_snap) = {
+            let s = self.store.read(cx);
+            (s.ag_snapshot.clone(), s.network_proxy_snapshot.clone())
+        };
+        let eff_desk_proxy = snap
             .as_ref()
-            .and_then(|s| s.effective_launch_proxy.clone())
-            .unwrap_or_else(|| t("系统直连"));
+            .and_then(|s| s.effective_desktop_proxy.clone())
+            .unwrap_or_else(|| px_snap.effective_antigravity_desktop.clone());
+        let eff_ide_proxy = snap
+            .as_ref()
+            .and_then(|s| s.effective_ide_proxy.clone())
+            .unwrap_or_else(|| px_snap.effective_antigravity_ide.clone());
         let dev_profile = snap.as_ref().and_then(|s| s.current_device_profile.clone());
         let has_baseline = snap.as_ref().is_some_and(|s| s.has_device_baseline);
+        let nodes = px_snap.config.nodes.clone();
 
         let st_regen = self.store.clone();
         let st_restore = self.store.clone();
+        let st_goto_settings = self.store.clone();
+
+        let build_slot_btns = |slot: &'static str, cur_sel: &str| -> Vec<AnyElement> {
+            let mut opts = vec![
+                ("system".to_string(), t("跟随系统代理")),
+                ("app".to_string(), t("跟随本程序")),
+                ("direct".to_string(), t("强制直连")),
+            ];
+            for n in &nodes {
+                opts.push((format!("node:{}", n.id), n.name.clone()));
+            }
+            opts.into_iter()
+                .map(|(sel, lbl)| {
+                    let selected = cur_sel == sel;
+                    let st = self.store.clone();
+                    let b = AppButton::new(SharedString::from(format!("ag-enh-px-{slot}-{sel}")))
+                        .small()
+                        .label(lbl);
+                    let b = if selected { b.selected(true) } else { b.outline() };
+                    b.on_click(move |_, _, cx| {
+                        let next_sel = sel.clone();
+                        st.update(cx, |s, cx| {
+                            s.update_self_or_client_proxy_assignment(slot, next_sel, cx);
+                        });
+                    })
+                    .into_any_element()
+                })
+                .collect()
+        };
+
+        let desk_btns = build_slot_btns(
+            "antigravity_desktop",
+            &px_snap.config.clients.antigravity_desktop,
+        );
+        let ide_btns = build_slot_btns("antigravity_ide", &px_snap.config.clients.antigravity_ide);
 
         div()
             .v_flex()
             .w_full()
             .gap_4()
-            // 卡片 1：免 TUN 代理启动
+            // 卡片 1：桌面版与 IDE 免 TUN 独立隔离代理启动
             .child(panel_card(
                 cx,
                 div()
@@ -174,6 +216,7 @@ impl Render for AntigravityEnhanceView {
                             .w_full()
                             .items_center()
                             .justify_between()
+                            .gap_3()
                             .child(
                                 div()
                                     .v_flex()
@@ -182,88 +225,86 @@ impl Render for AntigravityEnhanceView {
                                         div()
                                             .text_base()
                                             .font_semibold()
-                                            .child(t("免 TUN 代理启动（Proxy-Free Launch）")),
+                                            .child(t("免 TUN 隔离代理启动（桌面版与 IDE 各自独立）")),
                                     )
                                     .child(
                                         div()
                                             .text_xs()
                                             .text_color(cx.theme().muted_foreground)
-                                            .child(t("启动时同时向 Electron 渲染层与后台 language_server 注入本地 HTTP / SOCKS5 代理，无需开启系统 TUN 网卡模式")),
+                                            .child(t("启动时同时向 Electron 渲染层与后台 language_server 注入所选代理，无需系统 TUN 网卡；Agy 点火自动复用桌面版代理")),
                                     ),
                             )
-                            .child(AppBadge::info(format!("{}: {eff_proxy}", t("当前生效")))),
+                            .child(
+                                AppButton::new("ag-enh-manage-proxy-pool")
+                                    .outline()
+                                    .small()
+                                    .icon(IconName::Settings)
+                                    .label(t("管理代理列表"))
+                                    .on_click(move |_, _, cx| {
+                                        st_goto_settings.update(cx, |s, cx| {
+                                            s.navigate(crate::routes::Route::Settings, cx);
+                                        });
+                                    }),
+                            ),
                     )
                     .child(
                         div()
-                            .h_flex()
+                            .v_flex()
+                            .w_full()
                             .gap_2()
-                            .flex_wrap()
-                            .children(
-                                [
-                                    ("inherit", t("跟随全局代理")),
-                                    ("custom", t("指定本地代理端口")),
-                                    ("direct", t("强制直连（禁用代理）")),
-                                ]
-                                .into_iter()
-                                .map(|(mode, label)| {
-                                    let active = self.proxy_mode == mode;
-                                    let b = AppButton::new(SharedString::from(format!(
-                                        "ag-launch-proxy-{mode}"
-                                    )))
-                                    .small()
-                                    .label(label);
-                                    let b = if active { b.selected(true) } else { b.outline() };
-                                    b.on_click(cx.listener(move |v, _, _, cx| {
-                                        v.proxy_mode = mode.to_string();
-                                        cx.notify();
-                                    }))
-                                }),
-                            ),
+                            .p_3()
+                            .rounded(px(8.))
+                            .bg(cx.theme().secondary.opacity(0.24))
+                            .border_1()
+                            .border_color(cx.theme().border)
+                            .child(
+                                div()
+                                    .h_flex()
+                                    .w_full()
+                                    .items_center()
+                                    .justify_between()
+                                    .child(
+                                        div()
+                                            .text_xs()
+                                            .font_semibold()
+                                            .child(t("Antigravity 桌面版与 Agy 点火代理")),
+                                    )
+                                    .child(AppBadge::info(format!(
+                                        "{}: {eff_desk_proxy}",
+                                        t("当前生效")
+                                    ))),
+                            )
+                            .child(div().h_flex().flex_wrap().gap_1p5().children(desk_btns)),
                     )
-                    .when(self.proxy_mode == "custom", |col| {
-                        let pinp = self.proxy_url_input.clone();
-                        col.child(
-                            div()
-                                .v_flex()
-                                .w_full()
-                                .gap_2()
-                                .child(Input::new(&self.proxy_url_input))
-                                .child(
-                                    div()
-                                        .h_flex()
-                                        .items_center()
-                                        .gap_2()
-                                        .child(
-                                            div()
-                                                .text_xs()
-                                                .text_color(cx.theme().muted_foreground)
-                                                .child(t("常用代理端口快捷填入：")),
-                                        )
-                                        .children(
-                                            [
-                                                ("Clash 7890", "http://127.0.0.1:7890"),
-                                                ("Clash Verge 7897", "http://127.0.0.1:7897"),
-                                                ("v2rayN 10808", "socks5://127.0.0.1:10808"),
-                                            ]
-                                            .into_iter()
-                                            .map(|(lbl, val)| {
-                                                let p = pinp.clone();
-                                                AppButton::new(SharedString::from(format!(
-                                                    "ag-quick-port-{lbl}"
-                                                )))
-                                                .outline()
-                                                .small()
-                                                .label(lbl)
-                                                .on_click(move |_, window, cx| {
-                                                    p.update(cx, |inp, cx| {
-                                                        inp.set_value(val.to_string(), window, cx);
-                                                    });
-                                                })
-                                            }),
-                                        ),
-                                ),
-                        )
-                    }),
+                    .child(
+                        div()
+                            .v_flex()
+                            .w_full()
+                            .gap_2()
+                            .p_3()
+                            .rounded(px(8.))
+                            .bg(cx.theme().secondary.opacity(0.24))
+                            .border_1()
+                            .border_color(cx.theme().border)
+                            .child(
+                                div()
+                                    .h_flex()
+                                    .w_full()
+                                    .items_center()
+                                    .justify_between()
+                                    .child(
+                                        div()
+                                            .text_xs()
+                                            .font_semibold()
+                                            .child(t("Antigravity IDE 编辑器代理")),
+                                    )
+                                    .child(AppBadge::info(format!(
+                                        "{}: {eff_ide_proxy}",
+                                        t("当前生效")
+                                    ))),
+                            )
+                            .child(div().h_flex().flex_wrap().gap_1p5().children(ide_btns)),
+                    ),
             ))
             // 卡片 2：可逆界面汉化与上下文监控圆环
             .child(panel_card(

@@ -457,8 +457,24 @@ mod visual_audit {
                 Box::new(|hcx, store| {
                     hcx.update(|app| {
                         store.update(app, |s, cx| {
+                            s.dismiss_all_confirm_modals(cx);
                             s.back_to_relay_list(cx);
                             s.navigate(Route::Relay, cx);
+                        });
+                    });
+                }),
+            ),
+            (
+                "03a2_relay_switch_modal.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.back_to_relay_list(cx);
+                            s.navigate(Route::Relay, cx);
+                            if let Some(first) = s.settings.relay_profiles.first() {
+                                s.use_confirm_relay_id = Some(first.id.clone());
+                                cx.notify();
+                            }
                         });
                     });
                 }),
@@ -468,6 +484,7 @@ mod visual_audit {
                 Box::new(|hcx, store| {
                     hcx.update(|app| {
                         store.update(app, |s, cx| {
+                            s.dismiss_all_confirm_modals(cx);
                             s.navigate(Route::Relay, cx);
                             s.open_relay_catalog(cx);
                         });
@@ -641,14 +658,34 @@ mod visual_audit {
             (
                 "14_settings.png",
                 Box::new(|hcx, store| {
-                    hcx.update(|app| store.update(app, |s, cx| s.navigate(Route::Settings, cx)));
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.dismiss_all_confirm_modals(cx);
+                            s.navigate(Route::Settings, cx);
+                        });
+                    });
+                }),
+            ),
+            (
+                "14b_settings_reset_modal.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.navigate(Route::Settings, cx);
+                            s.reset_confirm_open = true;
+                            cx.notify();
+                        });
+                    });
                 }),
             ),
             (
                 "15_relay_env.png",
                 Box::new(|hcx, store| {
                     hcx.update(|app| {
-                        store.update(app, |s, cx| s.navigate(Route::RelayEnvironment, cx))
+                        store.update(app, |s, cx| {
+                            s.dismiss_all_confirm_modals(cx);
+                            s.navigate(Route::RelayEnvironment, cx);
+                        })
                     });
                 }),
             ),
@@ -657,6 +694,7 @@ mod visual_audit {
                 Box::new(|hcx, store| {
                     hcx.update(|app| {
                         store.update(app, |s, cx| {
+                            s.dismiss_all_confirm_modals(cx);
                             s.active_tool = "antigravity".to_string();
                             s.navigate(Route::Overview, cx);
                         });
@@ -668,8 +706,46 @@ mod visual_audit {
                 Box::new(|hcx, store| {
                     hcx.update(|app| {
                         store.update(app, |s, cx| {
+                            s.dismiss_all_confirm_modals(cx);
                             s.active_tool = "antigravity".to_string();
                             s.navigate(Route::AntigravityAccounts, cx);
+                        });
+                    });
+                }),
+            ),
+            (
+                "19b2_ag_switch_modal.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.active_tool = "antigravity".to_string();
+                            s.navigate(Route::AntigravityAccounts, cx);
+                            let sample = s
+                                .ag_snapshot
+                                .as_ref()
+                                .and_then(|sp| sp.accounts.first().cloned())
+                                .unwrap_or(swivox_core::antigravity::AntigravityAccountView {
+                                    id: "demo-ag".to_string(),
+                                    email: "studio-pro@google.com".to_string(),
+                                    name: Some("Studio Pro".to_string()),
+                                    label: Some("主力 AI Pro".to_string()),
+                                    is_active: true,
+                                    is_live_desktop: false,
+                                    is_live_ide: false,
+                                    disabled: false,
+                                    disabled_reason: None,
+                                    subscription_tier: "PRO".to_string(),
+                                    oauth_client_key: "personal".to_string(),
+                                    project_id: None,
+                                    proxy_mode: "inherit".to_string(),
+                                    egress_proxy_url: None,
+                                    device_profile: None,
+                                    quota: None,
+                                    created_at: 0,
+                                    last_used: 0,
+                                });
+                            s.ag_use_confirm_account = Some(sample);
+                            cx.notify();
                         });
                     });
                 }),
@@ -679,6 +755,7 @@ mod visual_audit {
                 Box::new(|hcx, store| {
                     hcx.update(|app| {
                         store.update(app, |s, cx| {
+                            s.dismiss_all_confirm_modals(cx);
                             s.active_tool = "antigravity".to_string();
                             s.navigate(Route::AntigravityEnhance, cx);
                         });
@@ -690,6 +767,7 @@ mod visual_audit {
                 Box::new(|hcx, store| {
                     hcx.update(|app| {
                         store.update(app, |s, cx| {
+                            s.dismiss_all_confirm_modals(cx);
                             s.active_tool = "codex".to_string();
                             s.lamplighter_tab = "overview";
                             s.navigate(Route::Lamplighter, cx);
@@ -717,6 +795,18 @@ mod visual_audit {
                             s.navigate(Route::Lamplighter, cx);
                             s.lamplighter_tab = "settings";
                             cx.notify();
+                        });
+                    });
+                }),
+            ),
+            (
+                "20d_lamplighter_antigravity.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.active_tool = "antigravity".to_string();
+                            s.lamplighter_tab = "overview";
+                            s.navigate(Route::Lamplighter, cx);
                         });
                     });
                 }),

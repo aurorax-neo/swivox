@@ -28,27 +28,29 @@ pub struct LamplighterView {
     low_th_input: Entity<InputState>,
     crit_th_input: Entity<InputState>,
     mcp_listen_input: Entity<InputState>,
-    ext_email_input: Entity<InputState>,
-    ext_label_input: Entity<InputState>,
-    ext_token_input: Entity<InputState>,
-    ext_proxy_input: Entity<InputState>,
     draft_cfg: LamplighterConfig,
+    last_client_id: String,
 }
 
 impl LamplighterView {
     pub fn new(store: Entity<AppStore>, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let draft_cfg = store
-            .read(cx)
-            .lamplighter_snapshot
-            .as_ref()
-            .map(|s| s.config.clone())
-            .unwrap_or_default();
+        let (draft_cfg, init_client_id) = {
+            let s = store.read(cx);
+            (
+                s.lamplighter_snapshot
+                    .as_ref()
+                    .map(|snap| snap.config.clone())
+                    .unwrap_or_default(),
+                s.active_lamplighter_client_id(),
+            )
+        };
+        let init_client_ig = draft_cfg.ignition_for_client(&init_client_id);
 
         let init_bark = draft_cfg.bark_url.clone();
         let init_wh = draft_cfg.webhook.url.clone();
         let init_poll = draft_cfg.poll_interval_seconds.to_string();
-        let init_sh = draft_cfg.ignition.start_hour.to_string();
-        let init_eh = draft_cfg.ignition.end_hour.to_string();
+        let init_sh = init_client_ig.start_hour.to_string();
+        let init_eh = init_client_ig.end_hour.to_string();
         let init_nth = format!("{:.0}", draft_cfg.notice_threshold);
         let init_lth = format!("{:.0}", draft_cfg.low_threshold);
         let init_cth = format!("{:.0}", draft_cfg.critical_threshold);
@@ -102,17 +104,6 @@ impl LamplighterView {
             st
         });
 
-        let ext_email_input =
-            cx.new(|cx| InputState::new(window, cx).placeholder("user@example.com"));
-        let ext_label_input =
-            cx.new(|cx| InputState::new(window, cx).placeholder(t("备注名称（可选，如主力号）")));
-        let ext_token_input = cx.new(|cx| {
-            InputState::new(window, cx).placeholder("sk-ant-oat01-... / Bearer access_token")
-        });
-        let ext_proxy_input = cx.new(|cx| {
-            InputState::new(window, cx).placeholder(t("专属代理 URL（留空跟随全局）"))
-        });
-
         cx.observe(&store, |_, _, cx| cx.notify()).detach();
 
         Self {
@@ -126,26 +117,27 @@ impl LamplighterView {
             low_th_input,
             crit_th_input,
             mcp_listen_input,
-            ext_email_input,
-            ext_label_input,
-            ext_token_input,
-            ext_proxy_input,
             draft_cfg,
+            last_client_id: init_client_id,
         }
     }
 
     fn collect_config_from_inputs(&mut self, cx: &App) -> LamplighterConfig {
+        let client_id = self.store.read(cx).active_lamplighter_client_id();
         let mut cfg = self.draft_cfg.clone();
         cfg.bark_url = self.bark_url_input.read(cx).value().to_string();
         cfg.webhook.url = self.webhook_url_input.read(cx).value().to_string();
         if let Ok(v) = self.poll_secs_input.read(cx).value().trim().parse::<u64>() {
             cfg.poll_interval_seconds = v;
         }
-        if let Ok(v) = self.start_hour_input.read(cx).value().trim().parse::<u8>() {
-            cfg.ignition.start_hour = v;
-        }
-        if let Ok(v) = self.end_hour_input.read(cx).value().trim().parse::<u8>() {
-            cfg.ignition.end_hour = v;
+        {
+            let cig = cfg.ignition_for_client_mut(&client_id);
+            if let Ok(v) = self.start_hour_input.read(cx).value().trim().parse::<u8>() {
+                cig.start_hour = v;
+            }
+            if let Ok(v) = self.end_hour_input.read(cx).value().trim().parse::<u8>() {
+                cig.end_hour = v;
+            }
         }
         if let Ok(v) = self.notice_th_input.read(cx).value().trim().parse::<f64>() {
             cfg.notice_threshold = v;
@@ -303,6 +295,11 @@ impl LamplighterView {
                             .when((grp.weight - 1.0).abs() > 0.01, |r| {
                                 r.child(AppBadge::new(format!("×{}", grp.weight)))
                             })
+                            .child(AppBadge::outline(format!(
+                                "{}: {}",
+                                t("代理"),
+                                grp.effective_proxy
+                            )))
                             .child(
                                 div()
                                     .text_xs()
@@ -501,15 +498,22 @@ impl LamplighterView {
     }
 
     fn render_settings_tab(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        let client_id = self.store.read(cx).active_lamplighter_client_id();
+        let is_ag = client_id == "antigravity";
         let enabled = self.draft_cfg.enabled;
-        let ig_enabled = self.draft_cfg.ignition.enabled;
-        let codex_ig = self.draft_cfg.provider_rule("codex").ignite;
-        let ag_ig = self.draft_cfg.provider_rule("antigravity").ignite;
-        let claude_ig = self.draft_cfg.provider_rule("claude").ignite;
+        let ig_enabled = self.draft_cfg.ignition_for_client(&client_id).enabled;
+        let client_prov_id = if is_ag { "antigravity" } else { "codex" };
+        let client_prov_label = if is_ag {
+            "Antigravity (Gemini) 自动点火"
+        } else {
+            "GPT / Codex 自动点火"
+        };
+        let client_prov_ig = self.draft_cfg.provider_rule(client_prov_id).ignite;
         let reset_sig = self.draft_cfg.codex_reset_updates.enabled;
         let mcp_en = self.draft_cfg.mcp_enabled;
         let mcp_key = self.draft_cfg.mcp_key.clone();
         let preset_now = self.draft_cfg.webhook.preset.clone();
+        let cid_for_sw = client_id.clone();
 
         div()
             .v_flex()
@@ -576,8 +580,10 @@ impl LamplighterView {
                                     .child(
                                         Switch::new("ll-cfg-ig-en")
                                             .checked(ig_enabled)
-                                            .on_click(cx.listener(|v, checked: &bool, _, cx| {
-                                                v.draft_cfg.ignition.enabled = *checked;
+                                            .on_click(cx.listener(move |v, checked: &bool, _, cx| {
+                                                v.draft_cfg
+                                                    .ignition_for_client_mut(&cid_for_sw)
+                                                    .enabled = *checked;
                                                 cx.notify();
                                             })),
                                     ),
@@ -626,44 +632,28 @@ impl LamplighterView {
                         div()
                             .h_flex()
                             .w_full()
-                            .gap_3()
-                            .flex_wrap()
-                            .children(
-                                [
-                                    ("codex", "GPT / Codex 自动点火", codex_ig),
-                                    ("antigravity", "Antigravity (Gemini) 自动点火", ag_ig),
-                                    ("claude", "Claude 自动点火", claude_ig),
-                                ]
-                                .into_iter()
-                                .map(|(pid, lbl, cur)| {
-                                    div()
-                                        .h_flex()
-                                        .flex_1()
-                                        .min_w(px(220.))
-                                        .items_center()
-                                        .justify_between()
-                                        .p_3()
-                                        .rounded(px(8.))
-                                        .bg(cx.theme().secondary.opacity(0.24))
-                                        .border_1()
-                                        .border_color(cx.theme().border)
-                                        .child(div().text_xs().font_medium().child(t(lbl)))
-                                        .child(
-                                            Switch::new(SharedString::from(format!(
-                                                "ll-prov-ig-{pid}"
-                                            )))
-                                            .checked(cur)
-                                            .on_click(cx.listener(move |v, checked: &bool, _, cx| {
-                                                let entry = v
-                                                    .draft_cfg
-                                                    .providers
-                                                    .entry(pid.to_string())
-                                                    .or_default();
-                                                entry.ignite = *checked;
-                                                cx.notify();
-                                            })),
-                                        )
-                                }),
+                            .items_center()
+                            .justify_between()
+                            .p_3()
+                            .rounded(px(8.))
+                            .bg(cx.theme().secondary.opacity(0.24))
+                            .border_1()
+                            .border_color(cx.theme().border)
+                            .child(div().text_xs().font_medium().child(t(client_prov_label)))
+                            .child(
+                                Switch::new(SharedString::from(format!(
+                                    "ll-prov-ig-{client_prov_id}"
+                                )))
+                                .checked(client_prov_ig)
+                                .on_click(cx.listener(move |v, checked: &bool, _, cx| {
+                                    let entry = v
+                                        .draft_cfg
+                                        .providers
+                                        .entry(client_prov_id.to_string())
+                                        .or_default();
+                                    entry.ignite = *checked;
+                                    cx.notify();
+                                })),
                             ),
                     ),
             ))
@@ -899,30 +889,50 @@ impl LamplighterView {
 }
 
 impl Render for LamplighterView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let (snap, tab, hours, win_filter, hide_emails, loading, add_open, new_prov) = {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let (snap, client_id, tab, hours, win_filter, hide_emails, loading) = {
             let s = self.store.read(cx);
             (
                 s.lamplighter_snapshot.clone(),
+                s.active_lamplighter_client_id(),
                 s.lamplighter_tab,
                 s.lamplighter_history_hours,
                 s.lamplighter_window_filter,
                 s.lamplighter_hide_emails,
                 s.lamplighter_loading,
-                s.lamplighter_add_account_open,
-                s.lamplighter_new_provider,
             )
         };
+
+        if self.last_client_id != client_id {
+            self.last_client_id = client_id.clone();
+            if let Some(ref sp) = snap {
+                self.draft_cfg = sp.config.clone();
+            }
+            let cig = self.draft_cfg.ignition_for_client(&client_id).clone();
+            self.start_hour_input.update(cx, |inp, cx| {
+                inp.set_value(cig.start_hour.to_string(), window, cx);
+            });
+            self.end_hour_input.update(cx, |inp, cx| {
+                inp.set_value(cig.end_hour.to_string(), window, cx);
+            });
+        }
+
+        let is_ag = client_id == "antigravity";
+        let client_scope_badge = if is_ag {
+            t("隔离域：Antigravity 客户端")
+        } else {
+            t("隔离域：Codex 客户端")
+        };
+        let eff_client_proxy = snap
+            .as_ref()
+            .and_then(|s| s.client_effective_proxies.get(&client_id).cloned())
+            .unwrap_or_else(|| "system (direct)".to_string());
 
         let groups = snap.as_ref().map(|s| s.groups.clone()).unwrap_or_default();
         let events = snap.as_ref().map(|s| s.events.clone()).unwrap_or_default();
         let series = snap
             .as_ref()
             .map(|s| s.history_series.clone())
-            .unwrap_or_default();
-        let ext_accounts = snap
-            .as_ref()
-            .map(|s| s.external_accounts.clone())
             .unwrap_or_default();
         let next_poll = snap.as_ref().map(|s| s.next_poll_at).unwrap_or(0);
 
@@ -934,51 +944,121 @@ impl Render for LamplighterView {
             .v_flex()
             .w_full()
             .gap_4()
-            // 顶部页签与快捷动作条
+            // 顶部页签与客户端隔离代理状态条
             .child(panel_card(
                 cx,
                 div()
-                    .h_flex()
+                    .v_flex()
                     .w_full()
-                    .items_center()
-                    .justify_between()
                     .gap_3()
-                    .flex_wrap()
                     .child(
                         div()
                             .h_flex()
+                            .w_full()
                             .items_center()
-                            .gap_2()
-                            .children(
-                                [
-                                    ("overview", t("额度与自动点火")),
-                                    ("history", t("趋势曲线与事件")),
-                                    ("settings", t("推送与规则设置")),
-                                ]
-                                .into_iter()
-                                .map(|(id, lbl)| {
-                                    let active = tab == id;
-                                    let st = st_tab.clone();
-                                    let b = AppButton::new(SharedString::from(format!(
-                                        "ll-tab-{id}"
-                                    )))
-                                    .small()
-                                    .label(lbl);
-                                    let b = if active { b.selected(true) } else { b.outline() };
-                                    b.on_click(move |_, _, cx| {
-                                        st.update(cx, |s, cx| {
-                                            s.lamplighter_tab = id;
-                                            cx.notify();
-                                        });
-                                    })
-                                }),
+                            .justify_between()
+                            .gap_3()
+                            .flex_wrap()
+                            .child(
+                                div()
+                                    .h_flex()
+                                    .items_center()
+                                    .gap_2()
+                                    .children(
+                                        [
+                                            ("overview", t("额度与自动点火")),
+                                            ("history", t("趋势曲线与事件")),
+                                            ("settings", t("推送与规则设置")),
+                                        ]
+                                        .into_iter()
+                                        .map(|(id, lbl)| {
+                                            let active = tab == id;
+                                            let st = st_tab.clone();
+                                            let b = AppButton::new(SharedString::from(format!(
+                                                "ll-tab-{id}"
+                                            )))
+                                            .small()
+                                            .label(lbl);
+                                            let b =
+                                                if active { b.selected(true) } else { b.outline() };
+                                            b.on_click(move |_, _, cx| {
+                                                st.update(cx, |s, cx| {
+                                                    s.lamplighter_tab = id;
+                                                    cx.notify();
+                                                });
+                                            })
+                                        }),
+                                    ),
+                            )
+                            .child(
+                                div()
+                                    .h_flex()
+                                    .items_center()
+                                    .gap_2()
+                                    .child(
+                                        AppButton::new("ll-toggle-privacy")
+                                            .outline()
+                                            .small()
+                                            .icon(if hide_emails {
+                                                IconName::EyeOff
+                                            } else {
+                                                IconName::Eye
+                                            })
+                                            .label(if hide_emails {
+                                                t("显示邮箱")
+                                            } else {
+                                                t("隐藏邮箱")
+                                            })
+                                            .on_click(move |_, _, cx| {
+                                                st_eye.update(cx, |s, cx| {
+                                                    s.lamplighter_hide_emails =
+                                                        !s.lamplighter_hide_emails;
+                                                    cx.notify();
+                                                });
+                                            }),
+                                    )
+                                    .child(
+                                        AppButton::new("ll-refresh-now")
+                                            .primary()
+                                            .small()
+                                            .disabled(loading)
+                                            .icon(IconName::RefreshCw)
+                                            .label(if loading {
+                                                t("刷新中...")
+                                            } else {
+                                                t("刷新当前客户端")
+                                            })
+                                            .on_click(move |_, _, cx| {
+                                                st_ref.update(cx, |s, cx| {
+                                                    s.refresh_lamplighter_remote(cx)
+                                                });
+                                            }),
+                                    ),
                             ),
                     )
                     .child(
                         div()
                             .h_flex()
+                            .w_full()
                             .items_center()
+                            .justify_between()
                             .gap_2()
+                            .pt_2p5()
+                            .border_t_1()
+                            .border_color(cx.theme().border)
+                            .flex_wrap()
+                            .child(
+                                div()
+                                    .h_flex()
+                                    .items_center()
+                                    .gap_2()
+                                    .flex_wrap()
+                                    .child(AppBadge::good(client_scope_badge))
+                                    .child(AppBadge::info(format!(
+                                        "{}: {eff_client_proxy}",
+                                        t("客户端点火代理")
+                                    ))),
+                            )
                             .child(
                                 div()
                                     .text_xs()
@@ -990,42 +1070,6 @@ impl Render for LamplighterView {
                                             &Self::format_clock(Some(next_poll)),
                                         ],
                                     )),
-                            )
-                            .child(
-                                AppButton::new("ll-toggle-privacy")
-                                    .outline()
-                                    .small()
-                                    .icon(if hide_emails {
-                                        IconName::EyeOff
-                                    } else {
-                                        IconName::Eye
-                                    })
-                                    .label(if hide_emails {
-                                        t("显示邮箱")
-                                    } else {
-                                        t("隐藏邮箱")
-                                    })
-                                    .on_click(move |_, _, cx| {
-                                        st_eye.update(cx, |s, cx| {
-                                            s.lamplighter_hide_emails = !s.lamplighter_hide_emails;
-                                            cx.notify();
-                                        });
-                                    }),
-                            )
-                            .child(
-                                AppButton::new("ll-refresh-now")
-                                    .primary()
-                                    .small()
-                                    .disabled(loading)
-                                    .icon(IconName::RefreshCw)
-                                    .label(if loading {
-                                        t("刷新中...")
-                                    } else {
-                                        t("立即刷新全部")
-                                    })
-                                    .on_click(move |_, _, cx| {
-                                        st_ref.update(cx, |s, cx| s.refresh_lamplighter_remote(cx));
-                                    }),
                             ),
                     ),
             ))
@@ -1161,13 +1205,11 @@ impl Render for LamplighterView {
                 }
                 "settings" => self.render_settings_tab(cx).into_any_element(),
                 _ => {
-                    let st_open_add = self.store.clone();
-                    let st_prov = self.store.clone();
-                    let st_do_add = self.store.clone();
-                    let em_i = self.ext_email_input.clone();
-                    let lb_i = self.ext_label_input.clone();
-                    let tk_i = self.ext_token_input.clone();
-                    let px_i = self.ext_proxy_input.clone();
+                    let empty_hint = if is_ag {
+                        t("当前 Antigravity 客户端下暂无可监控账号。请先在「账号管理」中添加或扫描导入 Antigravity 账号；各客户端账号与点火数据已物理隔离，互不混排。")
+                    } else {
+                        t("当前 Codex 客户端下暂无可监控账号。请先在「官方账号」中添加或导入 Codex 账号；各客户端账号与点火数据已物理隔离，互不混排。")
+                    };
 
                     div()
                         .v_flex()
@@ -1186,13 +1228,13 @@ impl Render for LamplighterView {
                                         div()
                                             .text_sm()
                                             .font_medium()
-                                            .child(t("尚未发现可监控的账号")),
+                                            .child(t("当前客户端下尚未发现可监控账号")),
                                     )
                                     .child(
                                         div()
                                             .text_xs()
                                             .text_color(cx.theme().muted_foreground)
-                                            .child(t("Lamplighter 会自动同步 Swivox 中的 Codex 官方账号与 Antigravity 账号；您也可以在下方添加独立的 Claude / Kimi / Grok 凭据。")),
+                                            .child(empty_hint),
                                     ),
                             )
                             .into_any_element()
@@ -1206,205 +1248,6 @@ impl Render for LamplighterView {
                                 .collect();
                             div().v_flex().w_full().gap_3().children(cards).into_any_element()
                         })
-                        // 扩展多服务凭据卡片
-                        .child(panel_card(
-                            cx,
-                            div()
-                                .v_flex()
-                                .w_full()
-                                .gap_3()
-                                .child(
-                                    div()
-                                        .h_flex()
-                                        .w_full()
-                                        .items_center()
-                                        .justify_between()
-                                        .child(
-                                            div()
-                                                .v_flex()
-                                                .gap_1()
-                                                .child(
-                                                    div()
-                                                        .text_sm()
-                                                        .font_semibold()
-                                                        .child(t("扩展监控凭据（Claude / Kimi / Grok）")),
-                                                )
-                                                .child(
-                                                    div()
-                                                        .text_xs()
-                                                        .text_color(cx.theme().muted_foreground)
-                                                        .child(t("Codex 与 Antigravity 账号已自动从 Swivox 读取，无需重复添加")),
-                                                ),
-                                        )
-                                        .child(
-                                            AppButton::new("ll-toggle-add-ext")
-                                                .outline()
-                                                .small()
-                                                .icon(IconName::Plus)
-                                                .label(if add_open {
-                                                    t("收起")
-                                                } else {
-                                                    t("添加凭据")
-                                                })
-                                                .on_click(move |_, _, cx| {
-                                                    st_open_add.update(cx, |s, cx| {
-                                                        s.lamplighter_add_account_open =
-                                                            !s.lamplighter_add_account_open;
-                                                        cx.notify();
-                                                    });
-                                                }),
-                                        ),
-                                )
-                                .when(add_open, |col| {
-                                    col.child(
-                                        div()
-                                            .v_flex()
-                                            .w_full()
-                                            .gap_2p5()
-                                            .p_3()
-                                            .rounded(px(8.))
-                                            .bg(cx.theme().secondary.opacity(0.24))
-                                            .child(
-                                                div().h_flex().gap_2().children(
-                                                    [
-                                                        ("claude", "Claude"),
-                                                        ("kimi", "Kimi"),
-                                                        ("xai", "Grok (xAI)"),
-                                                    ]
-                                                    .into_iter()
-                                                    .map(|(p, lbl)| {
-                                                        let active = new_prov == p;
-                                                        let st = st_prov.clone();
-                                                        let b = AppButton::new(SharedString::from(
-                                                            format!("ll-new-prov-{p}"),
-                                                        ))
-                                                        .small()
-                                                        .label(lbl);
-                                                        let b = if active {
-                                                            b.selected(true)
-                                                        } else {
-                                                            b.outline()
-                                                        };
-                                                        b.on_click(move |_, _, cx| {
-                                                            st.update(cx, |s, cx| {
-                                                                s.lamplighter_new_provider = p;
-                                                                cx.notify();
-                                                            });
-                                                        })
-                                                    }),
-                                                ),
-                                            )
-                                            .child(
-                                                div()
-                                                    .h_flex()
-                                                    .w_full()
-                                                    .gap_2()
-                                                    .child(
-                                                        div()
-                                                            .flex_1()
-                                                            .child(Input::new(&self.ext_email_input)),
-                                                    )
-                                                    .child(
-                                                        div()
-                                                            .flex_1()
-                                                            .child(Input::new(&self.ext_label_input)),
-                                                    ),
-                                            )
-                                            .child(Input::new(&self.ext_token_input))
-                                            .child(
-                                                div()
-                                                    .h_flex()
-                                                    .w_full()
-                                                    .gap_2()
-                                                    .child(
-                                                        div()
-                                                            .flex_1()
-                                                            .child(Input::new(&self.ext_proxy_input)),
-                                                    )
-                                                    .child(
-                                                        AppButton::new("ll-confirm-add-ext")
-                                                            .primary()
-                                                            .small()
-                                                            .label(t("确认添加"))
-                                                            .on_click(move |_, _, cx| {
-                                                                let em = em_i
-                                                                    .read(cx)
-                                                                    .value()
-                                                                    .to_string();
-                                                                let lb = lb_i
-                                                                    .read(cx)
-                                                                    .value()
-                                                                    .to_string();
-                                                                let tk = tk_i
-                                                                    .read(cx)
-                                                                    .value()
-                                                                    .to_string();
-                                                                let px = px_i
-                                                                    .read(cx)
-                                                                    .value()
-                                                                    .to_string();
-                                                                let prov = new_prov.to_string();
-                                                                st_do_add.update(cx, |s, cx| {
-                                                                    s.add_lamplighter_external_account(
-                                                                        prov,
-                                                                        em,
-                                                                        (!lb.trim().is_empty())
-                                                                            .then_some(lb),
-                                                                        tk,
-                                                                        (!px.trim().is_empty())
-                                                                            .then_some(px),
-                                                                        cx,
-                                                                    );
-                                                                });
-                                                            }),
-                                                    ),
-                                            ),
-                                    )
-                                })
-                                .children(ext_accounts.into_iter().map(|ext| {
-                                    let id = ext.id.clone();
-                                    let st_del = self.store.clone();
-                                    div()
-                                        .h_flex()
-                                        .w_full()
-                                        .items_center()
-                                        .justify_between()
-                                        .p_2p5()
-                                        .rounded(px(8.))
-                                        .bg(cx.theme().secondary.opacity(0.18))
-                                        .child(
-                                            div()
-                                                .h_flex()
-                                                .items_center()
-                                                .gap_2()
-                                                .child(AppBadge::new(ext.provider.to_uppercase()))
-                                                .child(
-                                                    div()
-                                                        .text_xs()
-                                                        .font_medium()
-                                                        .child(Self::redact_email(
-                                                            &ext.email,
-                                                            hide_emails,
-                                                        )),
-                                                ),
-                                        )
-                                        .child(
-                                            AppButton::new(SharedString::from(format!(
-                                                "ll-del-ext-{}",
-                                                ext.id
-                                            )))
-                                            .ghost()
-                                            .small_icon()
-                                            .icon(IconName::Trash)
-                                            .on_click(move |_, _, cx| {
-                                                let id = id.clone();
-                                                st_del.update(cx, |s, cx| {
-                                                    s.remove_lamplighter_external_account(id, cx)
-                                                });
-                                            }),
-                                        )
-                                })),
-                        ))
                         .into_any_element()
                 }
             })

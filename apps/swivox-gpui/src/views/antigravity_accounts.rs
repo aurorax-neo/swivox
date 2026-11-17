@@ -228,7 +228,7 @@ impl AntigravityAccountsView {
         let switching = data.ag_switching_id.as_deref() == Some(acc.id.as_str());
         let refreshing = data.ag_refreshing_id.as_deref() == Some(acc.id.as_str());
         let is_editing = data.ag_editing_id.as_deref() == Some(acc.id.as_str());
-        let is_deleting = data.ag_delete_confirm_id.as_deref() == Some(acc.id.as_str());
+        let proxy_nodes = data.network_proxy_snapshot.config.nodes.clone();
 
         let initial = acc
             .email
@@ -249,7 +249,7 @@ impl AntigravityAccountsView {
         let store_refresh = self.store.clone();
         let store_edit = self.store.clone();
         let store_del = self.store.clone();
-        let id_switch = acc.id.clone();
+        let acc_for_confirm = acc.clone();
         let id_refresh = acc.id.clone();
         let id_edit = acc.id.clone();
         let id_del = acc.id.clone();
@@ -312,7 +312,7 @@ impl AntigravityAccountsView {
                                             )
                                             .child(tier_badge)
                                             .when(acc.is_active, |r| {
-                                                r.child(AppBadge::good(t("当前激活")))
+                                                r.child(AppBadge::good(t("当前生效")))
                                             })
                                             .when(acc.is_live_desktop, |r| {
                                                 r.child(AppBadge::info(t("桌面版在线")))
@@ -358,23 +358,41 @@ impl AntigravityAccountsView {
                                 )
                             })
                             .child(
-                                AppButton::new(SharedString::from(format!(
-                                    "ag-switch-{}",
-                                    acc.id
-                                )))
-                                .primary()
-                                .small()
-                                .disabled(switching)
-                                .icon(IconName::ArrowLeftRight)
-                                .label(if switching {
-                                    t("切换中...")
+                                if acc.is_active {
+                                    AppButton::new(SharedString::from(format!(
+                                        "ag-switch-{}",
+                                        acc.id
+                                    )))
+                                    .secondary()
+                                    .small()
+                                    .disabled(switching)
+                                    .icon(IconName::RefreshCw)
+                                    .label(if switching {
+                                        t("切换中...")
+                                    } else {
+                                        t("重新应用")
+                                    })
                                 } else {
-                                    t("无感切号")
-                                })
+                                    AppButton::new(SharedString::from(format!(
+                                        "ag-switch-{}",
+                                        acc.id
+                                    )))
+                                    .primary()
+                                    .small()
+                                    .disabled(switching)
+                                    .icon(IconName::ArrowLeftRight)
+                                    .label(if switching {
+                                        t("切换中...")
+                                    } else {
+                                        t("切换使用")
+                                    })
+                                }
                                 .on_click(move |_, _, cx| {
-                                    let id = id_switch.clone();
-                                    store_switch
-                                        .update(cx, |s, cx| s.switch_antigravity_account(id, cx));
+                                    let target = acc_for_confirm.clone();
+                                    store_switch.update(cx, |s, cx| {
+                                        s.ag_use_confirm_account = Some(target);
+                                        cx.notify();
+                                    });
                                 }),
                             )
                             .child(
@@ -460,6 +478,15 @@ impl AntigravityAccountsView {
                 let pi = self.edit_proxy_input.clone();
                 let mode_now = self.edit_proxy_mode.clone();
 
+                let mut proxy_choices: Vec<(String, String)> = vec![
+                    ("inherit".to_string(), t("跟随客户端代理")),
+                    ("direct".to_string(), t("强制直连")),
+                ];
+                for n in &proxy_nodes {
+                    proxy_choices.push((format!("node:{}", n.id), n.name.clone()));
+                }
+                proxy_choices.push(("custom".to_string(), t("自定义地址")));
+
                 card.child(
                     div()
                         .v_flex()
@@ -470,46 +497,30 @@ impl AntigravityAccountsView {
                         .bg(cx.theme().secondary.opacity(0.28))
                         .border_1()
                         .border_color(cx.theme().border)
+                        .child(Input::new(&self.edit_label_input))
                         .child(
                             div()
                                 .h_flex()
-                                .w_full()
-                                .gap_3()
-                                .child(
-                                    div()
-                                        .flex_1()
-                                        .child(Input::new(&self.edit_label_input)),
-                                )
-                                .child(
-                                    div()
-                                        .h_flex()
-                                        .gap_1p5()
-                                        .children(
-                                            [
-                                                ("inherit", t("跟随全局代理")),
-                                                ("custom", t("专属代理")),
-                                                ("direct", t("强制直连")),
-                                            ]
-                                            .into_iter()
-                                            .map(|(m, lbl)| {
-                                                let active = self.edit_proxy_mode == m;
-                                                let btn = AppButton::new(SharedString::from(
-                                                    format!("ag-pmode-{m}"),
-                                                ))
-                                                .small()
-                                                .label(lbl);
-                                                let btn = if active {
-                                                    btn.selected(true)
-                                                } else {
-                                                    btn.outline()
-                                                };
-                                                btn.on_click(cx.listener(move |v, _, _, cx| {
-                                                    v.edit_proxy_mode = m.to_string();
-                                                    cx.notify();
-                                                }))
-                                            }),
-                                        ),
-                                ),
+                                .flex_wrap()
+                                .gap_1p5()
+                                .children(proxy_choices.into_iter().map(|(m, lbl)| {
+                                    let active = self.edit_proxy_mode == m;
+                                    let btn = AppButton::new(SharedString::from(format!(
+                                        "ag-pmode-{}-{m}",
+                                        acc.id
+                                    )))
+                                    .small()
+                                    .label(lbl);
+                                    let btn = if active {
+                                        btn.selected(true)
+                                    } else {
+                                        btn.outline()
+                                    };
+                                    btn.on_click(cx.listener(move |v, _, _, cx| {
+                                        v.edit_proxy_mode = m.clone();
+                                        cx.notify();
+                                    }))
+                                })),
                         )
                         .when(self.edit_proxy_mode == "custom", |box_el| {
                             box_el.child(Input::new(&self.edit_proxy_input))
@@ -543,59 +554,9 @@ impl AntigravityAccountsView {
                                             let id = id_save.clone();
                                             let m = mode_now.clone();
                                             store_save.update(cx, |s, cx| {
-                                                s.save_antigravity_account_meta(id, lbl, m, purl, cx);
-                                            });
-                                        }),
-                                ),
-                        ),
-                )
-            })
-            .when(is_deleting, |card| {
-                let id_confirm = acc.id.clone();
-                let store_confirm = self.store.clone();
-                let store_cancel = self.store.clone();
-                card.child(
-                    div()
-                        .h_flex()
-                        .w_full()
-                        .items_center()
-                        .justify_between()
-                        .p_3()
-                        .rounded(px(8.))
-                        .bg(cx.theme().danger.opacity(0.1))
-                        .border_1()
-                        .border_color(cx.theme().danger.opacity(0.45))
-                        .child(
-                            div()
-                                .text_xs()
-                                .text_color(cx.theme().foreground)
-                                .child(t("确认从 Swivox 移除该 Antigravity 账号吗？")),
-                        )
-                        .child(
-                            div()
-                                .h_flex()
-                                .gap_2()
-                                .child(
-                                    AppButton::new("ag-del-cancel")
-                                        .outline()
-                                        .small()
-                                        .label(t("取消"))
-                                        .on_click(move |_, _, cx| {
-                                            store_cancel.update(cx, |s, cx| {
-                                                s.ag_delete_confirm_id = None;
-                                                cx.notify();
-                                            });
-                                        }),
-                                )
-                                .child(
-                                    AppButton::new("ag-del-confirm")
-                                        .danger()
-                                        .small()
-                                        .label(t("确认删除"))
-                                        .on_click(move |_, _, cx| {
-                                            let id = id_confirm.clone();
-                                            store_confirm.update(cx, |s, cx| {
-                                                s.delete_antigravity_account(id, cx)
+                                                s.save_antigravity_account_meta(
+                                                    id, lbl, m, purl, cx,
+                                                );
                                             });
                                         }),
                                 ),

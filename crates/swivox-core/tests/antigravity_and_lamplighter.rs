@@ -333,3 +333,281 @@ async fn lamplighter_mcp_server_enforces_bearer_auth_origin_and_serves_redacted_
     // 关闭测试监听
     sync_mcp_server(&handle, false, "", "");
 }
+
+#[test]
+fn network_proxies_and_lamplighter_clients_and_accounts_are_strictly_isolated() {
+    use swivox_core::antigravity::{AntigravityClientKind, resolve_launch_proxy_for_target};
+    use swivox_core::lamplighter::{
+        LamplighterEventRecord, observe_passive_headers_for_account,
+        providers::{UnifiedCredential, resolve_effective_ignition_proxy_spec},
+        store::{
+            append_client_event_record, append_client_history_sample, client_history_dir,
+            client_state_file_path, load_client_state, query_client_history_and_events,
+            save_client_state, save_config, set_lamplighter_dir_for_tests,
+        },
+    };
+    use swivox_core::network_proxies::{
+        ClientProxyAssignments, resolve_app_self_proxy_spec, resolve_client_proxy_spec,
+        set_network_proxies_path_for_tests, update_proxy_assignments, upsert_proxy_node,
+    };
+    use swivox_core::official_accounts::{
+        OfficialAccount, OfficialAccountsState, OfficialTokens, save_official_accounts_state,
+    };
+    use swivox_core::paths::set_settings_path_for_tests;
+
+    let dir = tempdir().expect("tempdir");
+    let prev_px = set_network_proxies_path_for_tests(Some(dir.path().join("network-proxies.json")));
+    let prev_ll = set_lamplighter_dir_for_tests(Some(dir.path().join("lamplighter")));
+    let prev_oa = set_settings_path_for_tests(Some(dir.path().join("settings.json")));
+
+    // 1. 建立代理节点池并为本程序、Codex、Antigravity 桌面版、Antigravity IDE 分配互不相同的代理
+    let cfg_px = upsert_proxy_node(
+        None,
+        "Swivox 自身代理".to_string(),
+        "http://127.0.0.1:7890".to_string(),
+        None,
+    )
+    .unwrap();
+    let self_node = cfg_px.nodes[0].id.clone();
+
+    let cfg_px = upsert_proxy_node(
+        None,
+        "Codex 专属美区".to_string(),
+        "socks5://127.0.0.1:1081".to_string(),
+        None,
+    )
+    .unwrap();
+    let codex_node = cfg_px.nodes[1].id.clone();
+
+    let cfg_px = upsert_proxy_node(
+        None,
+        "Agy 桌面高速".to_string(),
+        "http://127.0.0.1:7892".to_string(),
+        None,
+    )
+    .unwrap();
+    let ag_desk_node = cfg_px.nodes[2].id.clone();
+
+    let cfg_px = upsert_proxy_node(
+        None,
+        "Agy IDE 独立代理".to_string(),
+        "http://127.0.0.1:7893".to_string(),
+        None,
+    )
+    .unwrap();
+    let ag_ide_node = cfg_px.nodes[3].id.clone();
+
+    update_proxy_assignments(
+        format!("node:{self_node}"),
+        ClientProxyAssignments {
+            codex: format!("node:{codex_node}"),
+            antigravity_desktop: format!("node:{ag_desk_node}"),
+            antigravity_ide: format!("node:{ag_ide_node}"),
+            external: "direct".to_string(),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(
+        resolve_app_self_proxy_spec().as_deref(),
+        Some("http://127.0.0.1:7890")
+    );
+    assert_eq!(
+        resolve_client_proxy_spec("codex").as_deref(),
+        Some("socks5://127.0.0.1:1081")
+    );
+    assert_eq!(
+        resolve_launch_proxy_for_target(AntigravityClientKind::Desktop, "inherit", "").as_deref(),
+        Some("http://127.0.0.1:7892")
+    );
+    assert_eq!(
+        resolve_launch_proxy_for_target(AntigravityClientKind::Ide, "inherit", "").as_deref(),
+        Some("http://127.0.0.1:7893")
+    );
+
+    // 验证点火严格使用所属客户端隔离代理，绝不混用本程序代理或其他客户端代理
+    let codex_cred = UnifiedCredential {
+        client_id: "codex".to_string(),
+        account_key: "swivox_codex:acc1".to_string(),
+        provider: "codex".to_string(),
+        email: "alpha@openai.com".to_string(),
+        note_name: None,
+        source_kind: "swivox_codex",
+        raw_account_id: "acc1".to_string(),
+        access_token: "tok-alpha".to_string(),
+        refresh_token: None,
+        chatgpt_account_id: Some("ws-alpha".to_string()),
+        google_project_id: None,
+        domain: None,
+        proxy_spec: None,
+        cached_plan: None,
+    };
+    let ag_cred = UnifiedCredential {
+        client_id: "antigravity".to_string(),
+        account_key: "swivox_ag:ag1".to_string(),
+        provider: "antigravity".to_string(),
+        email: "studio@google.com".to_string(),
+        note_name: None,
+        source_kind: "swivox_ag",
+        raw_account_id: "ag1".to_string(),
+        access_token: "ya29.studio".to_string(),
+        refresh_token: Some("1//0g-studio".to_string()),
+        chatgpt_account_id: None,
+        google_project_id: None,
+        domain: None,
+        proxy_spec: None,
+        cached_plan: None,
+    };
+    assert_eq!(
+        resolve_effective_ignition_proxy_spec(&codex_cred).as_deref(),
+        Some("socks5://127.0.0.1:1081")
+    );
+    assert_eq!(
+        resolve_effective_ignition_proxy_spec(&ag_cred).as_deref(),
+        Some("http://127.0.0.1:7892")
+    );
+
+    // 2. 验证各客户端点火状态与历史目录在物理磁盘上完全隔离（clients/codex vs clients/antigravity）
+    let mut ll_cfg = LamplighterConfig::default();
+    ll_cfg.ignition_for_client_mut("codex").start_hour = 7;
+    ll_cfg.ignition_for_client_mut("antigravity").start_hour = 9;
+    ll_cfg.ignition_for_client_mut("antigravity").enabled = false;
+    save_config(&mut ll_cfg).unwrap();
+    assert!(ll_cfg.ignition_for_client("codex").enabled);
+    assert!(!ll_cfg.ignition_for_client("antigravity").enabled);
+    assert_eq!(ll_cfg.ignition_for_client("antigravity").start_hour, 9);
+
+    let now = chrono::Utc::now().timestamp();
+    let mut codex_state = load_client_state("codex");
+    codex_state
+        .scheduler
+        .entry("codex:swivox_codex:acc1:codex:main".to_string())
+        .or_default()
+        .last_success_at = now - 60;
+    save_client_state("codex", &codex_state).unwrap();
+
+    let ag_state = load_client_state("antigravity");
+    assert!(ag_state.scheduler.is_empty());
+    assert!(client_state_file_path("codex").is_file());
+    assert!(!client_state_file_path("antigravity").is_file());
+
+    append_client_history_sample(
+        "codex",
+        now - 10,
+        "codex:swivox_codex:acc1:codex:main",
+        "five-hour",
+        82.0,
+        Some(now + 3600),
+        "active",
+    );
+    append_client_event_record(
+        "antigravity",
+        &LamplighterEventRecord {
+            timestamp: now - 5,
+            group_key: "antigravity:swivox_ag:ag1:antigravity:gemini".to_string(),
+            kind: "ignite".to_string(),
+            level: "info".to_string(),
+            label: "Antigravity · Gemini".to_string(),
+            message: "Agy 独立点火事件".to_string(),
+            detail: None,
+        },
+    );
+    assert!(client_history_dir("codex").is_dir());
+    assert!(client_history_dir("antigravity").is_dir());
+
+    let empty_labels = BTreeMap::new();
+    let (codex_series, codex_events) =
+        query_client_history_and_events("codex", 12, None, &empty_labels);
+    let (ag_series, ag_events) =
+        query_client_history_and_events("antigravity", 12, None, &empty_labels);
+    assert_eq!(codex_series.len(), 1);
+    assert!(codex_events.is_empty());
+    assert!(ag_series.is_empty());
+    assert_eq!(ag_events.len(), 1);
+
+    // 3. 验证同一客户端内多账号被动响应头严格按 chatgpt_account_id 隔离，绝不串写到第一个账号
+    let oa_state = OfficialAccountsState {
+        accounts: vec![
+            OfficialAccount {
+                id: "acc-first".to_string(),
+                email: "first@openai.com".to_string(),
+                label: Some("一号".to_string()),
+                user_id: None,
+                plan_type: Some("plus".to_string()),
+                account_id: Some("ws-first".to_string()),
+                organization_id: None,
+                account_name: None,
+                tokens: OfficialTokens {
+                    id_token: "id-1".to_string(),
+                    access_token: "at-1".to_string(),
+                    refresh_token: Some("rt-1".to_string()),
+                },
+                quota: None,
+                bound_relay_profile_id: None,
+                proxy_mode: "inherit".to_string(),
+                egress_proxy_url: None,
+                created_at: now,
+                last_used: now,
+                tags: Vec::new(),
+            },
+            OfficialAccount {
+                id: "acc-second".to_string(),
+                email: "second@openai.com".to_string(),
+                label: Some("二号".to_string()),
+                user_id: None,
+                plan_type: Some("pro".to_string()),
+                account_id: Some("ws-second".to_string()),
+                organization_id: None,
+                account_name: None,
+                tokens: OfficialTokens {
+                    id_token: "id-2".to_string(),
+                    access_token: "at-2".to_string(),
+                    refresh_token: Some("rt-2".to_string()),
+                },
+                quota: None,
+                bound_relay_profile_id: None,
+                proxy_mode: "inherit".to_string(),
+                egress_proxy_url: None,
+                created_at: now,
+                last_used: now,
+                tags: Vec::new(),
+            },
+        ],
+        active_account_id: Some("acc-first".to_string()),
+        global_proxy_mode: "inherit".to_string(),
+        global_proxy_url: String::new(),
+        proxy_resources: Vec::new(),
+        relay_profile_proxies: std::collections::HashMap::new(),
+        relay_profile_bound_accounts: std::collections::HashMap::new(),
+    };
+    save_official_accounts_state(&oa_state).unwrap();
+
+    let mut passive_hdrs = BTreeMap::new();
+    passive_hdrs.insert("x-codex-primary-used-percent".to_string(), "44.0".to_string());
+    passive_hdrs.insert("x-codex-primary-window-minutes".to_string(), "300".to_string());
+    observe_passive_headers_for_account(
+        &passive_hdrs,
+        Some("ws-second"),
+        Some("at-2"),
+        now,
+    );
+
+    let (codex_series_after, _) =
+        query_client_history_and_events("codex", 12, None, &empty_labels);
+    assert!(
+        codex_series_after
+            .iter()
+            .any(|s| s.group_key == "codex:swivox_codex:acc-second:codex:main"),
+        "expected passive sample recorded strictly under acc-second, got: {codex_series_after:?}"
+    );
+    assert!(
+        !codex_series_after
+            .iter()
+            .any(|s| s.group_key == "codex:swivox_codex:acc-first:codex:main"),
+        "acc-first must not be polluted by acc-second's passive headers"
+    );
+
+    set_settings_path_for_tests(prev_oa);
+    set_lamplighter_dir_for_tests(prev_ll);
+    set_network_proxies_path_for_tests(prev_px);
+}

@@ -1712,12 +1712,9 @@ pub fn merge_common_config_into_config(
 /// 用户表现为「编辑通用配置后 MCP 连接配置丢失」，实际是整份配置都没加载
 /// （#2147 / #1997 / #2123 同源）。
 fn mcp_server_entry_has_transport(table: &dyn TableLike) -> bool {
-    ["command", "url"].iter().any(|key| {
-        table
-            .get(key)
-            .and_then(Item::as_str)
-            .is_some_and(|value| !value.trim().is_empty())
-    })
+    ["command", "url"]
+        .iter()
+        .any(|key| table.get(key).and_then(Item::as_str).is_some())
 }
 
 /// 落盘前的 MCP 完整性校验（#2147）。
@@ -1808,6 +1805,9 @@ pub fn upsert_context_entry_in_common_config(
     }
     let table_name = context_table_name(kind)?;
     let body_doc = parse_toml_document(toml_body)?;
+    if table_name == "mcp_servers" && !mcp_server_entry_has_transport(body_doc.as_table()) {
+        anyhow::bail!("MCP server entry requires command or url");
+    }
     let normalized = normalize_duplicate_toml_text(common_config);
     let mut doc = parse_toml_document(&normalized)?;
     if !doc.as_table().contains_key(table_name) {
@@ -1861,12 +1861,42 @@ pub fn sync_live_config_context_entries(
     if normalized_context.trim().is_empty() {
         return Ok(normalize_optional_toml(live_doc));
     }
-    let managed_doc = parse_toml_document(&normalized_context)?;
+    let mut managed_doc = parse_toml_document(&normalized_context)?;
+    drop_incomplete_managed_mcp_entries(live_doc.as_table(), managed_doc.as_table_mut());
     remove_managed_context_entries(live_doc.as_table_mut(), managed_doc.as_table());
     let mut context_doc = managed_doc;
     remove_disabled_context_tables(context_doc.as_table_mut());
     merge_managed_context_tables(live_doc.as_table_mut(), context_doc.as_table());
     Ok(normalize_optional_toml(live_doc))
+}
+
+fn drop_incomplete_managed_mcp_entries(
+    live: &toml_edit::Table,
+    managed: &mut toml_edit::Table,
+) {
+    let Some(live_servers) = live.get("mcp_servers").and_then(Item::as_table_like) else {
+        return;
+    };
+    let Some(managed_servers) = managed.get_mut("mcp_servers").and_then(Item::as_table_like_mut)
+    else {
+        return;
+    };
+    let drop_ids: Vec<String> = managed_servers
+        .iter()
+        .filter_map(|(id, item)| {
+            let incomplete = !item
+                .as_table_like()
+                .is_some_and(mcp_server_entry_has_transport);
+            let live_complete = live_servers
+                .get(id)
+                .and_then(Item::as_table_like)
+                .is_some_and(mcp_server_entry_has_transport);
+            (incomplete && live_complete).then(|| id.to_string())
+        })
+        .collect();
+    for id in drop_ids {
+        managed_servers.remove(&id);
+    }
 }
 
 fn preserve_unmanaged_live_context_entries(
@@ -2649,14 +2679,14 @@ fn preserve_live_app_settings(home: &Path, config_text: &str) -> anyhow::Result<
     // 消失（#2263）。整体合并会覆盖通用配置的新值，所以只补缺。
     // 同一个 server 在模板里可能是被压平的残形，这时只补整条不够，
     // 还要用 live 补齐条目内缺失的键，并清掉混进父表的 env 键。
+    prefer_live_codex_managed_entries(&mut target_doc, &live_doc);
     repair_mcp_servers_from_live(&mut target_doc, &live_doc);
+    repair_merged_mcp_servers(&mut target_doc, &HashMap::new());
+    remove_stale_codex_managed_mcp_servers(&mut target_doc);
     // Preserve user-managed feature flags such as multi_agent_v2 and memories.
     preserve_missing_table_keys(&mut target_doc, &live_doc, "features");
-    // 同上：`[plugins."<id>"]` 由用户与 Codex 桌面端管理，模板里没有时从 live 补回。
-    // 这条是兜底——正常切换路径已经在 preserve_unmanaged_live_context_entries 补过，
-    // 但 apply_relay_files_to_home / apply_relay_config_file_to_home 等入口不经过那一步，
-    // 模板缺 plugins 段时会把用户的插件表整段丢掉（#890 / #597 / #609）。
     preserve_missing_table_keys(&mut target_doc, &live_doc, "plugins");
+    preserve_missing_table_keys(&mut target_doc, &live_doc, "memories");
     // hooks 的定义部分（除 state 外的键）同样由用户/桌面端管理，模板里没有时
     // 从 live 补回，否则切换供应商会把定义整段丢掉，只剩 hooks.state。
     preserve_live_hook_definitions(&mut target_doc, &live_doc);
@@ -2676,6 +2706,72 @@ fn preserve_live_app_settings(home: &Path, config_text: &str) -> anyhow::Result<
         }
     }
     Ok(normalize_optional_toml(target_doc))
+}
+
+const CODEX_MANAGED_MCP_SERVER_IDS: &[&str] = &["node_repl", "cua_repl"];
+
+fn is_codex_managed_install_path(value: &str) -> bool {
+    let normalized = value.replace('\\', "/").to_ascii_lowercase();
+    if normalized.contains("/openai/codex/runtimes/") || normalized.contains("/openai/codex/bin/") {
+        return true;
+    }
+    let segments: Vec<&str> = normalized.split('/').collect();
+    segments.windows(2).any(|pair| {
+        pair[0] == "windowsapps" && crate::app_paths::is_supported_windows_app_package_name(pair[1])
+    })
+}
+
+fn prefer_live_codex_managed_entries(target_doc: &mut DocumentMut, live_doc: &DocumentMut) {
+    if let Some(live_servers) = live_doc.get("mcp_servers").and_then(Item::as_table_like) {
+        for id in CODEX_MANAGED_MCP_SERVER_IDS {
+            let Some(live_item) = live_servers.get(id) else {
+                continue;
+            };
+            if !live_item
+                .as_table_like()
+                .is_some_and(mcp_server_entry_has_transport)
+            {
+                continue;
+            }
+            if target_doc
+                .get("mcp_servers")
+                .and_then(Item::as_table_like)
+                .is_none()
+            {
+                target_doc["mcp_servers"] = toml_edit::table();
+            }
+            if let Some(target_servers) = target_doc["mcp_servers"].as_table_like_mut() {
+                target_servers.insert(id, live_item.clone());
+            }
+        }
+    }
+}
+
+fn remove_stale_codex_managed_mcp_servers(doc: &mut DocumentMut) {
+    let Some(servers) = doc.get_mut("mcp_servers").and_then(Item::as_table_like_mut) else {
+        return;
+    };
+    let mut removed = false;
+    for id in CODEX_MANAGED_MCP_SERVER_IDS {
+        let stale = servers
+            .get(id)
+            .and_then(Item::as_table_like)
+            .and_then(|entry| entry.get("command").and_then(Item::as_str))
+            .map(str::trim)
+            .is_some_and(|cmd| {
+                !cmd.is_empty()
+                    && Path::new(cmd).is_absolute()
+                    && is_codex_managed_install_path(cmd)
+                    && matches!(Path::new(cmd).try_exists(), Ok(false))
+            });
+        if stale {
+            servers.remove(id);
+            removed = true;
+        }
+    }
+    if removed && servers.is_empty() {
+        doc.as_table_mut().remove("mcp_servers");
+    }
 }
 
 fn preserve_missing_table_keys(
@@ -2929,11 +3025,15 @@ fn validate_auth_json(auth_bytes: &[u8], path: &Path) -> anyhow::Result<()> {
 }
 
 fn parse_optional_positive_u64(value: &str, label: &str) -> anyhow::Result<Option<u64>> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
+    let cleaned: String = value
+        .trim()
+        .chars()
+        .filter(|ch| !matches!(ch, ',' | '_' | '\u{FF0C}' | '\u{3000}'))
+        .collect();
+    if cleaned.is_empty() {
         return Ok(None);
     }
-    let parsed = trimmed
+    let parsed = cleaned
         .parse::<u64>()
         .with_context(|| format!("{label}必须是正整数"))?;
     if parsed == 0 {
@@ -3011,7 +3111,12 @@ fn apply_model_catalog_to_config_with_live_policy(
             && let Some(default_model) = catalog
                 .get("models")
                 .and_then(Value::as_array)
-                .and_then(|models| models.first())
+                .and_then(|models| {
+                    models
+                        .iter()
+                        .find(|m| m.get("swivox_default").and_then(Value::as_bool) == Some(true))
+                        .or_else(|| models.first())
+                })
                 .and_then(|model| model.get("slug"))
                 .and_then(Value::as_str)
         {
@@ -3162,6 +3267,12 @@ fn apply_model_catalog_to_config_with_live_policy(
     // 托管 Responses 传输走 model_routes 时需要 catalog，与会话身份无关；
     // 纯平铺 model_list 且无窗口/元数据的仍保持"不生成"契约（无后缀不落盘，见既有测试）。
     // 上游不认 tool_search 时必须落 catalog 关掉该能力，否则 Codex 照发、整单 400。
+    let catalog_path = home.join(&catalog_relative);
+    let listed_models = entries.len();
+    let existing_managed_catalog = catalog_path.exists()
+        && listed_models > 1
+        && root_key_string(&config_text, "model_catalog_json").as_deref()
+            == Some(catalog_relative.as_str());
     if !should_write_managed_model_catalog(
         &entries,
         has_metadata_overrides,
@@ -3169,6 +3280,7 @@ fn apply_model_catalog_to_config_with_live_policy(
         profile.has_model_routes(),
         official_deepseek_responses,
     ) && !upstream_rejects_tool_search(profile)
+        && !existing_managed_catalog
     {
         let mut doc = parse_toml_document(&config_text)?;
         if root_key_string(&config_text, "model_catalog_json").as_deref()
@@ -3178,7 +3290,6 @@ fn apply_model_catalog_to_config_with_live_policy(
         }
         return Ok(normalize_optional_toml(doc));
     }
-    let catalog_path = home.join(&catalog_relative);
     if let Some(parent) = catalog_path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -4006,6 +4117,28 @@ fn toml_remove_array_items(target: &mut toml_edit::Array, source: &toml_edit::Ar
 }
 
 fn merge_toml_item(target: &mut Item, source: &Item) {
+    if let (Some(target_arr), Some(source_arr)) =
+        (target.as_array_of_tables_mut(), source.as_array_of_tables())
+    {
+        for table in source_arr.iter() {
+            let key_match = |existing: &toml_edit::Table| {
+                let same_path = table.get("path").and_then(Item::as_str).is_some()
+                    && existing.get("path").and_then(Item::as_str)
+                        == table.get("path").and_then(Item::as_str);
+                let same_name = table.get("path").is_none()
+                    && table.get("name").and_then(Item::as_str).is_some()
+                    && existing.get("name").and_then(Item::as_str)
+                        == table.get("name").and_then(Item::as_str);
+                same_path || same_name
+            };
+            if let Some(existing) = target_arr.iter_mut().find(|t| key_match(t)) {
+                *existing = table.clone();
+            } else {
+                target_arr.push(table.clone());
+            }
+        }
+        return;
+    }
     if let Some(source_table) = source.as_table_like() {
         if let Some(target_table) = target.as_table_like_mut() {
             merge_toml_table_like(target_table, source_table);
@@ -4209,6 +4342,23 @@ fn provider_id_with_table_from_config(config_text: &str) -> anyhow::Result<Optio
     Ok(provider_table_exists(&doc, &provider_id).then_some(provider_id))
 }
 
+fn official_auth_snapshot_is_storable(contents: &str) -> bool {
+    let Ok(parsed) = serde_json::from_str::<Value>(contents) else {
+        return false;
+    };
+    let mode = parsed
+        .get("auth_mode")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    if mode.eq_ignore_ascii_case("apikey") || mode.eq_ignore_ascii_case("api_key") {
+        return false;
+    }
+    parsed
+        .get("tokens")
+        .and_then(Value::as_object)
+        .is_some_and(|t| !t.is_empty())
+}
+
 fn restore_profile_credentials_after_backfill(
     profile: &mut RelayProfile,
     template_auth: &str,
@@ -4237,7 +4387,14 @@ fn restore_profile_credentials_after_backfill(
         return Ok(());
     }
 
-    profile.auth_contents = live_auth.to_string();
+    if profile.relay_mode == crate::settings::RelayMode::Official
+        && !official_auth_snapshot_is_storable(live_auth)
+        && official_auth_snapshot_is_storable(template_auth)
+    {
+        profile.auth_contents = template_auth.to_string();
+    } else {
+        profile.auth_contents = live_auth.to_string();
+    }
     let Some(token) = experimental_bearer_token_from_config(&profile.config_contents)? else {
         return Ok(());
     };
@@ -5935,6 +6092,87 @@ command = \"pwsh -File end.ps1\"
 
 pub fn root_key_string(contents: &str, key: &str) -> Option<String> {
     root_key_value(contents, key).map(unquote_toml_string)
+}
+
+/// 当前 live 配置里实际生效的 API 凭据：`auth.json` 的 `OPENAI_API_KEY` 与
+/// 当前 provider 的 `experimental_bearer_token`。读不到或解析失败时返回空列表。
+pub fn active_api_credentials_in_home(home: &Path) -> Vec<String> {
+    let mut credentials = Vec::new();
+    if let Ok(auth) = read_optional_text(&home.join("auth.json"))
+        && let Some(key) = codex_auth_api_key(&auth)
+    {
+        credentials.push(key);
+    }
+    if let Ok(config) = read_optional_text(&home.join("config.toml"))
+        && let Ok(Some(token)) = experimental_bearer_token_from_config(&config)
+    {
+        let token = token.trim().to_string();
+        if !token.is_empty() && !credentials.contains(&token) {
+            credentials.push(token);
+        }
+    }
+    credentials
+}
+
+pub(crate) fn upstream_is_kimi_official_responses(profile: &RelayProfile) -> bool {
+    if profile.protocol != RelayProtocol::Responses {
+        return false;
+    }
+    let url = if profile.upstream_base_url.trim().is_empty() {
+        profile.base_url.trim()
+    } else {
+        profile.upstream_base_url.trim()
+    };
+    let host = url
+        .split("://")
+        .nth(1)
+        .unwrap_or(url)
+        .split(['/', '?', '#'])
+        .next()
+        .unwrap_or_default()
+        .split(':')
+        .next()
+        .unwrap_or_default()
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+    matches!(
+        host.as_str(),
+        "api.moonshot.cn" | "api.moonshot.ai" | "api.kimi.com"
+    )
+}
+
+/// 纯 API 多开实例凭据净化：剥离残留的官方 ChatGPT token 与主进程 `openai_base_url`（#2794）。
+pub fn pure_api_profile_for_isolated_instance(profile: &RelayProfile) -> anyhow::Result<RelayProfile> {
+    if profile.relay_mode != crate::settings::RelayMode::PureApi {
+        return Ok(profile.clone());
+    }
+    let mut sanitized = profile.clone();
+    let api_key = relay_profile_api_key(&sanitized);
+    let trimmed_key = api_key.trim();
+    sanitized.auth_contents = if trimmed_key.is_empty() {
+        "{}\n".to_string()
+    } else {
+        serde_json::to_string_pretty(&json!({ "OPENAI_API_KEY": trimmed_key }))? + "\n"
+    };
+    if !sanitized.config_contents.trim().is_empty()
+        && let Ok(mut doc) = parse_toml_document(&sanitized.config_contents)
+    {
+        if active_provider_id(&doc).as_deref() == Some("openai") {
+            set_provider_id(&mut doc, RELAY_PROVIDER);
+            doc.remove("openai_base_url");
+        }
+        let pid = active_or_default_provider_id(&doc);
+        if let Some(provider_table) = doc
+            .get_mut("model_providers")
+            .and_then(Item::as_table_mut)
+            .and_then(|t| t.get_mut(&pid))
+            .and_then(Item::as_table_like_mut)
+        {
+            provider_table.insert("requires_openai_auth", toml_edit::value(false));
+        }
+        sanitized.config_contents = normalize_optional_toml(doc);
+    }
+    Ok(sanitized)
 }
 
 fn root_key_value<'a>(contents: &'a str, key: &str) -> Option<&'a str> {

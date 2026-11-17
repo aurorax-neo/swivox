@@ -49,6 +49,21 @@ where
     K: AsRef<str>,
     V: AsRef<str>,
 {
+    detected_env_conflicts_from_pairs_except(pairs, source, &[])
+}
+
+/// 与 [`detected_env_conflicts_from_pairs`] 相同，但 `OPENAI_API_KEY` 的值若等于
+/// 当前生效凭据之一就不算冲突（#2074）。
+pub fn detected_env_conflicts_from_pairs_except<I, K, V>(
+    pairs: I,
+    source: EnvConflictSource,
+    active_credentials: &[String],
+) -> Vec<EnvConflict>
+where
+    I: IntoIterator<Item = (K, V)>,
+    K: AsRef<str>,
+    V: AsRef<str>,
+{
     let mut conflicts = pairs
         .into_iter()
         .filter_map(|(name, value)| {
@@ -56,10 +71,19 @@ where
             if !is_codex_env_conflict_name(name) {
                 return None;
             }
+            let trimmed = value.as_ref().trim();
+            if name == "OPENAI_API_KEY"
+                && !trimmed.is_empty()
+                && active_credentials
+                    .iter()
+                    .any(|credential| credential == trimmed)
+            {
+                return None;
+            }
             Some(EnvConflict {
                 name: name.to_string(),
                 source,
-                value_present: !value.as_ref().trim().is_empty(),
+                value_present: !trimmed.is_empty(),
             })
         })
         .collect::<Vec<_>>();
@@ -69,9 +93,21 @@ where
 }
 
 pub fn detect_env_conflicts() -> Vec<EnvConflict> {
-    let mut conflicts =
-        detected_env_conflicts_from_os_pairs(std::env::vars_os(), EnvConflictSource::Process);
-    conflicts.extend(detect_user_env_conflicts());
+    detect_env_conflicts_except(&[])
+}
+
+/// 以 Codex home 里当前生效的凭据为基准检测冲突（与这些凭据相同的 `OPENAI_API_KEY` 不报）。
+pub fn detect_env_conflicts_for_home(home: &std::path::Path) -> Vec<EnvConflict> {
+    detect_env_conflicts_except(&crate::relay_config::active_api_credentials_in_home(home))
+}
+
+fn detect_env_conflicts_except(active_credentials: &[String]) -> Vec<EnvConflict> {
+    let mut conflicts = detected_env_conflicts_from_os_pairs(
+        std::env::vars_os(),
+        EnvConflictSource::Process,
+        active_credentials,
+    );
+    conflicts.extend(detect_user_env_conflicts(active_credentials));
     conflicts.sort_by(|left, right| {
         left.name
             .cmp(&right.name)
@@ -81,7 +117,11 @@ pub fn detect_env_conflicts() -> Vec<EnvConflict> {
     conflicts
 }
 
-fn detected_env_conflicts_from_os_pairs<I>(pairs: I, source: EnvConflictSource) -> Vec<EnvConflict>
+fn detected_env_conflicts_from_os_pairs<I>(
+    pairs: I,
+    source: EnvConflictSource,
+    active_credentials: &[String],
+) -> Vec<EnvConflict>
 where
     I: IntoIterator<Item = (OsString, OsString)>,
 {
@@ -89,7 +129,7 @@ where
         let name = name.into_string().ok()?;
         Some((name, value.to_string_lossy().into_owned()))
     });
-    detected_env_conflicts_from_pairs(pairs, source)
+    detected_env_conflicts_from_pairs_except(pairs, source, active_credentials)
 }
 
 pub fn remove_env_conflicts(
@@ -173,16 +213,22 @@ fn timestamp_millis() -> u128 {
 }
 
 #[cfg(windows)]
-fn detect_user_env_conflicts() -> Vec<EnvConflict> {
+fn detect_user_env_conflicts(active_credentials: &[String]) -> Vec<EnvConflict> {
     crate::windows_integration::read_current_user_string_values(WINDOWS_USER_ENV_KEY)
         .unwrap_or_default()
         .into_iter()
         .map(|(name, value)| (name, value.unwrap_or_default()))
-        .pipe(|pairs| detected_env_conflicts_from_pairs(pairs, EnvConflictSource::User))
+        .pipe(|pairs| {
+            detected_env_conflicts_from_pairs_except(
+                pairs,
+                EnvConflictSource::User,
+                active_credentials,
+            )
+        })
 }
 
 #[cfg(not(windows))]
-fn detect_user_env_conflicts() -> Vec<EnvConflict> {
+fn detect_user_env_conflicts(_active_credentials: &[String]) -> Vec<EnvConflict> {
     Vec::new()
 }
 
@@ -233,6 +279,49 @@ mod tests {
     }
 
     #[test]
+    fn api_key_matching_the_active_credential_is_not_a_conflict() {
+        let active = vec!["sk-active".to_string()];
+        let conflicts = detected_env_conflicts_from_pairs_except(
+            [
+                ("OPENAI_API_KEY", " sk-active "),
+                ("OPENAI_BASE_URL", "https://example.test/v1"),
+            ],
+            EnvConflictSource::User,
+            &active,
+        );
+        assert_eq!(
+            conflicts.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
+            vec!["OPENAI_BASE_URL"],
+        );
+
+        let conflicts = detected_env_conflicts_from_pairs_except(
+            [("OPENAI_API_KEY", "sk-stale")],
+            EnvConflictSource::User,
+            &active,
+        );
+        assert_eq!(conflicts.len(), 1);
+    }
+
+    #[test]
+    fn active_credentials_come_from_auth_json_and_active_provider_token() {
+        let home = tempfile::tempdir().unwrap();
+        std::fs::write(
+            home.path().join("auth.json"),
+            r#"{"OPENAI_API_KEY":"sk-auth"}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            home.path().join("config.toml"),
+            "model_provider = \"custom\"\n\n[model_providers.custom]\nexperimental_bearer_token = \"sk-bearer\"\n",
+        )
+        .unwrap();
+        assert_eq!(
+            crate::relay_config::active_api_credentials_in_home(home.path()),
+            vec!["sk-auth".to_string(), "sk-bearer".to_string()]
+        );
+    }
+
+    #[test]
     fn removal_normalization_only_keeps_conflict_names() {
         assert_eq!(
             normalized_conflict_names(&[
@@ -259,6 +348,7 @@ mod tests {
                 (OsString::from_vec(vec![0xFF]), OsString::from("ignored")),
             ],
             EnvConflictSource::Process,
+            &[],
         );
 
         assert_eq!(conflicts.len(), 1);

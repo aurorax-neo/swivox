@@ -139,41 +139,41 @@
     return parts;
   }
 
+  const swivoxUsageThreadSpeedCache = window.__swivoxUsageThreadSpeedCache
+    || (window.__swivoxUsageThreadSpeedCache = new Map());
+  const swivoxUsageEditorSelector = '.ProseMirror[contenteditable="true"], textarea:not(:disabled):not([readonly]), [role="textbox"][contenteditable="true"]';
+
   function swivoxUsageComposerCard() {
-    const cards = [...document.querySelectorAll("[data-composer-surface-variant]")];
-    let fallback = null;
-    for (const card of cards) {
-      if (!visibleElement(card) || card.closest('[data-swivox-ext]')) continue;
-      fallback = card;
-      // 首页可能同时挂着多个 composer 外壳；带真实输入框的那个才是当前会话。
-      if (card.querySelector('.ProseMirror[contenteditable="true"], textarea:not(:disabled):not([readonly]), [role="textbox"][contenteditable="true"]')) {
-        return card;
-      }
+    const primary = [...document.querySelectorAll("[data-composer-surface-variant]")]
+      .filter((card) => visibleElement(card) && !card.closest("[data-swivox-ext]"));
+    if (primary.length) {
+      return primary.find((card) => card.querySelector(swivoxUsageEditorSelector)) || primary[0];
     }
-    return fallback;
+    const fallbacks = [
+      ...document.querySelectorAll('[data-codex-composer-root], .composer-surface-chrome, [class*="_ComposerLayoutRoot_"]'),
+    ].filter((el) => visibleElement(el) && !el.closest("[data-swivox-ext]") && el.querySelector(swivoxUsageEditorSelector));
+    if (fallbacks.length) return fallbacks[0];
+    const editor = [...document.querySelectorAll(swivoxUsageEditorSelector)]
+      .find((el) => visibleElement(el) && !el.closest("[data-swivox-ext]"));
+    return editor?.closest("form") || null;
   }
 
-  /**
-   * 当前会话 id。
-   *
-   * `[data-above-composer-conversation-id]` 是 Codex 自己挂在 composer 上的会话标识，
-   * 比侧边栏选中行更贴近「这个输入框属于哪个会话」。侧边栏只作兜底，而且**只在
-   * placement=thread 时用**：首页/新会话草稿的 composer 是 placement=home，此时侧边栏
-   * 仍选中着上一个 thread，兜底会把上一个会话的读数挂到新会话上。
-   * 新会话草稿的 id 形如 `local:client-new-thread:<uuid>`，还没有 rollout，直接当作无会话。
-   */
   function swivoxUsageThreadId(card) {
     const composerRoot = card?.closest("[data-codex-composer-root]");
-    const fromComposer = composerRoot
+    const fromComposer = (composerRoot || card)
       ?.querySelector("[data-above-composer-conversation-id]")
       ?.getAttribute("data-above-composer-conversation-id");
-    const inThread = composerRoot?.getAttribute("data-composer-placement") === "thread";
-    const fromSidebar = inThread
+    const placement = composerRoot?.getAttribute("data-composer-placement") || "";
+    const allowFallback = !placement || placement === "thread";
+    const fromSidebar = allowFallback
       ? document
-        .querySelector('[data-app-action-sidebar-thread-selected="true"][data-app-action-sidebar-thread-id]')
-        ?.getAttribute("data-app-action-sidebar-thread-id")
+          .querySelector('[data-app-action-sidebar-thread-selected="true"][data-app-action-sidebar-thread-id], [data-app-action-sidebar-thread-active="true"][data-app-action-sidebar-thread-id]')
+          ?.getAttribute("data-app-action-sidebar-thread-id")
       : null;
-    const id = String(fromComposer || fromSidebar || "").replace(/^local:/, "").trim();
+    const fromLocation = allowFallback && typeof locationThreadId === "function" ? locationThreadId() : "";
+    const raw = String(fromComposer || fromSidebar || fromLocation || "").trim();
+    if (/^(?:local:)?client-new-thread:/i.test(raw)) return "";
+    const id = raw.replace(/^local:/, "").trim();
     if (!id || id === "__proto__" || id === "prototype" || id === "constructor") return "";
     return /^[A-Za-z0-9_.-]{8,128}$/.test(id) ? id : "";
   }
@@ -224,31 +224,40 @@
    * 抖动。换轮时 turn_output_tokens 会回落，靠这个切段。
    */
   function swivoxUsageRate(events) {
-    const rates = [];
+    let totalTokens = 0;
+    let totalSeconds = 0;
     for (let index = 1; index < events.length; index += 1) {
       const previous = events[index - 1];
       const current = events[index];
+      if (previous.turn_id && current.turn_id && previous.turn_id !== current.turn_id) continue;
       const previousOutput = Number(previous.turn_output_tokens) || 0;
       const currentOutput = Number(current.turn_output_tokens) || 0;
       if (currentOutput <= previousOutput) continue;
       const startedAt = Date.parse(previous.t);
       const endedAt = Date.parse(current.t);
       const seconds = (endedAt - startedAt) / 1000;
-      // 间隔过短说明是同一批写入，过长说明中间停了很久，都不适合当速度样本。
       if (!(seconds >= 0.5) || seconds > 120) continue;
-      rates.push((currentOutput - previousOutput) / seconds);
+      totalTokens += currentOutput - previousOutput;
+      totalSeconds += seconds;
     }
-    if (!rates.length) return null;
-    const recent = rates.slice(-3);
-    return recent.reduce((total, rate) => total + rate, 0) / recent.length;
+    return totalSeconds > 0 ? totalTokens / totalSeconds : null;
   }
 
-  function swivoxUsageSnapshot(events) {
+  function swivoxUsageSnapshot(events, threadId = "") {
     if (!Array.isArray(events) || !events.length) return null;
     const latest = events[events.length - 1];
     const observedAt = Date.parse(latest.t);
+    let speed = swivoxUsageRate(events);
+    if (speed != null && threadId) {
+      swivoxUsageThreadSpeedCache.set(threadId, speed);
+      if (swivoxUsageThreadSpeedCache.size > 64) {
+        swivoxUsageThreadSpeedCache.delete(swivoxUsageThreadSpeedCache.keys().next().value);
+      }
+    } else if (speed == null && threadId && swivoxUsageThreadSpeedCache.has(threadId)) {
+      speed = swivoxUsageThreadSpeedCache.get(threadId);
+    }
     return {
-      speed: swivoxUsageRate(events),
+      speed,
       cache: swivoxUsagePercent(Number(latest.cached_input_tokens), Number(latest.input_tokens)),
       context: swivoxUsagePercent(Number(latest.total_tokens), Number(latest.context_window)),
       stale: Number.isFinite(observedAt) ? Date.now() - observedAt > swivoxUsageStaleMs : false,
@@ -362,7 +371,7 @@
       }
     }
     if (swivoxUsageState.disposed) return;
-    const snapshot = events ? swivoxUsageSnapshot(events) : null;
+    const snapshot = events ? swivoxUsageSnapshot(events, threadId) : null;
     if (snapshot) {
       swivoxUsageShow(node);
       swivoxUsageRender(snapshot);

@@ -4,13 +4,13 @@
 
 ## 项目概述
 
-本仓库是用户自己的 [Swivox](https://github.com/aurorax-neo/swivox) 仓库，支持多官方账号管理与配额查询、官方账号绑定第三方 API、纯 API 供应商切换、Codex 多开，以及按模型粒度配置上下文窗口与自动压缩阈值（对应 issue #1171 / #931）。
+本仓库是用户自己的 [Swivox](https://github.com/aurorax-neo/swivox) 仓库，支持 Codex 多官方账号管理与配额查询、官方账号绑定第三方 API、纯 API 供应商切换、Codex 多开、按模型粒度配置上下文窗口与自动压缩阈值（对应 issue #1171 / #931），以及原生 **Antigravity** 一等公民支持（OAuth、三端点配额、`state.vscdb` + Keyring 热切号、设备指纹隔离、免 TUN 代理启动、可逆 CDP 汉化与上下文圆环）与原生 **Lamplighter（点灯人）** 多服务额度监控、5 小时窗口重置自动点火、Bark/Webhook 推送及本地 `/mcp` 服务。
 
 采用 codex 原生 `model_catalog_json` 机制：通过 `model_list` 后缀语法（如 `deepseek-v4-pro[1M]`）声明每模型窗口，由 Swivox 生成 catalog 文件并注入 config.toml 指针，codex 客户端运行时按模型识别各自窗口。
 
 ## 仓库结构
 
-- `crates/swivox-core/` — 核心 Rust 库（配置生成、catalog 解析、数据模型）
+- `crates/swivox-core/` — 核心 Rust 库（配置生成、catalog 解析、协议代理、Antigravity 引擎、Lamplighter 引擎、数据模型）
 - `crates/swivox-backend/` — 纯 Rust 业务服务、命令集、中英 i18n 与 UI 规则层
 - `apps/swivox-gpui/` — GPUI 原生桌面管理应用（产生物理二进制 `swivox` 与 `swivox-legacy-shim`）
 - `apps/swivox-launcher/` — Codex 进程启动、单实例唤醒与协议代理守护
@@ -24,6 +24,8 @@
 - catalog 解析：`crates/swivox-core/src/model_catalog.rs` 的 `parse_model_catalog_json_models`
 - apply 流程入口：`crates/swivox-core/src/relay_config.rs` 的 `apply_relay_profile_to_home_with_switch_rules`
 - 前端模型窗口表：`apps/swivox-gpui/src/views/relay.rs` 与 `crates/swivox-backend/src/phase3_rules.rs`
+- Antigravity 核心与界面：`crates/swivox-core/src/antigravity/`、`crates/swivox-backend/src/antigravity_commands.rs`、`apps/swivox-gpui/src/views/{antigravity_accounts.rs, antigravity_enhance.rs}`
+- Lamplighter 核心与界面：`crates/swivox-core/src/lamplighter/`、`crates/swivox-backend/src/lamplighter_commands.rs`、`apps/swivox-gpui/src/views/lamplighter.rs`
 
 ## 安全规则
 
@@ -42,7 +44,7 @@
 
 - 对话用中文，代码可用英文，注释尽量中文
 - 保持现有代码风格统一（Rust 标准、GPUI 组件化）
-- 状态根目录统一使用 `~/.swivox/`（含 `user_scripts`），本地默认端口为 `58319` / `58320` / `58321`，与上游 `codex++` 完全隔离
+- 状态根目录统一使用 `~/.swivox/`（含 `user_scripts`、`lamplighter`），本地默认端口为 `58318`（可选 MCP）/ `58319` / `58320` / `58321`，与上游 `codex++` 完全隔离
 - 改动隔离 + opt-in，不破坏现有 per-profile 单值行为
 - 不做需求外的操作
 

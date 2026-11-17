@@ -54,9 +54,32 @@ fn parses_models_dev_json_structure() {
 }
 use swivox_core::remote_model_catalog::{
     fetch_and_cache_models_dev_catalog, get_models_dev_catalog_status, query_models_dev_catalog,
+    seed_models_dev_cache_for_tests,
 };
 
+#[test]
+fn query_models_dev_catalog_matches_prefixes_and_date_suffixes_offline() {
+    seed_models_dev_cache_for_tests(&json!({
+        "openai": {
+            "name": "OpenAI",
+            "models": {
+                "gpt-4o": {
+                    "id": "gpt-4o",
+                    "name": "GPT-4o",
+                    "limit": { "context": 128000, "output": 16384 },
+                    "reasoning": false
+                }
+            }
+        }
+    }));
+    let status = get_models_dev_catalog_status();
+    assert!(status.loaded);
+    let gpt4o = query_models_dev_catalog("vendor/gpt-4o-2024-08-06").expect("prefix+date match");
+    assert_eq!(gpt4o["context_window"], 128_000);
+}
+
 #[tokio::test]
+#[ignore = "需要实时公网访问 models.dev"]
 async fn test_fetch_and_cache_live_models_dev() {
     let res = fetch_and_cache_models_dev_catalog().await.expect("联网同步 models.dev 成功");
     assert!(res.ok);

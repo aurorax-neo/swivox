@@ -527,8 +527,17 @@ fn state_lock() -> &'static Mutex<()> {
     LOCK.get_or_init(|| Mutex::new(()))
 }
 
+#[cfg(test)]
+thread_local! {
+    static TEST_ACCOUNTS_FILE_PATH: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
+}
+
 fn accounts_file_path() -> PathBuf {
-    // 跟随 default_settings_path 所在目录，保证单元测试设置 set_settings_path_for_tests 时自动隔离
+    #[cfg(test)]
+    if let Some(path) = TEST_ACCOUNTS_FILE_PATH.with(|slot| slot.borrow().clone()) {
+        return path;
+    }
+    // 跟随 default_settings_path 所在目录，保证集成测试设置 set_settings_path_for_tests 时自动隔离
     if let Some(parent) = crate::paths::default_settings_path().parent() {
         return parent.join("official-accounts.json");
     }
@@ -1987,7 +1996,7 @@ fn build_http_client_with_optional_proxy(
     builder.build().context("创建 HTTP 客户端失败")
 }
 
-fn effective_proxy_for_account(account: Option<&OfficialAccount>) -> Option<String> {
+pub fn effective_proxy_for_account(account: Option<&OfficialAccount>) -> Option<String> {
     let state = load_official_accounts_state();
     if let Some(acct) = account {
         match acct.proxy_mode.trim() {
@@ -2659,14 +2668,29 @@ mod tests {
         );
     }
 
+    struct ScopedTestAccountsFile(Option<PathBuf>);
+    impl ScopedTestAccountsFile {
+        fn new(path: PathBuf) -> Self {
+            let prev = TEST_ACCOUNTS_FILE_PATH.with(|slot| slot.borrow_mut().replace(path));
+            Self(prev)
+        }
+    }
+    impl Drop for ScopedTestAccountsFile {
+        fn drop(&mut self) {
+            let prev = self.0.take();
+            TEST_ACCOUNTS_FILE_PATH.with(|slot| {
+                *slot.borrow_mut() = prev;
+            });
+        }
+    }
+
     #[test]
     fn switch_official_account_with_bound_third_party_relay_writes_auth_and_config() {
-        let _guard = crate::paths::settings_path_test_guard();
         let temp = tempfile::tempdir().unwrap();
+        let _accounts_scope = ScopedTestAccountsFile::new(temp.path().join("official-accounts.json"));
         let settings_path = temp.path().join("settings.json");
         let codex_home = temp.path().join("codex-home");
         std::fs::create_dir_all(&codex_home).unwrap();
-        let prev = crate::paths::set_settings_path_for_tests(Some(settings_path.clone()));
 
         let store = SettingsStore::new(settings_path);
         let mut settings = BackendSettings::default();
@@ -2712,7 +2736,6 @@ mod tests {
         let saved_acc = upsert_official_account(account, false).unwrap();
 
         let updated_settings = switch_official_account(&saved_acc.id, &codex_home, &store).unwrap();
-        crate::paths::set_settings_path_for_tests(prev);
 
         assert_eq!(updated_settings.active_relay_id, "third-party-1");
         let auth_text = std::fs::read_to_string(codex_home.join("auth.json")).unwrap();
@@ -2724,12 +2747,10 @@ mod tests {
 
     #[test]
     fn sync_bound_official_account_injects_tokens_and_requires_openai_auth() {
-        let _guard = crate::paths::settings_path_test_guard();
         let temp = tempfile::tempdir().unwrap();
-        let settings_path = temp.path().join("settings.json");
+        let _accounts_scope = ScopedTestAccountsFile::new(temp.path().join("official-accounts.json"));
         let codex_home = temp.path().join("codex-home");
         std::fs::create_dir_all(&codex_home).unwrap();
-        let prev = crate::paths::set_settings_path_for_tests(Some(settings_path));
         std::fs::write(
             codex_home.join("config.toml"),
             "model_provider = \"custom\"\n\n[model_providers.custom]\nname = \"custom\"\nwire_api = \"responses\"\nrequires_openai_auth = false\nbase_url = \"https://relay.test/v1\"\n",
@@ -2770,7 +2791,6 @@ mod tests {
 
         let email = sync_bound_official_account_on_relay_apply(&codex_home, &profile).unwrap();
         let state = load_official_accounts_state();
-        crate::paths::set_settings_path_for_tests(prev);
 
         assert_eq!(email.as_deref(), Some("bound@openai.com"));
         assert_eq!(state.active_account_id, Some(saved.id));
@@ -2786,12 +2806,10 @@ mod tests {
 
     #[test]
     fn deleting_last_official_account_does_not_reimport_from_live_auth() {
-        let _guard = crate::paths::settings_path_test_guard();
         let temp = tempfile::tempdir().unwrap();
+        let _accounts_scope = ScopedTestAccountsFile::new(temp.path().join("official-accounts.json"));
         let codex_home = temp.path().join(".codex");
         std::fs::create_dir_all(&codex_home).unwrap();
-        let settings_path = temp.path().join("settings.json");
-        let prev = crate::paths::set_settings_path_for_tests(Some(settings_path));
         let jwt = make_fake_jwt(json!({
             "email": "last@openai.com",
             "https://api.openai.com/auth": {
@@ -2821,7 +2839,6 @@ mod tests {
 
         delete_official_account(&only_id).unwrap();
         let after_delete_snap = get_official_accounts_snapshot_with(&codex_home, &settings);
-        crate::paths::set_settings_path_for_tests(prev);
 
         assert!(
             after_delete_snap.accounts.is_empty(),
@@ -2849,6 +2866,7 @@ mod tests {
     #[test]
     fn deactivate_official_account_for_pure_api_writes_apikey_auth_mode_and_aligns_config() {
         let temp = tempfile::tempdir().unwrap();
+        let _accounts_scope = ScopedTestAccountsFile::new(temp.path().join("official-accounts.json"));
         let codex_home = temp.path().join("codex-home");
         std::fs::create_dir_all(&codex_home).unwrap();
         std::fs::write(

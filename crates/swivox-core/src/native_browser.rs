@@ -915,7 +915,15 @@ fn reconcile_contract(
             br#"{"schema":1,"requireIdentification":false}"#,
         );
     }
+    release_lock(lock);
     result
+}
+
+/// 主动解锁再关闭。并发启动的子进程在 exec 前会短暂继承句柄，只靠关闭句柄释放 flock，
+/// 锁会被子进程多挂一会儿，下一次加锁就报已被占用（#2814）。
+fn release_lock(file: File) {
+    let _ = FileExt::unlock(&file);
+    drop(file);
 }
 
 fn reconcile_locked(
@@ -1193,30 +1201,9 @@ fn wait_for_monitor_shutdown_at(
     loop {
         match file.try_lock_exclusive() {
             Ok(()) => {
-                ensure!(file.metadata()?.len() <= 1024, "Invalid native cleanup receipt");
-                file.seek(SeekFrom::Start(0))?;
-                let mut bytes = Vec::new();
-                Read::by_ref(&mut file).take(1025).read_to_end(&mut bytes)?;
-                let receipt: MonitorReceipt = serde_json::from_slice(&bytes)?;
-                ensure!(
-                    receipt.schema == 1
-                        && uuid::Uuid::parse_str(&receipt.generation).is_ok()
-                        && matches!(receipt.state.as_str(), "active" | "blocked" | "restored"),
-                    "Invalid native browser cleanup receipt"
-                );
-                // A completed blocked recovery remains non-fatal upstream. A stale
-                // receipt is ready only when read-only disk verification succeeds.
-                let restored = verify_restored_state(paths);
-                if receipt.state == "blocked" && restored.is_err() {
-                    return Ok(NativeBrowserShutdown::RestoreFailed);
-                }
-                restored.with_context(|| {
-                    format!(
-                        "Native browser cleanup is incomplete ({}); files were not overwritten",
-                        receipt.state
-                    )
-                })?;
-                return Ok(NativeBrowserShutdown::Ready);
+                let result = read_monitor_shutdown(&mut file, paths);
+                release_lock(file);
+                return result;
             }
             Err(error) if error.kind() == fs2::lock_contended_error().kind() => {
                 if std::time::Instant::now() >= deadline {
@@ -1229,6 +1216,31 @@ fn wait_for_monitor_shutdown_at(
             Err(error) => return Err(error.into()),
         }
     }
+}
+
+fn read_monitor_shutdown(file: &mut File, paths: &BrowserPaths) -> Result<NativeBrowserShutdown> {
+    ensure!(file.metadata()?.len() <= 1024, "Invalid native cleanup receipt");
+    file.seek(SeekFrom::Start(0))?;
+    let mut bytes = Vec::new();
+    Read::by_ref(file).take(1025).read_to_end(&mut bytes)?;
+    let receipt: MonitorReceipt = serde_json::from_slice(&bytes)?;
+    ensure!(
+        receipt.schema == 1
+            && uuid::Uuid::parse_str(&receipt.generation).is_ok()
+            && matches!(receipt.state.as_str(), "active" | "blocked" | "restored"),
+        "Invalid native browser cleanup receipt"
+    );
+    let restored = verify_restored_state(paths);
+    if receipt.state == "blocked" && restored.is_err() {
+        return Ok(NativeBrowserShutdown::RestoreFailed);
+    }
+    restored.with_context(|| {
+        format!(
+            "Native browser cleanup is incomplete ({}); files were not overwritten",
+            receipt.state
+        )
+    })?;
+    Ok(NativeBrowserShutdown::Ready)
 }
 
 async fn start_monitor_with_contract(
@@ -1296,7 +1308,7 @@ async fn start_monitor_with_contract(
                 );
             }
         }
-        drop(owner);
+        release_lock(owner);
     });
     Ok(BrowserMonitor { shutdown, task })
 }

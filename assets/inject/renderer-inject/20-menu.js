@@ -375,6 +375,66 @@
     throw new Error(`Codex setting-storage 接口不可用 (${errors.join("; ")})`);
   }
 
+  function codexHostServicesFromModule(module) {
+    const values = module && typeof module === "object" ? Object.values(module) : [];
+    for (const candidate of values) {
+      if (!candidate || typeof candidate !== "object") continue;
+      try {
+        const own = (key) => Object.prototype.hasOwnProperty.call(candidate, key);
+        if (!own("settings") || !own("applicationState")) continue;
+        const settings = candidate.settings;
+        if (settings && typeof settings.write === "function" && typeof settings.readAll === "function") return candidate;
+      } catch {}
+    }
+    return null;
+  }
+
+  async function codexHostServices() {
+    const errors = [];
+    for (const assetPrefix of ["app-shared-", "app-initial-"]) {
+      try {
+        const module = await loadCodexAppModule(assetPrefix);
+        const host = codexHostServicesFromModule(module);
+        if (host) return host;
+        errors.push(`${assetPrefix}: host services unavailable`);
+      } catch (error) {
+        errors.push(`${assetPrefix}: ${error?.message || String(error)}`);
+      }
+    }
+    throw new Error(`Codex 宿主服务不可用 (${errors.join("; ")})`);
+  }
+
+  async function readCodexAppSetting(key) {
+    let hostError = null;
+    try {
+      const host = await codexHostServices();
+      const all = await host.settings.readAll();
+      return all?.values?.[key];
+    } catch (error) {
+      hostError = error;
+    }
+    try {
+      const response = await codexStateCall("get-setting", { params: { key } });
+      return response && Object.prototype.hasOwnProperty.call(response, "value") ? response.value : response;
+    } catch {
+      throw hostError;
+    }
+  }
+
+  async function writeCodexAppSetting(key, value) {
+    let host = null;
+    try {
+      host = await codexHostServices();
+    } catch {
+      host = null;
+    }
+    if (host) {
+      await host.settings.write(key, value);
+      return;
+    }
+    await codexStateCall("set-setting", { params: { key, value } });
+  }
+
   async function getCodexServiceTierSetting() {
     try {
       const read = (async () => {

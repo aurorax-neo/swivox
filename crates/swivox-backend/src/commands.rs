@@ -548,15 +548,28 @@ pub struct ToolsPayload {
 /// 因为那只是 UI 状态，不该触发任何配置文件写入。
 pub fn list_tools() -> CommandResult<ToolsPayload> {
     let settings = SettingsStore::default().load().unwrap_or_default();
+    let ag_state = swivox_core::antigravity::load_antigravity_state();
     let tools = swivox_core::tools::tool_specs()
         .into_iter()
         .map(|spec| {
-            let config = settings.tool_config(&spec.id);
-            let active_relay_name = config
-                .relay_profiles
-                .iter()
-                .find(|profile| profile.id == config.active_relay_id)
-                .map(|profile| profile.name.clone());
+            let (active_relay_name, relay_count) =
+                if spec.id == swivox_core::tools::ToolId::Antigravity {
+                    let active_email = ag_state
+                        .active_account_id
+                        .as_deref()
+                        .and_then(|aid| ag_state.accounts.iter().find(|a| a.id == aid))
+                        .or_else(|| ag_state.accounts.first())
+                        .map(|a| a.email.clone());
+                    (active_email, ag_state.accounts.len())
+                } else {
+                    let config = settings.tool_config(&spec.id);
+                    let active_name = config
+                        .relay_profiles
+                        .iter()
+                        .find(|profile| profile.id == config.active_relay_id)
+                        .map(|profile| profile.name.clone());
+                    (active_name, config.relay_profiles.len())
+                };
             ToolEntry {
                 id: spec.id.as_str().to_string(),
                 name: spec.name,
@@ -564,7 +577,7 @@ pub fn list_tools() -> CommandResult<ToolsPayload> {
                 switchable: spec.switchable,
                 active: settings.active_tool == spec.id,
                 active_relay_name,
-                relay_count: config.relay_profiles.len(),
+                relay_count,
             }
         })
         .collect();
@@ -822,6 +835,15 @@ fn launch_codex_multi_instance_blocking(request: CodexMultiLaunchRequest) -> Com
                     json!({ "profileId": profile_id }),
                 );
             }
+            let profile = match swivox_core::relay_config::pure_api_profile_for_isolated_instance(&profile) {
+                Ok(p) => p,
+                Err(error) => {
+                    return failed(
+                        &format!("整理多开纯 API 凭据失败：{error}"),
+                        json!({ "profileId": profile_id }),
+                    );
+                }
+            };
             (profile, None, false)
         };
     let instance_id = if request.instance_id.trim().is_empty() {
@@ -876,6 +898,8 @@ fn launch_codex_multi_instance_blocking(request: CodexMultiLaunchRequest) -> Com
     let instance_auth = codex_home.join("auth.json");
     if let Some(auth_json) = explicit_official_auth_json.as_deref() {
         let _ = swivox_core::settings::atomic_write(&instance_auth, auth_json.as_bytes());
+    } else if profile.relay_mode == swivox_core::settings::RelayMode::PureApi {
+        let _ = swivox_core::settings::atomic_write(&instance_auth, profile.auth_contents.as_bytes());
     } else if profile.relay_mode == swivox_core::settings::RelayMode::Official
         && !instance_auth.exists()
     {
@@ -4465,7 +4489,8 @@ pub fn read_relay_files() -> CommandResult<RelayFilesPayload> {
     }
 }
 pub fn check_env_conflicts() -> CommandResult<EnvConflictsPayload> {
-    let conflicts = swivox_core::env_conflicts::detect_env_conflicts();
+    let home = swivox_core::relay_config::default_codex_home_dir();
+    let conflicts = swivox_core::env_conflicts::detect_env_conflicts_for_home(&home);
     let message = if conflicts.is_empty() {
         "未检测到会覆盖 Codex 供应商配置的 OPENAI 环境变量。"
     } else {
@@ -4485,10 +4510,11 @@ pub fn check_relay_environment() -> CommandResult<RelayEnvironmentReport> {
 pub fn remove_env_conflicts(
     request: RemoveEnvConflictsRequest,
 ) -> CommandResult<RemoveEnvConflictsPayload> {
+    let home = swivox_core::relay_config::default_codex_home_dir();
     let backup_dir = swivox_core::paths::default_app_state_dir().join("backups");
     match swivox_core::env_conflicts::remove_env_conflicts(&request.names, backup_dir) {
         Ok(result) => {
-            let remaining = swivox_core::env_conflicts::detect_env_conflicts();
+            let remaining = swivox_core::env_conflicts::detect_env_conflicts_for_home(&home);
             ok(
                 "环境变量已按确认项删除；重新启动 Codex 后生效。",
                 RemoveEnvConflictsPayload {
@@ -4503,7 +4529,7 @@ pub fn remove_env_conflicts(
             RemoveEnvConflictsPayload {
                 removed: Vec::new(),
                 backup_path: None,
-                remaining: swivox_core::env_conflicts::detect_env_conflicts(),
+                remaining: swivox_core::env_conflicts::detect_env_conflicts_for_home(&home),
             },
         ),
     }

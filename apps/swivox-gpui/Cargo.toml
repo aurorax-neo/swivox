@@ -20,6 +20,7 @@ path = "src/legacy_shim.rs"
 
 [dependencies]
 anyhow.workspace = true
+chrono = "0.4"
 swivox-backend = { path = "../../crates/swivox-backend" }
 swivox-core = { path = "../../crates/swivox-core" }
 swivox-data = { path = "../../crates/swivox-data" }

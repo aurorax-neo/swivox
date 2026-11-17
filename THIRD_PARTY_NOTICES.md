@@ -51,7 +51,26 @@ The optional usage widget and desktop pet engine in `assets/inject/upstream/whal
 
 ---
 
-## 5. Local Speech Recognition Runtime — Sherpa-ONNX
+## 5. Antigravity Multi-Account & Enhancement References — Antigravity-Manager & EasyAntigravity
+
+Swivox's native first-class **Antigravity** support (`crates/swivox-core/src/antigravity/`) references the multi-account OAuth/Protobuf credential workflows, reversible CDP UI localization dictionaries, and local context-ring inspection designs of:
+
+- **Antigravity-Manager**: <https://github.com/lbjlaq/Antigravity-Manager> — Copyright (c) lbjlaq and contributors (referenced for Google/Antigravity OAuth, Cloud Code Private 3-endpoint quota inspection, `state.vscdb` UnifiedState Topic/Row Protobuf credential sync, and per-account device fingerprint isolation).
+- **EasyAntigravity / AG Pulse**: <https://github.com/DSDS-CMHL/EasyAntigravity> — MIT License, Copyright (c) DSDS-CMHL and contributors (reversible 3,376-entry CDP UI localization dictionaries bundled under `assets/antigravity/dicts/`, proxy-free launch flags, Desktop `language_server` hot-switch, and read-only `LanguageServerService` context usage ring).
+
+---
+
+## 6. Multi-Provider Quota Monitor & Auto-Ignition Reference — cpa-plugin-lamplighter
+
+Swivox's built-in **Lamplighter（点灯人）** engine (`crates/swivox-core/src/lamplighter/`) is an independent native Rust + GPUI implementation inspired by:
+
+- **Repository**: <https://github.com/PosvdM/cpa-plugin-lamplighter>
+- **License**: MIT License — Copyright (c) PosvdM and contributors
+- **Scope**: Multi-provider quota polling & passive response-header hooks, 5-hour window reset auto-ignition scheduling (`07:00–22:30` window, rolling-reset detection, 7d exhaustion guard, backoff circuit breaker), weighted usage history & depletion forecasting, Bark / generic Webhook alerts, and redacted local Streamable HTTP `/mcp` server.
+
+---
+
+## 7. Local Speech Recognition Runtime — Sherpa-ONNX
 
 - **Repository**: <https://github.com/k2-fsa/sherpa-onnx>
 - **License**: Apache License 2.0 (`Apache-2.0`)
@@ -59,6 +78,6 @@ The optional usage widget and desktop pet engine in `assets/inject/upstream/whal
 
 ---
 
-## 6. Trademarks & Disclaimer
+## 8. Trademarks & Disclaimer
 
-OpenAI, ChatGPT, and Codex are trademarks of OpenAI, L.L.C. Swivox is an independent open-source project and is not affiliated with, sponsored by, or endorsed by OpenAI.
+OpenAI, ChatGPT, and Codex are trademarks of OpenAI, L.L.C. Google, Gemini, and Antigravity are trademarks of Google LLC. Anthropic and Claude are trademarks of Anthropic, PBC. Swivox is an independent open-source project and is not affiliated with, sponsored by, or endorsed by OpenAI, Google, or Anthropic.

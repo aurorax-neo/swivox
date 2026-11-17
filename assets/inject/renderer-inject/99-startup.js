@@ -61,6 +61,9 @@
 
   installSwivoxForceChineseLocale();
   installSwivoxInstanceIdentity();
+  installSwivoxConfigReadDeadline();
+  void installSwivoxForkReadinessFallback();
+  installSwivoxForkStatsigFallback();
   runScanStep(installSwivoxTypingEffects);
   runScanStep(syncSwivoxWhaleWidget);
   let swivoxResizeRafId = 0;

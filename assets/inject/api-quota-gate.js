@@ -1,12 +1,8 @@
 (() => {
-  // 本机官登只要勾了混入 Key，就解除官方订阅额度的发送锁。不看上游地址。
+  // 本机开启独立额度解锁时直接解除发送锁。
   function permitsExternalApi(settings, hostId) {
-    if (hostId !== "local" || settings?.relayProfilesEnabled !== true) return false;
-    if (!Array.isArray(settings.relayProfiles)) return false;
-    const profile = settings.relayProfiles.find((item) => item?.id === settings.activeRelayId);
-    if (!profile) return false;
-    if (profile.relayMode === "official" && profile.officialMixApiKey === true) return true;
-    return Boolean((profile.apiKey && String(profile.apiKey).trim()) || (profile.baseUrl && String(profile.baseUrl).trim()));
+    if (hostId !== "local") return false;
+    return settings?.codexAppStandaloneQuotaUnlock === true;
   }
 
   function locate(text, url) {
@@ -89,8 +85,7 @@
       rawPayloads: new WeakMap(), pendingPublications: new WeakMap(), rewriteDepth: 0,
     };
     function officialUsagePolicy() {
-      const enabled = currentSettings?.codexAppStandaloneQuotaUnlock === true
-        && permitsExternalApi(currentSettings, "local");
+      const enabled = currentSettings?.codexAppStandaloneQuotaUnlock === true;
       return { official: true, hideAlerts: false, unlockSend: enabled };
     }
     function officialUsagePolicyKey() {
@@ -119,10 +114,42 @@
   // 桌面端发送按钮读 rate_limit.allowed；limit_reached 为 true 也会被当成已用完。
   // 混入时在查询发布前把 allowed 写成 true，并清掉 limit_reached。
   // 百分比、重置时间、账号、积分和消费上限不动。图片额度横幅单独留下。
+  function unlockAdditionalRateLimits(limits) {
+    if (!Array.isArray(limits)) return null;
+    let changed = false;
+    const next = limits.map((entry) => {
+      const rateLimit = entry?.rate_limit;
+      if (!rateLimit || typeof rateLimit !== "object") return entry;
+      if (rateLimit.allowed !== false && rateLimit.limit_reached !== true) return entry;
+      changed = true;
+      return { ...entry, rate_limit: { ...rateLimit, allowed: true, limit_reached: false } };
+    });
+    return changed ? next : null;
+  }
+
   function rewriteOfficialUsageStatus(value, policy = officialUsagePolicy()) {
     if (!policy.unlockSend || !isOfficialUsageStatus(value)) return null;
-    if (value.rate_limit.allowed === true && value.rate_limit.limit_reached !== true) return null;
-    return { ...value, rate_limit: { ...value.rate_limit, allowed: true, limit_reached: false } };
+    const next = { ...value };
+    let changed = false;
+    if (value.rate_limit_reached_type != null) {
+      next.rate_limit_reached_type = null;
+      changed = true;
+    }
+    if (value.model_picker_upsell != null) {
+      next.model_picker_upsell = null;
+      changed = true;
+    }
+    const rateLimit = value.rate_limit;
+    if (rateLimit.allowed !== true || rateLimit.limit_reached === true) {
+      next.rate_limit = { ...rateLimit, allowed: true, limit_reached: false };
+      changed = true;
+    }
+    const additionalRateLimits = unlockAdditionalRateLimits(value.additional_rate_limits);
+    if (additionalRateLimits) {
+      next.additional_rate_limits = additionalRateLimits;
+      changed = true;
+    }
+    return changed ? next : null;
   }
 
   function rewriteOfficialUsagePayload(value, policy = officialUsagePolicy()) {

@@ -439,6 +439,45 @@ pub fn model_ui_metadata_with_override(slug: &str, user_override: Option<&Value>
     if metadata.get("swivox_default").and_then(Value::as_bool) == Some(true) {
         ui["swivox_default"] = json!(true);
     }
+    if let Some(cw) = user_override
+        .and_then(|u| u.get("context_window").or_else(|| u.get("contextWindow")))
+        .or_else(|| metadata.get("context_window"))
+        .and_then(Value::as_u64)
+        .filter(|&v| v > 0)
+    {
+        ui["contextWindow"] = json!(cw);
+    }
+    if let Some(mcw) = user_override
+        .and_then(|u| {
+            u.get("max_context_window")
+                .or_else(|| u.get("maxContextWindow"))
+        })
+        .or_else(|| metadata.get("max_context_window"))
+        .and_then(Value::as_u64)
+        .filter(|&v| v > 0)
+    {
+        ui["maxContextWindow"] = json!(mcw);
+    }
+    if let Some(modalities) = user_override
+        .and_then(|u| {
+            u.get("input_modalities")
+                .or_else(|| u.get("inputModalities"))
+        })
+        .or_else(|| metadata.get("input_modalities"))
+        .and_then(Value::as_array)
+    {
+        ui["inputModalities"] = json!(modalities);
+    }
+    if let Some(orig) = user_override
+        .and_then(|u| {
+            u.get("supports_image_detail_original")
+                .or_else(|| u.get("supportsImageDetailOriginal"))
+        })
+        .or_else(|| metadata.get("supports_image_detail_original"))
+        .and_then(Value::as_bool)
+    {
+        ui["supportsImageDetailOriginal"] = json!(orig);
+    }
     if !has_builtin {
         // 单独声明 Fast 不能替原生描述符制造名称、描述或推理默认档。
         if explicit_display_name.is_none() {

@@ -1,11 +1,6 @@
   function installStyle() {
-    const existingStyle = document.getElementById(styleId);
-    if (existingStyle?.dataset.codexDeleteStyleVersion === codexDeleteStyleVersion) return;
-    existingStyle?.remove();
-    const style = document.createElement("style");
-    style.id = styleId;
-    style.dataset.codexDeleteStyleVersion = codexDeleteStyleVersion;
-    style.textContent = `
+    if (!installStyle.sheet) {
+      const text = `
       .${actionGroupClass} {
         position: absolute;
         right: var(--codex-session-actions-right, 28px);
@@ -1873,6 +1868,21 @@
         .${swivoxPageClass} .swivox-modal-content:is([data-swivox-active-tab="extensions"], [data-swivox-active-tab="sponsor"]) .swivox-modal-body { padding: 24px 16px 40px; }
       }
     `;
+      let hash = 0x811c9dc5;
+      for (let index = 0; index < text.length; index += 1) {
+        hash ^= text.charCodeAt(index);
+        hash = Math.imul(hash, 0x01000193);
+      }
+      installStyle.sheet = { text, version: `${codexDeleteStyleVersion}-${(hash >>> 0).toString(36)}` };
+    }
+    const { text, version } = installStyle.sheet;
+    const existingStyle = document.getElementById(styleId);
+    if (existingStyle?.dataset.codexDeleteStyleVersion === version) return;
+    existingStyle?.remove();
+    const style = document.createElement("style");
+    style.id = styleId;
+    style.dataset.codexDeleteStyleVersion = version;
+    style.textContent = text;
     document.documentElement.appendChild(style);
   }
 

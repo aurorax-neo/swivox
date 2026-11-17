@@ -287,6 +287,13 @@ fn aggregate_member_availability(
 pub(crate) fn profile_catalog_entries(
     profile: &RelayProfile,
 ) -> anyhow::Result<Vec<ModelCatalogEntry>> {
+    profile_catalog_entries_with_home(profile, &crate::codex_home::default_codex_home_dir())
+}
+
+pub(crate) fn profile_catalog_entries_with_home(
+    profile: &RelayProfile,
+    codex_home: &Path,
+) -> anyhow::Result<Vec<ModelCatalogEntry>> {
     let mut windows = parse_string_map(&profile.model_windows, "model_windows")?;
     validate_windows(&windows, "model_windows")?;
     let (list, suffix_windows) = migrate_model_list_with_suffixes(&profile.model_list);
@@ -295,12 +302,49 @@ pub(crate) fn profile_catalog_entries(
     }
     let compact = parse_string_map(&profile.model_auto_compact, "model_auto_compact")?;
     validate_compact(&compact, "model_auto_compact")?;
-    Ok(collect_catalog_entries(
-        &list,
-        &windows,
-        &compact,
-        &crate::relay_config::relay_profile_model(profile),
-    ))
+    let default_model = crate::relay_config::relay_profile_model(profile);
+    let collected = collect_catalog_entries(&list, &windows, &compact, &default_model);
+    if !collected.is_empty()
+        || profile.relay_mode != crate::settings::RelayMode::Official
+        || profile.official_mix_api_key
+    {
+        return Ok(collected);
+    }
+    let cache_path = codex_home.join("models_cache.json");
+    let Ok(cache_text) = std::fs::read_to_string(cache_path) else {
+        return Ok(collected);
+    };
+    let Ok(cache_json) = serde_json::from_str::<Value>(&cache_text) else {
+        return Ok(collected);
+    };
+    let mut seen = HashSet::new();
+    let mut official_entries = Vec::new();
+    for item in cache_json["models"].as_array().into_iter().flatten() {
+        if item
+            .get("visibility")
+            .and_then(Value::as_str)
+            .is_some_and(|v| v.eq_ignore_ascii_case("hide"))
+        {
+            continue;
+        }
+        let Some(slug) = item
+            .get("slug")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        else {
+            continue;
+        };
+        if seen.insert(slug.to_string()) {
+            official_entries.push(ModelCatalogEntry {
+                slug: slug.to_string(),
+                display_name: slug.to_string(),
+                suffix_window: None,
+                auto_compact_percent: None,
+            });
+        }
+    }
+    Ok(official_entries)
 }
 
 /// 每个成员只构建一次目录，然后修改身份字段；先按真实模型应用元数据，

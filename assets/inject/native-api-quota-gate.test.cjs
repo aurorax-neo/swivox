@@ -7,7 +7,7 @@ function runNativeQuotaTests(createGate) {
     relayProfilesEnabled: true, activeRelayId: "mix",
     relayProfiles: [{ id: "mix", relayMode: "official", officialMixApiKey: true }],
   };
-  const official = { ...mixed, relayProfiles: [{ ...mixed.relayProfiles[0], officialMixApiKey: false }] };
+  const official = { ...mixed, codexAppStandaloneQuotaUnlock: false, relayProfiles: [{ ...mixed.relayProfiles[0], officialMixApiKey: false }] };
   const raw = {
     plan_type: "plus", rate_limit: { allowed: false, limit_reached: true, used_percent: 100 },
     rate_limit_warning: { text: "keep" }, credits: { balance: 0 },
@@ -75,9 +75,9 @@ function runNativeQuotaTests(createGate) {
 
   runtime.update({ ...mixed, relayProfilesEnabled: false });
   main.setData(raw);
-  equal(main.state.data.rate_limit.allowed, false, "disabled relay must not unlock new publication");
+  equal(main.state.data.rate_limit.allowed, true, "standalone switch unlocks even when relay profiles are disabled");
   runtime.update({ ...mixed, relayProfiles: [{ ...mixed.relayProfiles[0], relayMode: "pureApi" }] });
-  equal(main.state.data.rate_limit.allowed, false, "pure API must not use official-mix bypass");
+  equal(main.state.data.rate_limit.allowed, true, "standalone switch unlocks regardless of relayMode");
   runtime.update(mixed);
   main.setData({ usage: updated, envelope: "preserve" });
   equal(main.state.data.usage.rate_limit.allowed, true, "wrapped usage response must unlock");

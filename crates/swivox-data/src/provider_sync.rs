@@ -111,7 +111,20 @@ pub fn try_acquire_provider_sync_lifecycle_guard(
     let home = codex_home
         .map(Path::to_path_buf)
         .unwrap_or_else(default_codex_home_dir);
-    acquire_lock_inner(&home.join("tmp/provider-sync.lock"), false)
+    let lock_path = home.join("tmp/provider-sync.lock");
+    acquire_lock_inner(&lock_path, false).map_err(|error| {
+        std::io::Error::new(
+            error.kind(),
+            format!(
+                "{error} (provider sync lock: {}; parent: {})",
+                lock_path.display(),
+                lock_path
+                    .parent()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_default()
+            ),
+        )
+    })
 }
 
 /// 读取 provider sync 锁的当前状态，不获取也不修改它。
@@ -1967,8 +1980,17 @@ fn sorted_provider_ids(ids: HashSet<String>) -> Vec<String> {
     ids
 }
 
+pub fn is_provider_sync_internal_alias(value: &str) -> bool {
+    matches!(
+        value.trim(),
+        "swivox_managed" | "codex_plus_managed"
+    )
+}
+
 fn is_valid_provider_id_for_discovery(value: &str) -> bool {
-    !value.trim().is_empty() && !value.chars().any(char::is_control)
+    !value.trim().is_empty()
+        && !value.chars().any(char::is_control)
+        && !is_provider_sync_internal_alias(value)
 }
 
 fn root_toml_string_value(text: &str, key: &str) -> Option<String> {

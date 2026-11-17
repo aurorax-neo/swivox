@@ -32,6 +32,19 @@ const SAFE_TOP_LEVEL_KEYS: &[&str] = &[
     "electron-main-window-bounds",
 ];
 
+const PASS_THROUGH_STATE_KEYS: &[&str] = &[
+    "local-projects",
+    "selected-project",
+    "app-server-project-id-by-legacy-project-id-by-host",
+    "app-server-projects-migration-by-host",
+    "project-appearances",
+    "project-order",
+    "sidebar-project-thread-orders",
+    "thread-project-assignments",
+    "thread-project-membership-host-ids",
+    "remote-project-connection-backfill-completed",
+];
+
 /// Codex 输入框模型选择器的「最近使用」（持久化在 atom state 里，只留最近 3 条）。
 const COMPOSER_RECENT_MODELS_KEY: &str = "composer-recent-model-configurations-v1";
 
@@ -42,6 +55,7 @@ const SAFE_ATOM_KEYS: &[&str] = &[
     "diff-filter",
     "enter-behavior",
     "first-awake-pet-notification-avatar-ids",
+    "flat-project-sidebar-preferences-v1",
     "has-seen-codex-mobile-announcement",
     "has-seen-multi-agent-composer-banner",
     "has-user-changed-service-tier",
@@ -52,6 +66,8 @@ const SAFE_ATOM_KEYS: &[&str] = &[
     "sidebar-collapsed-sections-v1",
     "sidebar-width",
     "thread-summary-panel-section-expanded-progress",
+    "unified-sidebar-pinned-order-v1",
+    "unified-sidebar-project-order-v1",
     "unread-thread-ids-by-host-v1",
 ];
 
@@ -325,6 +341,11 @@ fn safe_snapshot_from_state(state: &Map<String, Value>) -> Value {
             safe.insert((*key).to_string(), value.clone());
         }
     }
+    for key in PASS_THROUGH_STATE_KEYS {
+        if let Some(value) = state.get(*key) {
+            safe.insert((*key).to_string(), value.clone());
+        }
+    }
     if let Some(atom) = state
         .get("electron-persisted-atom-state")
         .and_then(Value::as_object)
@@ -454,6 +475,13 @@ fn merge_safe_snapshot(
     }
     for key in SAFE_TOP_LEVEL_KEYS {
         if let Some(value) = snapshot.get(*key) {
+            replace_if_changed(target, key, value.clone(), changed);
+        }
+    }
+    for key in PASS_THROUGH_STATE_KEYS {
+        if let Some(value) = snapshot.get(*key)
+            && !target.contains_key(*key)
+        {
             replace_if_changed(target, key, value.clone(), changed);
         }
     }

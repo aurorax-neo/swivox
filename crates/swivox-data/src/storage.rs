@@ -1070,7 +1070,7 @@ const USAGE_TAIL_MAX_BYTES: u64 = 8 * 1024 * 1024;
 const USAGE_TAIL_EVENT_LIMIT: usize = 24;
 
 /// 只读 rollout 尾部，取出最近的 `token_count` 事件。
-fn read_rollout_usage_tail(rollout: &Path, limit: usize) -> anyhow::Result<Vec<Value>> {
+    fn read_rollout_usage_tail(rollout: &Path, limit: usize) -> anyhow::Result<Vec<Value>> {
     let file = File::open(rollout)?;
     let len = file.metadata()?.len();
     let mut window = USAGE_TAIL_INITIAL_BYTES;
@@ -1078,9 +1078,12 @@ fn read_rollout_usage_tail(rollout: &Path, limit: usize) -> anyhow::Result<Vec<V
         let start = len.saturating_sub(window);
         let mut events = Vec::new();
         read_rollout_usage_window(&file, start, limit, &mut events)?;
-        // 至少两条事件渲染侧才算得出生成速度；不够就放大窗口重读一次。
-        // 到顶或已经从头开始读时不再尝试，避免退化成整文件解析。
-        if events.len() >= 2 || start == 0 || window >= USAGE_TAIL_MAX_BYTES {
+        let latest_turn_known = events
+            .last()
+            .and_then(|event| event.get("turn_id"))
+            .and_then(Value::as_str)
+            .is_some();
+        if events.len() >= 2 && latest_turn_known || start == 0 || window >= USAGE_TAIL_MAX_BYTES {
             return Ok(events);
         }
         window = (window * 4).min(USAGE_TAIL_MAX_BYTES);
@@ -1097,22 +1100,68 @@ fn read_rollout_usage_window(
     handle.seek(SeekFrom::Start(start))?;
     let mut buffer = Vec::new();
     handle.read_to_end(&mut buffer)?;
-    // 起始处多半落在行中间；UTF-8 的续字节不会等于 b'\n'，按字节切行不会切坏字符。
     let text = String::from_utf8_lossy(&buffer);
     let mut lines = text.split('\n');
     if start > 0 {
         lines.next();
     }
+    let mut current_turn_id: Option<String> = None;
+    let mut segment_start = 0;
     for line in lines {
         let line = line.trim();
-        // 先做子串预筛，避免为每条 response_item 付 serde 解析成本。
-        if line.is_empty() || !line.contains("\"token_count\"") {
+        if line.is_empty()
+            || !["\"event_msg\"", "\"turn_context\""]
+                .iter()
+                .any(|kind| line.contains(kind))
+        {
             continue;
         }
         let Ok(value) = serde_json::from_str::<Value>(line) else {
             continue;
         };
-        if let Some(event) = rollout_usage_event(&value) {
+        let kind = value.get("type").and_then(Value::as_str);
+        let payload = &value["payload"];
+        let event_type = payload.get("type").and_then(Value::as_str);
+        let turn_id = payload
+            .get("turn_id")
+            .and_then(Value::as_str)
+            .filter(|id| !id.is_empty());
+        if kind == Some("turn_context") {
+            if let Some(id) = turn_id
+                && current_turn_id.as_deref() != Some(id)
+            {
+                segment_start = out.len();
+                current_turn_id = Some(id.to_owned());
+            }
+            continue;
+        }
+        if kind != Some("event_msg") {
+            continue;
+        }
+        match event_type {
+            Some("task_started" | "turn_started") => {
+                segment_start = out.len();
+                current_turn_id = turn_id.map(str::to_owned);
+                continue;
+            }
+            Some(
+                "task_complete" | "turn_complete" | "turn_completed" | "task_failed"
+                | "turn_aborted" | "task_aborted",
+            ) => {
+                if let Some(id) = turn_id {
+                    for event in &mut out[segment_start..] {
+                        if event.get("turn_id").is_none() {
+                            event["turn_id"] = json!(id);
+                        }
+                    }
+                }
+                segment_start = out.len();
+                current_turn_id = None;
+                continue;
+            }
+            _ => {}
+        }
+        if let Some(event) = rollout_usage_event(&value, current_turn_id.as_deref()) {
             out.push(event);
         }
     }
@@ -1122,7 +1171,7 @@ fn read_rollout_usage_window(
     Ok(())
 }
 
-fn rollout_usage_event(value: &Value) -> Option<Value> {
+fn rollout_usage_event(value: &Value, turn_id: Option<&str>) -> Option<Value> {
     if value.get("type").and_then(Value::as_str) != Some("event_msg") {
         return None;
     }
@@ -1145,18 +1194,20 @@ fn rollout_usage_event(value: &Value) -> Option<Value> {
     if input_tokens <= 0 && output_tokens <= 0 && total_tokens <= 0 {
         return None;
     }
-    Some(json!({
+    let mut event = json!({
         "t": value.get("timestamp").and_then(Value::as_str).unwrap_or_default(),
-        // 本次模型调用的用量：上下文占用取 total_tokens / context_window。
         "input_tokens": input_tokens,
         "cached_input_tokens": field(Some(last), "cached_input_tokens"),
         "output_tokens": output_tokens,
         "reasoning_output_tokens": field(Some(last), "reasoning_output_tokens"),
         "total_tokens": total_tokens,
         "context_window": field(Some(info), "model_context_window"),
-        // 本轮累计输出：换轮时它会回落，渲染侧靠这个切段算生成速度。
         "turn_output_tokens": field(total, "output_tokens"),
-    }))
+    });
+    if let Some(id) = turn_id {
+        event["turn_id"] = json!(id);
+    }
+    Some(event)
 }
 
 fn failed_with_undo(

@@ -2063,6 +2063,9 @@ fn is_macos_codex_desktop_main_with(
 
     let executable_end = args.find(" -").unwrap_or(args.len());
     let executable = args[..executable_end].trim_end();
+    if executable.contains("/Contents/Resources/") {
+        return false;
+    }
     let Some((app_dir, executable_name)) = executable.rsplit_once(".app/Contents/MacOS/") else {
         return false;
     };

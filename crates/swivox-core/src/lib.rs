@@ -1,5 +1,6 @@
 pub mod aggregate_catalog;
 pub mod agent_cache;
+pub mod antigravity;
 pub mod app_paths;
 pub mod assets;
 pub mod auto_takeover;
@@ -13,8 +14,10 @@ pub mod codex_sqlite;
 pub mod diagnostic_log;
 pub mod dictation;
 pub mod env_conflicts;
+pub mod foreign_reasoning;
 pub mod http_client;
 pub mod install;
+pub mod lamplighter;
 pub mod launcher;
 pub mod manager_navigation;
 pub mod mcp_config;

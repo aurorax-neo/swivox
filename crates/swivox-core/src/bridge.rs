@@ -154,10 +154,10 @@ pub fn bridge_health_check_script() -> &'static str {
   const lastSuccessAt = Number(health.lastSuccessAt) || 0;
   const lastInjectionAt = Number(health.lastInjectionAt) || 0;
   const lastAttemptAt = Number(health.lastAttemptAt) || 0;
+  const failures = Number(health.failures) || 0;
   if (lastInjectionAt > 0 && now - lastInjectionAt <= 5000) return true;
   if (lastSuccessAt > 0 && now - lastSuccessAt <= 15000) return true;
-  // 页面忙碌时状态请求会超时，但心跳仍在调用桥接。最近一次尝试也算活着，
-  // 避免看门狗把整份脚本反复注入并触发整页刷新。
+  if (failures >= 3 && (lastSuccessAt === 0 || now - lastSuccessAt > 15000)) return false;
   return lastAttemptAt > 0 && now - lastAttemptAt <= 15000;
 })()
 "#
@@ -310,6 +310,7 @@ fn native_quota_bootstrap_script() -> String {
   let sequence = 0;
   let timer = null;
   let disposed = false;
+  let received = false;
   const request = () => state.request();
   const visible = () => {
     if (document.visibilityState === "visible") state.request();
@@ -320,18 +321,19 @@ fn native_quota_bootstrap_script() -> String {
       const seq = ++sequence;
       clearTimeout(timer);
       timer = setTimeout(() => {
-        if (seq === sequence) window.__swivoxApiQuotaGate.installNative(null);
+        if (seq === sequence && !received) window.__swivoxApiQuotaGate.installNative(null);
       }, 5000);
       try {
         window.swivoxNativeQuotaSettings(JSON.stringify({ sequence: seq }));
       } catch {
         clearTimeout(timer);
-        window.__swivoxApiQuotaGate.installNative(null);
+        if (!received) window.__swivoxApiQuotaGate.installNative(null);
       }
     },
     accept(seq, settings) {
       if (disposed || seq !== sequence) return;
       clearTimeout(timer);
+      received = true;
       window.__swivoxApiQuotaGate.installNative(settings);
     },
     dispose() {
@@ -471,15 +473,6 @@ async fn install_isolated_api_quota_gate_target_url(
             }
         }
         session.remove_registered_scripts(&registered_scripts).await;
-        if !registered_scripts.is_empty() {
-            let _ = session
-                .send_command_without_wait(
-                    next_message_id(),
-                    "Runtime.evaluate",
-                    runtime_evaluate_params("window.__swivoxNativeQuotaBootstrap?.dispose()"),
-                )
-                .await;
-        }
         if binding_added {
             let _ = session
                 .send_command_without_wait(
@@ -574,6 +567,117 @@ pub fn parse_app_server_client_capture_location(value: &Value) -> Option<(String
     Some((url_regex, line_number as u32, column_number as u32))
 }
 
+const APP_SERVER_CLIENT_CAPTURE_MARKER: &str = "AppServerRequestClient is missing a message dispatcher";
+const APP_SERVER_CLIENT_CAPTURE_ANCHOR: &str = "async sendRequest(";
+const PARSED_ASSET_SCRIPT_LIMIT: usize = 16_384;
+const APP_SERVER_CLIENT_DEBUGGER_LOCATE_AFTER: Duration = Duration::from_secs(8);
+const APP_SERVER_CLIENT_DEBUGGER_LOCATE_INTERVAL: Duration = Duration::from_secs(15);
+const APP_SERVER_CLIENT_DEBUGGER_SEARCH_TIMEOUT: Duration = Duration::from_secs(5);
+const APP_SERVER_CLIENT_DEBUGGER_SOURCE_TIMEOUT: Duration = Duration::from_secs(15);
+
+fn escape_js_regex(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len() + 8);
+    for ch in text.chars() {
+        if ".*+?^${}()|[]\\".contains(ch) {
+            escaped.push('\\');
+        }
+        escaped.push(ch);
+    }
+    escaped
+}
+
+pub fn locate_app_server_client_send_request(source: &str) -> Option<(u32, u32)> {
+    let marker = source.find(APP_SERVER_CLIENT_CAPTURE_MARKER)?;
+    let anchor = source[..marker].rfind(APP_SERVER_CLIENT_CAPTURE_ANCHOR)?;
+    if marker - anchor > 220 {
+        return None;
+    }
+    let brace = anchor + source[anchor..].find('{')?;
+    let before = &source[..brace];
+    let line = before.bytes().filter(|byte| *byte == b'\n').count();
+    let line_start = before.rfind('\n').map_or(0, |index| index + 1);
+    let column: usize = before[line_start..].chars().map(char::len_utf16).sum();
+    Some((u32::try_from(line).ok()?, u32::try_from(column).ok()?))
+}
+
+async fn locate_app_server_client_via_debugger<S>(
+    session: &mut CdpSession<S>,
+    generation: &BridgeGeneration,
+) -> anyhow::Result<Option<(String, u32, u32)>>
+where
+    S: SinkExt<Message>
+        + StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>
+        + Unpin
+        + Send,
+    <S as futures_util::Sink<Message>>::Error: std::error::Error + Send + Sync + 'static,
+{
+    session.parsed_asset_scripts.clear();
+    if !enable_app_server_client_capture_debugger(
+        session,
+        generation,
+        APP_SERVER_CLIENT_CAPTURE_ENABLE_TIMEOUT,
+        APP_SERVER_CLIENT_CAPTURE_ENABLE_RETRY_DELAY,
+    )
+    .await?
+    {
+        return Ok(None);
+    }
+    let scripts = std::mem::take(&mut session.parsed_asset_scripts);
+    let mut found = None;
+    for (script_id, url) in scripts.iter().rev() {
+        if !bridge_generation_is_current(generation) {
+            break;
+        }
+        let Ok(reply) = session
+            .send_command_with_timeout(
+                next_message_id(),
+                "Debugger.searchInContent",
+                json!({ "scriptId": script_id, "query": APP_SERVER_CLIENT_CAPTURE_MARKER }),
+                APP_SERVER_CLIENT_DEBUGGER_SEARCH_TIMEOUT,
+            )
+            .await
+        else {
+            continue;
+        };
+        if reply
+            .pointer("/result/result")
+            .and_then(Value::as_array)
+            .is_none_or(Vec::is_empty)
+        {
+            continue;
+        }
+        let Ok(source) = session
+            .send_command_with_timeout(
+                next_message_id(),
+                "Debugger.getScriptSource",
+                json!({ "scriptId": script_id }),
+                APP_SERVER_CLIENT_DEBUGGER_SOURCE_TIMEOUT,
+            )
+            .await
+        else {
+            continue;
+        };
+        let Some(text) = source.pointer("/result/scriptSource").and_then(Value::as_str) else {
+            continue;
+        };
+        if let Some((line, column)) = locate_app_server_client_send_request(text) {
+            found = Some((url.clone(), line, column));
+            break;
+        }
+    }
+    if found.is_none() {
+        let _ = session
+            .send_command_with_timeout(
+                next_message_id(),
+                "Debugger.disable",
+                json!({}),
+                APP_SERVER_CLIENT_CAPTURE_CLEANUP_TIMEOUT,
+            )
+            .await;
+    }
+    Ok(found.map(|(url, line, column)| (escape_js_regex(&url), line, column)))
+}
+
 const APP_SERVER_CLIENT_CAPTURE_LOCATION_TIMEOUT: Duration = Duration::from_secs(90);
 const APP_SERVER_CLIENT_CAPTURE_LOCATION_POLL: Duration = Duration::from_secs(2);
 const APP_SERVER_CLIENT_CAPTURE_WATCH_CAP: Duration = Duration::from_secs(8 * 60 * 60);
@@ -666,6 +770,8 @@ async fn run_app_server_client_capture(
     let socket = connect_cdp_websocket(websocket_url).await?;
     let mut session = CdpSession::new(socket);
     let probe_script = app_server_client_capture_probe_script();
+    let started_at = std::time::Instant::now();
+    let mut last_debugger_scan: Option<std::time::Instant> = None;
     let location_wait = async {
         loop {
             if !bridge_generation_is_current(&generation) {
@@ -682,16 +788,23 @@ async fn run_app_server_client_capture(
             else {
                 continue;
             };
-            let Some(text) = response
+            if let Some(text) = response
                 .pointer("/result/result/value")
                 .and_then(Value::as_str)
-            else {
-                continue;
-            };
-            if let Some(location) =
-                parse_app_server_client_capture_location(&Value::String(text.to_string()))
+                && let Some(location) =
+                    parse_app_server_client_capture_location(&Value::String(text.to_string()))
             {
                 return Some(location);
+            }
+            if started_at.elapsed() >= APP_SERVER_CLIENT_DEBUGGER_LOCATE_AFTER
+                && last_debugger_scan.is_none_or(|t| t.elapsed() >= APP_SERVER_CLIENT_DEBUGGER_LOCATE_INTERVAL)
+            {
+                last_debugger_scan = Some(std::time::Instant::now());
+                if let Ok(Some(location)) =
+                    locate_app_server_client_via_debugger(&mut session, &generation).await
+                {
+                    return Some(location);
+                }
             }
         }
     };
@@ -1116,6 +1229,7 @@ struct CdpSession<S> {
     paused_event_bytes: usize,
     pause_epoch: u64,
     current_pause_hit: Option<[u8; 32]>,
+    parsed_asset_scripts: Vec<(String, String)>,
     handler: Option<BridgeHandler>,
     generation: Option<BridgeGeneration>,
 }
@@ -1137,6 +1251,7 @@ where
             paused_event_bytes: 0,
             pause_epoch: 0,
             current_pause_hit: None,
+            parsed_asset_scripts: Vec::new(),
             handler: None,
             generation: None,
         }
@@ -1303,6 +1418,21 @@ where
                 self.current_pause_hit = paused_hit_fingerprint(&value);
             }
             Some("Debugger.resumed") => self.clear_pause_if_epoch(self.pause_epoch),
+            Some("Debugger.scriptParsed") => {
+                if let (Some(id), Some(url)) = (
+                    value.pointer("/params/scriptId").and_then(Value::as_str),
+                    value.pointer("/params/url").and_then(Value::as_str),
+                ) {
+                    let path = url.split(['?', '#']).next().unwrap_or("");
+                    if path.contains("/assets/")
+                        && path.ends_with(".js")
+                        && self.parsed_asset_scripts.len() < PARSED_ASSET_SCRIPT_LIMIT
+                    {
+                        self.parsed_asset_scripts
+                            .push((id.to_string(), url.to_string()));
+                    }
+                }
+            }
             _ => {}
         }
 
@@ -1784,7 +1914,6 @@ mod native_quota_lifecycle_tests {
                 "Page.addScriptToEvaluateOnNewDocument",
                 "Runtime.evaluate",
                 "Page.removeScriptToEvaluateOnNewDocument",
-                "Runtime.evaluate",
                 "Runtime.removeBinding",
             ]
         );

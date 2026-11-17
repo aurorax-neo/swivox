@@ -17,6 +17,11 @@ pub fn detect_system_proxy() -> Option<String> {
     platform_system_proxy()
 }
 
+pub fn detect_system_proxy_for_url(url: &str) -> Option<String> {
+    let _ = url;
+    detect_system_proxy()
+}
+
 fn normalize_proxy_url(value: &str) -> Option<String> {
     let value = value.trim();
     if value.is_empty() {
@@ -85,7 +90,27 @@ fn platform_system_proxy() -> Option<String> {
 }
 
 #[cfg(target_os = "macos")]
+const MACOS_SYSTEM_PROXY_TTL: std::time::Duration = std::time::Duration::from_secs(5);
+
+#[cfg(target_os = "macos")]
 fn platform_system_proxy() -> Option<String> {
+    static CACHE: std::sync::Mutex<Option<(std::time::Instant, Option<String>)>> =
+        std::sync::Mutex::new(None);
+    if let Ok(cache) = CACHE.lock()
+        && let Some((at, proxy)) = cache.as_ref()
+        && at.elapsed() < MACOS_SYSTEM_PROXY_TTL
+    {
+        return proxy.clone();
+    }
+    let proxy = macos_scutil_system_proxy();
+    if let Ok(mut cache) = CACHE.lock() {
+        *cache = Some((std::time::Instant::now(), proxy.clone()));
+    }
+    proxy
+}
+
+#[cfg(target_os = "macos")]
+fn macos_scutil_system_proxy() -> Option<String> {
     let output = std::process::Command::new("scutil")
         .arg("--proxy")
         .output()
@@ -96,7 +121,29 @@ fn platform_system_proxy() -> Option<String> {
     parse_macos_scutil_proxy(&String::from_utf8_lossy(&output.stdout))
 }
 
-#[cfg(not(any(windows, target_os = "macos")))]
+#[cfg(target_os = "linux")]
+fn platform_system_proxy() -> Option<String> {
+    for var in [
+        "https_proxy",
+        "HTTPS_PROXY",
+        "all_proxy",
+        "ALL_PROXY",
+        "http_proxy",
+        "HTTP_PROXY",
+    ] {
+        if let Ok(value) = std::env::var(var) {
+            let trimmed = value.trim();
+            if !trimmed.is_empty()
+                && let Some(normalized) = normalize_proxy_url(trimmed)
+            {
+                return Some(normalized);
+            }
+        }
+    }
+    None
+}
+
+#[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
 fn platform_system_proxy() -> Option<String> {
     None
 }

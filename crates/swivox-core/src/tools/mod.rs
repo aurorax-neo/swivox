@@ -1,4 +1,4 @@
-//! 工具适配层（仅保留 Codex）。
+//! 工具适配层（支持 Codex 与 Antigravity）。
 
 use std::path::PathBuf;
 
@@ -11,6 +11,7 @@ use crate::settings::{
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ToolId {
     Codex,
+    Antigravity,
     Unknown(String),
 }
 
@@ -24,6 +25,7 @@ impl ToolId {
     pub fn as_str(&self) -> &str {
         match self {
             Self::Codex => "codex",
+            Self::Antigravity => "antigravity",
             Self::Unknown(value) => value.as_str(),
         }
     }
@@ -31,6 +33,7 @@ impl ToolId {
     pub fn parse(value: &str) -> Self {
         match value.trim() {
             "codex" => Self::Codex,
+            "antigravity" => Self::Antigravity,
             other => Self::Unknown(other.to_string()),
         }
     }
@@ -102,13 +105,15 @@ pub struct ToolSpec {
 }
 
 pub const TOOL_CODEX_NAME: &str = "Codex";
+pub const TOOL_ANTIGRAVITY_NAME: &str = "Antigravity";
 
-/// 已注册的工具（仅保留 Codex）。
-pub const REGISTERED_TOOLS: &[ToolId] = &[ToolId::Codex];
+/// 已注册的工具（Codex 与 Antigravity）。
+pub const REGISTERED_TOOLS: &[ToolId] = &[ToolId::Codex, ToolId::Antigravity];
 
 pub fn tool_display_name(id: &ToolId) -> &'static str {
     match id {
         ToolId::Codex => TOOL_CODEX_NAME,
+        ToolId::Antigravity => TOOL_ANTIGRAVITY_NAME,
         ToolId::Unknown(_) => "未知工具",
     }
 }
@@ -117,14 +122,15 @@ pub fn tool_display_name(id: &ToolId) -> &'static str {
 pub fn tool_home_dir(id: &ToolId) -> PathBuf {
     match id {
         ToolId::Codex => crate::relay_config::default_codex_home_dir(),
+        ToolId::Antigravity => crate::antigravity::default_antigravity_home_dir(),
         // 未注册的工具没有已知 home，退回配置根目录，避免调用方拿到 panic。
         ToolId::Unknown(_) => crate::paths::default_app_state_dir(),
     }
 }
 
-/// 该工具的 profile 是否已经能真正写盘并切换。
+/// 该工具是否已接入管理器切换能力。
 pub fn tool_is_switchable(id: &ToolId) -> bool {
-    matches!(id, ToolId::Codex)
+    matches!(id, ToolId::Codex | ToolId::Antigravity)
 }
 pub fn tool_specs() -> Vec<ToolSpec> {
     REGISTERED_TOOLS
@@ -249,10 +255,13 @@ mod tests {
     #[test]
     fn tool_specs_expose_registered_tools() {
         let specs = tool_specs();
-        assert_eq!(specs.len(), 1);
+        assert_eq!(specs.len(), 2);
         assert_eq!(specs[0].id, ToolId::Codex);
         assert_eq!(specs[0].name, TOOL_CODEX_NAME);
         assert!(specs[0].switchable);
+        assert_eq!(specs[1].id, ToolId::Antigravity);
+        assert_eq!(specs[1].name, TOOL_ANTIGRAVITY_NAME);
+        assert!(specs[1].switchable);
         assert!(specs.iter().all(|spec| !spec.home_dir.is_empty()));
     }
 }

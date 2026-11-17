@@ -2,7 +2,11 @@ use std::collections::HashSet;
 use std::future::Future;
 use std::time::{Duration, Instant};
 
+use swivox_backend::antigravity_commands;
 use swivox_backend::auto_takeover::AutoTakeoverPayload;
+use swivox_backend::lamplighter_commands;
+use swivox_core::antigravity::{AntigravityOAuthStartResponse, AntigravitySnapshot};
+use swivox_core::lamplighter::{LamplighterConfig, LamplighterSnapshot};
 use swivox_backend::commands::{
     self, BindRelayOfficialAccountRequest, CcsProvidersPayload, CodexMultiInstance,
     CodexMultiInstanceRequest, CodexMultiLaunchRequest, CompleteOfficialOAuthRequest,
@@ -93,6 +97,7 @@ pub struct AppStore {
     pub launch_pending: bool,
     pub env_refreshing: bool,
     pub notice: Option<InlineNotice>,
+    pub notice_seq: u64,
 
     // 官方账号管理状态
     pub official_snapshot: Option<OfficialAccountsSnapshot>,
@@ -202,6 +207,32 @@ pub struct AppStore {
 
     pub proxy_testing: bool,
     pub reset_confirm_open: bool,
+
+    // Antigravity 原生管理状态
+    pub ag_snapshot: Option<AntigravitySnapshot>,
+    pub ag_loading: bool,
+    pub ag_launch_pending: bool,
+    pub ag_launch_conflict: bool,
+    pub ag_search_query: String,
+    pub ag_oauth_session: Option<AntigravityOAuthStartResponse>,
+    pub ag_oauth_waiting: bool,
+    pub ag_import_open: bool,
+    pub ag_export_json: String,
+    pub ag_switching_id: Option<String>,
+    pub ag_refreshing_id: Option<String>,
+    pub ag_editing_id: Option<String>,
+    pub ag_delete_confirm_id: Option<String>,
+
+    // Lamplighter（点灯人）状态
+    pub lamplighter_snapshot: Option<LamplighterSnapshot>,
+    pub lamplighter_loading: bool,
+    pub lamplighter_igniting_key: Option<String>,
+    pub lamplighter_tab: &'static str,
+    pub lamplighter_history_hours: u64,
+    pub lamplighter_window_filter: &'static str,
+    pub lamplighter_hide_emails: bool,
+    pub lamplighter_add_account_open: bool,
+    pub lamplighter_new_provider: &'static str,
 }
 
 impl AppStore {
@@ -243,6 +274,7 @@ impl AppStore {
             launch_pending: false,
             env_refreshing: false,
             notice: None,
+            notice_seq: 0,
 
             official_snapshot,
             official_loading: false,
@@ -347,7 +379,41 @@ impl AppStore {
 
             proxy_testing: false,
             reset_confirm_open: false,
+
+            ag_snapshot: Some(antigravity_commands::load_antigravity_snapshot().payload.snapshot),
+            ag_loading: false,
+            ag_launch_pending: false,
+            ag_launch_conflict: false,
+            ag_search_query: String::new(),
+            ag_oauth_session: None,
+            ag_oauth_waiting: false,
+            ag_import_open: false,
+            ag_export_json: String::new(),
+            ag_switching_id: None,
+            ag_refreshing_id: None,
+            ag_editing_id: None,
+            ag_delete_confirm_id: None,
+
+            lamplighter_snapshot: Some(
+                lamplighter_commands::load_lamplighter_snapshot(12)
+                    .payload
+                    .snapshot,
+            ),
+            lamplighter_loading: false,
+            lamplighter_igniting_key: None,
+            lamplighter_tab: "overview",
+            lamplighter_history_hours: 12,
+            lamplighter_window_filter: "five-hour",
+            lamplighter_hide_emails: false,
+            lamplighter_add_account_open: false,
+            lamplighter_new_provider: "claude",
         }
+    }
+
+    pub fn antigravity_app_running(&self) -> bool {
+        self.ag_snapshot.as_ref().is_some_and(|s| {
+            s.desktop_install.running || s.ide_install.running
+        })
     }
 
     pub fn codex_app_running(&self) -> bool {
@@ -384,15 +450,36 @@ impl AppStore {
         status: &str,
         cx: &mut Context<Self>,
     ) {
+        let tone = status_tone(status);
+        self.notice_seq = self.notice_seq.wrapping_add(1);
+        let seq = self.notice_seq;
         self.notice = Some(InlineNotice {
             title: title.into(),
             message: t(&message.into()),
-            tone: status_tone(status),
+            tone,
         });
         cx.notify();
+
+        let ttl_ms = match tone {
+            StatusTone::Bad => 7000,
+            StatusTone::Good | StatusTone::Warn => 4200,
+        };
+        cx.spawn(async move |this, cx| {
+            cx.background_executor()
+                .timer(Duration::from_millis(ttl_ms))
+                .await;
+            let _ = this.update(cx, |store, cx| {
+                if store.notice_seq == seq {
+                    store.notice = None;
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
     }
 
     pub fn clear_notice(&mut self, cx: &mut Context<Self>) {
+        self.notice_seq = self.notice_seq.wrapping_add(1);
         self.notice = None;
         cx.notify();
     }
@@ -426,8 +513,20 @@ impl AppStore {
             cx.notify();
         }
         match next {
-            Route::Overview => self.refresh_overview(false, cx),
+            Route::Overview => {
+                if self.active_tool == "antigravity" {
+                    self.refresh_antigravity_local(cx);
+                } else {
+                    self.refresh_overview(false, cx);
+                }
+            }
             Route::RelayEnvironment => self.refresh_relay_environment(false, cx),
+            Route::AntigravityAccounts | Route::AntigravityEnhance => {
+                self.refresh_antigravity_local(cx);
+            }
+            Route::Lamplighter => {
+                self.reload_lamplighter_local(cx);
+            }
             Route::OfficialAccounts => {
                 self.refresh_settings_silent(cx);
                 self.refresh_official_accounts(false, cx);
@@ -530,8 +629,18 @@ impl AppStore {
 
     pub fn refresh_current(&mut self, cx: &mut Context<Self>) {
         match self.route {
-            Route::Overview => self.refresh_overview(true, cx),
+            Route::Overview => {
+                if self.active_tool == "antigravity" {
+                    self.refresh_antigravity_local(cx);
+                    self.set_notice(t("健康检查"), t("已刷新 Antigravity 状态。"), "ok", cx);
+                } else {
+                    self.refresh_overview(true, cx);
+                }
+            }
             Route::RelayEnvironment => self.refresh_relay_environment(true, cx),
+            Route::AntigravityAccounts => self.refresh_all_antigravity_quotas(cx),
+            Route::AntigravityEnhance => self.refresh_antigravity_local(cx),
+            Route::Lamplighter => self.refresh_lamplighter_remote(cx),
             Route::OfficialAccounts => self.refresh_official_accounts(true, cx),
             Route::Relay => self.refresh_relay_page(true, cx),
             Route::MultiLaunch => {
@@ -2620,6 +2729,423 @@ impl AppStore {
             self.user_scripts_inventory = parse_user_script_inventory(&res.payload.user_scripts);
         }
         self.set_notice(t("重置设置"), res.message, &res.status, cx);
+    }
+
+    // =========================================================================
+    // Antigravity 操作集
+    // =========================================================================
+
+    pub fn refresh_antigravity_local(&mut self, cx: &mut Context<Self>) {
+        self.ag_snapshot = Some(antigravity_commands::load_antigravity_snapshot().payload.snapshot);
+        self.tool_entries = commands::list_tools().payload.tools;
+        cx.notify();
+    }
+
+    pub fn launch_antigravity(&mut self, force_clean: bool, cx: &mut Context<Self>) {
+        if self.ag_launch_pending {
+            return;
+        }
+        self.ag_launch_pending = true;
+        cx.notify();
+        self.spawn_tokio(
+            cx,
+            async move { antigravity_commands::launch_antigravity(force_clean).await },
+            |store, res, cx| {
+                store.ag_launch_pending = false;
+                store.ag_launch_conflict = res.status == "conflict";
+                store.ag_snapshot = Some(res.payload.snapshot);
+                let tone_status = if res.status == "conflict" {
+                    "paused"
+                } else {
+                    &res.status
+                };
+                store.set_notice(t("启动 Antigravity"), res.message, tone_status, cx);
+            },
+        );
+    }
+
+    pub fn stop_antigravity(&mut self, cx: &mut Context<Self>) {
+        if self.ag_launch_pending {
+            return;
+        }
+        self.ag_launch_pending = true;
+        cx.notify();
+        self.spawn_tokio(
+            cx,
+            async move { antigravity_commands::stop_antigravity().await },
+            |store, res, cx| {
+                store.ag_launch_pending = false;
+                store.ag_launch_conflict = false;
+                store.ag_snapshot = Some(res.payload.snapshot);
+                store.set_notice(t("停止 Antigravity"), res.message, &res.status, cx);
+            },
+        );
+    }
+
+    pub fn start_antigravity_oauth(&mut self, client_key: &'static str, cx: &mut Context<Self>) {
+        let key_str = client_key.to_string();
+        self.spawn_tokio(
+            cx,
+            async move { antigravity_commands::start_antigravity_oauth(Some(key_str)).await },
+            |store, start_res, cx| {
+                if start_res.status != "ok" || start_res.payload.session.is_none() {
+                    store.set_notice(t("Antigravity 登录"), start_res.message, "failed", cx);
+                    return;
+                }
+                let session = start_res.payload.session.unwrap();
+                let auth_url = session.verification_uri.clone();
+                let login_id = session.login_id.clone();
+                store.ag_oauth_session = Some(session);
+                store.ag_oauth_waiting = true;
+                let _ = commands::open_external_url(auth_url);
+                cx.notify();
+
+                store.spawn_tokio(
+                    cx,
+                    async move { antigravity_commands::complete_antigravity_oauth(login_id).await },
+                    |store, done_res, cx| {
+                        store.ag_oauth_waiting = false;
+                        if done_res.status == "ok" {
+                            store.ag_oauth_session = None;
+                            store.ag_snapshot = Some(done_res.payload.snapshot);
+                            store.tool_entries = commands::list_tools().payload.tools;
+                            store.set_notice(t("Antigravity 账号"), done_res.message, "ok", cx);
+                        } else {
+                            cx.notify();
+                        }
+                    },
+                );
+            },
+        );
+    }
+
+    pub fn cancel_antigravity_oauth(&mut self, cx: &mut Context<Self>) {
+        antigravity_commands::cancel_antigravity_oauth();
+        self.ag_oauth_session = None;
+        self.ag_oauth_waiting = false;
+        cx.notify();
+    }
+
+    pub fn submit_antigravity_manual_callback(&mut self, raw: String, cx: &mut Context<Self>) {
+        if raw.trim().is_empty() {
+            self.set_notice(
+                t("手动回调验证"),
+                t("请粘贴回调链接或授权码。"),
+                "failed",
+                cx,
+            );
+            return;
+        }
+        self.ag_oauth_waiting = true;
+        cx.notify();
+        self.spawn_tokio(
+            cx,
+            async move { antigravity_commands::submit_antigravity_manual_callback(raw).await },
+            |store, res, cx| {
+                store.ag_oauth_waiting = false;
+                if res.status == "ok" {
+                    store.ag_oauth_session = None;
+                    store.ag_snapshot = Some(res.payload.snapshot);
+                    store.tool_entries = commands::list_tools().payload.tools;
+                    store.set_notice(t("Antigravity 账号"), res.message, "ok", cx);
+                } else {
+                    store.set_notice(t("手动回调验证"), res.message, "failed", cx);
+                }
+            },
+        );
+    }
+
+    pub fn import_local_antigravity_accounts(&mut self, cx: &mut Context<Self>) {
+        if self.ag_loading {
+            return;
+        }
+        self.ag_loading = true;
+        cx.notify();
+        self.spawn_tokio(
+            cx,
+            async move { antigravity_commands::import_local_antigravity_accounts().await },
+            |store, res, cx| {
+                store.ag_loading = false;
+                store.ag_snapshot = Some(res.payload.snapshot);
+                store.tool_entries = commands::list_tools().payload.tools;
+                store.set_notice(t("扫描本机账号"), res.message, &res.status, cx);
+            },
+        );
+    }
+
+    pub fn import_antigravity_tokens_text(&mut self, raw_text: String, cx: &mut Context<Self>) {
+        if self.ag_loading {
+            return;
+        }
+        self.ag_loading = true;
+        cx.notify();
+        self.spawn_tokio(
+            cx,
+            async move { antigravity_commands::import_antigravity_accounts_text(raw_text).await },
+            |store, res, cx| {
+                store.ag_loading = false;
+                if res.status == "ok" {
+                    store.ag_import_open = false;
+                }
+                store.ag_snapshot = Some(res.payload.snapshot);
+                store.tool_entries = commands::list_tools().payload.tools;
+                store.set_notice(t("导入 Antigravity 账号"), res.message, &res.status, cx);
+            },
+        );
+    }
+
+    pub fn export_antigravity_accounts(&mut self, cx: &mut Context<Self>) {
+        let res = antigravity_commands::export_antigravity_accounts();
+        if res.status == "ok" {
+            self.ag_export_json = res.payload.json.clone();
+            cx.write_to_clipboard(ClipboardItem::new_string(res.payload.json));
+            self.set_notice(
+                t("导出 Antigravity 账号"),
+                t("已导出并复制账号 JSON 到剪贴板。"),
+                "ok",
+                cx,
+            );
+        } else {
+            self.set_notice(t("导出 Antigravity 账号"), res.message, "failed", cx);
+        }
+    }
+
+    pub fn switch_antigravity_account(&mut self, account_id: String, cx: &mut Context<Self>) {
+        if self.ag_switching_id.is_some() {
+            return;
+        }
+        self.ag_switching_id = Some(account_id.clone());
+        cx.notify();
+        self.spawn_tokio(
+            cx,
+            async move { antigravity_commands::switch_antigravity_account(account_id).await },
+            |store, res, cx| {
+                store.ag_switching_id = None;
+                store.ag_snapshot = Some(res.payload.snapshot);
+                store.tool_entries = commands::list_tools().payload.tools;
+                store.set_notice(t("切换 Antigravity 账号"), res.message, &res.status, cx);
+            },
+        );
+    }
+
+    pub fn refresh_single_antigravity_quota(&mut self, account_id: String, cx: &mut Context<Self>) {
+        if self.ag_refreshing_id.is_some() {
+            return;
+        }
+        self.ag_refreshing_id = Some(account_id.clone());
+        cx.notify();
+        self.spawn_tokio(
+            cx,
+            async move { antigravity_commands::refresh_antigravity_account_quota(account_id).await },
+            |store, res, cx| {
+                store.ag_refreshing_id = None;
+                store.ag_snapshot = Some(res.payload.snapshot);
+                store.set_notice(t("刷新配额"), res.message, &res.status, cx);
+            },
+        );
+    }
+
+    pub fn refresh_all_antigravity_quotas(&mut self, cx: &mut Context<Self>) {
+        if self.ag_loading {
+            return;
+        }
+        self.ag_loading = true;
+        cx.notify();
+        self.spawn_tokio(
+            cx,
+            async move { antigravity_commands::refresh_all_antigravity_quotas().await },
+            |store, res, cx| {
+                store.ag_loading = false;
+                store.ag_snapshot = Some(res.payload.snapshot);
+                store.set_notice(t("刷新配额"), res.message, &res.status, cx);
+            },
+        );
+    }
+
+    pub fn save_antigravity_account_meta(
+        &mut self,
+        account_id: String,
+        label: String,
+        proxy_mode: String,
+        proxy_url: String,
+        cx: &mut Context<Self>,
+    ) {
+        let res = antigravity_commands::update_antigravity_account_meta(
+            account_id,
+            Some(label),
+            Some(proxy_mode),
+            Some(proxy_url),
+        );
+        self.ag_editing_id = None;
+        self.ag_snapshot = Some(res.payload.snapshot);
+        self.set_notice(t("账号设置"), res.message, &res.status, cx);
+    }
+
+    pub fn delete_antigravity_account(&mut self, account_id: String, cx: &mut Context<Self>) {
+        self.ag_delete_confirm_id = None;
+        let res = antigravity_commands::delete_antigravity_account(account_id);
+        self.ag_snapshot = Some(res.payload.snapshot);
+        self.tool_entries = commands::list_tools().payload.tools;
+        self.set_notice(t("删除账号"), res.message, &res.status, cx);
+    }
+
+    pub fn save_antigravity_enhance(
+        &mut self,
+        preferred_target: String,
+        custom_desktop_path: String,
+        custom_ide_path: String,
+        launch_proxy_mode: String,
+        launch_proxy_url: String,
+        enable_ui_localization: bool,
+        enable_context_ring: bool,
+        cdp_port: u16,
+        cx: &mut Context<Self>,
+    ) {
+        self.spawn_tokio(
+            cx,
+            async move {
+                antigravity_commands::save_antigravity_enhance_settings(
+                    preferred_target,
+                    custom_desktop_path,
+                    custom_ide_path,
+                    launch_proxy_mode,
+                    launch_proxy_url,
+                    enable_ui_localization,
+                    enable_context_ring,
+                    cdp_port,
+                )
+                .await
+            },
+            |store, res, cx| {
+                store.ag_snapshot = Some(res.payload.snapshot);
+                store.tool_entries = commands::list_tools().payload.tools;
+                store.set_notice(t("Antigravity 增强"), res.message, &res.status, cx);
+            },
+        );
+    }
+
+    pub fn regenerate_antigravity_fingerprint(
+        &mut self,
+        account_id: Option<String>,
+        cx: &mut Context<Self>,
+    ) {
+        let res = antigravity_commands::regenerate_antigravity_device_fingerprint(account_id);
+        self.ag_snapshot = Some(res.payload.snapshot);
+        self.set_notice(t("设备指纹"), res.message, &res.status, cx);
+    }
+
+    pub fn restore_antigravity_fingerprint_baseline(&mut self, cx: &mut Context<Self>) {
+        let res = antigravity_commands::restore_antigravity_device_baseline();
+        self.ag_snapshot = Some(res.payload.snapshot);
+        self.set_notice(t("设备指纹"), res.message, &res.status, cx);
+    }
+
+    // =========================================================================
+    // Lamplighter（点灯人）操作集
+    // =========================================================================
+
+    pub fn reload_lamplighter_local(&mut self, cx: &mut Context<Self>) {
+        let hrs = self.lamplighter_history_hours;
+        self.lamplighter_snapshot = Some(
+            lamplighter_commands::load_lamplighter_snapshot(hrs)
+                .payload
+                .snapshot,
+        );
+        cx.notify();
+    }
+
+    pub fn set_lamplighter_history_hours(&mut self, hours: u64, cx: &mut Context<Self>) {
+        self.lamplighter_history_hours = hours;
+        self.reload_lamplighter_local(cx);
+    }
+
+    pub fn refresh_lamplighter_remote(&mut self, cx: &mut Context<Self>) {
+        if self.lamplighter_loading {
+            return;
+        }
+        self.lamplighter_loading = true;
+        let hrs = self.lamplighter_history_hours;
+        cx.notify();
+        self.spawn_tokio(
+            cx,
+            async move { lamplighter_commands::refresh_lamplighter(hrs).await },
+            |store, res, cx| {
+                store.lamplighter_loading = false;
+                store.lamplighter_snapshot = Some(res.payload.snapshot);
+                store.set_notice(t("点灯人监控"), res.message, &res.status, cx);
+            },
+        );
+    }
+
+    pub fn manual_ignite_lamplighter_group(&mut self, group_key: String, cx: &mut Context<Self>) {
+        if self.lamplighter_igniting_key.is_some() {
+            return;
+        }
+        self.lamplighter_igniting_key = Some(group_key.clone());
+        let hrs = self.lamplighter_history_hours;
+        cx.notify();
+        self.spawn_tokio(
+            cx,
+            async move { lamplighter_commands::ignite_lamplighter_group(group_key, hrs).await },
+            |store, res, cx| {
+                store.lamplighter_igniting_key = None;
+                store.lamplighter_snapshot = Some(res.payload.snapshot);
+                store.set_notice(t("立即点火"), res.message, &res.status, cx);
+            },
+        );
+    }
+
+    pub fn save_lamplighter_config(&mut self, cfg: LamplighterConfig, cx: &mut Context<Self>) {
+        let hrs = self.lamplighter_history_hours;
+        let res = lamplighter_commands::save_lamplighter_config(cfg, hrs);
+        self.lamplighter_snapshot = Some(res.payload.snapshot);
+        self.set_notice(t("点灯人设置"), res.message, &res.status, cx);
+    }
+
+    pub fn test_lamplighter_push(&mut self, cfg: LamplighterConfig, cx: &mut Context<Self>) {
+        let hrs = self.lamplighter_history_hours;
+        self.spawn_tokio(
+            cx,
+            async move { lamplighter_commands::test_lamplighter_notification(cfg, hrs).await },
+            |store, res, cx| {
+                store.lamplighter_snapshot = Some(res.payload.snapshot);
+                store.set_notice(t("测试推送"), res.message, &res.status, cx);
+            },
+        );
+    }
+
+    pub fn add_lamplighter_external_account(
+        &mut self,
+        provider: String,
+        email: String,
+        label: Option<String>,
+        access_token: String,
+        proxy_url: Option<String>,
+        cx: &mut Context<Self>,
+    ) {
+        let hrs = self.lamplighter_history_hours;
+        let res = lamplighter_commands::add_lamplighter_external_account(
+            provider,
+            email,
+            label,
+            access_token,
+            None,
+            None,
+            proxy_url,
+            hrs,
+        );
+        if res.status == "ok" {
+            self.lamplighter_add_account_open = false;
+        }
+        self.lamplighter_snapshot = Some(res.payload.snapshot);
+        self.set_notice(t("添加监控凭据"), res.message, &res.status, cx);
+    }
+
+    pub fn remove_lamplighter_external_account(&mut self, id: String, cx: &mut Context<Self>) {
+        let hrs = self.lamplighter_history_hours;
+        let res = lamplighter_commands::delete_lamplighter_external_account(id, hrs);
+        self.lamplighter_snapshot = Some(res.payload.snapshot);
+        self.set_notice(t("移除监控凭据"), res.message, &res.status, cx);
     }
 }
 

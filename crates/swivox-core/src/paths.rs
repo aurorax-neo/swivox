@@ -13,6 +13,9 @@ const SKILLS_DIR: &str = "skills";
 const SKILL_BACKUPS_DIR: &str = "skill-backups";
 const PENDING_MANAGER_NAVIGATION_FILE: &str = "pending-manager-navigation.json";
 const OFFICIAL_ACCOUNTS_FILE: &str = "official-accounts.json";
+const ANTIGRAVITY_STATE_FILE: &str = "antigravity-accounts.json";
+const ANTIGRAVITY_DEVICE_BASELINE_FILE: &str = "antigravity-device-original.json";
+const LAMPLIGHTER_DIR: &str = "lamplighter";
 const USER_SCRIPTS_DIR: &str = "user_scripts";
 const USER_SCRIPTS_CONFIG_FILE: &str = "user_scripts.json";
 
@@ -104,6 +107,37 @@ pub fn default_user_scripts_config_path() -> PathBuf {
     default_app_state_dir().join(USER_SCRIPTS_CONFIG_FILE)
 }
 
+/// Antigravity 账号、配额、增强配置与设备指纹持久化路径（`~/.swivox/antigravity-accounts.json`）。
+pub fn default_antigravity_state_path() -> PathBuf {
+    default_app_state_dir().join(ANTIGRAVITY_STATE_FILE)
+}
+
+/// Antigravity 本机原始设备指纹基线备份路径（`~/.swivox/antigravity-device-original.json`）。
+pub fn default_antigravity_device_baseline_path() -> PathBuf {
+    default_app_state_dir().join(ANTIGRAVITY_DEVICE_BASELINE_FILE)
+}
+
+/// Lamplighter（点灯人）状态与额度历史根目录（`~/.swivox/lamplighter`）。
+pub fn default_lamplighter_dir() -> PathBuf {
+    default_app_state_dir().join(LAMPLIGHTER_DIR)
+}
+
+pub fn default_lamplighter_config_path() -> PathBuf {
+    default_lamplighter_dir().join("config.json")
+}
+
+pub fn default_lamplighter_state_path() -> PathBuf {
+    default_lamplighter_dir().join("state.json")
+}
+
+pub fn default_lamplighter_accounts_path() -> PathBuf {
+    default_lamplighter_dir().join("accounts.json")
+}
+
+pub fn default_lamplighter_history_dir() -> PathBuf {
+    default_lamplighter_dir().join("history")
+}
+
 fn settings_path_for_tests() -> Option<PathBuf> {
     SETTINGS_PATH_FOR_TESTS
         .get_or_init(|| Mutex::new(None))
@@ -122,7 +156,7 @@ pub(crate) fn settings_path_test_guard() -> std::sync::MutexGuard<'static, ()> {
     SETTINGS_PATH_TEST_GUARD
         .get_or_init(|| Mutex::new(()))
         .lock()
-        .unwrap()
+        .unwrap_or_else(|e| e.into_inner())
 }
 
 pub fn set_settings_path_for_tests(path: Option<PathBuf>) -> Option<PathBuf> {

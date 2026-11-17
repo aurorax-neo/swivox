@@ -490,6 +490,11 @@ pub fn responses_to_chat_completions_with_options(
     dedup_chat_tools_by_name(&mut converted);
     if !converted.is_empty() {
         has_chat_tools = true;
+        if upstream_requires_string_enums(model) {
+            for tool in &mut converted {
+                coerce_enum_values_to_strings(tool);
+            }
+        }
         result["tools"] = json!(converted);
     }
 
@@ -2024,7 +2029,29 @@ async fn open_responses_proxy_request_with_settings_and_user_agent(
                 }
             };
         let is_compaction_request = compaction || probe_native_compaction;
-        let header_timeout = response_header_timeout(is_stream);
+        if wire_api == UpstreamWireApi::Responses
+            && (crate::relay_config::upstream_is_kimi_official_responses(&relay)
+                || request_model_is_kimi(&upstream_body))
+        {
+            tidy_kimi_include(&mut upstream_body);
+        }
+        if wire_api == UpstreamWireApi::Responses && upstream_is_zhipu_responses(&relay) {
+            strip_zhipu_responses_image_detail(&mut upstream_body);
+        }
+        let memory_credential = official_credential
+            .as_ref()
+            .map(|c| c.account_id.trim())
+            .filter(|s| !s.is_empty())
+            .or_else(|| {
+                let k = relay.api_key.trim();
+                (!k.is_empty()).then_some(k)
+            });
+        let foreign_scope =
+            crate::foreign_reasoning::memory_scope(&relay.id, memory_credential);
+        if wire_api == UpstreamWireApi::Responses {
+            let _ = crate::foreign_reasoning::strip_remembered(&foreign_scope, &mut upstream_body);
+        }
+        let header_timeout = response_header_timeout_for(is_stream, is_compaction_request);
         let _ = crate::diagnostic_log::append_diagnostic_log(
             "protocol_proxy.upstream_request",
             json!({
@@ -2044,7 +2071,7 @@ async fn open_responses_proxy_request_with_settings_and_user_agent(
                 }))
             }),
         );
-        let mut upstream = match send_responses_upstream_request(
+        let mut upstream = match send_responses_upstream_request_with_timeout(
             &relay,
             &endpoint,
             &upstream_body,
@@ -2054,6 +2081,7 @@ async fn open_responses_proxy_request_with_settings_and_user_agent(
             beta_features,
             session_headers,
             official_credential.as_ref(),
+            header_timeout,
         )
         .await
         {
@@ -2162,18 +2190,80 @@ async fn open_responses_proxy_request_with_settings_and_user_agent(
             }
         }
 
-        if probe_native_compaction {
-            let success = (200..300).contains(&status_code);
-            let probed = match read_limited_upstream_body(
-                &mut upstream,
-                MAX_NATIVE_COMPACTION_PROBE_BODY_BYTES,
+        // 跨供应商切换后被拒的加密推理/压缩项：最多自动剥离重发 2 次（#2777）
+        let mut prefetched_error_body: Option<Vec<u8>> = None;
+        let mut foreign_retries = 0_u32;
+        while wire_api == UpstreamWireApi::Responses
+            && (400..500).contains(&status_code)
+            && foreign_retries < crate::foreign_reasoning::MAX_RETRIES
+            && crate::foreign_reasoning::has_encrypted_items(&upstream_body)
+        {
+            let err_bytes = match read_limited_upstream_body(&mut upstream, 256 * 1024).await {
+                Ok(b) => b.to_vec(),
+                Err(error) => return Err(error.into()),
+            };
+            if !crate::foreign_reasoning::is_unverifiable_reasoning_rejection(status_code, &err_bytes) {
+                prefetched_error_body = Some(err_bytes);
+                break;
+            }
+            let err_text = String::from_utf8_lossy(&err_bytes);
+            let stripped = crate::foreign_reasoning::strip_rejected_batch(
+                &foreign_scope,
+                &mut upstream_body,
+                &err_text,
+            );
+            if stripped.total() == 0 {
+                prefetched_error_body = Some(err_bytes);
+                break;
+            }
+            foreign_retries += 1;
+            match send_responses_upstream_request_with_timeout(
+                &relay,
+                &endpoint,
+                &upstream_body,
+                wire_api,
+                is_stream,
+                original_user_agent,
+                beta_features,
+                session_headers,
+                official_credential.as_ref(),
+                header_timeout,
             )
             .await
             {
-                Ok(body) => body.to_vec(),
-                Err(error) => {
-                    return Err(error.into());
+                Ok(retried) => {
+                    prefetched_error_body = None;
+                    upstream = retried;
+                    status_code = upstream.status().as_u16();
+                    content_type = upstream
+                        .headers()
+                        .get(reqwest::header::CONTENT_TYPE)
+                        .and_then(|value| value.to_str().ok())
+                        .unwrap_or("")
+                        .to_string();
                 }
+                Err(_) => {
+                    prefetched_error_body = Some(err_bytes);
+                    break;
+                }
+            }
+        }
+
+        if probe_native_compaction {
+            let success = (200..300).contains(&status_code);
+            let probed = match prefetched_error_body.take() {
+                Some(body) => body,
+                None => match read_limited_upstream_body(
+                    &mut upstream,
+                    MAX_NATIVE_COMPACTION_PROBE_BODY_BYTES,
+                )
+                .await
+                {
+                    Ok(body) => body.to_vec(),
+                    Err(error) => {
+                        return Err(error.into());
+                    }
+                },
             };
             let stream_response = response_body_is_stream(&content_type, &probed);
 
@@ -2361,6 +2451,24 @@ async fn open_responses_proxy_request_with_settings_and_user_agent(
                 .to_string();
         }
 
+        if upstream.headers().keys().any(|name| {
+            let key = name.as_str();
+            key.len() >= 8
+                && (key[..8].eq_ignore_ascii_case("x-codex-")
+                    || (key.len() >= 20 && key[..20].eq_ignore_ascii_case("anthropic-ratelimit-")))
+        }) {
+            let mut passive_headers = std::collections::BTreeMap::new();
+            for (k, v) in upstream.headers() {
+                if let Ok(text) = v.to_str() {
+                    passive_headers.insert(k.as_str().to_ascii_lowercase(), text.to_string());
+                }
+            }
+            let now_ts = chrono::Utc::now().timestamp();
+            let _ = tokio::task::spawn_blocking(move || {
+                crate::lamplighter::observe_passive_headers(&passive_headers, now_ts);
+            });
+        }
+
         let _ = crate::diagnostic_log::append_diagnostic_log(
             "protocol_proxy.upstream_response",
             json!({
@@ -2387,6 +2495,18 @@ async fn open_responses_proxy_request_with_settings_and_user_agent(
             );
         }
         if (200..300).contains(&status_code) || !has_more_candidates {
+            if let Some(err_bytes) = prefetched_error_body.take() {
+                return Ok(UpstreamProxyResponse {
+                    status_code,
+                    is_stream: response_body_is_stream(&content_type, &err_bytes),
+                    content_type,
+                    wire_api,
+                    compaction: is_compaction_request,
+                    native_compaction_passthrough: false,
+                    buffered_body: Some(err_bytes),
+                    response: None,
+                });
+            }
             // 请求了 SSE 的兼容上游也可能返回 JSON 摘要；让调用方选择 JSON 包装器。
             let json_compaction = is_compaction_request
                 && content_type
@@ -2730,11 +2850,156 @@ async fn open_image_proxy_request(
     })
 }
 
+pub fn stream_header_timeout() -> Duration {
+    let configured = SettingsStore::default()
+        .load()
+        .ok()
+        .and_then(|settings| settings.upstream_stream_header_timeout_secs);
+    let secs = configured.unwrap_or(UPSTREAM_STREAM_HEADER_TIMEOUT.as_secs());
+    Duration::from_secs(secs.clamp(UPSTREAM_STREAM_HEADER_TIMEOUT.as_secs(), 3600))
+}
+
 fn response_header_timeout(is_stream: bool) -> Duration {
     if is_stream {
-        UPSTREAM_STREAM_HEADER_TIMEOUT
+        stream_header_timeout()
     } else {
         UPSTREAM_HEADER_TIMEOUT
+    }
+}
+
+fn response_header_timeout_for(is_stream: bool, is_compaction: bool) -> Duration {
+    if is_compaction {
+        Duration::from_secs(600).max(stream_header_timeout())
+    } else {
+        response_header_timeout(is_stream)
+    }
+}
+
+fn upstream_requires_string_enums(model: &str) -> bool {
+    let model = model.to_ascii_lowercase();
+    model.contains("gemini") || model.starts_with("google/") || model.starts_with("models/gemini")
+}
+
+fn coerce_enum_values_to_strings(value: &mut Value) {
+    match value {
+        Value::Object(map) => {
+            let non_string_type = match map.get("type") {
+                Some(Value::String(kind)) => kind != "string",
+                Some(Value::Array(kinds)) => !kinds.iter().any(|kind| kind == "string"),
+                _ => false,
+            };
+            if non_string_type
+                && let Some(Value::Array(entries)) = map.remove("enum")
+            {
+                let allowed = entries
+                    .iter()
+                    .map(|entry| match entry {
+                        Value::String(text) => text.clone(),
+                        other => other.to_string(),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let hint = format!("Allowed values: {allowed}");
+                let description = match map.get("description").and_then(Value::as_str) {
+                    Some(existing) if !existing.trim().is_empty() => {
+                        format!("{existing} ({hint})")
+                    }
+                    _ => hint,
+                };
+                map.insert("description".to_string(), Value::String(description));
+            }
+            if let Some(Value::Array(entries)) = map.get_mut("enum") {
+                for entry in entries.iter_mut() {
+                    let coerced = match entry {
+                        Value::String(_) => None,
+                        Value::Bool(flag) => Some(flag.to_string()),
+                        Value::Number(number) => Some(number.to_string()),
+                        Value::Null => Some("null".to_string()),
+                        _ => None,
+                    };
+                    if let Some(coerced) = coerced {
+                        *entry = Value::String(coerced);
+                    }
+                }
+            }
+            for child in map.values_mut() {
+                coerce_enum_values_to_strings(child);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                coerce_enum_values_to_strings(item);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn request_model_is_kimi(body: &Value) -> bool {
+    let model = body
+        .get("model")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let bare = model.rsplit('/').next().unwrap_or(&model);
+    bare.starts_with("kimi") || model.starts_with("moonshot/")
+}
+
+fn tidy_kimi_include(body: &mut Value) {
+    let Some(obj) = body.as_object_mut() else {
+        return;
+    };
+    let Some(arr) = obj.get_mut("include").and_then(Value::as_array_mut) else {
+        return;
+    };
+    arr.retain(|v| v.as_str() != Some("output.encrypted_content"));
+    if arr.is_empty() {
+        obj.remove("include");
+    }
+}
+
+fn upstream_is_zhipu_responses(relay: &crate::settings::RelayProfile) -> bool {
+    if relay.protocol != RelayProtocol::Responses {
+        return false;
+    }
+    let url = if relay.upstream_base_url.trim().is_empty() {
+        relay.base_url.trim()
+    } else {
+        relay.upstream_base_url.trim()
+    };
+    let host = url
+        .split("://")
+        .nth(1)
+        .unwrap_or(url)
+        .split(['/', '?', '#'])
+        .next()
+        .unwrap_or_default()
+        .split(':')
+        .next()
+        .unwrap_or_default()
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+    ["bigmodel.cn", "z.ai"]
+        .iter()
+        .any(|d| host == *d || host.ends_with(&format!(".{d}")))
+}
+
+fn strip_zhipu_responses_image_detail(body: &mut Value) {
+    let Some(items) = body.get_mut("input").and_then(Value::as_array_mut) else {
+        return;
+    };
+    for item in items {
+        for key in ["content", "output"] {
+            if let Some(parts) = item.get_mut(key).and_then(Value::as_array_mut) {
+                for part in parts {
+                    if part.get("type").and_then(Value::as_str) == Some("input_image")
+                        && let Some(obj) = part.as_object_mut()
+                    {
+                        obj.remove("detail");
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -2982,6 +3247,33 @@ async fn send_responses_upstream_request(
     session_headers: ProxySessionHeaders<'_>,
     official_credential: Option<&crate::official_login::OfficialCredential>,
 ) -> anyhow::Result<reqwest::Response> {
+    send_responses_upstream_request_with_timeout(
+        relay,
+        endpoint,
+        upstream_body,
+        wire_api,
+        is_stream,
+        original_user_agent,
+        beta_features,
+        session_headers,
+        official_credential,
+        response_header_timeout(is_stream),
+    )
+    .await
+}
+
+async fn send_responses_upstream_request_with_timeout(
+    relay: &crate::settings::RelayProfile,
+    endpoint: &str,
+    upstream_body: &Value,
+    wire_api: UpstreamWireApi,
+    is_stream: bool,
+    original_user_agent: Option<&str>,
+    beta_features: Option<&str>,
+    session_headers: ProxySessionHeaders<'_>,
+    official_credential: Option<&crate::official_login::OfficialCredential>,
+    header_timeout: Duration,
+) -> anyhow::Result<reqwest::Response> {
     let mut builder = upstream_request_builder(
         crate::http_client::proxied_client(&effective_user_agent(
             &relay.user_agent,
@@ -2999,7 +3291,7 @@ async fn send_responses_upstream_request(
             builder = builder.header("x-codex-beta-features", value);
         }
     }
-    send_upstream_request_for_responses(builder, is_stream).await
+    send_upstream_request_with_header_timeout(builder, header_timeout).await
 }
 
 fn upstream_request_builder(

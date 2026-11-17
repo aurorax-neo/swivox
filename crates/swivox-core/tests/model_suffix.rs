@@ -688,6 +688,27 @@ fn vendor_metadata_chain_matches_case_insensitively() {
 
 #[test]
 fn model_ui_metadata_keeps_exact_slug_and_does_not_use_models_dev_friendly_name() {
+    swivox_core::remote_model_catalog::seed_models_dev_cache_for_tests(&serde_json::json!({
+        "openai": {
+            "name": "OpenAI",
+            "models": {
+                "gpt-6.1-terra": { "id": "gpt-6.1-terra", "name": "GPT 6.1 Terra", "limit": { "context": 272000 } }
+            }
+        },
+        "google": {
+            "name": "Google",
+            "models": {
+                "gemini-4-argon": { "id": "gemini-4-argon", "name": "Gemini 4 Argon", "limit": { "context": 1048576 } }
+            }
+        },
+        "xai": {
+            "name": "xAI",
+            "models": {
+                "grok-4.7": { "id": "grok-4.7", "name": "Grok 4.7", "limit": { "context": 256000 } }
+            }
+        }
+    }));
+
     let terra = model_ui_metadata("ycj-001/gpt-6.1-terra").unwrap();
     assert_eq!(terra["displayName"], "ycj-001/gpt-6.1-terra");
 

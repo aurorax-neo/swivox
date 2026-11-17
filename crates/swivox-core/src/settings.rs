@@ -467,6 +467,12 @@ pub struct BackendSettings {
     pub codex_app_activity_overlay_right: bool,
     #[serde(rename = "codexAppCapacityAutoRetry", default)]
     pub codex_app_capacity_auto_retry: bool,
+    #[serde(
+        rename = "upstreamStreamHeaderTimeoutSecs",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub upstream_stream_header_timeout_secs: Option<u64>,
     #[serde(rename = "codexAppWhaleWidgetEnabled", default)]
     pub codex_app_whale_widget_enabled: bool,
     #[serde(
@@ -622,6 +628,7 @@ impl Default for BackendSettings {
             codex_app_pet_real_mouse_look: false,
             codex_app_activity_overlay_right: false,
             codex_app_capacity_auto_retry: false,
+            upstream_stream_header_timeout_secs: None,
             codex_app_whale_widget_enabled: false,
             codex_app_whale_balance_protocol: default_whale_balance_protocol(),
             codex_app_whale_balance_path: String::new(),
@@ -1951,6 +1958,33 @@ fn normalize_text_config(contents: String) -> String {
     }
 }
 
+/// 逐级解析软链接（最多 16 层，防环），返回最终目标路径；不是软链接时返回 None。
+fn resolve_symlink_target(path: &Path) -> Option<PathBuf> {
+    let mut current = path.to_path_buf();
+    let mut resolved = false;
+    for _ in 0..16 {
+        let Ok(metadata) = fs::symlink_metadata(&current) else {
+            break;
+        };
+        if !metadata.file_type().is_symlink() {
+            break;
+        }
+        let Ok(target) = fs::read_link(&current) else {
+            break;
+        };
+        current = if target.is_absolute() {
+            target
+        } else {
+            current
+                .parent()
+                .map(|parent| parent.join(&target))
+                .unwrap_or(target)
+        };
+        resolved = true;
+    }
+    resolved.then_some(current)
+}
+
 pub fn atomic_write(path: &Path, bytes: &[u8]) -> anyhow::Result<()> {
     atomic_write_with(path, |file| file.write_all(bytes))
 }
@@ -1961,6 +1995,8 @@ pub fn atomic_write_with(
     path: &Path,
     write_contents: impl FnOnce(&mut File) -> std::io::Result<()>,
 ) -> anyhow::Result<()> {
+    let resolved = resolve_symlink_target(path);
+    let path = resolved.as_deref().unwrap_or(path);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .with_context(|| format!("failed to create directory {}", parent.display()))?;
@@ -1983,6 +2019,8 @@ pub fn atomic_write_with(
         if let Some(permissions) = existing_permissions {
             temp_file.set_permissions(permissions)?;
         }
+        // rename 前必须落盘：只 flush 时内容可能还在页缓存里，断电或崩溃后会留下全 NUL 的配置文件（#2450）。
+        temp_file.sync_all()?;
         Ok(())
     })();
     if let Err(error) = write_result {
@@ -2027,14 +2065,23 @@ fn replace_file(source: &Path, target: &Path) -> anyhow::Result<()> {
         .encode_wide()
         .chain(std::iter::once(0))
         .collect::<Vec<_>>();
-    unsafe {
-        MoveFileExW(
-            PCWSTR(source.as_ptr()),
-            PCWSTR(target.as_ptr()),
-            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
-        )?;
+    let mut last_error = None;
+    for attempt in 0..6 {
+        match unsafe {
+            MoveFileExW(
+                PCWSTR(source.as_ptr()),
+                PCWSTR(target.as_ptr()),
+                MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+            )
+        } {
+            Ok(()) => return Ok(()),
+            Err(error) => last_error = Some(error),
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50 * (attempt + 1)));
     }
-    Ok(())
+    Err(last_error
+        .map(anyhow::Error::from)
+        .unwrap_or_else(|| anyhow::anyhow!("替换文件失败")))
 }
 
 fn temp_path_for(path: &Path) -> PathBuf {

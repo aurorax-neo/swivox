@@ -299,6 +299,19 @@ pub fn all_cached_models_dev_models() -> Vec<Value> {
         .unwrap_or_default()
 }
 
+/// 仅供测试注入内存中的 models.dev 目录快照，使测试在离线或全新 `~/.swivox` 环境下确定性运行。
+#[doc(hidden)]
+pub fn seed_models_dev_cache_for_tests(root: &Value) {
+    let (models, index_by_slug, provider_count) = parse_models_dev_json(root);
+    let mut guard = cache_lock().lock().unwrap_or_else(|p| p.into_inner());
+    *guard = Some(ModelsDevCache {
+        models,
+        index_by_slug,
+        provider_count,
+        updated_at: now_ms(),
+    });
+}
+
 fn strip_date_suffix(s: &str) -> &str {
     let bytes = s.as_bytes();
     let len = bytes.len();

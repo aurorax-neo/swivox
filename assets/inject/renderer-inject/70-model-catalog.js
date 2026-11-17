@@ -126,15 +126,15 @@
     ]);
   }
 
-  async function loadCodexModelCatalog(force = false) {
+  async function loadCodexModelCatalog(force = false, timeoutMs = codexBridgePreparationReadTimeoutMs) {
     if (!force && codexModelCatalogPromise) return codexModelCatalogPromise;
     if (!force && codexModelCatalogLoadedAt && Date.now() - codexModelCatalogLoadedAt < 10000) return codexModelCatalog;
-    codexModelCatalogPromise = readCodexAppServerPreparation("/codex-model-catalog", {})
+    codexModelCatalogPromise = readCodexAppServerPreparation("/codex-model-catalog", {}, timeoutMs)
       .then(async (result) => {
         codexModelCatalog = result && typeof result === "object" ? result : { status: "failed", model: "", default_model: "", model_provider: "", codex_model_provider: "", provider_name: "", models: [], sources: [], responses_api: { status: "unknown", message: "" } };
         if ((!codexModelCatalog.models || codexModelCatalog.models.length === 0) && codexModelCatalog.status === "not_configured") {
           try {
-            const settingsResp = await readCodexAppServerPreparation("/settings/get", {});
+            const settingsResp = await readCodexAppServerPreparation("/settings/get", {}, timeoutMs);
             if (settingsResp && settingsResp.relayProfiles && Array.isArray(settingsResp.relayProfiles)) {
               const activeId = settingsResp.activeRelayId || "";
               const profile = activeId && activeId !== "__official__" ? settingsResp.relayProfiles.find(p => p.id === activeId) : null;
@@ -196,6 +196,19 @@
     return ["low", "medium", "high", "xhigh", "max", "ultra"].map((reasoningEffort) => ({ reasoningEffort, description: `${reasoningEffort} effort` }));
   }
 
+  function swivoxModelInputModalities(metadata) {
+    const declared = Array.isArray(metadata?.inputModalities) ? metadata.inputModalities
+      : Array.isArray(metadata?.input_modalities) ? metadata.input_modalities : null;
+    if (!declared) return null;
+    return declared.filter((m) => typeof m === "string" && m.trim()).map((m) => m.trim());
+  }
+
+  function swivoxModelImageDetailOriginal(metadata) {
+    if (typeof metadata?.supportsImageDetailOriginal === "boolean") return metadata.supportsImageDetailOriginal;
+    if (typeof metadata?.supports_image_detail_original === "boolean") return metadata.supports_image_detail_original;
+    return null;
+  }
+
   function applySwivoxModelMetadata(descriptor, modelName) {
     const metadata = swivoxModelMetadata(modelName);
     if (!descriptor || !metadata) return false;
@@ -207,11 +220,26 @@
       descriptor.displayName = targetDisplayName;
       changed = true;
     }
-    for (const key of ["description", "defaultReasoningEffort"]) {
-      if (typeof metadata[key] === "string" && metadata[key] && descriptor[key] !== metadata[key]) {
+    for (const key of ["description", "defaultReasoningEffort", "contextWindow", "maxContextWindow", "context_window", "max_context_window"]) {
+      const valid = typeof metadata[key] === "string" ? !!metadata[key] : Number.isFinite(metadata[key]) && metadata[key] > 0;
+      if (valid && descriptor[key] !== metadata[key]) {
         descriptor[key] = metadata[key];
         changed = true;
       }
+    }
+    const modalities = typeof swivoxModelInputModalities === "function"
+      ? swivoxModelInputModalities(metadata)
+      : null;
+    if (modalities && JSON.stringify(descriptor.inputModalities ?? null) !== JSON.stringify(modalities)) {
+      descriptor.inputModalities = modalities;
+      changed = true;
+    }
+    const original = typeof swivoxModelImageDetailOriginal === "function"
+      ? swivoxModelImageDetailOriginal(metadata)
+      : null;
+    if (original !== null && descriptor.supportsImageDetailOriginal !== original) {
+      descriptor.supportsImageDetailOriginal = original;
+      changed = true;
     }
     if (Array.isArray(metadata.supportedReasoningEfforts) && metadata.supportedReasoningEfforts.length > 0) {
       const nextEfforts = modelReasoningEfforts(modelName);
@@ -228,6 +256,12 @@
     const displayName = typeof metadata?.displayName === "string" && metadata.displayName.trim()
       ? metadata.displayName.trim()
       : modelName;
+    const modalities = typeof swivoxModelInputModalities === "function"
+      ? swivoxModelInputModalities(metadata)
+      : null;
+    const original = typeof swivoxModelImageDetailOriginal === "function"
+      ? swivoxModelImageDetailOriginal(metadata)
+      : null;
     return {
       model: modelName,
       id: modelName,
@@ -239,6 +273,8 @@
       isDefault: false,
       defaultReasoningEffort: metadata?.defaultReasoningEffort || "medium",
       supportedReasoningEfforts: modelReasoningEfforts(modelName),
+      ...(modalities ? { inputModalities: modalities } : {}),
+      ...(original !== null ? { supportsImageDetailOriginal: original } : {}),
     };
   }
 
@@ -726,6 +762,16 @@
     let resumeParams = { threadId, model };
     resumeParams = applyCodexRemoteSessionProviderOverride("thread/resume", resumeParams);
     try {
+      const read = await originalSendRequest("thread/read", { threadId, includeTurns: false }, options);
+      if (read?.thread?.ephemeral === true) {
+        client.__swivoxThreadModels.set(threadId, model);
+        return null;
+      }
+      const turns = await originalSendRequest("thread/turns/list", { threadId, limit: 1, itemsView: "notLoaded" }, options);
+      if (Array.isArray(turns?.data) && turns.data.length === 0) {
+        sendSwivoxDiagnostic("thread_model_context_refresh_deferred", { threadId, reason: "no_history" });
+        return null;
+      }
       await originalSendRequest("thread/resume", resumeParams, options);
       client.__swivoxThreadModels.set(threadId, model);
       sendSwivoxDiagnostic("thread_model_context_refreshed", {

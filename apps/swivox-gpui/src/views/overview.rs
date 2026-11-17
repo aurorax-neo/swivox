@@ -1,10 +1,11 @@
-use swivox_backend::commands::OverviewPayload;
-use swivox_backend::i18n::{t, tf};
-use swivox_backend::runtime_health::ServiceState;
 use gpui_kit::assets::IconName;
 use gpui_kit::component::StyledExt as _;
 use gpui_kit::component::theme::ActiveTheme as _;
 use gpui_kit::*;
+use swivox_backend::commands::OverviewPayload;
+use swivox_backend::i18n::{t, tf};
+use swivox_backend::runtime_health::ServiceState;
+use swivox_core::antigravity::AntigravitySnapshot;
 
 use crate::store::AppStore;
 use crate::views::{health_item_row, panel_card};
@@ -101,84 +102,208 @@ fn build_codex_health_items(overview: Option<&OverviewPayload>) -> Vec<HealthCar
     vec![version_card, app_card, local_server_card, debugger_card]
 }
 
+fn build_antigravity_health_items(snap: Option<&AntigravitySnapshot>) -> Vec<HealthCardData> {
+    let desktop_card = match snap {
+        Some(s) if s.desktop_install.found => HealthCardData {
+            title: t("Antigravity 桌面版"),
+            status: if s.desktop_install.running {
+                "running".to_string()
+            } else {
+                "found".to_string()
+            },
+            ok: true,
+            detail: format!(
+                "{}{}",
+                s.desktop_install.app_or_exe_path.clone().unwrap_or_default(),
+                s.desktop_install
+                    .version
+                    .as_ref()
+                    .map(|v| format!(" · v{v}"))
+                    .unwrap_or_default()
+            ),
+        },
+        _ => HealthCardData {
+            title: t("Antigravity 桌面版"),
+            status: "missing".to_string(),
+            ok: false,
+            detail: t("未检测到 Antigravity 桌面版安装路径"),
+        },
+    };
+
+    let ide_card = match snap {
+        Some(s) if s.ide_install.found => HealthCardData {
+            title: t("Antigravity IDE"),
+            status: if s.ide_install.running {
+                "running".to_string()
+            } else {
+                "found".to_string()
+            },
+            ok: true,
+            detail: format!(
+                "{}{}",
+                s.ide_install.app_or_exe_path.clone().unwrap_or_default(),
+                s.ide_install
+                    .version
+                    .as_ref()
+                    .map(|v| format!(" · v{v}"))
+                    .unwrap_or_default()
+            ),
+        },
+        _ => HealthCardData {
+            title: t("Antigravity IDE"),
+            status: "not_checked".to_string(),
+            ok: false,
+            detail: t("未检测到 Antigravity IDE 安装路径（可选）"),
+        },
+    };
+
+    let account_proxy_card = match snap {
+        Some(s) => {
+            let email = s
+                .live_desktop_email
+                .clone()
+                .or_else(|| s.live_ide_email.clone())
+                .unwrap_or_else(|| t("未检测到在线登录"));
+            let proxy = s
+                .effective_launch_proxy
+                .clone()
+                .unwrap_or_else(|| t("系统直连"));
+            HealthCardData {
+                title: t("账号与免 TUN 代理"),
+                status: "ready".to_string(),
+                ok: !s.accounts.is_empty() || s.live_desktop_email.is_some(),
+                detail: format!("{email} · {proxy}"),
+            }
+        }
+        None => HealthCardData {
+            title: t("账号与免 TUN 代理"),
+            status: "not_checked".to_string(),
+            ok: false,
+            detail: t("等待状态检查"),
+        },
+    };
+
+    let enhance_card = match snap {
+        Some(s) => {
+            let cdp_ready = s.desktop_install.managed_cdp_ready || s.ide_install.managed_cdp_ready;
+            let i18n_lbl = if s.enable_ui_localization {
+                t("可逆汉化已开")
+            } else {
+                t("可逆汉化关闭")
+            };
+            let ring_lbl = if s.enable_context_ring {
+                t("圆环已开")
+            } else {
+                t("圆环关闭")
+            };
+            HealthCardData {
+                title: t("CDP 汉化与上下文圆环"),
+                status: if cdp_ready {
+                    "connected".to_string()
+                } else {
+                    "ready".to_string()
+                },
+                ok: cdp_ready || s.enable_context_ring || s.enable_ui_localization,
+                detail: format!("127.0.0.1:{} · {i18n_lbl} · {ring_lbl}", s.cdp_port),
+            }
+        }
+        None => HealthCardData {
+            title: t("CDP 汉化与上下文圆环"),
+            status: "not_checked".to_string(),
+            ok: false,
+            detail: t("等待状态检查"),
+        },
+    };
+
+    vec![desktop_card, ide_card, account_proxy_card, enhance_card]
+}
+
+fn render_2x2_health_panel(
+    cx: &App,
+    cards: Vec<HealthCardData>,
+    store_refresh: Entity<AppStore>,
+) -> Div {
+    let mut rows = Vec::new();
+    for pair in cards.chunks(2) {
+        let mut row = div().h_flex().w_full().gap_3().items_stretch();
+        for item in pair {
+            row = row.child(
+                health_item_row(
+                    cx,
+                    item.ok,
+                    item.title.clone(),
+                    item.detail.clone(),
+                    &item.status,
+                )
+                .flex_1()
+                .min_w_0()
+                .h_full()
+                .min_h(px(96.)),
+            );
+        }
+        if pair.len() == 1 {
+            row = row.child(div().flex_1());
+        }
+        rows.push(row);
+    }
+
+    panel_card(
+        cx,
+        div()
+            .v_flex()
+            .w_full()
+            .gap_4()
+            .child(
+                div()
+                    .h_flex()
+                    .w_full()
+                    .items_center()
+                    .justify_between()
+                    .gap_3()
+                    .child(
+                        div()
+                            .text_base()
+                            .font_semibold()
+                            .text_color(cx.theme().foreground)
+                            .child(t("健康检查")),
+                    )
+                    .child(
+                        div()
+                            .h_flex()
+                            .items_center()
+                            .gap_3()
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(cx.theme().muted_foreground)
+                                    .child(t("概览只展示关键问题，具体配置在对应页面处理")),
+                            )
+                            .child(
+                                AppButton::new("overview-refresh")
+                                    .outline()
+                                    .small_icon()
+                                    .icon(IconName::RefreshCw)
+                                    .tooltip(t("刷新状态"))
+                                    .on_click(move |_, _, cx| {
+                                        store_refresh.update(cx, |s, cx| s.refresh_current(cx));
+                                    }),
+                            ),
+                    ),
+            )
+            .child(div().v_flex().w_full().gap_3().children(rows)),
+    )
+}
+
 pub fn render_overview(store: &Entity<AppStore>, cx: &App) -> impl IntoElement {
     let data = store.read(cx);
     let active_tool = data.active_tool.clone();
 
     if active_tool == "codex" {
         let cards = build_codex_health_items(data.overview.as_ref());
-        let store_refresh = store.clone();
-
-        let mut rows = Vec::new();
-        for pair in cards.chunks(2) {
-            let mut row = div().h_flex().w_full().gap_3().items_stretch();
-            for item in pair {
-                row = row.child(
-                    health_item_row(
-                        cx,
-                        item.ok,
-                        item.title.clone(),
-                        item.detail.clone(),
-                        &item.status,
-                    )
-                    .flex_1()
-                    .min_w_0()
-                    .h_full()
-                    .min_h(px(96.)),
-                );
-            }
-            if pair.len() == 1 {
-                row = row.child(div().flex_1());
-            }
-            rows.push(row);
-        }
-
-        panel_card(
-            cx,
-            div()
-                .v_flex()
-                .w_full()
-                .gap_4()
-                .child(
-                    div()
-                        .h_flex()
-                        .w_full()
-                        .items_center()
-                        .justify_between()
-                        .gap_3()
-                        .child(
-                            div()
-                                .text_base()
-                                .font_semibold()
-                                .text_color(cx.theme().foreground)
-                                .child(t("健康检查")),
-                        )
-                        .child(
-                            div()
-                                .h_flex()
-                                .items_center()
-                                .gap_3()
-                                .child(
-                                    div()
-                                        .text_xs()
-                                        .text_color(cx.theme().muted_foreground)
-                                        .child(t("概览只展示关键问题，具体配置在对应页面处理")),
-                                )
-                                .child(
-                                    AppButton::new("overview-refresh")
-                                        .outline()
-                                        .small_icon()
-                                        .icon(IconName::RefreshCw)
-                                        .tooltip(t("刷新状态"))
-                                        .on_click(move |_, _, cx| {
-                                            store_refresh
-                                                .update(cx, |s, cx| s.refresh_current(cx));
-                                        }),
-                                ),
-                        ),
-                )
-                .child(div().v_flex().w_full().gap_3().children(rows)),
-        )
+        render_2x2_health_panel(cx, cards, store.clone())
+    } else if active_tool == "antigravity" {
+        let cards = build_antigravity_health_items(data.ag_snapshot.as_ref());
+        render_2x2_health_panel(cx, cards, store.clone())
     } else {
         let tool = data
             .tool_entries

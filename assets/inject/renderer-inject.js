@@ -46,12 +46,11 @@
     // asset 就绪之前时第一次调用必然失败，而那次失败会被一直记住——所以这里
     // 必须有界重试，不能像老版等 electronBridge 那样一次不成就算了。
     const localeSyncRetryDelaysMs = [500, 1500, 3000, 6000, 12000, 20000];
-    const callCodexSettingApiOnce = (method, params) => codexStateCall(method, { params });
-    const callCodexSettingApi = async (method, params) => {
+    const withLocaleSyncRetry = async (operation) => {
       let lastError;
       for (let attempt = 0; attempt <= localeSyncRetryDelaysMs.length; attempt += 1) {
         try {
-          return await callCodexSettingApiOnce(method, params);
+          return await operation();
         } catch (error) {
           lastError = error;
           const delay = localeSyncRetryDelaysMs[attempt];
@@ -61,6 +60,8 @@
       }
       throw lastError;
     };
+    const readLocaleOverride = () => withLocaleSyncRetry(async () => (await readCodexAppSetting("localeOverride")) ?? null);
+    const writeLocaleOverride = (value) => withLocaleSyncRetry(() => writeCodexAppSetting("localeOverride", value));
     const reloadAfterLocaleChange = (value) => {
       const marker = JSON.stringify(value);
       try {
@@ -84,8 +85,7 @@
     const syncOfficialLocaleSetting = async () => {
       const managed = readManagedLocale();
       if (!enabled && !managed) return;
-      const response = await callCodexSettingApi("get-setting", { key: "localeOverride" });
-      const currentValue = response?.value ?? null;
+      const currentValue = await readLocaleOverride();
 
       if (enabled) {
         if (currentValue === locale) {
@@ -95,7 +95,7 @@
         if (!managed) {
           writeManagedLocale({ appliedLocale: locale, previousValue: currentValue });
         }
-        await callCodexSettingApi("set-setting", { key: "localeOverride", value: locale });
+        await writeLocaleOverride(locale);
         reloadAfterLocaleChange(locale);
         return;
       }
@@ -106,10 +106,7 @@
         return;
       }
       const previousValue = managed.previousValue ?? null;
-      await callCodexSettingApi("set-setting", {
-        key: "localeOverride",
-        value: previousValue,
-      });
+      await writeLocaleOverride(previousValue);
       writeManagedLocale(null);
       reloadAfterLocaleChange(previousValue);
     };
@@ -1909,13 +1906,8 @@
     if (window.__swivoxExtensionFailures.length > 100) window.__swivoxExtensionFailures.shift();
   }
   function installStyle() {
-    const existingStyle = document.getElementById(styleId);
-    if (existingStyle?.dataset.codexDeleteStyleVersion === codexDeleteStyleVersion) return;
-    existingStyle?.remove();
-    const style = document.createElement("style");
-    style.id = styleId;
-    style.dataset.codexDeleteStyleVersion = codexDeleteStyleVersion;
-    style.textContent = `
+    if (!installStyle.sheet) {
+      const text = `
       .${actionGroupClass} {
         position: absolute;
         right: var(--codex-session-actions-right, 28px);
@@ -3783,6 +3775,21 @@
         .${swivoxPageClass} .swivox-modal-content:is([data-swivox-active-tab="extensions"], [data-swivox-active-tab="sponsor"]) .swivox-modal-body { padding: 24px 16px 40px; }
       }
     `;
+      let hash = 0x811c9dc5;
+      for (let index = 0; index < text.length; index += 1) {
+        hash ^= text.charCodeAt(index);
+        hash = Math.imul(hash, 0x01000193);
+      }
+      installStyle.sheet = { text, version: `${codexDeleteStyleVersion}-${(hash >>> 0).toString(36)}` };
+    }
+    const { text, version } = installStyle.sheet;
+    const existingStyle = document.getElementById(styleId);
+    if (existingStyle?.dataset.codexDeleteStyleVersion === version) return;
+    existingStyle?.remove();
+    const style = document.createElement("style");
+    style.id = styleId;
+    style.dataset.codexDeleteStyleVersion = version;
+    style.textContent = text;
     document.documentElement.appendChild(style);
   }
 
@@ -4335,6 +4342,66 @@
       }
     }
     throw new Error(`Codex setting-storage 接口不可用 (${errors.join("; ")})`);
+  }
+
+  function codexHostServicesFromModule(module) {
+    const values = module && typeof module === "object" ? Object.values(module) : [];
+    for (const candidate of values) {
+      if (!candidate || typeof candidate !== "object") continue;
+      try {
+        const own = (key) => Object.prototype.hasOwnProperty.call(candidate, key);
+        if (!own("settings") || !own("applicationState")) continue;
+        const settings = candidate.settings;
+        if (settings && typeof settings.write === "function" && typeof settings.readAll === "function") return candidate;
+      } catch {}
+    }
+    return null;
+  }
+
+  async function codexHostServices() {
+    const errors = [];
+    for (const assetPrefix of ["app-shared-", "app-initial-"]) {
+      try {
+        const module = await loadCodexAppModule(assetPrefix);
+        const host = codexHostServicesFromModule(module);
+        if (host) return host;
+        errors.push(`${assetPrefix}: host services unavailable`);
+      } catch (error) {
+        errors.push(`${assetPrefix}: ${error?.message || String(error)}`);
+      }
+    }
+    throw new Error(`Codex 宿主服务不可用 (${errors.join("; ")})`);
+  }
+
+  async function readCodexAppSetting(key) {
+    let hostError = null;
+    try {
+      const host = await codexHostServices();
+      const all = await host.settings.readAll();
+      return all?.values?.[key];
+    } catch (error) {
+      hostError = error;
+    }
+    try {
+      const response = await codexStateCall("get-setting", { params: { key } });
+      return response && Object.prototype.hasOwnProperty.call(response, "value") ? response.value : response;
+    } catch {
+      throw hostError;
+    }
+  }
+
+  async function writeCodexAppSetting(key, value) {
+    let host = null;
+    try {
+      host = await codexHostServices();
+    } catch {
+      host = null;
+    }
+    if (host) {
+      await host.settings.write(key, value);
+      return;
+    }
+    await codexStateCall("set-setting", { params: { key, value } });
   }
 
   async function getCodexServiceTierSetting() {
@@ -5532,6 +5599,155 @@
   }
 
   const codexAppServerPreparationTimeoutMs = 2000;
+  const codexBridgePreparationReadTimeoutMs = 8000;
+
+  function installSwivoxConfigReadDeadline() {
+    if (window.__swivoxConfigReadDeadline) return;
+    const pending = new Map();
+    const deadlineMs = 15000;
+    const clear = (requestId) => {
+      const timer = pending.get(requestId);
+      if (timer === undefined) return;
+      pending.delete(requestId);
+      window.clearTimeout(timer);
+    };
+    const outgoing = (event) => {
+      if (event?.__codexForwardedViaBridge !== true) return;
+      const message = event?.detail;
+      if (message?.type === "cancel-fetch") { clear(message.requestId); return; }
+      if (message?.type !== "fetch" || message.method !== "POST"
+          || message.url !== "vscode://codex/mcp-codex-config"
+          || typeof message.requestId !== "string" || !message.requestId
+          || pending.has(message.requestId)) return;
+      const requestId = message.requestId;
+      const timer = window.setTimeout(() => {
+        if (pending.get(requestId) !== timer) return;
+        pending.delete(requestId);
+        try {
+          const cancel = { type: "cancel-fetch", requestId };
+          const bridge = window.electronBridge;
+          if (typeof bridge?.sendMessageFromView === "function") {
+            Promise.resolve(bridge.sendMessageFromView(cancel)).catch(() => {});
+          } else {
+            window.dispatchEvent(new CustomEvent("codex-message-from-view", { detail: cancel }));
+          }
+        } catch {}
+        window.dispatchEvent(new MessageEvent("message", {
+          source: window,
+          origin: window.location.origin,
+          data: {
+            type: "fetch-response",
+            requestId,
+            responseType: "error",
+            status: 408,
+            error: "Timed out reading Codex configuration. Please try again.",
+          },
+        }));
+        sendSwivoxDiagnostic("config_read_deadline_exceeded", { deadlineMs });
+      }, deadlineMs);
+      pending.set(requestId, timer);
+    };
+    const incoming = (event) => {
+      if (event?.source != null && event.source !== window) return;
+      const origin = String(event?.origin || "");
+      if (origin && origin !== "null" && origin !== window.location.origin) return;
+      if (event?.data?.type === "fetch-response") clear(event.data.requestId);
+    };
+    window.addEventListener("codex-message-from-view", outgoing, true);
+    window.addEventListener("message", incoming, true);
+    window.__swivoxConfigReadDeadline = { pending, deadlineMs };
+  }
+
+  const swivoxForkPlacementGateKeys = new Set(["sidebarCustomSectionsEnabled", "useAppServerCustomSections"]);
+  const swivoxForkReadinessState = window.__swivoxForkReadinessState
+    || (window.__swivoxForkReadinessState = { installing: null, patched: false, reported: false, statsigReported: false, statsigTimer: 0 });
+
+  function swivoxForkPlacementSettings(settings) {
+    return new Proxy(settings, {
+      get(target, property) {
+        if (property === "read") {
+          return (key, ...rest) => {
+            const value = target.read(key, ...rest);
+            if (value !== undefined || !swivoxForkPlacementGateKeys.has(key)) return value;
+            if (!swivoxForkReadinessState.reported) {
+              swivoxForkReadinessState.reported = true;
+              try { sendSwivoxDiagnostic("fork_placement_gate_fallback", { key }); } catch {}
+            }
+            return false;
+          };
+        }
+        const value = Reflect.get(target, property, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+  }
+
+  function installSwivoxForkReadinessFallback(attempt = 0) {
+    if (swivoxForkReadinessState.patched || swivoxForkReadinessState.installing) return swivoxForkReadinessState.installing;
+    swivoxForkReadinessState.installing = (async () => {
+      const module = await loadCodexAppModule("app-initial-").catch(() => null);
+      let patched = false;
+      for (const value of Object.values(module || {})) {
+        if (typeof value !== "function" || typeof value.prototype?.getForkCapabilities !== "function") continue;
+        const proto = value.prototype;
+        const original = proto.getForkCapabilities;
+        if (original.__swivoxForkReadiness === true) { patched = true; continue; }
+        const wrapped = function getForkCapabilities(...args) {
+          let active = false;
+          try {
+            active = !(typeof swivoxBackendSettings !== "undefined" && swivoxBackendSettings?.enhancementsEnabled === false)
+              && typeof this?.settings?.read === "function"
+              && this.runtime?.accountId?.() == null;
+          } catch {}
+          if (!active) return original.apply(this, args);
+          const receiver = Object.create(this, { settings: { value: swivoxForkPlacementSettings(this.settings) } });
+          return original.apply(receiver, args);
+        };
+        Object.defineProperty(wrapped, "__swivoxForkReadiness", { value: true });
+        proto.getForkCapabilities = wrapped;
+        patched = true;
+      }
+      return patched;
+    })().catch(() => false).then((patched) => {
+      swivoxForkReadinessState.installing = null;
+      swivoxForkReadinessState.patched = patched;
+      if (!patched && attempt < 5) window.setTimeout(() => void installSwivoxForkReadinessFallback(attempt + 1), 2000 * (attempt + 1));
+      return patched;
+    });
+    return swivoxForkReadinessState.installing;
+  }
+
+  function swivoxOfflineStatsigPatchEmptyForLoggedOut() {
+    if (!swivoxBackendSettingsLoaded || swivoxBackendSettings?.enhancementsEnabled === false) return;
+    const root = window.__STATSIG__ || globalThis.__STATSIG__;
+    if (!root || typeof root !== "object") return;
+    const clients = [root.firstInstance, typeof root.instance === "function" ? root.instance() : null, ...Object.values(root.instances || {})]
+      .filter((c, i, arr) => c && typeof c === "object" && arr.indexOf(c) === i);
+    for (const client of clients) {
+      try {
+        if (client.loadingStatus !== "Ready") continue;
+        const context = client.getContext?.();
+        if (!context || context.values != null) continue;
+        if (!context.user || (context.user.customIDs?.account_id ?? null) != null) continue;
+        if (typeof client.dataAdapter?.setData !== "function" || typeof client.updateUserSync !== "function") continue;
+        client.dataAdapter.setData(JSON.stringify({
+          feature_gates: {}, dynamic_configs: {}, layer_configs: {}, param_stores: {},
+          time: Date.now(), has_updates: true, hash_used: "none", user: context.user, swivox_offline: true,
+        }));
+        client.updateUserSync(context.user);
+        if (!swivoxForkReadinessState.statsigReported) {
+          swivoxForkReadinessState.statsigReported = true;
+          try { sendSwivoxDiagnostic("fork_statsig_offline_fallback", {}); } catch {}
+        }
+      } catch {}
+    }
+  }
+
+  function installSwivoxForkStatsigFallback() {
+    window.clearInterval(swivoxForkReadinessState.statsigTimer);
+    swivoxOfflineStatsigPatchEmptyForLoggedOut();
+    swivoxForkReadinessState.statsigTimer = window.setInterval(swivoxOfflineStatsigPatchEmptyForLoggedOut, 3000);
+  }
 
   // 发送前只读取辅助配置；桥接无回包时及时降级，迟到的结果也不再应用。
   // 写 RPC（尤其 thread/resume）不能这样竞速，否则会在 turn/start 后迟到修改会话。
@@ -5944,6 +6160,27 @@
     if (svg) img.replaceWith(svg);
   }
 
+  function swivoxParseMarketTime(value) {
+    const unix = (number) => (!Number.isFinite(number) || number < 1e8 ? null : number < 1e11 ? Math.round(number * 1000) : Math.round(number));
+    if (typeof value === "number") return unix(value);
+    const text = String(value ?? "").trim();
+    if (!text) return null;
+    if (/^\d+(\.\d+)?$/.test(text) && !/^\d{4}$/.test(text)) return unix(Number(text));
+    const spaced = /^(\d{4}-\d{2}-\d{2})\s+(\d{1,2})(:\d{2}(?::\d{2}(?:\.\d+)?)?)\s*(.*)$/.exec(text);
+    const normalized = spaced
+      ? `${spaced[1]}T${spaced[2].padStart(2, "0")}${spaced[3]}${/^(utc|gmt)$/i.test(spaced[4]) ? "Z" : spaced[4]}`
+      : text;
+    const time = Date.parse(normalized);
+    return Number.isNaN(time) ? null : time;
+  }
+
+  function swivoxFormatMarketDate(value) {
+    const ms = swivoxParseMarketTime(value);
+    if (ms === null) return "";
+    const d = new Date(ms);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
   /** 原生风格详情：居中展示图标、名称、介绍与管理操作。 */
   function renderSwivoxExtensionsDetail() {
     const detail = swivoxExtensionsSelectionDetail();
@@ -5955,6 +6192,7 @@
     const name = marketItem?.name || local?.name || sel.key;
     const version = marketItem?.version || local?.version || "";
     const author = marketItem?.author || "";
+    const updatedDate = swivoxFormatMarketDate(marketItem?.updatedAt || marketItem?.updated_at);
     const description = marketItem?.description || local?.description || "";
     const tags = marketItem?.tags || [];
     const requirements = marketItem?.requirements || [];
@@ -5967,6 +6205,7 @@
     const publisherLine = [
       author ? escapeHtml(author) : "",
       version ? `v${escapeHtml(version)}` : "",
+      updatedDate ? escapeHtml(updatedDate) : "",
       local ? `${local.source === "builtin" ? "内置" : "用户"} · ${escapeHtml(userScriptStatusLabel(local.status))}` : "",
     ].filter(Boolean).join('<span class="swivox-extensions-detail-sep">·</span>');
 
@@ -10218,15 +10457,15 @@
     ]);
   }
 
-  async function loadCodexModelCatalog(force = false) {
+  async function loadCodexModelCatalog(force = false, timeoutMs = codexBridgePreparationReadTimeoutMs) {
     if (!force && codexModelCatalogPromise) return codexModelCatalogPromise;
     if (!force && codexModelCatalogLoadedAt && Date.now() - codexModelCatalogLoadedAt < 10000) return codexModelCatalog;
-    codexModelCatalogPromise = readCodexAppServerPreparation("/codex-model-catalog", {})
+    codexModelCatalogPromise = readCodexAppServerPreparation("/codex-model-catalog", {}, timeoutMs)
       .then(async (result) => {
         codexModelCatalog = result && typeof result === "object" ? result : { status: "failed", model: "", default_model: "", model_provider: "", codex_model_provider: "", provider_name: "", models: [], sources: [], responses_api: { status: "unknown", message: "" } };
         if ((!codexModelCatalog.models || codexModelCatalog.models.length === 0) && codexModelCatalog.status === "not_configured") {
           try {
-            const settingsResp = await readCodexAppServerPreparation("/settings/get", {});
+            const settingsResp = await readCodexAppServerPreparation("/settings/get", {}, timeoutMs);
             if (settingsResp && settingsResp.relayProfiles && Array.isArray(settingsResp.relayProfiles)) {
               const activeId = settingsResp.activeRelayId || "";
               const profile = activeId && activeId !== "__official__" ? settingsResp.relayProfiles.find(p => p.id === activeId) : null;
@@ -10288,6 +10527,19 @@
     return ["low", "medium", "high", "xhigh", "max", "ultra"].map((reasoningEffort) => ({ reasoningEffort, description: `${reasoningEffort} effort` }));
   }
 
+  function swivoxModelInputModalities(metadata) {
+    const declared = Array.isArray(metadata?.inputModalities) ? metadata.inputModalities
+      : Array.isArray(metadata?.input_modalities) ? metadata.input_modalities : null;
+    if (!declared) return null;
+    return declared.filter((m) => typeof m === "string" && m.trim()).map((m) => m.trim());
+  }
+
+  function swivoxModelImageDetailOriginal(metadata) {
+    if (typeof metadata?.supportsImageDetailOriginal === "boolean") return metadata.supportsImageDetailOriginal;
+    if (typeof metadata?.supports_image_detail_original === "boolean") return metadata.supports_image_detail_original;
+    return null;
+  }
+
   function applySwivoxModelMetadata(descriptor, modelName) {
     const metadata = swivoxModelMetadata(modelName);
     if (!descriptor || !metadata) return false;
@@ -10299,11 +10551,26 @@
       descriptor.displayName = targetDisplayName;
       changed = true;
     }
-    for (const key of ["description", "defaultReasoningEffort"]) {
-      if (typeof metadata[key] === "string" && metadata[key] && descriptor[key] !== metadata[key]) {
+    for (const key of ["description", "defaultReasoningEffort", "contextWindow", "maxContextWindow", "context_window", "max_context_window"]) {
+      const valid = typeof metadata[key] === "string" ? !!metadata[key] : Number.isFinite(metadata[key]) && metadata[key] > 0;
+      if (valid && descriptor[key] !== metadata[key]) {
         descriptor[key] = metadata[key];
         changed = true;
       }
+    }
+    const modalities = typeof swivoxModelInputModalities === "function"
+      ? swivoxModelInputModalities(metadata)
+      : null;
+    if (modalities && JSON.stringify(descriptor.inputModalities ?? null) !== JSON.stringify(modalities)) {
+      descriptor.inputModalities = modalities;
+      changed = true;
+    }
+    const original = typeof swivoxModelImageDetailOriginal === "function"
+      ? swivoxModelImageDetailOriginal(metadata)
+      : null;
+    if (original !== null && descriptor.supportsImageDetailOriginal !== original) {
+      descriptor.supportsImageDetailOriginal = original;
+      changed = true;
     }
     if (Array.isArray(metadata.supportedReasoningEfforts) && metadata.supportedReasoningEfforts.length > 0) {
       const nextEfforts = modelReasoningEfforts(modelName);
@@ -10320,6 +10587,12 @@
     const displayName = typeof metadata?.displayName === "string" && metadata.displayName.trim()
       ? metadata.displayName.trim()
       : modelName;
+    const modalities = typeof swivoxModelInputModalities === "function"
+      ? swivoxModelInputModalities(metadata)
+      : null;
+    const original = typeof swivoxModelImageDetailOriginal === "function"
+      ? swivoxModelImageDetailOriginal(metadata)
+      : null;
     return {
       model: modelName,
       id: modelName,
@@ -10331,6 +10604,8 @@
       isDefault: false,
       defaultReasoningEffort: metadata?.defaultReasoningEffort || "medium",
       supportedReasoningEfforts: modelReasoningEfforts(modelName),
+      ...(modalities ? { inputModalities: modalities } : {}),
+      ...(original !== null ? { supportsImageDetailOriginal: original } : {}),
     };
   }
 
@@ -10818,6 +11093,16 @@
     let resumeParams = { threadId, model };
     resumeParams = applyCodexRemoteSessionProviderOverride("thread/resume", resumeParams);
     try {
+      const read = await originalSendRequest("thread/read", { threadId, includeTurns: false }, options);
+      if (read?.thread?.ephemeral === true) {
+        client.__swivoxThreadModels.set(threadId, model);
+        return null;
+      }
+      const turns = await originalSendRequest("thread/turns/list", { threadId, limit: 1, itemsView: "notLoaded" }, options);
+      if (Array.isArray(turns?.data) && turns.data.length === 0) {
+        sendSwivoxDiagnostic("thread_model_context_refresh_deferred", { threadId, reason: "no_history" });
+        return null;
+      }
       await originalSendRequest("thread/resume", resumeParams, options);
       client.__swivoxThreadModels.set(threadId, model);
       sendSwivoxDiagnostic("thread_model_context_refreshed", {
@@ -12812,8 +13097,26 @@
     return !!left?.session_id && !!left?.host_id && left.session_id === right?.session_id && left.host_id === right?.host_id;
   }
 
+  function pickNewChatButton(candidates) {
+    const rank = (candidate) => (visibleElement(candidate) ? 0 : 2)
+      + (candidate.closest("nav[data-app-navigation-rail]") ? 1 : 0);
+    let best = null;
+    let bestRank = Infinity;
+    let tied = false;
+    for (const candidate of candidates) {
+      const candidateRank = rank(candidate);
+      if (candidateRank < bestRank) {
+        best = candidate;
+        bestRank = candidateRank;
+        tied = false;
+      } else if (candidateRank === bestRank) {
+        tied = true;
+      }
+    }
+    return tied ? null : best;
+  }
+
   function removeDeletedRow(row, button, ref, requestContext) {
-    // 删除响应期间，React 可能复用或替换 sidebar 行；不能删除其新身份的 DOM。
     if (!row.isConnected || !sameDeletedSessionRef(sessionRefFromRow(row), ref)) return null;
     releaseDeleteFocus(row, button);
     const activeRefs = sessionRows().map((candidate) => ({ row: candidate, ref: sessionRefFromRow(candidate) }))
@@ -12822,18 +13125,16 @@
       && activeRefs.length > 0 && activeRefs.every((active) => sameDeletedSessionRef(active, ref));
     let navigated = false;
     if (shouldLeave) {
-      // 已审 native 的 New chat 按钮以 aria-label/newChatMessage 调用 onStartChat。
-      // 只走唯一可见的原生 sidebar 控件；不猜内部路由，也不强制 reload。
       const navigation = Array.from(document.querySelectorAll("aside.app-shell-left-panel button, nav[data-app-navigation-rail] button"))
         .filter((candidate) => visibleElement(candidate) && !candidate.disabled && !isExtensionUiNode(candidate)
           && candidate.closest("aside.app-shell-left-panel, nav[data-app-navigation-rail]")
           && /^(新聊天|新对话|New chat|New thread)$/i.test((candidate.getAttribute("aria-label") || candidate.textContent || "").trim()));
-      if (navigation.length === 1) {
-        navigation[0].click();
+      const targetBtn = pickNewChatButton(navigation);
+      if (targetBtn) {
+        targetBtn.click();
         navigated = true;
       }
     }
-    // 原生导航也可能同步重建行，移除前再确认一次，保护被复用的节点。
     if (row.isConnected && sameDeletedSessionRef(sessionRefFromRow(row), ref)) row.remove();
     return shouldLeave && !navigated ? "会话已删除，请点击新聊天继续" : null;
   }
@@ -12907,6 +13208,49 @@
     showToast(result.message || "导出失败", null);
   }
 
+  function uncreatedSessionActionFromRow(row) {
+    const rawId = row.getAttribute("data-app-action-sidebar-thread-id") || "";
+    if (!isClientNewThreadId(rawId) || sessionRefFromRow(row).session_id) return null;
+    const clientId = rawId.replace(/^local:/i, "");
+    const fiberKey = Object.getOwnPropertyNames(row).find((key) => key.startsWith("__reactFiber$"));
+    let fiber = fiberKey ? row[fiberKey] : null;
+    let onArchive = null;
+    for (let depth = 0; fiber && depth < 16; depth += 1, fiber = fiber.return) {
+      const props = fiber.memoizedProps || fiber.pendingProps;
+      if (props?.dataAttributes?.["data-app-action-sidebar-thread-id"] === rawId
+          && typeof props.onArchive === "function") onArchive = props.onArchive;
+      const pending = props?.pending;
+      if (!pending) continue;
+      const hostId = row.getAttribute("data-app-action-sidebar-thread-host-id");
+      if (pending.clientThreadId !== clientId || !pending.hostId
+          || (hostId && hostId !== pending.hostId)) return null;
+      return onArchive ? { rawId, pending, onArchive } : null;
+    }
+    return null;
+  }
+
+  async function deleteUncreatedSession(row, button) {
+    const action = uncreatedSessionActionFromRow(row);
+    if (!action) {
+      showToast("未找到此待创建会话的原生关闭入口，请使用原生会话菜单", null);
+      return;
+    }
+    const title = sessionRefFromRow(row).title || "未创建成功的会话";
+    if (!await confirmDelete(title, action.pending.hostId)) return;
+    const current = row.isConnected ? uncreatedSessionActionFromRow(row) : null;
+    if (!current || current.rawId !== action.rawId || current.pending !== action.pending) {
+      showToast("会话已变化，请重新选择后删除", null);
+      return;
+    }
+    releaseDeleteFocus(row, button);
+    try {
+      await current.onArchive();
+      showToast("已关闭未创建成功的会话", null);
+    } catch (error) {
+      showToast(`关闭待创建会话失败：${error?.message || error}`, null);
+    }
+  }
+
   function installDeleteButtonEventDelegation() {
     document.removeEventListener("click", window.__codexSessionDeleteDocumentDeleteHandler, true);
     const handler = (event) => {
@@ -12920,7 +13264,7 @@
           event.preventDefault();
           event.stopPropagation();
           event.stopImmediatePropagation?.();
-          showToast("会话仍在同步，请稍后重试", null);
+          void deleteUncreatedSession(row, button);
         }
         return;
       }
@@ -13590,41 +13934,41 @@
     return parts;
   }
 
+  const swivoxUsageThreadSpeedCache = window.__swivoxUsageThreadSpeedCache
+    || (window.__swivoxUsageThreadSpeedCache = new Map());
+  const swivoxUsageEditorSelector = '.ProseMirror[contenteditable="true"], textarea:not(:disabled):not([readonly]), [role="textbox"][contenteditable="true"]';
+
   function swivoxUsageComposerCard() {
-    const cards = [...document.querySelectorAll("[data-composer-surface-variant]")];
-    let fallback = null;
-    for (const card of cards) {
-      if (!visibleElement(card) || card.closest('[data-swivox-ext]')) continue;
-      fallback = card;
-      // 首页可能同时挂着多个 composer 外壳；带真实输入框的那个才是当前会话。
-      if (card.querySelector('.ProseMirror[contenteditable="true"], textarea:not(:disabled):not([readonly]), [role="textbox"][contenteditable="true"]')) {
-        return card;
-      }
+    const primary = [...document.querySelectorAll("[data-composer-surface-variant]")]
+      .filter((card) => visibleElement(card) && !card.closest("[data-swivox-ext]"));
+    if (primary.length) {
+      return primary.find((card) => card.querySelector(swivoxUsageEditorSelector)) || primary[0];
     }
-    return fallback;
+    const fallbacks = [
+      ...document.querySelectorAll('[data-codex-composer-root], .composer-surface-chrome, [class*="_ComposerLayoutRoot_"]'),
+    ].filter((el) => visibleElement(el) && !el.closest("[data-swivox-ext]") && el.querySelector(swivoxUsageEditorSelector));
+    if (fallbacks.length) return fallbacks[0];
+    const editor = [...document.querySelectorAll(swivoxUsageEditorSelector)]
+      .find((el) => visibleElement(el) && !el.closest("[data-swivox-ext]"));
+    return editor?.closest("form") || null;
   }
 
-  /**
-   * 当前会话 id。
-   *
-   * `[data-above-composer-conversation-id]` 是 Codex 自己挂在 composer 上的会话标识，
-   * 比侧边栏选中行更贴近「这个输入框属于哪个会话」。侧边栏只作兜底，而且**只在
-   * placement=thread 时用**：首页/新会话草稿的 composer 是 placement=home，此时侧边栏
-   * 仍选中着上一个 thread，兜底会把上一个会话的读数挂到新会话上。
-   * 新会话草稿的 id 形如 `local:client-new-thread:<uuid>`，还没有 rollout，直接当作无会话。
-   */
   function swivoxUsageThreadId(card) {
     const composerRoot = card?.closest("[data-codex-composer-root]");
-    const fromComposer = composerRoot
+    const fromComposer = (composerRoot || card)
       ?.querySelector("[data-above-composer-conversation-id]")
       ?.getAttribute("data-above-composer-conversation-id");
-    const inThread = composerRoot?.getAttribute("data-composer-placement") === "thread";
-    const fromSidebar = inThread
+    const placement = composerRoot?.getAttribute("data-composer-placement") || "";
+    const allowFallback = !placement || placement === "thread";
+    const fromSidebar = allowFallback
       ? document
-        .querySelector('[data-app-action-sidebar-thread-selected="true"][data-app-action-sidebar-thread-id]')
-        ?.getAttribute("data-app-action-sidebar-thread-id")
+          .querySelector('[data-app-action-sidebar-thread-selected="true"][data-app-action-sidebar-thread-id], [data-app-action-sidebar-thread-active="true"][data-app-action-sidebar-thread-id]')
+          ?.getAttribute("data-app-action-sidebar-thread-id")
       : null;
-    const id = String(fromComposer || fromSidebar || "").replace(/^local:/, "").trim();
+    const fromLocation = allowFallback && typeof locationThreadId === "function" ? locationThreadId() : "";
+    const raw = String(fromComposer || fromSidebar || fromLocation || "").trim();
+    if (/^(?:local:)?client-new-thread:/i.test(raw)) return "";
+    const id = raw.replace(/^local:/, "").trim();
     if (!id || id === "__proto__" || id === "prototype" || id === "constructor") return "";
     return /^[A-Za-z0-9_.-]{8,128}$/.test(id) ? id : "";
   }
@@ -13675,31 +14019,40 @@
    * 抖动。换轮时 turn_output_tokens 会回落，靠这个切段。
    */
   function swivoxUsageRate(events) {
-    const rates = [];
+    let totalTokens = 0;
+    let totalSeconds = 0;
     for (let index = 1; index < events.length; index += 1) {
       const previous = events[index - 1];
       const current = events[index];
+      if (previous.turn_id && current.turn_id && previous.turn_id !== current.turn_id) continue;
       const previousOutput = Number(previous.turn_output_tokens) || 0;
       const currentOutput = Number(current.turn_output_tokens) || 0;
       if (currentOutput <= previousOutput) continue;
       const startedAt = Date.parse(previous.t);
       const endedAt = Date.parse(current.t);
       const seconds = (endedAt - startedAt) / 1000;
-      // 间隔过短说明是同一批写入，过长说明中间停了很久，都不适合当速度样本。
       if (!(seconds >= 0.5) || seconds > 120) continue;
-      rates.push((currentOutput - previousOutput) / seconds);
+      totalTokens += currentOutput - previousOutput;
+      totalSeconds += seconds;
     }
-    if (!rates.length) return null;
-    const recent = rates.slice(-3);
-    return recent.reduce((total, rate) => total + rate, 0) / recent.length;
+    return totalSeconds > 0 ? totalTokens / totalSeconds : null;
   }
 
-  function swivoxUsageSnapshot(events) {
+  function swivoxUsageSnapshot(events, threadId = "") {
     if (!Array.isArray(events) || !events.length) return null;
     const latest = events[events.length - 1];
     const observedAt = Date.parse(latest.t);
+    let speed = swivoxUsageRate(events);
+    if (speed != null && threadId) {
+      swivoxUsageThreadSpeedCache.set(threadId, speed);
+      if (swivoxUsageThreadSpeedCache.size > 64) {
+        swivoxUsageThreadSpeedCache.delete(swivoxUsageThreadSpeedCache.keys().next().value);
+      }
+    } else if (speed == null && threadId && swivoxUsageThreadSpeedCache.has(threadId)) {
+      speed = swivoxUsageThreadSpeedCache.get(threadId);
+    }
     return {
-      speed: swivoxUsageRate(events),
+      speed,
       cache: swivoxUsagePercent(Number(latest.cached_input_tokens), Number(latest.input_tokens)),
       context: swivoxUsagePercent(Number(latest.total_tokens), Number(latest.context_window)),
       stale: Number.isFinite(observedAt) ? Date.now() - observedAt > swivoxUsageStaleMs : false,
@@ -13813,7 +14166,7 @@
       }
     }
     if (swivoxUsageState.disposed) return;
-    const snapshot = events ? swivoxUsageSnapshot(events) : null;
+    const snapshot = events ? swivoxUsageSnapshot(events, threadId) : null;
     if (snapshot) {
       swivoxUsageShow(node);
       swivoxUsageRender(snapshot);
@@ -16759,6 +17112,19 @@
   // 桌面端发送按钮读 rate_limit.allowed；limit_reached 为 true 也会被当成已用完。
   // 混入时在查询发布前把 allowed 写成 true，并清掉 limit_reached。
   // 百分比、重置时间、账号、积分和消费上限不动。图片额度横幅单独留下。
+  function unlockAdditionalRateLimits(limits) {
+    if (!Array.isArray(limits)) return null;
+    let changed = false;
+    const next = limits.map((entry) => {
+      const rateLimit = entry?.rate_limit;
+      if (!rateLimit || typeof rateLimit !== "object") return entry;
+      if (rateLimit.allowed !== false && rateLimit.limit_reached !== true) return entry;
+      changed = true;
+      return { ...entry, rate_limit: { ...rateLimit, allowed: true, limit_reached: false } };
+    });
+    return changed ? next : null;
+  }
+
   function rewriteOfficialUsageStatus(value, policy = officialUsagePolicy()) {
     if (!policy.official || (!policy.hideAlerts && !policy.unlockSend) || !isOfficialUsageStatus(value)) return null;
     const next = { ...value };
@@ -16775,6 +17141,13 @@
     if (policy.unlockSend && (rateLimit.allowed !== true || rateLimit.limit_reached === true)) {
       next.rate_limit = { ...rateLimit, allowed: true, limit_reached: false };
       changed = true;
+    }
+    if (policy.unlockSend) {
+      const additionalRateLimits = unlockAdditionalRateLimits(value.additional_rate_limits);
+      if (additionalRateLimits) {
+        next.additional_rate_limits = additionalRateLimits;
+        changed = true;
+      }
     }
     if (policy.hideAlerts) {
       if (value.sidebar_usage_warnings != null) {
@@ -18314,6 +18687,9 @@
 
   installSwivoxForceChineseLocale();
   installSwivoxInstanceIdentity();
+  installSwivoxConfigReadDeadline();
+  void installSwivoxForkReadinessFallback();
+  installSwivoxForkStatsigFallback();
   runScanStep(installSwivoxTypingEffects);
   runScanStep(syncSwivoxWhaleWidget);
   let swivoxResizeRafId = 0;

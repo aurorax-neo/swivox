@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <strong>让 Codex 桌面应用更自由、更顺手。</strong><br>
-  基于原生 Rust + GPUI 构建的多官方账号、第三方 API 供应商路由、每模型上下文目录、独立实例多开与工作流增强中心。
+  <strong>让 Codex 与 Antigravity 桌面应用更自由、更顺手。</strong><br>
+  基于原生 Rust + GPUI 构建的多官方账号、Antigravity 一等公民接管、Lamplighter 多服务额度监控与 5h 自动点火、第三方 API 供应商路由、每模型上下文目录与工作流增强中心。
 </p>
 
 <p align="center">
@@ -24,39 +24,39 @@
   <a href="README_EN.md">English</a>
 </p>
 
-**Swivox** 是面向 OpenAI Codex / ChatGPT 桌面应用的原生 GPU 加速管理与增强工具，全栈采用 **Rust + GPUI** 构建（无 WebView 内存开销，常驻内存约 50MB）。通过 CDP 与本地协议转换服务提供多官方账号切换、25+ 预设 API 供应商与聚合路由、每模型上下文窗口声明、独立实例多开、MCP / Skills / 会话管理及渲染层增强，无需篡改官方应用的 `app.asar` 或安装目录文件，且状态目录（`~/.swivox`）与本地服务端口（`58319–58321`）完全独立隔离。
+**Swivox** 是面向 OpenAI Codex / ChatGPT 与 Google Antigravity 桌面应用的原生 GPU 加速管理与增强工具，全栈采用 **Rust + GPUI** 构建（无 WebView 内存开销，常驻内存约 50MB）。通过 CDP、本地协议转换代理与后台调度引擎，一站式提供多官方账号切换、Antigravity 无感热切号与免 TUN 代理启动、Lamplighter（点灯人）多服务额度监控与 5 小时窗口重置自动点火、25+ 预设 API 供应商与聚合路由、每模型上下文窗口声明、独立实例多开、MCP / Skills / 会话管理及渲染层增强，无需篡改官方应用的 `app.asar` 或 `.app` 签名，且状态目录（`~/.swivox`）与本地服务端口（`58318–58321`）完全独立隔离。
 
 ## 功能一览
 
 <table>
   <tr>
     <td width="50%" valign="top">
-      <h3>👤 多官方账号与实时配额</h3>
+      <h3>👤 Codex 多官方账号与实时配额</h3>
       支持 OAuth PKCE 浏览器登录、手动回调解析、从本机 <code>auth.json</code> / macOS Keychain 导入及 JSON 批量导入导出；支持查询 5 小时 / 周 / 月实时配额、Token 自动续期与免重登切换，并可按账号独立绑定任意第三方 API 供应商。
     </td>
     <td width="50%" valign="top">
+      <h3>🪐 Antigravity 一等公民接管</h3>
+      支持个人与企业 GCP 双客户端 OAuth 登录、Cloud Code Private 三端点配额查询（<code>Gemini</code> / <code>Claude &amp; GPT</code> / <code>Gemini 4 Argon</code> 双窗口进度与等级识别）、<strong>Desktop 无感热切号</strong>（仅重载 <code>language_server</code> 保留窗口）、单账号设备指纹隔离、<strong>免 TUN 代理启动</strong>、3,376 词条可逆 CDP 汉化与实时上下文圆环。
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <h3>🏮 Lamplighter（点灯人）自动点火与监控</h3>
+      零配置自动汇聚 Swivox 自有 Codex 官方账号与 Antigravity 账号，同时支持 Claude / Kimi / Grok 及外部 CLIProxyAPI (CPA)；提供 <strong>5 小时窗口重置自动点火</strong>（<code>07:00–22:30</code> 时段、7d 耗尽保护、退避熔断与手动立即点火）、加权趋势曲线与耗尽预测、Bark / 飞书 / 钉钉 / Telegram / ntfy 推送及本地脱敏 <code>127.0.0.1:58318/mcp</code> 服务。
+    </td>
+    <td valign="top">
       <h3>🔌 纯 API、协议转换与聚合路由</h3>
-      内置 DeepSeek、GLM、Kimi、Qwen、OpenRouter 等 25 个供应商预设，支持纯 API 供应商、故障转移池与模型聚合；内置 Chat Completions ⇄ Responses 协议代理、连通性测试与 Provider Doctor 诊断。
+      内置 DeepSeek、GLM、Kimi、Qwen、OpenRouter 等 25 个供应商预设，支持纯 API 供应商、故障转移池与模型聚合；内置 Chat Completions ⇄ Responses 协议代理、跨供应商加密推理项自动清洗与 Provider Doctor 诊断。
     </td>
   </tr>
   <tr>
     <td valign="top">
-      <h3>🧵 Codex 独立实例多开</h3>
-      支持以任意「官方账号」（纯官方或绑定第三方供应商）或「API 供应商」身份一键拉起相互隔离的 Codex 实例：独立配置、独立 SQLite 会话与独立用户数据目录，可单独重启或停止。
+      <h3>🧵 Codex 独立实例多开 &amp; 每模型目录</h3>
+      支持以任意「官方账号」或「API 供应商」身份一键拉起完全隔离的 Codex 实例；支持通过 <code>deepseek-v4-pro[1M]</code> 语法或可视化表格为每个模型独立配置上下文窗口（128k–2M）、自动压缩阈值与图片策略。
     </td>
     <td valign="top">
-      <h3>🧠 按模型上下文窗口与压缩阈值</h3>
-      支持在模型列表中通过 <code>deepseek-v4-pro[1M]</code> 语法或可视化表格为每个模型单独配置上下文窗口（128k / 200k / 256k / 1M / 2M）、自动压缩百分比与图片策略，自动生成原生 <code>model_catalog_json</code>。
-    </td>
-  </tr>
-  <tr>
-    <td valign="top">
-      <h3>🗂️ MCP、Skills 与会话维护</h3>
-      托管与同步 <code>config.toml</code> 中的 MCP 服务器（支持 Claude Desktop JSON 批量导入）、从 GitHub 仓库一键安装管理 Skills、按项目或时间浏览/备份删除本地会话并修复孤立索引。
-    </td>
-    <td valign="top">
-      <h3>✨ 客户端增强、听写与缓存清理</h3>
-      解锁客户端内插件市场与自定义模型白名单，支持云端 Whisper 与离线 SenseVoiceSmall 语音听写、下一步追问建议（Stepwise）、自定义壁纸图层、`window.swivox` 拓展脚本市场与 AI Agent 缓存白名单清理。
+      <h3>✨ 客户端增强、MCP / Skills 与缓存清理</h3>
+      全局零偏移浮动 Toast 通知、托管同步 <code>config.toml</code> MCP 与 GitHub Skills、会话安全归档删除、云端 Whisper 与离线 SenseVoiceSmall 语音听写、下一步追问建议（Stepwise）、自定义壁纸图层与 AI Agent 缓存白名单清理。
     </td>
   </tr>
 </table>
@@ -114,10 +114,11 @@ Swivox 所有自有配置、日志、拓展脚本与本地守护端口均采用�
 | --- | --- |
 | Codex 主配置与认证 | `~/.codex/config.toml`、`~/.codex/auth.json`（可通过 `CODEX_HOME` 覆盖） |
 | Codex 本地会话库 | `~/.codex/sqlite/*.db`（兼容回退 `~/.codex/state_5.sqlite`） |
-| **Swivox 状态根目录** | `~/.swivox/`（可通过 `SWIVOX_STATE_DIR` 覆盖，含 `settings.json`、`official-accounts.json`、`ui-preferences.json`、`swivox.log`） |
+| **Swivox 状态根目录** | `~/.swivox/`（可通过 `SWIVOX_STATE_DIR` 覆盖，含 `settings.json`、`official-accounts.json`、`antigravity-accounts.json`、`ui-preferences.json`、`swivox.log`） |
+| **Lamplighter 状态与历史** | `~/.swivox/lamplighter/`（含 `config.json`、`state.json`、`accounts.json`、`history/YYYY-MM-DD.jsonl`） |
 | **Swivox 用户拓展脚本** | `~/.swivox/user_scripts/` 与 `~/.swivox/user_scripts.json` |
 | **Swivox 多开实例目录** | `~/.swivox/codex-multi/<instance-id>/` |
-| **Swivox 默认本地端口** | 管理端单实例锁 `58319`、启动器锁 `58320`、本地协议代理 `58321`（可通过 `SWIVOX_PROTOCOL_PROXY_PORT` 等环境变量覆盖） |
+| **Swivox 默认本地端口** | Lamplighter MCP `58318`（可选开启）、管理端单实例锁 `58319`、启动器锁 `58320`、本地协议代理 `58321`（可通过 `SWIVOX_PROTOCOL_PROXY_PORT` 等环境变量覆盖） |
 
 ## 开发与构建
 
@@ -145,6 +146,8 @@ bash scripts/installer/macos/build-universal.sh 0.1.5
 - **[BigPizzaV3/CodexPlusPlus](https://github.com/BigPizzaV3/CodexPlusPlus)**（`AGPL-3.0-only`）：本项目早期核心启动器、协议转换、模型目录生成与 Codex 渲染层增强机制衍生自该仓库。
 - **[longbridge/gpui-kit](https://github.com/longbridge/gpui-kit)** & **[zed-industries/zed](https://github.com/zed-industries/zed)**（`Apache-2.0`）：提供原生 GPU 加速桌面界面框架 GPUI 与基础组件能力。
 - **[jlcodes99/cockpit-tools](https://github.com/jlcodes99/cockpit-tools)**（`CC-BY-NC-SA-4.0`）：多官方账号 OAuth PKCE 登录管理、Token 自动刷新、实时配额查询与全局代理交互参考自该项目。
+- **[lbjlaq/Antigravity-Manager](https://github.com/lbjlaq/Antigravity-Manager)** & **[DSDS-CMHL/EasyAntigravity](https://github.com/DSDS-CMHL/EasyAntigravity)**（`MIT`）：Antigravity 多账号 OAuth 与 `state.vscdb` UnifiedState Protobuf 同步、设备指纹隔离、免 TUN 代理启动、可逆 CDP 界面汉化词典与本地上下文圆环参考自上述两个项目。
+- **[PosvdM/cpa-plugin-lamplighter](https://github.com/PosvdM/cpa-plugin-lamplighter)**（`MIT`）：内置 Lamplighter（点灯人）多服务额度监控、5 小时窗口重置自动点火引擎、加权趋势预测、Bark / Webhook 推送与本地脱敏 `/mcp` 服务设计参考自该项目。
 - **[MeteorNOX/DeepSeek-Balance-Whale-Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget)**（代码 `MIT`）与 **[Yang-huai406/Codex-Whale-Public](https://github.com/Yang-huai406/Codex-Whale-Public)**：可选用量挂件相关代码与素材来源，详见 [上游 LICENSE](assets/inject/upstream/whale-widget/LICENSE) 与 [PROVENANCE.md](assets/inject/upstream/whale-widget/PROVENANCE.md)。
 
 ### 2. 许可证与声明（License & Disclaimer）

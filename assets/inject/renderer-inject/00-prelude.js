@@ -46,12 +46,11 @@
     // asset 就绪之前时第一次调用必然失败，而那次失败会被一直记住——所以这里
     // 必须有界重试，不能像老版等 electronBridge 那样一次不成就算了。
     const localeSyncRetryDelaysMs = [500, 1500, 3000, 6000, 12000, 20000];
-    const callCodexSettingApiOnce = (method, params) => codexStateCall(method, { params });
-    const callCodexSettingApi = async (method, params) => {
+    const withLocaleSyncRetry = async (operation) => {
       let lastError;
       for (let attempt = 0; attempt <= localeSyncRetryDelaysMs.length; attempt += 1) {
         try {
-          return await callCodexSettingApiOnce(method, params);
+          return await operation();
         } catch (error) {
           lastError = error;
           const delay = localeSyncRetryDelaysMs[attempt];
@@ -61,6 +60,8 @@
       }
       throw lastError;
     };
+    const readLocaleOverride = () => withLocaleSyncRetry(async () => (await readCodexAppSetting("localeOverride")) ?? null);
+    const writeLocaleOverride = (value) => withLocaleSyncRetry(() => writeCodexAppSetting("localeOverride", value));
     const reloadAfterLocaleChange = (value) => {
       const marker = JSON.stringify(value);
       try {
@@ -84,8 +85,7 @@
     const syncOfficialLocaleSetting = async () => {
       const managed = readManagedLocale();
       if (!enabled && !managed) return;
-      const response = await callCodexSettingApi("get-setting", { key: "localeOverride" });
-      const currentValue = response?.value ?? null;
+      const currentValue = await readLocaleOverride();
 
       if (enabled) {
         if (currentValue === locale) {
@@ -95,7 +95,7 @@
         if (!managed) {
           writeManagedLocale({ appliedLocale: locale, previousValue: currentValue });
         }
-        await callCodexSettingApi("set-setting", { key: "localeOverride", value: locale });
+        await writeLocaleOverride(locale);
         reloadAfterLocaleChange(locale);
         return;
       }
@@ -106,10 +106,7 @@
         return;
       }
       const previousValue = managed.previousValue ?? null;
-      await callCodexSettingApi("set-setting", {
-        key: "localeOverride",
-        value: previousValue,
-      });
+      await writeLocaleOverride(previousValue);
       writeManagedLocale(null);
       reloadAfterLocaleChange(previousValue);
     };

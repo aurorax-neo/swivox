@@ -9,6 +9,9 @@ pub enum Route {
     Relay,
     MultiLaunch,
     RelayEnvironment,
+    AntigravityAccounts,
+    AntigravityEnhance,
+    Lamplighter,
     Sessions,
     Context,
     Skills,
@@ -37,6 +40,9 @@ pub const ALL_ROUTES: &[RouteSpec] = &[
     RouteSpec { id: Route::OfficialAccounts, tool: Some("codex") },
     RouteSpec { id: Route::Relay, tool: Some("codex") },
     RouteSpec { id: Route::MultiLaunch, tool: Some("codex") },
+    RouteSpec { id: Route::AntigravityAccounts, tool: Some("antigravity") },
+    RouteSpec { id: Route::AntigravityEnhance, tool: Some("antigravity") },
+    RouteSpec { id: Route::Lamplighter, tool: None },
     RouteSpec { id: Route::Sessions, tool: Some("codex") },
     RouteSpec { id: Route::Context, tool: Some("codex") },
     RouteSpec { id: Route::Skills, tool: Some("codex") },
@@ -70,6 +76,9 @@ pub const NAVIGATION_SECTIONS: &[NavSection] = &[
             Route::OfficialAccounts,
             Route::Relay,
             Route::MultiLaunch,
+            Route::AntigravityAccounts,
+            Route::AntigravityEnhance,
+            Route::Lamplighter,
         ],
         placement: SectionPlacement::Top,
     },
@@ -116,6 +125,9 @@ impl Route {
             Route::Relay => IconName::KeyRound,
             Route::MultiLaunch => IconName::Layers,
             Route::RelayEnvironment => IconName::ShieldCheck,
+            Route::AntigravityAccounts => IconName::Users,
+            Route::AntigravityEnhance => IconName::Hammer,
+            Route::Lamplighter => IconName::Bell,
             Route::Sessions => IconName::MessageCircle,
             Route::Context => IconName::Network,
             Route::Skills => IconName::BookOpen,
@@ -136,6 +148,9 @@ impl Route {
             Route::Relay => t("供应商配置"),
             Route::MultiLaunch => t("Codex多开"),
             Route::RelayEnvironment => t("中转站环境配置检测"),
+            Route::AntigravityAccounts => t("Antigravity 账号"),
+            Route::AntigravityEnhance => t("Antigravity 增强"),
+            Route::Lamplighter => t("点灯人监控"),
             Route::Sessions => t("会话管理"),
             Route::Context => "MCP".to_string(),
             Route::Skills => "Skills".to_string(),
@@ -158,6 +173,15 @@ impl Route {
             }
             Route::MultiLaunch => t("为不同供应商启动相互隔离的 Codex 实例"),
             Route::RelayEnvironment => t("排查可能干扰中转站配置的本机环境"),
+            Route::AntigravityAccounts => {
+                t("管理 Google / Antigravity 多账号 OAuth、5H 与周配额、无感热切号及专属代理")
+            }
+            Route::AntigravityEnhance => {
+                t("免 TUN 代理启动、可逆界面汉化、上下文监控圆环与设备指纹保护")
+            }
+            Route::Lamplighter => {
+                t("监控多服务 5 小时与 7 天额度、窗口重置自动点火、趋势曲线与 Bark / Webhook 推送")
+            }
             Route::Sessions => t("查看、删除和修复 Codex 本地会话"),
             Route::Context => t("独立管理 MCP 服务器与插件"),
             Route::Skills => t("从 GitHub 仓库安装 Skill 到 Codex"),
@@ -255,8 +279,11 @@ mod tests {
 
     #[test]
     fn route_visibility_filters_codex_only_routes_for_other_tools() {
-        assert_eq!(ALL_ROUTES.len(), 15);
+        assert_eq!(ALL_ROUTES.len(), 18);
         assert!(Route::Overview.visible_for_tool("grok"));
+        assert!(Route::Lamplighter.visible_for_tool("antigravity"));
+        assert!(Route::AntigravityAccounts.visible_for_tool("antigravity"));
+        assert!(!Route::AntigravityAccounts.visible_for_tool("codex"));
         assert!(Route::AgentCache.visible_for_tool("grok"));
         assert!(Route::About.visible_for_tool("grok"));
         assert!(Route::Settings.visible_for_tool("grok"));

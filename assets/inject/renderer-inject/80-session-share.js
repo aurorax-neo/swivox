@@ -498,8 +498,26 @@
     return !!left?.session_id && !!left?.host_id && left.session_id === right?.session_id && left.host_id === right?.host_id;
   }
 
+  function pickNewChatButton(candidates) {
+    const rank = (candidate) => (visibleElement(candidate) ? 0 : 2)
+      + (candidate.closest("nav[data-app-navigation-rail]") ? 1 : 0);
+    let best = null;
+    let bestRank = Infinity;
+    let tied = false;
+    for (const candidate of candidates) {
+      const candidateRank = rank(candidate);
+      if (candidateRank < bestRank) {
+        best = candidate;
+        bestRank = candidateRank;
+        tied = false;
+      } else if (candidateRank === bestRank) {
+        tied = true;
+      }
+    }
+    return tied ? null : best;
+  }
+
   function removeDeletedRow(row, button, ref, requestContext) {
-    // 删除响应期间，React 可能复用或替换 sidebar 行；不能删除其新身份的 DOM。
     if (!row.isConnected || !sameDeletedSessionRef(sessionRefFromRow(row), ref)) return null;
     releaseDeleteFocus(row, button);
     const activeRefs = sessionRows().map((candidate) => ({ row: candidate, ref: sessionRefFromRow(candidate) }))
@@ -508,18 +526,16 @@
       && activeRefs.length > 0 && activeRefs.every((active) => sameDeletedSessionRef(active, ref));
     let navigated = false;
     if (shouldLeave) {
-      // 已审 native 的 New chat 按钮以 aria-label/newChatMessage 调用 onStartChat。
-      // 只走唯一可见的原生 sidebar 控件；不猜内部路由，也不强制 reload。
       const navigation = Array.from(document.querySelectorAll("aside.app-shell-left-panel button, nav[data-app-navigation-rail] button"))
         .filter((candidate) => visibleElement(candidate) && !candidate.disabled && !isExtensionUiNode(candidate)
           && candidate.closest("aside.app-shell-left-panel, nav[data-app-navigation-rail]")
           && /^(新聊天|新对话|New chat|New thread)$/i.test((candidate.getAttribute("aria-label") || candidate.textContent || "").trim()));
-      if (navigation.length === 1) {
-        navigation[0].click();
+      const targetBtn = pickNewChatButton(navigation);
+      if (targetBtn) {
+        targetBtn.click();
         navigated = true;
       }
     }
-    // 原生导航也可能同步重建行，移除前再确认一次，保护被复用的节点。
     if (row.isConnected && sameDeletedSessionRef(sessionRefFromRow(row), ref)) row.remove();
     return shouldLeave && !navigated ? "会话已删除，请点击新聊天继续" : null;
   }
@@ -593,6 +609,49 @@
     showToast(result.message || "导出失败", null);
   }
 
+  function uncreatedSessionActionFromRow(row) {
+    const rawId = row.getAttribute("data-app-action-sidebar-thread-id") || "";
+    if (!isClientNewThreadId(rawId) || sessionRefFromRow(row).session_id) return null;
+    const clientId = rawId.replace(/^local:/i, "");
+    const fiberKey = Object.getOwnPropertyNames(row).find((key) => key.startsWith("__reactFiber$"));
+    let fiber = fiberKey ? row[fiberKey] : null;
+    let onArchive = null;
+    for (let depth = 0; fiber && depth < 16; depth += 1, fiber = fiber.return) {
+      const props = fiber.memoizedProps || fiber.pendingProps;
+      if (props?.dataAttributes?.["data-app-action-sidebar-thread-id"] === rawId
+          && typeof props.onArchive === "function") onArchive = props.onArchive;
+      const pending = props?.pending;
+      if (!pending) continue;
+      const hostId = row.getAttribute("data-app-action-sidebar-thread-host-id");
+      if (pending.clientThreadId !== clientId || !pending.hostId
+          || (hostId && hostId !== pending.hostId)) return null;
+      return onArchive ? { rawId, pending, onArchive } : null;
+    }
+    return null;
+  }
+
+  async function deleteUncreatedSession(row, button) {
+    const action = uncreatedSessionActionFromRow(row);
+    if (!action) {
+      showToast("未找到此待创建会话的原生关闭入口，请使用原生会话菜单", null);
+      return;
+    }
+    const title = sessionRefFromRow(row).title || "未创建成功的会话";
+    if (!await confirmDelete(title, action.pending.hostId)) return;
+    const current = row.isConnected ? uncreatedSessionActionFromRow(row) : null;
+    if (!current || current.rawId !== action.rawId || current.pending !== action.pending) {
+      showToast("会话已变化，请重新选择后删除", null);
+      return;
+    }
+    releaseDeleteFocus(row, button);
+    try {
+      await current.onArchive();
+      showToast("已关闭未创建成功的会话", null);
+    } catch (error) {
+      showToast(`关闭待创建会话失败：${error?.message || error}`, null);
+    }
+  }
+
   function installDeleteButtonEventDelegation() {
     document.removeEventListener("click", window.__codexSessionDeleteDocumentDeleteHandler, true);
     const handler = (event) => {
@@ -606,7 +665,7 @@
           event.preventDefault();
           event.stopPropagation();
           event.stopImmediatePropagation?.();
-          showToast("会话仍在同步，请稍后重试", null);
+          void deleteUncreatedSession(row, button);
         }
         return;
       }

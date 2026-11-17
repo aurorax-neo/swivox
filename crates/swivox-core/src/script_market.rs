@@ -36,6 +36,8 @@ pub struct MarketScript {
     /// 可选图标 URL。清单目前还没提供，留好通路：有就用，没有回退默认字形。
     #[serde(default)]
     pub icon: String,
+    #[serde(default)]
+    pub updated_at: String,
 }
 
 pub fn parse_market_manifest(raw: Value) -> anyhow::Result<ScriptMarketManifest> {
@@ -179,6 +181,7 @@ pub fn market_scripts_payload(
                 "requirements": script.requirements,
                 "limitations": script.limitations,
                 "icon": script.icon,
+                "updatedAt": script.updated_at,
                 "installed": local_version.is_some(),
                 "installedVersion": local_version.cloned().unwrap_or_default(),
                 "updateAvailable": local_version
@@ -251,6 +254,11 @@ fn parse_market_script(raw: Value) -> Option<MarketScript> {
         requirements: string_list(&raw, "requirements"),
         limitations: string_list(&raw, "limitations"),
         icon: optional_string(&raw, "icon"),
+        updated_at: ["updated_at", "updatedAt"]
+            .iter()
+            .map(|key| optional_string(&raw, key))
+            .find(|value| !value.is_empty())
+            .unwrap_or_default(),
     })
 }
 

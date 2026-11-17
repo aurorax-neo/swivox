@@ -231,7 +231,7 @@ it("replaces version 31 styles with bounded panel geometry and keeps version 32 
   };
   const install = new Function("document", `${declarations}\n${styleSource}\nreturn installStyle;`)(document);
   install();
-  assert.equal(existing?.dataset.codexDeleteStyleVersion, "32");
+  assert.match(existing?.dataset.codexDeleteStyleVersion ?? "", /^32(?:-|$)/);
   const pageRules = existing!.textContent!.match(/\.swivox-page-overlay\s*\{([^}]+)\}/)![1];
   assert.match(pageRules, /right: var\(--swivox-page-right, 0px\)/);
   assert.match(pageRules, /bottom: var\(--swivox-page-bottom, 0px\)/);

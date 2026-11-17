@@ -1,6 +1,9 @@
 pub mod about;
 pub mod agent_cache;
+pub mod antigravity_accounts;
+pub mod antigravity_enhance;
 pub mod enhance;
+pub mod lamplighter;
 pub mod maintenance;
 pub mod mcp;
 pub mod multi_launch;

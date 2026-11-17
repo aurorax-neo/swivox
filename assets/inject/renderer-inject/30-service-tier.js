@@ -1014,6 +1014,155 @@
   }
 
   const codexAppServerPreparationTimeoutMs = 2000;
+  const codexBridgePreparationReadTimeoutMs = 8000;
+
+  function installSwivoxConfigReadDeadline() {
+    if (window.__swivoxConfigReadDeadline) return;
+    const pending = new Map();
+    const deadlineMs = 15000;
+    const clear = (requestId) => {
+      const timer = pending.get(requestId);
+      if (timer === undefined) return;
+      pending.delete(requestId);
+      window.clearTimeout(timer);
+    };
+    const outgoing = (event) => {
+      if (event?.__codexForwardedViaBridge !== true) return;
+      const message = event?.detail;
+      if (message?.type === "cancel-fetch") { clear(message.requestId); return; }
+      if (message?.type !== "fetch" || message.method !== "POST"
+          || message.url !== "vscode://codex/mcp-codex-config"
+          || typeof message.requestId !== "string" || !message.requestId
+          || pending.has(message.requestId)) return;
+      const requestId = message.requestId;
+      const timer = window.setTimeout(() => {
+        if (pending.get(requestId) !== timer) return;
+        pending.delete(requestId);
+        try {
+          const cancel = { type: "cancel-fetch", requestId };
+          const bridge = window.electronBridge;
+          if (typeof bridge?.sendMessageFromView === "function") {
+            Promise.resolve(bridge.sendMessageFromView(cancel)).catch(() => {});
+          } else {
+            window.dispatchEvent(new CustomEvent("codex-message-from-view", { detail: cancel }));
+          }
+        } catch {}
+        window.dispatchEvent(new MessageEvent("message", {
+          source: window,
+          origin: window.location.origin,
+          data: {
+            type: "fetch-response",
+            requestId,
+            responseType: "error",
+            status: 408,
+            error: "Timed out reading Codex configuration. Please try again.",
+          },
+        }));
+        sendSwivoxDiagnostic("config_read_deadline_exceeded", { deadlineMs });
+      }, deadlineMs);
+      pending.set(requestId, timer);
+    };
+    const incoming = (event) => {
+      if (event?.source != null && event.source !== window) return;
+      const origin = String(event?.origin || "");
+      if (origin && origin !== "null" && origin !== window.location.origin) return;
+      if (event?.data?.type === "fetch-response") clear(event.data.requestId);
+    };
+    window.addEventListener("codex-message-from-view", outgoing, true);
+    window.addEventListener("message", incoming, true);
+    window.__swivoxConfigReadDeadline = { pending, deadlineMs };
+  }
+
+  const swivoxForkPlacementGateKeys = new Set(["sidebarCustomSectionsEnabled", "useAppServerCustomSections"]);
+  const swivoxForkReadinessState = window.__swivoxForkReadinessState
+    || (window.__swivoxForkReadinessState = { installing: null, patched: false, reported: false, statsigReported: false, statsigTimer: 0 });
+
+  function swivoxForkPlacementSettings(settings) {
+    return new Proxy(settings, {
+      get(target, property) {
+        if (property === "read") {
+          return (key, ...rest) => {
+            const value = target.read(key, ...rest);
+            if (value !== undefined || !swivoxForkPlacementGateKeys.has(key)) return value;
+            if (!swivoxForkReadinessState.reported) {
+              swivoxForkReadinessState.reported = true;
+              try { sendSwivoxDiagnostic("fork_placement_gate_fallback", { key }); } catch {}
+            }
+            return false;
+          };
+        }
+        const value = Reflect.get(target, property, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+  }
+
+  function installSwivoxForkReadinessFallback(attempt = 0) {
+    if (swivoxForkReadinessState.patched || swivoxForkReadinessState.installing) return swivoxForkReadinessState.installing;
+    swivoxForkReadinessState.installing = (async () => {
+      const module = await loadCodexAppModule("app-initial-").catch(() => null);
+      let patched = false;
+      for (const value of Object.values(module || {})) {
+        if (typeof value !== "function" || typeof value.prototype?.getForkCapabilities !== "function") continue;
+        const proto = value.prototype;
+        const original = proto.getForkCapabilities;
+        if (original.__swivoxForkReadiness === true) { patched = true; continue; }
+        const wrapped = function getForkCapabilities(...args) {
+          let active = false;
+          try {
+            active = !(typeof swivoxBackendSettings !== "undefined" && swivoxBackendSettings?.enhancementsEnabled === false)
+              && typeof this?.settings?.read === "function"
+              && this.runtime?.accountId?.() == null;
+          } catch {}
+          if (!active) return original.apply(this, args);
+          const receiver = Object.create(this, { settings: { value: swivoxForkPlacementSettings(this.settings) } });
+          return original.apply(receiver, args);
+        };
+        Object.defineProperty(wrapped, "__swivoxForkReadiness", { value: true });
+        proto.getForkCapabilities = wrapped;
+        patched = true;
+      }
+      return patched;
+    })().catch(() => false).then((patched) => {
+      swivoxForkReadinessState.installing = null;
+      swivoxForkReadinessState.patched = patched;
+      if (!patched && attempt < 5) window.setTimeout(() => void installSwivoxForkReadinessFallback(attempt + 1), 2000 * (attempt + 1));
+      return patched;
+    });
+    return swivoxForkReadinessState.installing;
+  }
+
+  function swivoxOfflineStatsigPatchEmptyForLoggedOut() {
+    if (!swivoxBackendSettingsLoaded || swivoxBackendSettings?.enhancementsEnabled === false) return;
+    const root = window.__STATSIG__ || globalThis.__STATSIG__;
+    if (!root || typeof root !== "object") return;
+    const clients = [root.firstInstance, typeof root.instance === "function" ? root.instance() : null, ...Object.values(root.instances || {})]
+      .filter((c, i, arr) => c && typeof c === "object" && arr.indexOf(c) === i);
+    for (const client of clients) {
+      try {
+        if (client.loadingStatus !== "Ready") continue;
+        const context = client.getContext?.();
+        if (!context || context.values != null) continue;
+        if (!context.user || (context.user.customIDs?.account_id ?? null) != null) continue;
+        if (typeof client.dataAdapter?.setData !== "function" || typeof client.updateUserSync !== "function") continue;
+        client.dataAdapter.setData(JSON.stringify({
+          feature_gates: {}, dynamic_configs: {}, layer_configs: {}, param_stores: {},
+          time: Date.now(), has_updates: true, hash_used: "none", user: context.user, swivox_offline: true,
+        }));
+        client.updateUserSync(context.user);
+        if (!swivoxForkReadinessState.statsigReported) {
+          swivoxForkReadinessState.statsigReported = true;
+          try { sendSwivoxDiagnostic("fork_statsig_offline_fallback", {}); } catch {}
+        }
+      } catch {}
+    }
+  }
+
+  function installSwivoxForkStatsigFallback() {
+    window.clearInterval(swivoxForkReadinessState.statsigTimer);
+    swivoxOfflineStatsigPatchEmptyForLoggedOut();
+    swivoxForkReadinessState.statsigTimer = window.setInterval(swivoxOfflineStatsigPatchEmptyForLoggedOut, 3000);
+  }
 
   // 发送前只读取辅助配置；桥接无回包时及时降级，迟到的结果也不再应用。
   // 写 RPC（尤其 thread/resume）不能这样竞速，否则会在 turn/start 后迟到修改会话。

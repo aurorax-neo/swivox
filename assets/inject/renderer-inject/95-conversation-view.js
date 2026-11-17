@@ -256,6 +256,19 @@
   // 桌面端发送按钮读 rate_limit.allowed；limit_reached 为 true 也会被当成已用完。
   // 混入时在查询发布前把 allowed 写成 true，并清掉 limit_reached。
   // 百分比、重置时间、账号、积分和消费上限不动。图片额度横幅单独留下。
+  function unlockAdditionalRateLimits(limits) {
+    if (!Array.isArray(limits)) return null;
+    let changed = false;
+    const next = limits.map((entry) => {
+      const rateLimit = entry?.rate_limit;
+      if (!rateLimit || typeof rateLimit !== "object") return entry;
+      if (rateLimit.allowed !== false && rateLimit.limit_reached !== true) return entry;
+      changed = true;
+      return { ...entry, rate_limit: { ...rateLimit, allowed: true, limit_reached: false } };
+    });
+    return changed ? next : null;
+  }
+
   function rewriteOfficialUsageStatus(value, policy = officialUsagePolicy()) {
     if (!policy.official || (!policy.hideAlerts && !policy.unlockSend) || !isOfficialUsageStatus(value)) return null;
     const next = { ...value };
@@ -272,6 +285,13 @@
     if (policy.unlockSend && (rateLimit.allowed !== true || rateLimit.limit_reached === true)) {
       next.rate_limit = { ...rateLimit, allowed: true, limit_reached: false };
       changed = true;
+    }
+    if (policy.unlockSend) {
+      const additionalRateLimits = unlockAdditionalRateLimits(value.additional_rate_limits);
+      if (additionalRateLimits) {
+        next.additional_rate_limits = additionalRateLimits;
+        changed = true;
+      }
     }
     if (policy.hideAlerts) {
       if (value.sidebar_usage_warnings != null) {

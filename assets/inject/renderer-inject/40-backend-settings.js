@@ -368,6 +368,27 @@
     if (svg) img.replaceWith(svg);
   }
 
+  function swivoxParseMarketTime(value) {
+    const unix = (number) => (!Number.isFinite(number) || number < 1e8 ? null : number < 1e11 ? Math.round(number * 1000) : Math.round(number));
+    if (typeof value === "number") return unix(value);
+    const text = String(value ?? "").trim();
+    if (!text) return null;
+    if (/^\d+(\.\d+)?$/.test(text) && !/^\d{4}$/.test(text)) return unix(Number(text));
+    const spaced = /^(\d{4}-\d{2}-\d{2})\s+(\d{1,2})(:\d{2}(?::\d{2}(?:\.\d+)?)?)\s*(.*)$/.exec(text);
+    const normalized = spaced
+      ? `${spaced[1]}T${spaced[2].padStart(2, "0")}${spaced[3]}${/^(utc|gmt)$/i.test(spaced[4]) ? "Z" : spaced[4]}`
+      : text;
+    const time = Date.parse(normalized);
+    return Number.isNaN(time) ? null : time;
+  }
+
+  function swivoxFormatMarketDate(value) {
+    const ms = swivoxParseMarketTime(value);
+    if (ms === null) return "";
+    const d = new Date(ms);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
   /** 原生风格详情：居中展示图标、名称、介绍与管理操作。 */
   function renderSwivoxExtensionsDetail() {
     const detail = swivoxExtensionsSelectionDetail();
@@ -379,6 +400,7 @@
     const name = marketItem?.name || local?.name || sel.key;
     const version = marketItem?.version || local?.version || "";
     const author = marketItem?.author || "";
+    const updatedDate = swivoxFormatMarketDate(marketItem?.updatedAt || marketItem?.updated_at);
     const description = marketItem?.description || local?.description || "";
     const tags = marketItem?.tags || [];
     const requirements = marketItem?.requirements || [];
@@ -391,6 +413,7 @@
     const publisherLine = [
       author ? escapeHtml(author) : "",
       version ? `v${escapeHtml(version)}` : "",
+      updatedDate ? escapeHtml(updatedDate) : "",
       local ? `${local.source === "builtin" ? "内置" : "用户"} · ${escapeHtml(userScriptStatusLabel(local.status))}` : "",
     ].filter(Boolean).join('<span class="swivox-extensions-detail-sep">·</span>');
 

@@ -130,6 +130,10 @@ fn main() {
     // 自动接管官方 App 守护（内部根据开关决定是否启动）
     swivox_backend::auto_takeover::start_supervisor();
 
+    // 启动 Antigravity CDP 动态增强守护与 Lamplighter 后台监控/自动点火守护
+    swivox_core::antigravity::ensure_background_enhance_supervisor(tokio_handle.clone());
+    swivox_core::lamplighter::ensure_lamplighter_engine_started(tokio_handle.clone());
+
     let reopen_tx = wake_tx.clone();
     let app = gpui_kit::application().with_assets(gpui_kit::assets::AllAssets);
     app.on_reopen(move |_cx| {
@@ -413,14 +417,38 @@ mod visual_audit {
             (
                 "01_overview.png",
                 Box::new(|hcx, store| {
-                    hcx.update(|app| store.update(app, |s, cx| s.navigate(Route::Overview, cx)));
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.clear_notice(cx);
+                            s.navigate(Route::Overview, cx);
+                        });
+                    });
+                }),
+            ),
+            (
+                "01b_floating_toast.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.navigate(Route::Overview, cx);
+                            s.set_notice(
+                                i18n::t("切换官方账号"),
+                                i18n::t("已切换官方账号（重启 Codex 后生效）。"),
+                                "ok",
+                                cx,
+                            );
+                        });
+                    });
                 }),
             ),
             (
                 "02_official_accounts.png",
                 Box::new(|hcx, store| {
                     hcx.update(|app| {
-                        store.update(app, |s, cx| s.navigate(Route::OfficialAccounts, cx))
+                        store.update(app, |s, cx| {
+                            s.clear_notice(cx);
+                            s.navigate(Route::OfficialAccounts, cx);
+                        })
                     });
                 }),
             ),
@@ -625,6 +653,75 @@ mod visual_audit {
                 }),
             ),
             (
+                "19a_ag_overview.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.active_tool = "antigravity".to_string();
+                            s.navigate(Route::Overview, cx);
+                        });
+                    });
+                }),
+            ),
+            (
+                "19b_ag_accounts.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.active_tool = "antigravity".to_string();
+                            s.navigate(Route::AntigravityAccounts, cx);
+                        });
+                    });
+                }),
+            ),
+            (
+                "19c_ag_enhance.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.active_tool = "antigravity".to_string();
+                            s.navigate(Route::AntigravityEnhance, cx);
+                        });
+                    });
+                }),
+            ),
+            (
+                "20a_lamplighter_overview.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.active_tool = "codex".to_string();
+                            s.lamplighter_tab = "overview";
+                            s.navigate(Route::Lamplighter, cx);
+                        });
+                    });
+                }),
+            ),
+            (
+                "20b_lamplighter_history.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.navigate(Route::Lamplighter, cx);
+                            s.lamplighter_tab = "history";
+                            cx.notify();
+                        });
+                    });
+                }),
+            ),
+            (
+                "20c_lamplighter_settings.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.navigate(Route::Lamplighter, cx);
+                            s.lamplighter_tab = "settings";
+                            cx.notify();
+                        });
+                    });
+                }),
+            ),
+            (
                 "16_light_en_overview.png",
                 Box::new(|hcx, store| {
                     i18n::set_language(Language::En);
@@ -656,6 +753,29 @@ mod visual_audit {
                     hcx.update(|app| {
                         store.update(app, |s, cx| {
                             s.navigate(Route::Settings, cx);
+                        });
+                    });
+                }),
+            ),
+            (
+                "18b_light_en_antigravity.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.active_tool = "antigravity".to_string();
+                            s.navigate(Route::AntigravityAccounts, cx);
+                        });
+                    });
+                }),
+            ),
+            (
+                "18c_light_en_lamplighter.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.active_tool = "codex".to_string();
+                            s.lamplighter_tab = "overview";
+                            s.navigate(Route::Lamplighter, cx);
                         });
                     });
                 }),

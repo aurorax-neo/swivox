@@ -148,7 +148,7 @@ fn yaml_top_level_bool(contents: &str, key: &str) -> Option<bool> {
 fn is_proxy_environment_name(name: &str) -> bool {
     matches!(
         name.trim().to_ascii_uppercase().as_str(),
-        "HTTP_PROXY" | "HTTPS_PROXY" | "ALL_PROXY" | "NO_PROXY" | "FTP_PROXY"
+        "HTTP_PROXY" | "HTTPS_PROXY" | "ALL_PROXY" | "FTP_PROXY"
     )
 }
 
@@ -270,7 +270,7 @@ mod tests {
                 .iter()
                 .map(|item| item.name.as_str())
                 .collect::<Vec<_>>(),
-            vec!["HTTPS_PROXY", "NO_PROXY"]
+            vec!["HTTPS_PROXY"]
         );
     }
 

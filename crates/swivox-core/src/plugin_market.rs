@@ -42,7 +42,7 @@ impl Source {
             "full" => Ok(Self {
                 id: "full",
                 repository: concat!("BigPizzaV3/", "Codex", "PlusPlus", "FullPluginCache"),
-                private: true,
+                private: false,
             }),
             _ => bail!("未知插件市场来源，请选择 public 或 full"),
         }
@@ -339,31 +339,25 @@ async fn command_output(
 }
 
 async fn fetch_index(source: Source) -> anyhow::Result<Vec<u8>> {
-    let url = format!(
+    let raw = format!(
         "https://raw.githubusercontent.com/{}/main/plugin-index.json",
         source.repository
     );
-    let client = crate::http_client::proxied_client_with_timeout(
+    let api = format!(
+        "https://api.github.com/repos/{}/contents/plugin-index.json?ref=main",
+        source.repository
+    );
+    let client = crate::http_client::proxied_client_with_timeouts(
         "Swivox/plugin-market",
+        INDEX_TIMEOUT,
         INDEX_TIMEOUT,
     )
     .context("无法建立插件市场连接")?;
-    match client.get(&url).send().await {
-        Ok(mut response) if response.status().is_success() => {
-            if response.content_length().unwrap_or_default() > MAX_INDEX_BYTES as u64 {
-                bail!("插件索引超过 8 MiB 限制");
-            }
-            let mut bytes = Vec::new();
-            while let Some(chunk) = response.chunk().await.context("无法读取插件索引")? {
-                if bytes.len() + chunk.len() > MAX_INDEX_BYTES {
-                    bail!("插件索引超过 8 MiB 限制");
-                }
-                bytes.extend_from_slice(&chunk);
-            }
-            return Ok(bytes);
-        }
-        _ if source.private => {}
-        _ => bail!("无法获取公开插件市场索引，请检查网络或稍后重试"),
+    if let Some(bytes) = fetch_index_over_http(&client, &[&raw, &api]).await? {
+        return Ok(bytes);
+    }
+    if !source.private {
+        bail!("无法获取插件市场索引，请检查网络或稍后重试");
     }
     let endpoint = format!(
         "repos/{}/contents/plugin-index.json?ref=main",
@@ -381,6 +375,42 @@ async fn fetch_index(source: Source) -> anyhow::Result<Vec<u8>> {
         "完整市场需要 GitHub 仓库访问权限；请先安装 gh 并运行 gh auth login",
     )
     .await
+}
+
+async fn fetch_index_over_http(
+    client: &reqwest::Client,
+    urls: &[&str],
+) -> anyhow::Result<Option<Vec<u8>>> {
+    'urls: for url in urls {
+        let Ok(mut response) = client
+            .get(*url)
+            .header(reqwest::header::ACCEPT, "application/vnd.github.raw+json")
+            .send()
+            .await
+        else {
+            continue;
+        };
+        if !response.status().is_success() {
+            continue;
+        }
+        if response.content_length().unwrap_or_default() > MAX_INDEX_BYTES as u64 {
+            bail!("插件索引超过 8 MiB 限制");
+        }
+        let mut bytes = Vec::new();
+        loop {
+            match response.chunk().await {
+                Ok(Some(chunk)) => {
+                    if bytes.len() + chunk.len() > MAX_INDEX_BYTES {
+                        bail!("插件索引超过 8 MiB 限制");
+                    }
+                    bytes.extend_from_slice(&chunk);
+                }
+                Ok(None) => return Ok(Some(bytes)),
+                Err(_) => continue 'urls,
+            }
+        }
+    }
+    Ok(None)
 }
 
 async fn load_index(
@@ -749,16 +779,28 @@ async fn git_output(
         .kill_on_drop(true);
     #[cfg(windows)]
     command.creation_flags(crate::windows_create_no_window());
-    let mut child = command.spawn().map_err(|error| {
-        anyhow::anyhow!(
-            match error.kind() {
-                std::io::ErrorKind::NotFound => GitFailure::Missing,
-                std::io::ErrorKind::PermissionDenied => GitFailure::LocalPermission,
-                _ => GitFailure::Other,
+    let mut busy_retries = 0_u64;
+    let mut child = loop {
+        match command.spawn() {
+            Ok(child) => break child,
+            Err(error)
+                if error.kind() == std::io::ErrorKind::ExecutableFileBusy && busy_retries < 5 =>
+            {
+                busy_retries += 1;
+                tokio::time::sleep(Duration::from_millis(20 * busy_retries)).await;
             }
-            .message(private)
-        )
-    })?;
+            Err(error) => {
+                return Err(anyhow::anyhow!(
+                    match error.kind() {
+                        std::io::ErrorKind::NotFound => GitFailure::Missing,
+                        std::io::ErrorKind::PermissionDenied => GitFailure::LocalPermission,
+                        _ => GitFailure::Other,
+                    }
+                    .message(private)
+                ));
+            }
+        }
+    };
     let mut stdout = child.stdout.take().context("无法读取 Git 输出")?;
     let mut stderr = child.stderr.take().context("无法读取 Git 错误分类")?;
     tokio::time::timeout(GIT_TIMEOUT, async {
@@ -1456,7 +1498,7 @@ fn native_summary(
 fn native_market(home: &Path, source: Source, plugins: Vec<Value>) -> Value {
     json!({
         "name": virtual_market_name(source), "path": virtual_market_path(home, source).to_string_lossy(),
-        "interface": { "displayName": if source.private { "Codex 插件市场 · 完整库" } else { "Codex 插件市场 · 公开库" } },
+        "interface": { "displayName": if source.id == "full" { "Codex 插件市场 · 完整库" } else { "Codex 插件市场 · 公开库" } },
         "plugins": plugins,
     })
 }

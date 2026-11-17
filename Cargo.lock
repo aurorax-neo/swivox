@@ -7661,6 +7661,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "base64",
+ "chrono",
  "directories",
  "fs2",
  "futures-util",
@@ -7709,6 +7710,7 @@ name = "swivox-gpui"
 version = "0.1.5"
 dependencies = [
  "anyhow",
+ "chrono",
  "core-foundation 0.10.1",
  "core-graphics 0.24.0",
  "gpui-kit",

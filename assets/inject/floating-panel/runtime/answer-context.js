@@ -666,6 +666,8 @@
   }
 
   function roleFromMessageLabel(label) {
+    const role = label?.getAttribute?.("data-conversation-role");
+    if (role === "user" || role === "assistant") return role;
     const text = normalizeText(label?.textContent || "");
     if (/^(你说|you said|user)\s*[:：]?$/i.test(text)) return "user";
     if (/^(ChatGPT|assistant|codex)(?:\s+说|\s+said)?\s*[:：]?$/i.test(text)) return "assistant";
@@ -724,13 +726,19 @@
 
   function compareConversationTurnKeys(left, right) {
     if (left === right) return 0;
+    const leftIndex = /^turn-index-(\d+)$/.exec(left);
+    const rightIndex = /^turn-index-(\d+)$/.exec(right);
+    if (leftIndex && rightIndex) return Number(leftIndex[1]) - Number(rightIndex[1]);
+    if (Boolean(leftIndex) !== Boolean(rightIndex)) return null;
     return left < right ? -1 : 1;
   }
 
   function latestConversationTurnByKey(turns) {
     return turns.reduce((latest, turn) => {
       if (!turn?.turnKey) return latest;
-      if (!latest || compareConversationTurnKeys(latest.turnKey, turn.turnKey) < 0) return turn;
+      if (!latest) return turn;
+      const order = compareConversationTurnKeys(latest.turnKey, turn.turnKey);
+      if (order === null || order < 0) return turn;
       return latest;
     }, null);
   }
@@ -739,7 +747,11 @@
     const mounted = latestConversationTurnByKey(turns);
     if (!mounted) return previous;
     const sameSession = Boolean(sessionId) && previous?.sessionId === sessionId;
-    if (sameSession && compareConversationTurnKeys(mounted.turnKey, previous.turnKey) < 0) return previous;
+    if (sameSession) {
+      const order = compareConversationTurnKeys(mounted.turnKey, previous.turnKey);
+      if (order !== null && order < 0) return previous;
+      if (order === null && !turns.some((turn) => turn?.turnKey === previous.turnKey)) return previous;
+    }
 
     const sameTurn = sameSession && previous?.turnKey === mounted.turnKey;
     const assistant = mounted.assistantMessage;

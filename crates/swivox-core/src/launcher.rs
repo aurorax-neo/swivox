@@ -1326,6 +1326,15 @@ impl LaunchHooks for DefaultLaunchHooks {
         if let Some(state_dir) = instance.state_dir.as_deref() {
             child_command.env(crate::paths::STATE_DIR_ENV, state_dir);
         }
+        if let Some(user_data_dir) = launch_extra_args
+            .iter()
+            .find_map(|arg| arg.strip_prefix("--user-data-dir="))
+            .filter(|dir| !dir.trim().is_empty())
+        {
+            child_command.env("CODEX_ELECTRON_USER_DATA_PATH", user_data_dir);
+        } else if instance.state_dir.is_some() {
+            child_command.env_remove("CODEX_ELECTRON_USER_DATA_PATH");
+        }
         #[cfg(windows)]
         child_command.creation_flags(crate::windows_integration::CREATE_NO_WINDOW);
         let child = child_command
@@ -1703,6 +1712,32 @@ async fn handle_helper_connection(
             "body_bytes": request.body.len()
         }),
     );
+
+    let is_billable = crate::protocol_proxy::is_responses_proxy_path(path)
+        || crate::protocol_proxy::is_chat_completions_proxy_path(path)
+        || crate::protocol_proxy::is_audio_transcriptions_proxy_path(path)
+        || crate::protocol_proxy::is_image_generations_proxy_path(path)
+        || crate::protocol_proxy::is_image_edits_proxy_path(path);
+    let has_origin = request_headers.lines().skip(1).any(|line| {
+        line.split_once(':').is_some_and(|(name, value)| {
+            name.trim().eq_ignore_ascii_case("origin") && !value.trim().is_empty()
+        })
+    });
+    if is_billable && has_origin {
+        let body = serde_json::to_vec(&serde_json::json!({
+            "status": "forbidden",
+            "message": "本地代理不接受来自网页的请求。"
+        }))?;
+        write_http_response(
+            &mut stream,
+            "403 Forbidden",
+            "application/json; charset=utf-8",
+            &body,
+        )
+        .await?;
+        stream.shutdown().await?;
+        return Ok(());
+    }
 
     if matches!(path, "/dictation/transcribe" | "/dictation/status") {
         return handle_dictation_connection(

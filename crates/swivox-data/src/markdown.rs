@@ -145,8 +145,26 @@ fn lookup_thread_record(
             },
         );
         return match row {
-            Ok(row) => Ok(ThreadLookup::Found(row)),
-            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(ThreadLookup::Missing),
+            Ok(mut row) => {
+                let recorded_is_file = row.rollout_path.as_deref().is_some_and(Path::is_file);
+                if !recorded_is_file {
+                    if let Some(found) =
+                        discover_rollout_path(db_path, thread_id, RolloutScan::FileNameOnly)?
+                    {
+                        row.rollout_path = Some(found);
+                    }
+                }
+                Ok(ThreadLookup::Found(row))
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => {
+                match discover_rollout_path(db_path, thread_id, RolloutScan::FileNameOnly)? {
+                    Some(rollout_path) => Ok(ThreadLookup::Found(ThreadRecord {
+                        title: None,
+                        rollout_path: Some(rollout_path),
+                    })),
+                    None => Ok(ThreadLookup::Missing),
+                }
+            }
             Err(err) => Err(err.into()),
         };
     }
@@ -169,7 +187,11 @@ fn lookup_thread_record(
         return match row {
             Ok(title) => Ok(ThreadLookup::Found(ThreadRecord {
                 title,
-                rollout_path: discover_rollout_path(db_path, thread_id)?,
+                rollout_path: discover_rollout_path(
+                    db_path,
+                    thread_id,
+                    RolloutScan::FileNameThenContents,
+                )?,
             })),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(ThreadLookup::Missing),
             Err(err) => Err(err.into()),
@@ -179,7 +201,17 @@ fn lookup_thread_record(
     Ok(ThreadLookup::Unsupported)
 }
 
-fn discover_rollout_path(db_path: &Path, thread_id: &str) -> anyhow::Result<Option<PathBuf>> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RolloutScan {
+    FileNameOnly,
+    FileNameThenContents,
+}
+
+fn discover_rollout_path(
+    db_path: &Path,
+    thread_id: &str,
+    scan: RolloutScan,
+) -> anyhow::Result<Option<PathBuf>> {
     for home in codex_home_candidates(db_path) {
         let mut candidates = Vec::new();
         collect_jsonl_files(&home.join("sessions"), &mut candidates)?;
@@ -191,9 +223,23 @@ fn discover_rollout_path(db_path: &Path, thread_id: &str) -> anyhow::Result<Opti
                     .ok(),
             )
         });
-        for path in candidates {
+        let (named, others): (Vec<_>, Vec<_>) = candidates.into_iter().partition(|path| {
+            !thread_id.is_empty()
+                && path
+                    .file_name()
+                    .and_then(|value| value.to_str())
+                    .is_some_and(|name| name.contains(thread_id))
+        });
+        for path in named {
             if rollout_matches_thread(&path, thread_id)? {
                 return Ok(Some(path));
+            }
+        }
+        if scan == RolloutScan::FileNameThenContents {
+            for path in others {
+                if rollout_matches_thread(&path, thread_id)? {
+                    return Ok(Some(path));
+                }
             }
         }
     }

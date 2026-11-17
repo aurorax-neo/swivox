@@ -30,10 +30,16 @@ if (!Array.isArray(manifest.fragments) || manifest.fragments.length === 0) {
 }
 
 let assembled = "";
+let manifestChanged = false;
 for (const fragment of manifest.fragments) {
   const body = await readFile(path.join(fragmentDir, fragment.name), "utf8");
   if (!body.endsWith("\n")) {
     throw new Error(`分片 ${fragment.name} 未以换行结尾，拼接会粘连`);
+  }
+  const lineCount = body.split("\n").length - 1;
+  if (fragment.lines !== lineCount) {
+    fragment.lines = lineCount;
+    manifestChanged = true;
   }
   assembled += body;
 }
@@ -68,9 +74,18 @@ if (checkOnly) {
     );
   }
   console.log(`产物与分片一致 (${hash})`);
-} else if (current === assembled) {
-  console.log(`产物已是最新 (${hash})`);
 } else {
-  await writeFile(artifactPath, assembled, "utf8");
-  console.log(`已写入产物 ${manifest.fragments.length} 个分片 (${hash})`);
+  if (manifestChanged) {
+    await writeFile(
+      path.join(fragmentDir, "manifest.json"),
+      JSON.stringify(manifest, null, 2) + "\n",
+      "utf8",
+    );
+  }
+  if (current === assembled) {
+    console.log(`产物已是最新 (${hash})`);
+  } else {
+    await writeFile(artifactPath, assembled, "utf8");
+    console.log(`已写入产物 ${manifest.fragments.length} 个分片 (${hash})`);
+  }
 }

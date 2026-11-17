@@ -1,8 +1,10 @@
+pub mod antigravity_commands;
 pub mod auto_takeover;
 pub mod commands;
 pub mod i18n;
 mod i18n_en;
 pub mod install;
+pub mod lamplighter_commands;
 pub mod phase2_rules;
 pub mod phase3_rules;
 pub mod phase4_rules;

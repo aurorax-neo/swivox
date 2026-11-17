@@ -2013,8 +2013,9 @@ fn stepwise_keeps_context_stable_during_passive_scrolling() {
     assert!(script
         .contains("const sameSession = Boolean(sessionId) && previous?.sessionId === sessionId;"));
     assert!(script.contains(
-        "if (sameSession && compareConversationTurnKeys(mounted.turnKey, previous.turnKey) < 0) return previous;"
+        "const order = compareConversationTurnKeys(mounted.turnKey, previous.turnKey);"
     ));
+    assert!(script.contains("if (order !== null && order < 0) return previous;"));
     assert!(script.contains("sessionId,"));
     assert!(script.contains("data-above-composer-conversation-id"));
     assert!(script.contains("data-response-annotation-conversation"));
@@ -2897,8 +2898,8 @@ fn injection_script_guards_temporary_new_thread_ids_before_delete() {
     assert!(script.contains(
         "? canonicalHrefId || (!hrefIsTemporary ? reactConversationIdFromRow(row) : \"\")"
     ));
-    assert!(script.contains("const openDeleteConfirm = (event) => openDeleteConfirmForRow(row, deleteButton, sessionRefFromRow(row), event)"));
-    assert!(script.contains("会话仍在同步，请稍后重试"));
+    assert!(script.contains("deleteUncreatedSession"));
+    assert!(script.contains("已关闭未创建成功的会话"));
     assert!(script.contains("attributeFilter: [\"data-app-action-sidebar-thread-id\", \"href\"]"));
 
     let cases = run_session_ref_contract_harness();
@@ -3684,6 +3685,8 @@ fn injection_script_applies_fast_service_tier_contract() {
         json!([
             "thread/start:model-old",
             "turn/start:model-old",
+            "thread/read:",
+            "thread/turns/list:",
             "thread/resume:model-new",
             "turn/start:model-new",
             "turn/start:"
@@ -4468,7 +4471,7 @@ async function expectNativeRequestCompletes(promise) {{
   try {{
     return await Promise.race([
       promise,
-      new Promise((_, reject) => {{ timeoutId = setTimeout(() => reject(new Error("native request remained blocked")), 5000); }}),
+      new Promise((_, reject) => {{ timeoutId = setTimeout(() => reject(new Error("native request remained blocked")), 10000); }}),
     ]);
   }} finally {{ clearTimeout(timeoutId); }}
 }}

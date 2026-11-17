@@ -2,25 +2,13 @@ const assert = require("node:assert/strict");
 const vm = require("node:vm");
 const { permitsExternalApi, locate, condition } = require("./api-quota-gate.js");
 
-const profile = { id: "api", relayMode: "official", officialMixApiKey: true, upstreamBaseUrl: "https://proxy.example/v1" };
-const settings = { relayProfilesEnabled: true, activeRelayId: "api", relayProfiles: [profile], activeRelaySessionProvider: "openai" };
-assert.equal(permitsExternalApi(settings, "local"), true, "API transport may keep openai session identity");
+const settings = { codexAppStandaloneQuotaUnlock: true };
+assert.equal(permitsExternalApi(settings, "local"), true, "explicit standalone switch unlocks local host");
 for (const host of ["remote", "durable", "", null]) assert.equal(permitsExternalApi(settings, host), false);
-for (const patch of [{relayProfilesEnabled:false}, {activeRelayId:"missing"}, {relayProfiles:null}, {relayProfiles:{}}]) {
-  assert.equal(permitsExternalApi({...settings,...patch}, "local"), false);
+for (const bad of [{}, { codexAppStandaloneQuotaUnlock: false }, { codexAppStandaloneQuotaUnlock: "true" }, null, undefined]) {
+  assert.equal(permitsExternalApi(bad, "local"), false);
 }
-for (const upstreamBaseUrl of [
-  "https://api.openai.com/v1",
-  "https://chatgpt.com/backend-api",
-  "https://sub.openai.com/v1",
-  "https://proxy.example/v1",
-  "file:///tmp",
-  "",
-]) assert.equal(permitsExternalApi({...settings,relayProfiles:[{...profile,upstreamBaseUrl}]}, "local"), true);
-for (const patch of [
-  {officialMixApiKey:false}, {relayMode:"pureApi"},
-]) assert.equal(permitsExternalApi({...settings,relayProfiles:[{...profile,...patch}]}, "local"), false);
-console.log("external relay official-mix policy passed");
+console.log("standalone quota unlock policy passed");
 
 const fixture = [
   "var Q;function init(){Q=derived(root,({get:g})=>{let a=g(auth),r=g(rate).data;if(a.authMethod!==`chatgpt`||r.rate_limit?.allowed!==!1)return!1;return true})}",

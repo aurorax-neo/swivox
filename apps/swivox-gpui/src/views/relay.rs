@@ -28,7 +28,7 @@ use gpui_kit::*;
 
 use crate::store::{AppStore, RelaySubscreen};
 use crate::views::{avatar_badge, panel_card};
-use crate::widgets::{AppBadge, AppButton, AppSelectTrigger};
+use crate::widgets::{AppBadge, AppButton, AppSelectOption, AppSelectTrigger};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum EditorOpenDropdown {
@@ -216,6 +216,17 @@ impl RelayView {
                 let ctrl = self.alloc_row_control(r, window, cx);
                 self.row_controls.push(ctrl);
             }
+        }
+
+        #[cfg(feature = "visual-audit")]
+        if let Some(target_dd) = self.store.read(cx).relay_audit_dropdown {
+            self.open_dropdown = match target_dd {
+                "mode" => Some(EditorOpenDropdown::Mode),
+                "proto" => Some(EditorOpenDropdown::Protocol),
+                "bind" => Some(EditorOpenDropdown::OfficialBind),
+                "strategy" => Some(EditorOpenDropdown::Strategy),
+                _ => None,
+            };
         }
 
         let fetched_opt = self.store.read(cx).last_fetched_models.clone();
@@ -1836,59 +1847,6 @@ impl RelayView {
         )
     }
 
-    fn render_dropdown_menu(
-        cx: &App,
-        items: Vec<(String, String, bool, Box<dyn Fn(&mut Window, &mut App)>)>,
-    ) -> AnyElement {
-        let rows: Vec<AnyElement> = items
-            .into_iter()
-            .enumerate()
-            .map(|(idx, (id_key, label, selected, handler))| {
-                div()
-                    .id(SharedString::from(format!("ed-opt-{idx}-{id_key}")))
-                    .h_flex()
-                    .w_full()
-                    .items_center()
-                    .justify_between()
-                    .gap_2()
-                    .px_3()
-                    .py_1p5()
-                    .rounded(px(6.))
-                    .cursor_pointer()
-                    .when(selected, |d| d.bg(cx.theme().accent))
-                    .hover(|s| s.bg(cx.theme().accent.opacity(0.75)))
-                    .on_click(move |_, window, cx| handler(window, cx))
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(cx.theme().foreground)
-                            .child(label),
-                    )
-                    .when(selected, |d| {
-                        d.child(
-                            Icon::new(IconName::Check)
-                                .with_size(gpui_kit::component::Size::Size(px(13.)))
-                                .text_color(cx.theme().primary),
-                        )
-                    })
-                    .into_any_element()
-            })
-            .collect();
-
-        div()
-            .v_flex()
-            .w_full()
-            .gap_0p5()
-            .p_1p5()
-            .mt_1()
-            .rounded(px(8.))
-            .bg(cx.theme().popover)
-            .border_1()
-            .border_color(cx.theme().border)
-            .children(rows)
-            .into_any_element()
-    }
-
     fn render_aggregate_editor_body(&self, cx: &mut Context<Self>) -> AnyElement {
         let agg = self
             .draft_aggregate
@@ -1919,22 +1877,24 @@ impl RelayView {
         let this_mode_failover = cx.entity();
         let this_mode_model = cx.entity();
         let this_strat_toggle = cx.entity();
+        let this_strat_dismiss = cx.entity();
         let strat_open = self.open_dropdown == Some(EditorOpenDropdown::Strategy);
 
-        let strat_menu: Option<AnyElement> = strat_open.then(|| {
-            let strategies = [
+        let strat_options: Vec<AppSelectOption> = if strat_open {
+            [
                 AggregateRelayStrategy::Failover,
                 AggregateRelayStrategy::ConversationRoundRobin,
                 AggregateRelayStrategy::RequestRoundRobin,
                 AggregateRelayStrategy::WeightedRoundRobin,
-            ];
-            let items = strategies
-                .into_iter()
-                .map(|st| {
-                    let entity = cx.entity();
-                    let label = aggregate_strategy_label(st);
-                    let selected = st == strategy;
-                    let cb: Box<dyn Fn(&mut Window, &mut App)> = Box::new(move |_, cx| {
+            ]
+            .into_iter()
+            .map(|st| {
+                let entity = cx.entity();
+                AppSelectOption::new(
+                    format!("{st:?}"),
+                    aggregate_strategy_label(st),
+                    st == strategy,
+                    move |_, cx| {
                         entity.update(cx, |view, cx| {
                             if let Some(a) = &mut view.draft_aggregate {
                                 a.strategy = st;
@@ -1942,12 +1902,13 @@ impl RelayView {
                             view.open_dropdown = None;
                             cx.notify();
                         });
-                    });
-                    (format!("{st:?}"), label, selected, cb)
-                })
-                .collect();
-            Self::render_dropdown_menu(cx, items)
-        });
+                    },
+                )
+            })
+            .collect()
+        } else {
+            Vec::new()
+        };
 
         let member_rows: Vec<AnyElement> = candidates
             .into_iter()
@@ -2219,6 +2180,15 @@ impl RelayView {
                                     aggregate_strategy_label(strategy),
                                 )
                                 .open(strat_open)
+                                .options(strat_options)
+                                .on_dismiss(move |_, cx| {
+                                    this_strat_dismiss.update(cx, |v, cx| {
+                                        if v.open_dropdown == Some(EditorOpenDropdown::Strategy) {
+                                            v.open_dropdown = None;
+                                            cx.notify();
+                                        }
+                                    });
+                                })
                                 .on_click(move |_, _, cx| {
                                     this_strat_toggle.update(cx, |v, cx| {
                                         v.open_dropdown = if v.open_dropdown
@@ -2231,8 +2201,7 @@ impl RelayView {
                                         cx.notify();
                                     });
                                 }),
-                            )
-                            .when_some(strat_menu, |col, menu| col.child(menu)),
+                            ),
                     )
                 })
                 .child(
@@ -2278,102 +2247,84 @@ impl RelayView {
             .map(|a| a.email.clone())
             .unwrap_or_else(|| t("不绑定（独立使用）"));
 
-        let mode_label = match (self.draft_mode, self.draft_official_mix_key) {
-            (RelayMode::PureApi, _) => t("纯 API Key"),
-            (RelayMode::MixedApi, _) | (RelayMode::Official, true) => t("官方登录 + 第三方 API"),
-            _ => t("纯官方登录"),
-        };
+        // 供应商配置页只保留「纯 API Key」模式；官方登录与官方绑定第三方 API 已由「官方账号」模块统一管理。
+        let mode_label = t("纯 API Key");
         let proto_label = relay_protocol_label(self.draft_protocol);
-        let show_api_fields =
-            self.draft_mode != RelayMode::Official || self.draft_official_mix_key;
+        let show_api_fields = true;
 
         let mode_open = self.open_dropdown == Some(EditorOpenDropdown::Mode);
         let proto_open = self.open_dropdown == Some(EditorOpenDropdown::Protocol);
         let bind_open = self.open_dropdown == Some(EditorOpenDropdown::OfficialBind);
 
         let ent_mode_btn = cx.entity();
+        let ent_mode_dismiss = cx.entity();
         let ent_proto_btn = cx.entity();
+        let ent_proto_dismiss = cx.entity();
         let ent_bind_btn = cx.entity();
+        let ent_bind_dismiss = cx.entity();
 
-        let mode_menu: Option<AnyElement> = mode_open.then(|| {
-            let choices = [
-                ("pure", t("纯 API Key"), RelayMode::PureApi, false),
-                (
-                    "mixed",
-                    t("官方登录 + 第三方 API"),
-                    RelayMode::MixedApi,
-                    true,
-                ),
-                ("official", t("纯官方登录"), RelayMode::Official, false),
-            ];
-            let cur = (self.draft_mode, self.draft_official_mix_key);
-            let items = choices
-                .into_iter()
-                .map(|(key, lbl, m, mix)| {
-                    let ent = cx.entity();
-                    let sel = (cur.0 == m)
-                        || (m == RelayMode::MixedApi
-                            && cur.0 == RelayMode::Official
-                            && cur.1);
-                    let cb: Box<dyn Fn(&mut Window, &mut App)> = Box::new(move |_, cx| {
-                        ent.update(cx, |v, cx| {
-                            v.draft_mode = m;
-                            v.draft_official_mix_key = mix;
-                            v.open_dropdown = None;
-                            cx.notify();
-                        });
+        let mode_options: Vec<AppSelectOption> = if mode_open {
+            let ent = cx.entity();
+            vec![AppSelectOption::new(
+                "pure",
+                t("纯 API Key"),
+                true,
+                move |_, cx| {
+                    ent.update(cx, |v, cx| {
+                        v.draft_mode = RelayMode::PureApi;
+                        v.draft_official_mix_key = false;
+                        v.open_dropdown = None;
+                        cx.notify();
                     });
-                    (key.to_string(), lbl, sel, cb)
-                })
-                .collect();
-            Self::render_dropdown_menu(cx, items)
-        });
+                },
+            )]
+        } else {
+            Vec::new()
+        };
 
-        let proto_menu: Option<AnyElement> = proto_open.then(|| {
-            let choices = [RelayProtocol::Responses, RelayProtocol::ChatCompletions];
+        let proto_options: Vec<AppSelectOption> = if proto_open {
             let cur = self.draft_protocol;
-            let items = choices
+            [RelayProtocol::Responses, RelayProtocol::ChatCompletions]
                 .into_iter()
                 .map(|pr| {
                     let ent = cx.entity();
-                    let cb: Box<dyn Fn(&mut Window, &mut App)> = Box::new(move |_, cx| {
-                        ent.update(cx, |v, cx| {
-                            v.draft_protocol = pr;
-                            v.open_dropdown = None;
-                            cx.notify();
-                        });
-                    });
-                    (
+                    AppSelectOption::new(
                         format!("{pr:?}"),
                         relay_protocol_label(pr),
                         pr == cur,
-                        cb,
+                        move |_, cx| {
+                            ent.update(cx, |v, cx| {
+                                v.draft_protocol = pr;
+                                v.open_dropdown = None;
+                                cx.notify();
+                            });
+                        },
                     )
                 })
-                .collect();
-            Self::render_dropdown_menu(cx, items)
-        });
+                .collect()
+        } else {
+            Vec::new()
+        };
 
-        let bind_menu: Option<AnyElement> = bind_open.then(|| {
+        let bind_options: Vec<AppSelectOption> = if bind_open {
             let cur_acc_id = current_bound_acc.map(|a| a.id.clone()).unwrap_or_default();
             let relay_id = self.draft_profile.id.clone();
-            let mut items: Vec<(String, String, bool, Box<dyn Fn(&mut Window, &mut App)>)> =
-                Vec::new();
+            let mut items: Vec<AppSelectOption> = Vec::new();
             {
                 let st = self.store.clone();
                 let ent = cx.entity();
                 let rid = relay_id.clone();
-                items.push((
-                    "none".to_string(),
+                items.push(AppSelectOption::new(
+                    "none",
                     t("不绑定（独立使用）"),
                     cur_acc_id.is_empty(),
-                    Box::new(move |_, cx| {
+                    move |_, cx| {
                         ent.update(cx, |v, cx| {
                             v.open_dropdown = None;
                             cx.notify();
                         });
                         st.update(cx, |s, cx| s.bind_official_to_relay(rid.clone(), None, cx));
-                    }),
+                    },
                 ));
             }
             for acc in &official_accounts {
@@ -2382,11 +2333,11 @@ impl RelayView {
                 let rid = relay_id.clone();
                 let aid = acc.id.clone();
                 let selected = aid == cur_acc_id;
-                items.push((
+                items.push(AppSelectOption::new(
                     aid.clone(),
                     acc.email.clone(),
                     selected,
-                    Box::new(move |_, cx| {
+                    move |_, cx| {
                         ent.update(cx, |v, cx| {
                             v.open_dropdown = None;
                             cx.notify();
@@ -2394,11 +2345,13 @@ impl RelayView {
                         st.update(cx, |s, cx| {
                             s.bind_official_to_relay(rid.clone(), Some(aid.clone()), cx)
                         });
-                    }),
+                    },
                 ));
             }
-            Self::render_dropdown_menu(cx, items)
-        });
+            items
+        } else {
+            Vec::new()
+        };
 
         // 每模型上下文窗口表格
         let configured_slug = model_slug_from_row_name(&self.model_input.read(cx).value());
@@ -2598,6 +2551,17 @@ impl RelayView {
                                     .child(
                                         AppSelectTrigger::new("ed-mode-trigger", mode_label)
                                             .open(mode_open)
+                                            .options(mode_options)
+                                            .on_dismiss(move |_, cx| {
+                                                ent_mode_dismiss.update(cx, |v, cx| {
+                                                    if v.open_dropdown
+                                                        == Some(EditorOpenDropdown::Mode)
+                                                    {
+                                                        v.open_dropdown = None;
+                                                        cx.notify();
+                                                    }
+                                                });
+                                            })
                                             .on_click(move |_, _, cx| {
                                                 ent_mode_btn.update(cx, |v, cx| {
                                                     v.open_dropdown = if v.open_dropdown
@@ -2610,8 +2574,7 @@ impl RelayView {
                                                     cx.notify();
                                                 });
                                             }),
-                                    )
-                                    .when_some(mode_menu, |d, m| d.child(m)),
+                                    ),
                             ),
                     )
                     .child(
@@ -2633,6 +2596,17 @@ impl RelayView {
                                     .child(
                                         AppSelectTrigger::new("ed-proto-trigger", proto_label)
                                             .open(proto_open)
+                                            .options(proto_options)
+                                            .on_dismiss(move |_, cx| {
+                                                ent_proto_dismiss.update(cx, |v, cx| {
+                                                    if v.open_dropdown
+                                                        == Some(EditorOpenDropdown::Protocol)
+                                                    {
+                                                        v.open_dropdown = None;
+                                                        cx.notify();
+                                                    }
+                                                });
+                                            })
                                             .on_click(move |_, _, cx| {
                                                 ent_proto_btn.update(cx, |v, cx| {
                                                     v.open_dropdown = if v.open_dropdown
@@ -2645,8 +2619,7 @@ impl RelayView {
                                                     cx.notify();
                                                 });
                                             }),
-                                    )
-                                    .when_some(proto_menu, |d, m| d.child(m)),
+                                    ),
                             )
                             .child(
                                 div()
@@ -2663,6 +2636,17 @@ impl RelayView {
                                         AppSelectTrigger::new("ed-bind-trigger", bound_label)
                                             .open(bind_open)
                                             .disabled(self.draft_is_new)
+                                            .options(bind_options)
+                                            .on_dismiss(move |_, cx| {
+                                                ent_bind_dismiss.update(cx, |v, cx| {
+                                                    if v.open_dropdown
+                                                        == Some(EditorOpenDropdown::OfficialBind)
+                                                    {
+                                                        v.open_dropdown = None;
+                                                        cx.notify();
+                                                    }
+                                                });
+                                            })
                                             .on_click(move |_, _, cx| {
                                                 ent_bind_btn.update(cx, |v, cx| {
                                                     v.open_dropdown = if v.open_dropdown
@@ -2675,8 +2659,7 @@ impl RelayView {
                                                     cx.notify();
                                                 });
                                             }),
-                                    )
-                                    .when_some(bind_menu, |d, m| d.child(m)),
+                                    ),
                             ),
                     )
                     .when(show_api_fields, |card| {
@@ -2955,8 +2938,7 @@ impl RelayView {
         let doctor_running = data.doctor_running;
         let relay_switching = data.relay_switching;
         let is_agg = self.draft_mode == RelayMode::Aggregate;
-        let show_doctor = !is_agg
-            && (self.draft_mode != RelayMode::Official || self.draft_official_mix_key);
+        let show_doctor = !is_agg;
 
         let title_val = self.name_input.read(cx).value().trim().to_string();
         let heading_title = if title_val.is_empty() {

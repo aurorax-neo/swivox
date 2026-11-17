@@ -1165,6 +1165,65 @@ mod visual_audit {
                     });
                 }),
             ),
+            (
+                "22a_zh_relay_editor_closed.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.dismiss_all_confirm_modals(cx);
+                            s.active_tool = "codex".to_string();
+                            s.relay_audit_dropdown = None;
+                            s.navigate(Route::Relay, cx);
+                            if let Some(first_id) =
+                                s.settings.relay_profiles.first().map(|p| p.id.clone())
+                            {
+                                s.open_edit_relay(first_id, cx);
+                            }
+                        });
+                    });
+                }),
+            ),
+            (
+                "22b_zh_relay_mode_dropdown.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.relay_audit_dropdown = Some("mode");
+                            cx.notify();
+                        });
+                    });
+                }),
+            ),
+            (
+                "22c_zh_relay_proto_dropdown.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.relay_audit_dropdown = Some("proto");
+                            cx.notify();
+                        });
+                    });
+                }),
+            ),
+            (
+                "22d_zh_official_bind_dropdown.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.relay_audit_dropdown = None;
+                            s.navigate(Route::OfficialAccounts, cx);
+                            if let Some(acc_id) = s
+                                .official_snapshot
+                                .as_ref()
+                                .and_then(|sp| sp.accounts.first().map(|a| a.id.clone()))
+                            {
+                                s.open_binding_dropdown_for = Some(acc_id);
+                                cx.notify();
+                            }
+                        });
+                    });
+                }),
+            ),
         ];
 
         for (filename, step_fn) in steps {

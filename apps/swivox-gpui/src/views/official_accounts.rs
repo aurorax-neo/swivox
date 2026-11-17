@@ -14,7 +14,7 @@ use gpui_kit::*;
 
 use crate::store::AppStore;
 use crate::views::{avatar_badge, panel_card};
-use crate::widgets::{AppBadge, AppButton, AppSelectTrigger};
+use crate::widgets::{AppBadge, AppButton, AppSelectOption, AppSelectTrigger};
 
 const PAGE_SIZE: usize = 8;
 
@@ -578,13 +578,13 @@ impl OfficialAccountsView {
                 .into_any_element()
         };
 
-        // 绑定供应商下拉选项列表
+        // 绑定供应商下拉选项列表（顶层浮层渲染，不挤压账号卡片与下方列表）
         let acc_id_dropdown = acc.id.clone();
+        let acc_id_dismiss = acc.id.clone();
         let store_dropdown_toggle = self.store.clone();
-        let dropdown_options: Option<AnyElement> = if dropdown_open {
-            let mut option_rows: Vec<AnyElement> = Vec::new();
+        let store_dropdown_dismiss = self.store.clone();
+        let dropdown_options: Vec<AppSelectOption> = if dropdown_open {
             let current_bound_id = acc.bound_relay_profile_id.clone().unwrap_or_default();
-
             let mut choices: Vec<(String, String)> =
                 vec![(String::new(), t("不绑定（纯官方登录）"))];
             for p in profiles {
@@ -596,73 +596,33 @@ impl OfficialAccountsView {
                 choices.push((p.id.clone(), label));
             }
 
-            for (opt_val, opt_label) in choices {
-                let selected = opt_val == current_bound_id;
-                let acc_bind = acc.clone();
-                let store_bind = self.store.clone();
-                let val_clone = opt_val.clone();
+            choices
+                .into_iter()
+                .map(|(opt_val, opt_label)| {
+                    let selected = opt_val == current_bound_id;
+                    let acc_bind = acc.clone();
+                    let store_bind = self.store.clone();
+                    let val_clone = opt_val.clone();
+                    let opt_id = if opt_val.is_empty() {
+                        "none".to_string()
+                    } else {
+                        opt_val
+                    };
 
-                option_rows.push(
-                    div()
-                        .id(SharedString::from(format!(
-                            "bind-opt-{}-{}",
-                            acc.id,
-                            if opt_val.is_empty() { "none" } else { &opt_val }
-                        )))
-                        .h_flex()
-                        .w_full()
-                        .items_center()
-                        .justify_between()
-                        .gap_2()
-                        .px_3()
-                        .py_1p5()
-                        .rounded(px(6.))
-                        .cursor_pointer()
-                        .when(selected, |d| d.bg(cx.theme().accent))
-                        .hover(|s| s.bg(cx.theme().accent.opacity(0.75)))
-                        .on_click(move |_, _, cx| {
-                            let target_acc = acc_bind.clone();
-                            let next = if val_clone.is_empty() {
-                                None
-                            } else {
-                                Some(val_clone.clone())
-                            };
-                            store_bind
-                                .update(cx, |s, cx| s.bind_relay_for_account(target_acc, next, cx));
-                        })
-                        .child(
-                            div()
-                                .text_xs()
-                                .text_color(cx.theme().foreground)
-                                .child(opt_label),
-                        )
-                        .when(selected, |d| {
-                            d.child(
-                                Icon::new(IconName::Check)
-                                    .with_size(gpui_kit::component::Size::Size(px(13.)))
-                                    .text_color(cx.theme().primary),
-                            )
-                        })
-                        .into_any_element(),
-                );
-            }
-
-            Some(
-                div()
-                    .v_flex()
-                    .w_full()
-                    .gap_0p5()
-                    .p_1p5()
-                    .mt_1p5()
-                    .rounded(px(8.))
-                    .bg(cx.theme().popover)
-                    .border_1()
-                    .border_color(cx.theme().border)
-                    .children(option_rows)
-                    .into_any_element(),
-            )
+                    AppSelectOption::new(opt_id, opt_label, selected, move |_, cx| {
+                        let target_acc = acc_bind.clone();
+                        let next = if val_clone.is_empty() {
+                            None
+                        } else {
+                            Some(val_clone.clone())
+                        };
+                        store_bind
+                            .update(cx, |s, cx| s.bind_relay_for_account(target_acc, next, cx));
+                    })
+                })
+                .collect()
         } else {
-            None
+            Vec::new()
         };
 
         // 编辑备注与专属代理内联框
@@ -1005,6 +965,18 @@ impl OfficialAccountsView {
                                     current_binding_label,
                                 )
                                 .open(dropdown_open)
+                                .options(dropdown_options)
+                                .on_dismiss(move |_, cx| {
+                                    let id = acc_id_dismiss.clone();
+                                    store_dropdown_dismiss.update(cx, |s, cx| {
+                                        if s.open_binding_dropdown_for.as_deref()
+                                            == Some(id.as_str())
+                                        {
+                                            s.open_binding_dropdown_for = None;
+                                            cx.notify();
+                                        }
+                                    });
+                                })
                                 .on_click(move |_, _, cx| {
                                     let id = acc_id_dropdown.clone();
                                     store_dropdown_toggle.update(cx, |s, cx| {
@@ -1018,8 +990,7 @@ impl OfficialAccountsView {
                                         cx.notify();
                                     });
                                 }),
-                            )
-                            .when_some(dropdown_options, |d, menu| d.child(menu)),
+                            ),
                     ),
             )
             .when_some(inline_edit_box, |d, edit| d.child(edit))

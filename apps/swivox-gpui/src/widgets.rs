@@ -304,7 +304,31 @@ impl RenderOnce for AppButton {
     }
 }
 
-/// 左文右箭头的标准下拉选择触发器（用于供应商绑定、协议切换、策略选择等）。
+/// 下拉选择浮层菜单单项定义。
+pub struct AppSelectOption {
+    pub id: SharedString,
+    pub label: SharedString,
+    pub selected: bool,
+    pub on_select: Box<dyn Fn(&mut Window, &mut App)>,
+}
+
+impl AppSelectOption {
+    pub fn new(
+        id: impl Into<SharedString>,
+        label: impl Into<SharedString>,
+        selected: bool,
+        on_select: impl Fn(&mut Window, &mut App) + 'static,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            label: label.into(),
+            selected,
+            on_select: Box::new(on_select),
+        }
+    }
+}
+
+/// 左文右箭头的标准下拉选择器（展开时通过 `Popup` 渲染脱离文档流的顶层浮层菜单，绝不挤压页面布局）。
 #[derive(IntoElement)]
 pub struct AppSelectTrigger {
     id: ElementId,
@@ -312,6 +336,8 @@ pub struct AppSelectTrigger {
     disabled: bool,
     open: bool,
     on_click: Option<Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>>,
+    options: Vec<AppSelectOption>,
+    on_dismiss: Option<Rc<dyn Fn(&mut Window, &mut App)>>,
 }
 
 impl AppSelectTrigger {
@@ -322,6 +348,8 @@ impl AppSelectTrigger {
             disabled: false,
             open: false,
             on_click: None,
+            options: Vec::new(),
+            on_dismiss: None,
         }
     }
 
@@ -343,10 +371,22 @@ impl AppSelectTrigger {
         self.on_click = Some(Rc::new(handler));
         self
     }
+
+    pub fn options(mut self, options: Vec<AppSelectOption>) -> Self {
+        self.options = options;
+        self
+    }
+
+    pub fn on_dismiss(mut self, handler: impl Fn(&mut Window, &mut App) + 'static) -> Self {
+        self.on_dismiss = Some(Rc::new(handler));
+        self
+    }
 }
 
 impl RenderOnce for AppSelectTrigger {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let width_state =
+            window.use_keyed_state((self.id.clone(), "dropdown-width"), cx, |_, _| px(230.));
         let theme = cx.theme();
         let border = if self.open {
             theme.primary.opacity(0.75)
@@ -354,9 +394,16 @@ impl RenderOnce for AppSelectTrigger {
             theme.border
         };
         let disabled = self.disabled;
+        let chevron = if self.open {
+            IconName::ChevronUp
+        } else {
+            IconName::ChevronDown
+        };
 
+        let width_for_measure = width_state.clone();
         let mut el = div()
-            .id(self.id)
+            .id(self.id.clone())
+            .relative()
             .h_flex()
             .w_full()
             .h(px(30.))
@@ -380,23 +427,126 @@ impl RenderOnce for AppSelectTrigger {
                     .pt(px(0.5))
                     .whitespace_nowrap()
                     .overflow_hidden()
+                    .truncate()
                     .text_size(px(12.5))
                     .line_height(px(16.))
                     .text_color(theme.foreground)
                     .child(self.label),
             )
             .child(
-                Icon::new(IconName::ChevronDown)
+                Icon::new(chevron)
                     .with_size(gpui_kit::component::Size::Size(px(14.)))
-                    .text_color(theme.muted_foreground),
+                    .text_color(if self.open {
+                        theme.primary
+                    } else {
+                        theme.muted_foreground
+                    }),
+            )
+            .child(
+                canvas(
+                    move |bounds, _, cx| {
+                        if (*width_for_measure.read(cx) - bounds.size.width).abs() > px(0.5) {
+                            width_for_measure.update(cx, |w, _| *w = bounds.size.width);
+                        }
+                    },
+                    |_, _, _, _| {},
+                )
+                .absolute()
+                .inset_0(),
             );
 
+        // 当浮层未展开时响应触发点击；展开状态下点击触发器本身属于浮层外部点击，由 on_mouse_down_out 统一收起，避免先关后开竞态。
         if !disabled
+            && (!self.open || self.on_dismiss.is_none())
             && let Some(on_click) = self.on_click
         {
             el = el.on_click(move |ev, window, cx| on_click(ev, window, cx));
         }
-        el
+
+        let mut popup = gpui_kit::base::Popup::new((self.id.clone(), "popup"), el)
+            .w_full()
+            .anchor(Anchor::TopLeft)
+            .offset(px(4.));
+
+        if self.open && !disabled && !self.options.is_empty() {
+            let menu_width = (*width_state.read(cx)).max(px(160.));
+            let fg = theme.foreground;
+            let primary = theme.primary;
+            let accent = theme.accent;
+            let popover_bg = theme.popover;
+            let popover_border = theme.border;
+            let trigger_id = self.id.clone();
+
+            let option_rows: Vec<AnyElement> = self
+                .options
+                .into_iter()
+                .enumerate()
+                .map(|(idx, opt)| {
+                    let selected = opt.selected;
+                    let on_select = opt.on_select;
+                    div()
+                        .id((
+                            trigger_id.clone(),
+                            SharedString::from(format!("opt-{idx}-{}", opt.id)),
+                        ))
+                        .h_flex()
+                        .w_full()
+                        .items_center()
+                        .justify_between()
+                        .gap_2()
+                        .px_3()
+                        .py_1p5()
+                        .rounded(px(6.))
+                        .cursor_pointer()
+                        .when(selected, |d| d.bg(accent))
+                        .hover(move |s| s.bg(accent.opacity(0.75)))
+                        .on_click(move |_, window, cx| on_select(window, cx))
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w_0()
+                                .truncate()
+                                .text_xs()
+                                .text_color(fg)
+                                .child(opt.label),
+                        )
+                        .when(selected, |d| {
+                            d.child(
+                                Icon::new(IconName::Check)
+                                    .with_size(gpui_kit::component::Size::Size(px(13.)))
+                                    .text_color(primary),
+                            )
+                        })
+                        .into_any_element()
+                })
+                .collect();
+
+            let on_dismiss = self.on_dismiss;
+            let menu_surface = div()
+                .id((trigger_id, "dropdown-surface"))
+                .w(menu_width)
+                .max_h(px(260.))
+                .overflow_y_scroll()
+                .occlude()
+                .v_flex()
+                .gap_0p5()
+                .p_1p5()
+                .rounded(px(8.))
+                .bg(popover_bg)
+                .border_1()
+                .border_color(popover_border)
+                .shadow_lg()
+                .when_some(on_dismiss, |d, dismiss| {
+                    d.on_mouse_down_out(move |_, window, cx| {
+                        dismiss(window, cx);
+                    })
+                })
+                .children(option_rows);
+
+            popup = popup.content(menu_surface);
+        }
+
+        popup
     }
 }
 

@@ -220,6 +220,8 @@ pub struct AppStore {
     pub fetched_models_seq: u64,
     pub last_fetched_models: Option<(u64, Vec<String>)>,
     pub relay_files: Option<RelayFilesPayload>,
+    #[cfg(feature = "visual-audit")]
+    pub relay_audit_dropdown: Option<&'static str>,
 
     // Phase 4：全局管理 (MCP / Skills / 会话管理)
     pub mcp_entries: Vec<CodexContextEntry>,
@@ -395,6 +397,8 @@ impl AppStore {
             fetched_models_seq: 0,
             last_fetched_models: None,
             relay_files: None,
+            #[cfg(feature = "visual-audit")]
+            relay_audit_dropdown: None,
 
             mcp_entries: Vec::new(),
             mcp_live_entries: Vec::new(),

@@ -578,15 +578,7 @@ pub fn relay_profile_mode_label(
                 t("故障转移")
             }
         }
-        RelayMode::PureApi => t("纯 API"),
-        RelayMode::MixedApi => t("官方登录 + API"),
-        RelayMode::Official => {
-            if profile.official_mix_api_key {
-                t("官方登录 + API")
-            } else {
-                t("官方登录")
-            }
-        }
+        RelayMode::PureApi | RelayMode::MixedApi | RelayMode::Official => t("纯 API"),
     }
 }
 
@@ -603,13 +595,6 @@ pub fn relay_profile_config_brief(
             .map(|a| aggregate_strategy_label(a.strategy))
             .unwrap_or_else(|| t("失败切换"));
         return tf("{0} · {1} 个成员", &[&strat, &count.to_string()]);
-    }
-    if profile.relay_mode == RelayMode::Official {
-        return if profile.official_mix_api_key {
-            t("混入 API Key")
-        } else {
-            t("不写 API 文件")
-        };
     }
     let url = swivox_core::relay_config::relay_profile_base_url(profile);
     if url.trim().is_empty() {

@@ -753,14 +753,20 @@ pub struct HydratedProfileFields {
 }
 
 pub fn hydrate_profile_editable_fields(profile: &RelayProfile) -> HydratedProfileFields {
+    // 供应商配置页仅承载纯 API Key 与聚合模式；官方登录与官方绑定第三方 API 由「官方账号」模块统一管理。
+    let relay_mode = if profile.relay_mode == RelayMode::Aggregate {
+        RelayMode::Aggregate
+    } else {
+        RelayMode::PureApi
+    };
     HydratedProfileFields {
         name: profile.name.clone(),
         model: relay_profile_model(profile),
         base_url: relay_profile_base_url(profile),
         api_key: relay_profile_api_key(profile),
         protocol: profile.protocol,
-        relay_mode: profile.relay_mode,
-        official_mix_api_key: profile.official_mix_api_key,
+        relay_mode,
+        official_mix_api_key: false,
         rows: model_window_rows_from_profile(profile),
     }
 }
@@ -775,10 +781,16 @@ pub fn apply_editable_fields_to_profile(
     api_key: &str,
     protocol: RelayProtocol,
     relay_mode: RelayMode,
-    official_mix_api_key: bool,
+    _official_mix_api_key: bool,
     rows: &[ModelWindowRow],
 ) -> Result<(), String> {
     validate_model_window_rows(rows)?;
+
+    let effective_mode = if relay_mode == RelayMode::Aggregate {
+        RelayMode::Aggregate
+    } else {
+        RelayMode::PureApi
+    };
 
     let mut merged_rows = rows.to_vec();
     ensure_configured_model_row(&mut merged_rows, model);
@@ -786,8 +798,8 @@ pub fn apply_editable_fields_to_profile(
 
     profile.name = name.trim().to_string();
     profile.protocol = protocol;
-    profile.relay_mode = relay_mode;
-    profile.official_mix_api_key = official_mix_api_key;
+    profile.relay_mode = effective_mode;
+    profile.official_mix_api_key = false;
     profile.model = model.trim().to_string();
     profile.base_url = base_url.trim().to_string();
     profile.upstream_base_url = base_url.trim().to_string();
@@ -815,7 +827,7 @@ pub fn apply_editable_fields_to_profile(
         profile.config_contents.clear();
     }
 
-    if relay_mode == RelayMode::PureApi {
+    if effective_mode == RelayMode::PureApi {
         if api_key.trim().is_empty() {
             profile.auth_contents.clear();
         } else {
@@ -1121,5 +1133,32 @@ mod tests {
         assert_eq!(settings.active_relay_id, dup_id);
         // 最后一个不允许删除
         assert!(!remove_relay_profile(&mut settings, &dup_id));
+    }
+
+    #[test]
+    fn legacy_official_relay_profile_hydrates_and_saves_as_pure_api() {
+        let mut legacy = RelayProfile {
+            relay_mode: RelayMode::Official,
+            official_mix_api_key: true,
+            ..RelayProfile::default()
+        };
+        let hydrated = hydrate_profile_editable_fields(&legacy);
+        assert_eq!(hydrated.relay_mode, RelayMode::PureApi);
+        assert!(!hydrated.official_mix_api_key);
+
+        apply_editable_fields_to_profile(
+            &mut legacy,
+            "默认中转",
+            "gpt-5.5",
+            "https://api.example.com/v1",
+            "sk-pure",
+            RelayProtocol::Responses,
+            RelayMode::Official,
+            true,
+            &[],
+        )
+        .unwrap();
+        assert_eq!(legacy.relay_mode, RelayMode::PureApi);
+        assert!(!legacy.official_mix_api_key);
     }
 }

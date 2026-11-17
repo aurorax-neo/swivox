@@ -1092,8 +1092,8 @@ impl LaunchHooks for DefaultLaunchHooks {
                 "address": format!("http://{bind_host}:{helper_port}")
             }),
         );
-        // 端口绑定成功后立刻落凭据：Claude 汉化注入的 hook 靠它调用听写路由。
-        write_dictation_helper_receipt(helper_port);
+        // 旧版曾为已移除的 Claude 汉化落盘听写能力令牌；不再写入，并清掉遗留文件。
+        remove_legacy_dictation_helper_receipt();
         let (shutdown_tx, mut shutdown_rx) = tokio::sync::oneshot::channel();
         let task = tokio::spawn(async move {
             loop {
@@ -1560,7 +1560,6 @@ impl LaunchHooks for DefaultLaunchHooks {
     }
 
     async fn shutdown_helper(&self, _helper_port: u16) {
-        remove_dictation_helper_receipt();
         if let Some(runtime) = self.bridge_watchdog.lock().await.take() {
             let _ = runtime.shutdown.send(());
             let _ = runtime.task.await;
@@ -1606,60 +1605,17 @@ impl LaunchHooks for DefaultLaunchHooks {
     }
 }
 
-/// 听写 helper 的凭据文件名。Claude 汉化的注入脚本按同一路径读取，
-/// 两边改动必须同步（见 assets/claude-localization/hook.js）。
-const DICTATION_HELPER_RECEIPT: &str = "dictation-helper.json";
+/// 旧版写在 `~/.swivox/` 下的听写 helper 凭据文件名（仅供已移除的 Claude 汉化读取）。
+const LEGACY_DICTATION_HELPER_RECEIPT: &str = "dictation-helper.json";
 
-/// helper 运行期间把端口与能力令牌写进用户态目录。
-///
-/// 为什么需要它：Claude 汉化的页面脚本没有 Codex 页面的特权桥，只能由主进程 hook
-/// 转发听写请求，而 helper 的能力令牌只存在于 launcher 进程内存里。文件限当前用户
-/// 可读（0600），helper 停止即删除；令牌也只在 loopback 的听写路由上有效。
-fn dictation_helper_receipt_path() -> PathBuf {
-    crate::paths::default_app_state_dir().join(DICTATION_HELPER_RECEIPT)
-}
-
-fn write_dictation_helper_receipt(helper_port: u16) {
-    write_dictation_helper_receipt_at(
-        &dictation_helper_receipt_path(),
-        helper_port,
-        crate::dictation::helper_token(),
+/// 删除旧版遗留的听写能力令牌文件；文件不存在时静默忽略。
+fn remove_legacy_dictation_helper_receipt() {
+    remove_legacy_dictation_helper_receipt_at(
+        &crate::paths::default_app_state_dir().join(LEGACY_DICTATION_HELPER_RECEIPT),
     );
 }
 
-fn write_dictation_helper_receipt_at(path: &Path, helper_port: u16, token: &str) {
-    let Ok(text) = serde_json::to_vec(&serde_json::json!({
-        "port": helper_port,
-        "token": token,
-    })) else {
-        return;
-    };
-    let Some(parent) = path.parent() else {
-        return;
-    };
-    if std::fs::create_dir_all(parent).is_err() {
-        return;
-    }
-    // 先写临时文件再改名：读到写了一半的凭据会让调用方白失败一轮。
-    let temporary = path.with_extension("json.tmp");
-    if std::fs::write(&temporary, &text).is_err() {
-        return;
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&temporary, std::fs::Permissions::from_mode(0o600));
-    }
-    // Windows 上 rename 不覆盖已存在的目标，先删再加。
-    let _ = std::fs::remove_file(path);
-    let _ = std::fs::rename(&temporary, path);
-}
-
-fn remove_dictation_helper_receipt() {
-    remove_dictation_helper_receipt_at(&dictation_helper_receipt_path());
-}
-
-fn remove_dictation_helper_receipt_at(path: &Path) {
+fn remove_legacy_dictation_helper_receipt_at(path: &Path) {
     let _ = std::fs::remove_file(path);
 }
 
@@ -2460,27 +2416,14 @@ mod dictation_receipt_tests {
     use super::*;
 
     #[test]
-    fn receipt_round_trip_keeps_port_token_and_owner_only_permissions() {
+    fn legacy_receipt_is_removed_and_missing_file_is_ignored() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("dictation-helper.json");
-        write_dictation_helper_receipt_at(&path, 58321, "token-abc");
-        let value: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
-        assert_eq!(value["port"], 58321);
-        assert_eq!(value["token"], "token-abc");
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
-            assert_eq!(mode, 0o600, "凭据文件必须只对当前用户可读");
-        }
-        // 覆盖写不能失败：Windows 上 rename 到已存在的目标会报错。
-        write_dictation_helper_receipt_at(&path, 57322, "token-def");
-        let again: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
-        assert_eq!(again["port"], 57322);
-        assert_eq!(again["token"], "token-def");
-        assert!(!path.with_extension("json.tmp").exists(), "临时文件必须被改名走");
-        remove_dictation_helper_receipt_at(&path);
-        assert!(!path.exists());
+        let path = dir.path().join(LEGACY_DICTATION_HELPER_RECEIPT);
+        std::fs::write(&path, br#"{"port":58321,"token":"stale"}"#).unwrap();
+        remove_legacy_dictation_helper_receipt_at(&path);
+        assert!(!path.exists(), "遗留的听写令牌文件必须被清理");
+        // 再次调用不应 panic。
+        remove_legacy_dictation_helper_receipt_at(&path);
     }
 }
 

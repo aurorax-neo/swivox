@@ -1,10 +1,8 @@
-use std::io::Cursor;
-
 use swivox_backend::i18n::t;
-use tray_icon::menu::{Menu, MenuEvent, MenuId, MenuItem};
-use tray_icon::{Icon, MouseButton, TrayIcon, TrayIconBuilder, TrayIconEvent};
 
+#[cfg(not(target_os = "macos"))]
 pub const TRAY_MENU_SHOW: &str = "tray_show_main";
+#[cfg(not(target_os = "macos"))]
 pub const TRAY_MENU_QUIT: &str = "tray_quit_app";
 
 const TRAY_ICON_PNG: &[u8] = include_bytes!("../icons/tray-icon.png");
@@ -15,82 +13,264 @@ pub enum TrayAction {
     QuitApp,
 }
 
-pub struct ManagedTray {
-    _tray: TrayIcon,
-    show_item: MenuItem,
-    quit_item: MenuItem,
-}
+#[cfg(target_os = "macos")]
+mod macos_native {
+    use std::collections::VecDeque;
+    use std::sync::{Mutex, OnceLock};
 
-impl ManagedTray {
-    pub fn install() -> anyhow::Result<Self> {
-        let show_item = MenuItem::with_id(TRAY_MENU_SHOW, t("显示主窗口"), true, None);
-        let quit_item = MenuItem::with_id(TRAY_MENU_QUIT, t("退出程序"), true, None);
-        let tray_menu = Menu::with_items(&[&show_item, &quit_item])?;
-        let icon = decode_brand_tray_icon()?;
+    use objc2::rc::Retained;
+    use objc2::runtime::AnyObject;
+    use objc2::{AllocAnyThread, MainThreadOnly, define_class, msg_send, sel};
+    use objc2_app_kit::{
+        NSImage, NSImageScaling, NSMenu, NSMenuItem, NSStatusBar, NSStatusItem,
+        NSVariableStatusItemLength,
+    };
+    use objc2_foundation::{MainThreadMarker, NSData, NSObject, NSSize, NSString};
 
-        let mut builder = TrayIconBuilder::new()
-            .with_menu(Box::new(tray_menu))
-            .with_tooltip("Swivox")
-            .with_icon(icon)
-            .with_menu_on_left_click(true);
+    use super::{TRAY_ICON_PNG, TrayAction, t};
 
-        #[cfg(target_os = "macos")]
-        {
-            // 保留品牌渐变 S 丝带色彩，禁用黑白模板模式。
-            builder = builder.with_icon_as_template(false);
-        }
+    static TRAY_ACTION_QUEUE: OnceLock<Mutex<VecDeque<TrayAction>>> = OnceLock::new();
 
-        let tray = builder.build()?;
-        #[cfg(target_os = "macos")]
-        {
-            // tray-icon 0.23 在 macOS 上先调用 button.setImage 再调用 nsimage.setSize(18, 18)；
-            // 构建完成后主动刷新 set_icon_as_template(false) 与 set_tooltip，强制 NSStatusBarButton
-            // 按 18pt 重新度量宽度并同步点击热区，防止菜单栏条目因初始像素尺寸过大而被刘海隐藏。
-            tray.set_icon_as_template(false);
-            let _ = tray.set_tooltip(Some("Swivox"));
-        }
-        Ok(Self {
-            _tray: tray,
-            show_item,
-            quit_item,
-        })
+    fn action_queue() -> &'static Mutex<VecDeque<TrayAction>> {
+        TRAY_ACTION_QUEUE.get_or_init(|| Mutex::new(VecDeque::new()))
     }
 
-    pub fn rect_debug(&self) -> Option<String> {
-        self._tray.rect().map(|r| format!("{r:?}"))
-    }
-
-    pub fn refresh_labels(&self) {
-        self.show_item.set_text(t("显示主窗口"));
-        self.quit_item.set_text(t("退出程序"));
-    }
-}
-
-pub fn poll_tray_actions() -> Vec<TrayAction> {
-    let mut actions = Vec::new();
-    while let Ok(event) = MenuEvent::receiver().try_recv() {
-        if event.id == MenuId::new(TRAY_MENU_SHOW) {
-            actions.push(TrayAction::ShowMainWindow);
-        } else if event.id == MenuId::new(TRAY_MENU_QUIT) {
-            actions.push(TrayAction::QuitApp);
+    pub(super) fn push_action(action: TrayAction) {
+        if let Ok(mut queue) = action_queue().lock() {
+            queue.push_back(action);
         }
     }
-    while let Ok(event) = TrayIconEvent::receiver().try_recv() {
-        if matches!(
-            event,
-            TrayIconEvent::DoubleClick {
-                button: MouseButton::Left,
-                ..
+
+    pub fn drain_actions() -> Vec<TrayAction> {
+        let Ok(mut queue) = action_queue().lock() else {
+            return Vec::new();
+        };
+        queue.drain(..).collect()
+    }
+
+    define_class!(
+        #[unsafe(super(NSObject))]
+        #[thread_kind = MainThreadOnly]
+        #[name = "SwivoxTrayMenuTarget"]
+        pub struct SwivoxTrayMenuTarget;
+
+        impl SwivoxTrayMenuTarget {
+            #[unsafe(method(onShowMainWindow:))]
+            fn on_show_main_window(&self, _sender: Option<&AnyObject>) {
+                push_action(TrayAction::ShowMainWindow);
             }
-        ) {
-            actions.push(TrayAction::ShowMainWindow);
+
+            #[unsafe(method(onQuitApp:))]
+            fn on_quit_app(&self, _sender: Option<&AnyObject>) {
+                push_action(TrayAction::QuitApp);
+            }
+
+            #[unsafe(method(validateMenuItem:))]
+            fn validate_menu_item(&self, _item: &NSMenuItem) -> bool {
+                true
+            }
+        }
+    );
+
+    impl SwivoxTrayMenuTarget {
+        fn new(mtm: MainThreadMarker) -> Retained<Self> {
+            unsafe { msg_send![mtm.alloc::<Self>(), init] }
         }
     }
-    actions
+
+    pub struct ManagedTray {
+        status_item: Retained<NSStatusItem>,
+        _menu: Retained<NSMenu>,
+        show_item: Retained<NSMenuItem>,
+        quit_item: Retained<NSMenuItem>,
+        _target: Retained<SwivoxTrayMenuTarget>,
+        mtm: MainThreadMarker,
+    }
+
+    impl ManagedTray {
+        pub fn install() -> anyhow::Result<Self> {
+            let mtm = MainThreadMarker::new()
+                .ok_or_else(|| anyhow::anyhow!("macOS status item must be created on main thread"))?;
+
+            let status_bar = NSStatusBar::systemStatusBar();
+            let status_item = status_bar.statusItemWithLength(NSVariableStatusItemLength);
+            status_item.setAutosaveName(Some(&NSString::from_str("Swivox.StatusItem")));
+            status_item.setVisible(true);
+
+            // 直接从 36x36 @2x 透明底品牌 PNG 构造 NSImage，先设定 18x18 pt 逻辑尺寸与非模板彩色模式，
+            // 再挂载到原生 NSStatusBarButton（绝不注入自定义 NSView 子视图或额外 CALayer，确保兼容 macOS 27 MenuBarAgent 场景托管）。
+            let nsdata = NSData::with_bytes(TRAY_ICON_PNG);
+            let nsimage = NSImage::initWithData(NSImage::alloc(), &nsdata)
+                .ok_or_else(|| anyhow::anyhow!("failed to decode Swivox tray PNG into NSImage"))?;
+            nsimage.setSize(NSSize::new(18.0, 18.0));
+            nsimage.setTemplate(false);
+
+            let button = status_item
+                .button(mtm)
+                .ok_or_else(|| anyhow::anyhow!("NSStatusItem missing NSStatusBarButton"))?;
+            button.setImage(Some(&nsimage));
+            button.setImageScaling(NSImageScaling::ScaleProportionallyUpOrDown);
+            button.setToolTip(Some(&NSString::from_str("Swivox")));
+
+            let target = SwivoxTrayMenuTarget::new(mtm);
+            let menu = NSMenu::initWithTitle(mtm.alloc(), &NSString::from_str("Swivox"));
+            menu.setAutoenablesItems(false);
+
+            let show_item = unsafe {
+                NSMenuItem::initWithTitle_action_keyEquivalent(
+                    mtm.alloc(),
+                    &NSString::from_str(&t("显示主窗口")),
+                    Some(sel!(onShowMainWindow:)),
+                    &NSString::from_str(""),
+                )
+            };
+            unsafe {
+                show_item.setTarget(Some(&target));
+            }
+            show_item.setEnabled(true);
+            menu.addItem(&show_item);
+
+            let separator = NSMenuItem::separatorItem(mtm);
+            menu.addItem(&separator);
+
+            let quit_item = unsafe {
+                NSMenuItem::initWithTitle_action_keyEquivalent(
+                    mtm.alloc(),
+                    &NSString::from_str(&t("退出程序")),
+                    Some(sel!(onQuitApp:)),
+                    &NSString::from_str(""),
+                )
+            };
+            unsafe {
+                quit_item.setTarget(Some(&target));
+            }
+            quit_item.setEnabled(true);
+            menu.addItem(&quit_item);
+
+            status_item.setMenu(Some(&menu));
+
+            Ok(Self {
+                status_item,
+                _menu: menu,
+                show_item,
+                quit_item,
+                _target: target,
+                mtm,
+            })
+        }
+
+        pub fn rect_debug(&self) -> Option<String> {
+            let visible = self.status_item.isVisible();
+            let autosave = self.status_item.autosaveName();
+            if let Some(button) = self.status_item.button(self.mtm) {
+                let btn_frame = button.frame();
+                let win_frame = button.window().map(|w| w.frame());
+                Some(format!(
+                    "visible={visible}, autosave={autosave}, button_frame={btn_frame:?}, window_frame={win_frame:?}"
+                ))
+            } else {
+                Some(format!("visible={visible}, autosave={autosave}, button=None"))
+            }
+        }
+
+        pub fn refresh_labels(&self) {
+            self.show_item
+                .setTitle(&NSString::from_str(&t("显示主窗口")));
+            self.quit_item
+                .setTitle(&NSString::from_str(&t("退出程序")));
+        }
+    }
+
+    impl Drop for ManagedTray {
+        fn drop(&mut self) {
+            NSStatusBar::systemStatusBar().removeStatusItem(&self.status_item);
+        }
+    }
 }
 
+#[cfg(target_os = "macos")]
+pub use macos_native::ManagedTray;
+
+#[cfg(target_os = "macos")]
+pub fn poll_tray_actions() -> Vec<TrayAction> {
+    macos_native::drain_actions()
+}
+
+#[cfg(not(target_os = "macos"))]
+mod cross_platform {
+    use tray_icon::menu::{Menu, MenuEvent, MenuId, MenuItem};
+    use tray_icon::{Icon, MouseButton, TrayIcon, TrayIconBuilder, TrayIconEvent};
+
+    use super::{TRAY_MENU_QUIT, TRAY_MENU_SHOW, TrayAction, decode_brand_tray_rgba, t};
+
+    pub struct ManagedTray {
+        _tray: TrayIcon,
+        show_item: MenuItem,
+        quit_item: MenuItem,
+    }
+
+    impl ManagedTray {
+        pub fn install() -> anyhow::Result<Self> {
+            let show_item = MenuItem::with_id(TRAY_MENU_SHOW, t("显示主窗口"), true, None);
+            let quit_item = MenuItem::with_id(TRAY_MENU_QUIT, t("退出程序"), true, None);
+            let tray_menu = Menu::with_items(&[&show_item, &quit_item])?;
+            let (rgba, width, height) = decode_brand_tray_rgba()?;
+            let icon = Icon::from_rgba(rgba, width, height)?;
+
+            let tray = TrayIconBuilder::new()
+                .with_menu(Box::new(tray_menu))
+                .with_tooltip("Swivox")
+                .with_icon(icon)
+                .with_menu_on_left_click(true)
+                .build()?;
+
+            Ok(Self {
+                _tray: tray,
+                show_item,
+                quit_item,
+            })
+        }
+
+        pub fn rect_debug(&self) -> Option<String> {
+            self._tray.rect().map(|r| format!("{r:?}"))
+        }
+
+        pub fn refresh_labels(&self) {
+            self.show_item.set_text(t("显示主窗口"));
+            self.quit_item.set_text(t("退出程序"));
+        }
+    }
+
+    pub fn poll_tray_actions() -> Vec<TrayAction> {
+        let mut actions = Vec::new();
+        while let Ok(event) = MenuEvent::receiver().try_recv() {
+            if event.id == MenuId::new(TRAY_MENU_SHOW) {
+                actions.push(TrayAction::ShowMainWindow);
+            } else if event.id == MenuId::new(TRAY_MENU_QUIT) {
+                actions.push(TrayAction::QuitApp);
+            }
+        }
+        while let Ok(event) = TrayIconEvent::receiver().try_recv() {
+            if matches!(
+                event,
+                TrayIconEvent::DoubleClick {
+                    button: MouseButton::Left,
+                    ..
+                }
+            ) {
+                actions.push(TrayAction::ShowMainWindow);
+            }
+        }
+        actions
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub use cross_platform::{ManagedTray, poll_tray_actions};
+
+#[cfg(any(not(target_os = "macos"), test))]
 pub fn decode_brand_tray_rgba() -> anyhow::Result<(Vec<u8>, u32, u32)> {
-    let mut decoder = png::Decoder::new(Cursor::new(TRAY_ICON_PNG));
+    let mut decoder = png::Decoder::new(std::io::Cursor::new(TRAY_ICON_PNG));
     decoder.set_transformations(png::Transformations::EXPAND | png::Transformations::STRIP_16);
     let mut reader = decoder.read_info()?;
     let mut buf = vec![0; reader.output_buffer_size()];
@@ -109,11 +289,6 @@ pub fn decode_brand_tray_rgba() -> anyhow::Result<(Vec<u8>, u32, u32)> {
         other => anyhow::bail!("unsupported tray icon color type: {other:?}"),
     };
     Ok((rgba, info.width, info.height))
-}
-
-fn decode_brand_tray_icon() -> anyhow::Result<Icon> {
-    let (rgba, width, height) = decode_brand_tray_rgba()?;
-    Ok(Icon::from_rgba(rgba, width, height)?)
 }
 
 #[cfg(test)]
@@ -135,5 +310,18 @@ mod tests {
                 .any(|pixel| pixel[3] > 200 && pixel[2] > pixel[0])
         );
         assert!(rgba.chunks_exact(4).any(|pixel| pixel[3] == 0));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_tray_action_queue_drains_in_fifo_order() {
+        let _ = poll_tray_actions();
+        macos_native::push_action(TrayAction::ShowMainWindow);
+        macos_native::push_action(TrayAction::QuitApp);
+        assert_eq!(
+            poll_tray_actions(),
+            vec![TrayAction::ShowMainWindow, TrayAction::QuitApp]
+        );
+        assert!(poll_tray_actions().is_empty());
     }
 }

@@ -167,23 +167,6 @@ fn main() {
             })
             .detach();
 
-            let tray = match ManagedTray::install() {
-                Ok(installed) => {
-                    let _ = swivox_core::diagnostic_log::append_diagnostic_log(
-                        "manager.tray_installed",
-                        serde_json::json!({ "rect": installed.rect_debug() }),
-                    );
-                    Some(Rc::new(installed))
-                }
-                Err(err) => {
-                    let _ = swivox_core::diagnostic_log::append_diagnostic_log(
-                        "manager.tray_install_failed",
-                        serde_json::json!({ "error": err.to_string() }),
-                    );
-                    None
-                }
-            };
-
             // 若设置了 SWIVOX_CAPTURE_TOUR_DIR，则在窗口就绪后自动巡检各路由并导出实拍截图供 UI 走查
             if let Ok(tour_dir) = std::env::var("SWIVOX_CAPTURE_TOUR_DIR")
                 && !tour_dir.trim().is_empty()
@@ -276,21 +259,51 @@ fn main() {
                 .detach();
             }
 
-            // 主线程轻量轮询托盘事件、语言变更及跨线程唤醒信号
+            // 主线程轻量轮询托盘事件、语言变更及跨线程唤醒信号（延后至首轮 RunLoop 完成后挂载托盘，确保 Regular 激活态已在 MenuBarAgent 就绪）
             {
                 let window_cell = window_cell.clone();
                 let store = store.clone();
-                let tray = tray.clone();
+                let mut tray: Option<Rc<ManagedTray>> = None;
+                let mut tray_install_attempted = false;
                 let mut last_lang: Language = prefs.language;
+                let mut logged_settled_tray_rect = false;
+                let mut poll_ticks: u32 = 0;
 
                 cx.spawn(async move |cx| {
                     loop {
                         cx.background_executor()
                             .timer(Duration::from_millis(120))
                             .await;
+                        poll_ticks = poll_ticks.saturating_add(1);
 
                         let should_quit = cx.update(|app| {
+                            if !tray_install_attempted {
+                                tray_install_attempted = true;
+                                match ManagedTray::install() {
+                                    Ok(installed) => {
+                                        let _ = swivox_core::diagnostic_log::append_diagnostic_log(
+                                            "manager.tray_installed",
+                                            serde_json::json!({ "rect": installed.rect_debug() }),
+                                        );
+                                        tray = Some(Rc::new(installed));
+                                    }
+                                    Err(err) => {
+                                        let _ = swivox_core::diagnostic_log::append_diagnostic_log(
+                                            "manager.tray_install_failed",
+                                            serde_json::json!({ "error": err.to_string() }),
+                                        );
+                                    }
+                                }
+                            }
+
                             if let Some(tray) = &tray {
+                                if !logged_settled_tray_rect && poll_ticks >= 10 {
+                                    logged_settled_tray_rect = true;
+                                    let _ = swivox_core::diagnostic_log::append_diagnostic_log(
+                                        "manager.tray_rect_settled",
+                                        serde_json::json!({ "rect": tray.rect_debug() }),
+                                    );
+                                }
                                 let cur_lang = store.read(app).prefs.language;
                                 if cur_lang != last_lang {
                                     last_lang = cur_lang;

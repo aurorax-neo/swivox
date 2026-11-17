@@ -4820,7 +4820,8 @@ fn manager_ui_exposes_pure_api_relay_mode_button() {
         std::fs::read_to_string(repo.join("crates/swivox-backend/src/commands.rs")).unwrap();
 
     assert!(gpui_relay.contains("纯 API Key"));
-    assert!(gpui_relay.contains("官方登录 + 第三方 API"));
+    // 供应商配置页只保留「纯 API Key」；官方登录与官方绑定第三方 API 由「官方账号」模块管理。
+    assert!(!gpui_relay.contains("官方登录 + 第三方 API"));
     assert!(!gpui_relay.contains("关闭官方低额度提示"));
     assert!(backend_cmds.contains("pub fn apply_pure_api_injection"));
 }

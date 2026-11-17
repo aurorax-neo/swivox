@@ -6,6 +6,8 @@ pub const TRAY_MENU_SHOW: &str = "tray_show_main";
 pub const TRAY_MENU_QUIT: &str = "tray_quit_app";
 
 const TRAY_ICON_PNG: &[u8] = include_bytes!("../icons/tray-icon.png");
+#[cfg(target_os = "macos")]
+const APP_ICON_PNG: &[u8] = include_bytes!("../icons/icon.png");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrayAction {
@@ -22,12 +24,12 @@ mod macos_native {
     use objc2::runtime::AnyObject;
     use objc2::{AllocAnyThread, MainThreadOnly, define_class, msg_send, sel};
     use objc2_app_kit::{
-        NSImage, NSImageScaling, NSMenu, NSMenuItem, NSStatusBar, NSStatusItem,
+        NSApplication, NSImage, NSImageScaling, NSMenu, NSMenuItem, NSStatusBar, NSStatusItem,
         NSVariableStatusItemLength,
     };
     use objc2_foundation::{MainThreadMarker, NSData, NSObject, NSSize, NSString};
 
-    use super::{TRAY_ICON_PNG, TrayAction, t};
+    use super::{APP_ICON_PNG, TRAY_ICON_PNG, TrayAction, t};
 
     static TRAY_ACTION_QUEUE: OnceLock<Mutex<VecDeque<TrayAction>>> = OnceLock::new();
 
@@ -92,24 +94,33 @@ mod macos_native {
             let mtm = MainThreadMarker::new()
                 .ok_or_else(|| anyhow::anyhow!("macOS status item must be created on main thread"))?;
 
+            // 运行时同步更新 Dock 应用图标（无边框 Apple 连续曲率圆角图标），消除系统图标缓存滞后。
+            let app_icon_data = NSData::with_bytes(APP_ICON_PNG);
+            if let Some(app_icon) = NSImage::initWithData(NSImage::alloc(), &app_icon_data) {
+                unsafe {
+                    NSApplication::sharedApplication(mtm).setApplicationIconImage(Some(&app_icon));
+                }
+            }
+
             let status_bar = NSStatusBar::systemStatusBar();
             let status_item = status_bar.statusItemWithLength(NSVariableStatusItemLength);
             status_item.setAutosaveName(Some(&NSString::from_str("Swivox.StatusItem")));
             status_item.setVisible(true);
 
-            // 直接从 36x36 @2x 透明底品牌 PNG 构造 NSImage，先设定 18x18 pt 逻辑尺寸与非模板彩色模式，
-            // 再挂载到原生 NSStatusBarButton（绝不注入自定义 NSView 子视图或额外 CALayer，确保兼容 macOS 27 MenuBarAgent 场景托管）。
+            // 使用 32x32 (@2x 对应 16x16pt 画布，主体视觉高度 12pt) 纯透明底单色模板图元，
+            // 开启 setTemplate(true) 并使用 ScaleProportionallyDown（禁止放大拉伸），实现无背景色、自适应深浅色菜单栏且尺寸与系统原生图标对齐。
             let nsdata = NSData::with_bytes(TRAY_ICON_PNG);
             let nsimage = NSImage::initWithData(NSImage::alloc(), &nsdata)
                 .ok_or_else(|| anyhow::anyhow!("failed to decode Swivox tray PNG into NSImage"))?;
-            nsimage.setSize(NSSize::new(18.0, 18.0));
-            nsimage.setTemplate(false);
+            nsimage.setSize(NSSize::new(16.0, 16.0));
+            nsimage.setTemplate(true);
 
             let button = status_item
                 .button(mtm)
                 .ok_or_else(|| anyhow::anyhow!("NSStatusItem missing NSStatusBarButton"))?;
+            button.setBordered(false);
             button.setImage(Some(&nsimage));
-            button.setImageScaling(NSImageScaling::ScaleProportionallyUpOrDown);
+            button.setImageScaling(NSImageScaling::ScaleProportionallyDown);
             button.setToolTip(Some(&NSString::from_str("Swivox")));
 
             let target = SwivoxTrayMenuTarget::new(mtm);
@@ -214,7 +225,15 @@ mod cross_platform {
             let show_item = MenuItem::with_id(TRAY_MENU_SHOW, t("显示主窗口"), true, None);
             let quit_item = MenuItem::with_id(TRAY_MENU_QUIT, t("退出程序"), true, None);
             let tray_menu = Menu::with_items(&[&show_item, &quit_item])?;
-            let (rgba, width, height) = decode_brand_tray_rgba()?;
+            let (mut rgba, width, height) = decode_brand_tray_rgba()?;
+            // 非 macOS 平台无系统级模板染色，将透明底单色 Alpha 图元染为高对比度亮白以兼容深色任务栏。
+            for px in rgba.chunks_exact_mut(4) {
+                if px[3] > 0 {
+                    px[0] = 248;
+                    px[1] = 250;
+                    px[2] = 255;
+                }
+            }
             let icon = Icon::from_rgba(rgba, width, height)?;
 
             let tray = TrayIconBuilder::new()
@@ -296,20 +315,34 @@ mod tests {
     use super::*;
 
     #[test]
-    fn tray_icon_preserves_brand_colour_and_transparency() {
+    fn tray_icon_is_compact_transparent_monochrome_template() {
         let (rgba, width, height) = decode_brand_tray_rgba().unwrap();
-        assert_eq!(width, 36);
-        assert_eq!(height, 36);
-        // 四角必须完全透明（不得包含深色圆角底块）
-        for &(x, y) in &[(0usize, 0usize), (35, 0), (0, 35), (35, 35)] {
+        assert_eq!(width, 32);
+        assert_eq!(height, 32);
+        // 四角与中心镂空区域必须完全透明（不得包含任何背景底色或杂色光晕）
+        for &(x, y) in &[(0usize, 0usize), (31, 0), (0, 31), (31, 31), (16, 16)] {
             let idx = (y * (width as usize) + x) * 4;
-            assert_eq!(rgba[idx + 3], 0, "corner ({x}, {y}) must be transparent");
+            assert_eq!(rgba[idx + 3], 0, "point ({x}, {y}) must be transparent");
         }
-        assert!(
-            rgba.chunks_exact(4)
-                .any(|pixel| pixel[3] > 200 && pixel[2] > pixel[0])
-        );
-        assert!(rgba.chunks_exact(4).any(|pixel| pixel[3] == 0));
+        // 所有可见像素必须为纯单色模板通道（RGB = 0,0,0），且留有充足菜单栏光学内边距（四周 >= 4px）
+        let mut min_x = width as usize;
+        let mut max_x = 0usize;
+        let mut min_y = height as usize;
+        let mut max_y = 0usize;
+        for y in 0..(height as usize) {
+            for x in 0..(width as usize) {
+                let p = &rgba[(y * (width as usize) + x) * 4..][..4];
+                if p[3] > 0 {
+                    assert_eq!((p[0], p[1], p[2]), (0, 0, 0), "non-template color at ({x}, {y})");
+                    min_x = min_x.min(x);
+                    max_x = max_x.max(x);
+                    min_y = min_y.min(y);
+                    max_y = max_y.max(y);
+                }
+            }
+        }
+        assert!(min_x >= 4 && max_x <= 27, "unexpected x bounds: {min_x}..={max_x}");
+        assert!(min_y >= 4 && max_y <= 28, "unexpected y bounds: {min_y}..={max_y}");
     }
 
     #[cfg(target_os = "macos")]

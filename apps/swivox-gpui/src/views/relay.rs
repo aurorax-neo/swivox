@@ -759,11 +759,12 @@ impl RelayView {
                     .id(SharedString::from(format!("relay-tab-{kind:?}")))
                     .h_flex()
                     .flex_1()
+                    .min_w_0()
                     .h(px(34.))
-                    .px_3()
+                    .px_2p5()
                     .items_center()
                     .justify_center()
-                    .gap_2()
+                    .gap_1p5()
                     .rounded(px(8.))
                     .cursor_pointer()
                     .bg(bg)
@@ -784,9 +785,11 @@ impl RelayView {
                     )
                     .child(
                         div()
+                            .min_w_0()
                             .pt(px(0.5))
                             .text_size(px(12.5))
                             .line_height(px(16.))
+                            .truncate()
                             .when(selected, |d| d.font_semibold())
                             .text_color(fg)
                             .child(label),
@@ -1269,6 +1272,7 @@ impl RelayView {
                                 div()
                                     .v_flex()
                                     .flex_1()
+                                    .min_w_0()
                                     .gap_1()
                                     .child(
                                         div()
@@ -1404,7 +1408,7 @@ impl RelayView {
                                                             .text_sm()
                                                             .font_semibold()
                                                             .text_color(cx.theme().foreground)
-                                                            .child(preset.name),
+                                                            .child(t(preset.name)),
                                                     )
                                                     .child(proto_badge),
                                             )
@@ -1412,8 +1416,7 @@ impl RelayView {
                                                 div()
                                                     .text_xs()
                                                     .text_color(cx.theme().muted_foreground)
-                                                    .whitespace_nowrap()
-                                                    .overflow_hidden()
+                                                    .truncate()
                                                     .child(format!(
                                                         "{} · {}",
                                                         preset.model, preset.base_url
@@ -1497,6 +1500,7 @@ impl RelayView {
                     .child(
                         div()
                             .h_flex()
+                            .flex_wrap()
                             .w_full()
                             .items_center()
                             .justify_between()
@@ -1504,6 +1508,8 @@ impl RelayView {
                             .child(
                                 div()
                                     .h_flex()
+                                    .flex_1()
+                                    .min_w(px(220.))
                                     .items_center()
                                     .gap_2p5()
                                     .child(
@@ -1526,7 +1532,7 @@ impl RelayView {
                                     ),
                             )
                             .child(
-                                div().w(px(340.)).child(
+                                div().w(px(290.)).child(
                                     Input::new(&self.catalog_search_input).prefix(
                                         Icon::new(IconName::Search)
                                             .with_size(gpui_kit::component::Size::Size(px(14.)))
@@ -2449,71 +2455,81 @@ impl RelayView {
                     } else {
                         cx.theme().border
                     })
-                    .child(div().flex_1().min_w(px(170.)).child(Input::new(&ctrl.model_input)))
+                    .child(div().flex_1().min_w(px(150.)).child(Input::new(&ctrl.model_input)))
                     .child(
                         div()
                             .h_flex()
+                            .w(px(224.))
                             .items_center()
                             .gap_1()
-                            .child(div().w(px(92.)).child(Input::new(&ctrl.window_input)))
+                            .child(div().w(px(88.)).child(Input::new(&ctrl.window_input)))
                             .children(quick_presets),
                     )
-                    .child(div().w(px(72.)).child(Input::new(&ctrl.compact_input)))
+                    .child(div().w(px(96.)).child(Input::new(&ctrl.compact_input)))
                     .child(
-                        AppButton::new(SharedString::from(format!("row-img-{uid}")))
-                            .outline()
-                            .small()
-                            .label(img_label)
-                            .tooltip(t("点击切换图片输入策略：原样发送 / VLM 转述 / 剥离图片"))
-                            .on_click(move |_, _, cx| {
-                                ent_img.update(cx, |v, cx| {
-                                    if let Some(c) =
-                                        v.row_controls.iter_mut().find(|r| r.row_uid == uid)
-                                    {
-                                        c.image_handling = match c.image_handling.as_str() {
-                                            "send-as-is" => "vlm".to_string(),
-                                            "vlm" => "strip".to_string(),
-                                            _ => "send-as-is".to_string(),
-                                        };
-                                    }
-                                    cx.notify();
-                                });
-                            }),
-                    )
-                    .child(
-                        AppButton::new(SharedString::from(format!("row-def-{uid}")))
-                            .ghost()
-                            .small()
-                            .selected(is_default_model)
-                            .label(if is_default_model {
-                                t("默认")
-                            } else {
-                                t("设默认")
-                            })
-                            .on_click(move |_, window, cx| {
-                                let raw = model_inp_for_def.read(cx).value().to_string();
-                                let slug = model_slug_from_row_name(&raw);
-                                if !slug.is_empty() {
-                                    ent_set_def.update(cx, |v, cx| {
-                                        v.model_input
-                                            .update(cx, |inp, cx| inp.set_value(slug, window, cx));
-                                        cx.notify();
-                                    });
-                                }
-                            }),
-                    )
-                    .child(
-                        AppButton::new(SharedString::from(format!("row-del-{uid}")))
-                            .ghost()
-                            .small_icon()
-                            .icon(IconName::Trash)
-                            .tooltip(t("删除该模型行"))
-                            .on_click(move |_, _, cx| {
-                                ent_del_row.update(cx, |v, cx| {
-                                    v.row_controls.retain(|r| r.row_uid != uid);
-                                    cx.notify();
-                                });
-                            }),
+                        div()
+                            .h_flex()
+                            .w(px(224.))
+                            .items_center()
+                            .justify_end()
+                            .gap_1p5()
+                            .child(
+                                AppButton::new(SharedString::from(format!("row-img-{uid}")))
+                                    .outline()
+                                    .small()
+                                    .label(img_label)
+                                    .tooltip(t("点击切换图片输入策略：原样发送 / VLM 转述 / 剥离图片"))
+                                    .on_click(move |_, _, cx| {
+                                        ent_img.update(cx, |v, cx| {
+                                            if let Some(c) =
+                                                v.row_controls.iter_mut().find(|r| r.row_uid == uid)
+                                            {
+                                                c.image_handling = match c.image_handling.as_str() {
+                                                    "send-as-is" => "vlm".to_string(),
+                                                    "vlm" => "strip".to_string(),
+                                                    _ => "send-as-is".to_string(),
+                                                };
+                                            }
+                                            cx.notify();
+                                        });
+                                    }),
+                            )
+                            .child(
+                                AppButton::new(SharedString::from(format!("row-def-{uid}")))
+                                    .ghost()
+                                    .small()
+                                    .selected(is_default_model)
+                                    .label(if is_default_model {
+                                        t("默认")
+                                    } else {
+                                        t("设默认")
+                                    })
+                                    .on_click(move |_, window, cx| {
+                                        let raw = model_inp_for_def.read(cx).value().to_string();
+                                        let slug = model_slug_from_row_name(&raw);
+                                        if !slug.is_empty() {
+                                            ent_set_def.update(cx, |v, cx| {
+                                                v.model_input.update(cx, |inp, cx| {
+                                                    inp.set_value(slug, window, cx)
+                                                });
+                                                cx.notify();
+                                            });
+                                        }
+                                    }),
+                            )
+                            .child(
+                                AppButton::new(SharedString::from(format!("row-del-{uid}")))
+                                    .ghost()
+                                    .small_icon()
+                                    .icon(IconName::Trash)
+                                    .tooltip(t("删除该模型行"))
+                                    .on_click(move |_, _, cx| {
+                                        ent_del_row.update(cx, |v, cx| {
+                                            v.row_controls.retain(|r| r.row_uid != uid);
+                                            cx.notify();
+                                        });
+                                    }),
+                            ),
                     )
                     .into_any_element()
             })
@@ -2712,15 +2728,16 @@ impl RelayView {
                         .child(
                             div()
                                 .h_flex()
+                                .flex_wrap()
                                 .w_full()
                                 .items_start()
                                 .justify_between()
-                                .gap_4()
+                                .gap_3()
                                 .child(
                                     div()
                                         .v_flex()
                                         .flex_1()
-                                        .min_w_0()
+                                        .min_w(px(220.))
                                         .gap_0p5()
                                         .child(
                                             div()
@@ -2824,14 +2841,15 @@ impl RelayView {
                             div()
                                 .h_flex()
                                 .w_full()
+                                .gap_2()
                                 .px_2p5()
                                 .text_size(px(11.))
                                 .font_semibold()
                                 .text_color(cx.theme().muted_foreground)
-                                .child(div().flex_1().child(t("模型 ID (支持 [1M] 后缀)")))
-                                .child(div().w(px(236.)).child(t("上下文窗口与快捷档位")))
-                                .child(div().w(px(76.)).child(t("自动压缩 %")))
-                                .child(div().w(px(195.)).child(t("图片策略与操作"))),
+                                .child(div().flex_1().min_w(px(150.)).child(t("模型 ID (支持 [1M] 后缀)")))
+                                .child(div().w(px(224.)).child(t("上下文窗口与快捷档位")))
+                                .child(div().w(px(96.)).child(t("自动压缩 %")))
+                                .child(div().w(px(224.)).flex().justify_end().child(t("图片策略与操作"))),
                         )
                         .children(table_rows),
                 ))
@@ -2845,15 +2863,16 @@ impl RelayView {
                     .child(
                         div()
                             .h_flex()
+                            .flex_wrap()
                             .w_full()
                             .items_center()
                             .justify_between()
-                            .gap_4()
+                            .gap_3()
                             .child(
                                 div()
                                     .v_flex()
                                     .flex_1()
-                                    .min_w_0()
+                                    .min_w(px(220.))
                                     .gap_0p5()
                                     .child(
                                         div()
@@ -2872,7 +2891,7 @@ impl RelayView {
                             .child(
                                 div()
                                     .h_flex()
-                                    .flex_shrink_0()
+                                    .flex_wrap()
                                     .items_center()
                                     .gap_2()
                                     .child(
@@ -2969,6 +2988,7 @@ impl RelayView {
                 cx,
                 div()
                     .h_flex()
+                    .flex_wrap()
                     .w_full()
                     .items_center()
                     .justify_between()
@@ -2979,7 +2999,7 @@ impl RelayView {
                             .items_center()
                             .gap_3()
                             .flex_1()
-                            .min_w_0()
+                            .min_w(px(220.))
                             .child(
                                 AppButton::new("editor-back-btn")
                                     .ghost()
@@ -3023,6 +3043,7 @@ impl RelayView {
                     .child(
                         div()
                             .h_flex()
+                            .flex_wrap()
                             .items_center()
                             .gap_2()
                             .when(show_doctor, |d| {

@@ -4,7 +4,7 @@ use swivox_backend::phase5_rules::{
 };
 use swivox_core::settings::{BackendSettings, DictationProvider};
 use gpui_kit::assets::IconName;
-use gpui_kit::component::input::{Input, InputState};
+use gpui_kit::component::input::{Input, InputState, Textarea, TextareaState};
 use gpui_kit::component::switch::Switch;
 use gpui_kit::component::theme::ActiveTheme as _;
 use gpui_kit::component::StyledExt as _;
@@ -34,6 +34,9 @@ pub struct EnhanceView {
     // Image overlay inputs
     overlay_path_input: Entity<InputState>,
     overlay_opacity_input: Entity<InputState>,
+
+    // Codex extra CLI args
+    extra_args_textarea: Entity<TextareaState>,
 }
 
 impl EnhanceView {
@@ -98,6 +101,15 @@ impl EnhanceView {
             );
             st
         });
+        let init_args = s.codex_extra_args.join("\n");
+        let extra_args_textarea = cx.new(|cx| {
+            let mut st = TextareaState::new(window, cx)
+                .placeholder(t("每行一个额外 CLI 启动参数，例如：\n--enable-features=Vulkan"));
+            if !init_args.is_empty() {
+                st.set_value(init_args, window, cx);
+            }
+            st
+        });
 
         cx.observe(&store, |_, _, cx| cx.notify()).detach();
 
@@ -114,6 +126,7 @@ impl EnhanceView {
             dict_lang_input,
             overlay_path_input,
             overlay_opacity_input,
+            extra_args_textarea,
         }
     }
 
@@ -176,7 +189,39 @@ impl EnhanceView {
     }
 
     fn render_general_tab(&self, cx: &mut Context<Self>) -> AnyElement {
-        let s = self.store.read(cx).settings.clone();
+        let (s, px_snap) = {
+            let data = self.store.read(cx);
+            (data.settings.clone(), data.network_proxy_snapshot.clone())
+        };
+        let st_goto_settings = self.store.clone();
+        let cur_codex_sel = px_snap.config.clients.codex.clone();
+        let mut codex_px_opts = vec![
+            ("system".to_string(), t("跟随系统代理")),
+            ("app".to_string(), t("跟随本程序")),
+            ("direct".to_string(), t("强制直连")),
+        ];
+        for n in &px_snap.config.nodes {
+            codex_px_opts.push((format!("node:{}", n.id), n.name.clone()));
+        }
+        let codex_px_btns: Vec<AnyElement> = codex_px_opts
+            .into_iter()
+            .map(|(sel, lbl)| {
+                let selected = cur_codex_sel == sel;
+                let st = self.store.clone();
+                let b = AppButton::new(SharedString::from(format!("codex-enh-px-{sel}")))
+                    .small()
+                    .label(lbl);
+                let b = if selected { b.selected(true) } else { b.outline() };
+                b.on_click(move |_, _, cx| {
+                    let next_sel = sel.clone();
+                    st.update(cx, |s, cx| {
+                        s.update_self_or_client_proxy_assignment("codex", next_sel, cx);
+                    });
+                })
+                .into_any_element()
+            })
+            .collect();
+
         let rows = vec![
             self.switch_row(
                 cx,
@@ -260,7 +305,141 @@ impl EnhanceView {
             ),
         ];
 
-        panel_card(cx, div().v_flex().w_full().gap_2p5().children(rows)).into_any_element()
+        div()
+            .v_flex()
+            .w_full()
+            .gap_4()
+            .child(panel_card(
+                cx,
+                div()
+                    .v_flex()
+                    .w_full()
+                    .gap_3()
+                    .child(
+                        div()
+                            .h_flex()
+                            .flex_wrap()
+                            .w_full()
+                            .items_center()
+                            .justify_between()
+                            .gap_3()
+                            .child(
+                                div()
+                                    .v_flex()
+                                    .flex_1()
+                                    .min_w(px(220.))
+                                    .gap_0p5()
+                                    .child(
+                                        div()
+                                            .text_sm()
+                                            .font_semibold()
+                                            .text_color(cx.theme().foreground)
+                                            .child(t("Codex 客户端与 Codex 点火隔离代理")),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_xs()
+                                            .text_color(cx.theme().muted_foreground)
+                                            .child(t("用于 Codex 桌面启动、OpenAI OAuth 登录、官方账号配额刷新及 Lamplighter Codex 点火（与本程序及 Antigravity 完全隔离）")),
+                                    ),
+                            )
+                            .child(
+                                AppButton::new("codex-enh-manage-proxy-pool")
+                                    .outline()
+                                    .small()
+                                    .icon(IconName::Settings)
+                                    .label(t("管理代理列表"))
+                                    .on_click(move |_, _, cx| {
+                                        st_goto_settings.update(cx, |s, cx| {
+                                            s.navigate(crate::routes::Route::Settings, cx);
+                                        });
+                                    }),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .v_flex()
+                            .w_full()
+                            .gap_2()
+                            .p_3()
+                            .rounded(px(8.))
+                            .bg(cx.theme().secondary.opacity(0.24))
+                            .border_1()
+                            .border_color(cx.theme().border)
+                            .child(
+                                div()
+                                    .h_flex()
+                                    .flex_wrap()
+                                    .w_full()
+                                    .items_center()
+                                    .justify_between()
+                                    .gap_2()
+                                    .child(
+                                        div()
+                                            .text_xs()
+                                            .font_semibold()
+                                            .child(t("Codex 客户端与 Codex 点火代理")),
+                                    )
+                                    .child(AppBadge::info(format!(
+                                        "{}: {}",
+                                        t("当前生效"),
+                                        px_snap.effective_codex
+                                    ))),
+                            )
+                            .child(div().h_flex().flex_wrap().gap_1p5().children(codex_px_btns)),
+                    ),
+            ))
+            .child(panel_card(cx, div().v_flex().w_full().gap_2p5().children(rows)))
+            .child({
+                let ent_args_save = cx.entity();
+                panel_card(
+                    cx,
+                    div()
+                        .v_flex()
+                        .w_full()
+                        .gap_3()
+                        .child(
+                            div()
+                                .text_sm()
+                                .font_semibold()
+                                .text_color(cx.theme().foreground)
+                                .child(t("Codex 附加启动参数")),
+                        )
+                        .child(Textarea::new(&self.extra_args_textarea).h(px(88.)))
+                        .child(
+                            div().h_flex().w_full().justify_end().child(
+                                AppButton::new("enh-save-extra-args")
+                                    .primary()
+                                    .small()
+                                    .icon(IconName::Save)
+                                    .label(t("保存启动参数"))
+                                    .on_click(move |_, _, cx| {
+                                        ent_args_save.update(cx, |v, cx| {
+                                            let lines: Vec<String> = v
+                                                .extra_args_textarea
+                                                .read(cx)
+                                                .value()
+                                                .lines()
+                                                .map(str::trim)
+                                                .filter(|s| !s.is_empty())
+                                                .map(str::to_string)
+                                                .collect();
+                                            v.store.update(cx, |s, cx| {
+                                                let mut next = s.settings.clone();
+                                                next.codex_extra_args = lines;
+                                                s.persist_settings_with_notice(
+                                                    next,
+                                                    t("启动参数"),
+                                                    cx,
+                                                );
+                                            });
+                                        });
+                                    }),
+                            ),
+                        ),
+                )
+            })
+            .into_any_element()
     }
 
     fn render_stepwise_tab(&self, cx: &mut Context<Self>) -> AnyElement {
@@ -452,7 +631,7 @@ impl EnhanceView {
                 .outline()
                 .small()
                 .selected(current_preset == pr)
-                .label(pr.label())
+                .label(t(pr.label()))
                 .on_click(move |_, window, cx| {
                     ent.update(cx, |this, cx| {
                         let mut next = this.store.read(cx).settings.clone();
@@ -583,13 +762,14 @@ impl EnhanceView {
                     .child(
                         div()
                             .h_flex()
+                            .flex_wrap()
                             .w_full()
                             .gap_4()
                             .child(
                                 div()
                                     .v_flex()
                                     .flex_1()
-                                    .min_w_0()
+                                    .min_w(px(200.))
                                     .gap_1p5()
                                     .child(
                                         div()
@@ -602,7 +782,8 @@ impl EnhanceView {
                             .child(
                                 div()
                                     .v_flex()
-                                    .w(px(260.))
+                                    .flex_1()
+                                    .min_w(px(200.))
                                     .gap_1p5()
                                     .child(
                                         div()
@@ -615,7 +796,7 @@ impl EnhanceView {
                             .child(
                                 div()
                                     .v_flex()
-                                    .w(px(195.))
+                                    .w(px(235.))
                                     .gap_1p5()
                                     .child(
                                         div()
@@ -735,6 +916,7 @@ impl EnhanceView {
                 .child(
                     div()
                         .h_flex()
+                        .flex_wrap()
                         .w_full()
                         .items_end()
                         .gap_3()
@@ -742,7 +924,7 @@ impl EnhanceView {
                             div()
                                 .v_flex()
                                 .flex_1()
-                                .min_w_0()
+                                .min_w(px(220.))
                                 .gap_1p5()
                                 .child(
                                     div()

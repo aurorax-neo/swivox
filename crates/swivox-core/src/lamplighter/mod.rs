@@ -245,12 +245,8 @@ pub fn get_lamplighter_snapshot_for_client(
                             cred.account_key, grp.group_id
                         );
                         let sub_lbl = format!("{disp_label} · {}", grp.display_name);
-                        let ignite_allowed = rule.ignite
-                            && (rule.groups.is_empty()
-                                || rule
-                                    .groups
-                                    .iter()
-                                    .any(|g| g.eq_ignore_ascii_case(&grp.display_name)));
+                        let ignite_allowed =
+                            cfg.is_antigravity_group_ignite_enabled(&grp.display_name);
                         let ts = client_state
                             .scheduler
                             .get(&sub_gkey)
@@ -853,13 +849,11 @@ async fn run_poll_and_ignition_cycle_for_client(
                         let ignite_supported =
                             provider_supports_ignition(&cred.provider) && w5.is_some();
                         let ignite_enabled = ignite_supported
-                            && rule.ignite
-                            && (cred.provider != "antigravity"
-                                || rule.groups.is_empty()
-                                || rule
-                                    .groups
-                                    .iter()
-                                    .any(|g| g.eq_ignore_ascii_case(&rg.source_label)));
+                            && if cred.provider == "antigravity" {
+                                cfg.is_antigravity_group_ignite_enabled(&rg.source_label)
+                            } else {
+                                rule.ignite
+                            };
 
                         let ts = state.scheduler.entry(gkey.clone()).or_default();
                         if let Some(win5) = w5 {

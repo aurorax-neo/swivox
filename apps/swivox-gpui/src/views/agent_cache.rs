@@ -153,6 +153,7 @@ pub fn render_agent_cache(store: &Entity<AppStore>, cx: &App) -> impl IntoElemen
         .child(
             div()
                 .h_flex()
+                .flex_wrap()
                 .w_full()
                 .items_center()
                 .justify_between()
@@ -160,6 +161,7 @@ pub fn render_agent_cache(store: &Entity<AppStore>, cx: &App) -> impl IntoElemen
                 .child(
                     div()
                         .h_flex()
+                        .flex_wrap()
                         .items_center()
                         .gap_2()
                         .child(AppBadge::secondary(format!(
@@ -223,6 +225,7 @@ pub fn render_agent_cache(store: &Entity<AppStore>, cx: &App) -> impl IntoElemen
                 .child(
                     div()
                         .h_flex()
+                        .flex_wrap()
                         .items_center()
                         .gap_2()
                         .child(

@@ -213,6 +213,7 @@ impl Render for AntigravityEnhanceView {
                     .child(
                         div()
                             .h_flex()
+                            .flex_wrap()
                             .w_full()
                             .items_center()
                             .justify_between()
@@ -220,6 +221,8 @@ impl Render for AntigravityEnhanceView {
                             .child(
                                 div()
                                     .v_flex()
+                                    .flex_1()
+                                    .min_w(px(220.))
                                     .gap_1()
                                     .child(
                                         div()
@@ -260,9 +263,11 @@ impl Render for AntigravityEnhanceView {
                             .child(
                                 div()
                                     .h_flex()
+                                    .flex_wrap()
                                     .w_full()
                                     .items_center()
                                     .justify_between()
+                                    .gap_2()
                                     .child(
                                         div()
                                             .text_xs()
@@ -289,9 +294,11 @@ impl Render for AntigravityEnhanceView {
                             .child(
                                 div()
                                     .h_flex()
+                                    .flex_wrap()
                                     .w_full()
                                     .items_center()
                                     .justify_between()
+                                    .gap_2()
                                     .child(
                                         div()
                                             .text_xs()
@@ -336,6 +343,7 @@ impl Render for AntigravityEnhanceView {
                             .w_full()
                             .items_center()
                             .justify_between()
+                            .gap_4()
                             .p_3p5()
                             .rounded(px(10.))
                             .bg(cx.theme().secondary.opacity(0.28))
@@ -344,6 +352,8 @@ impl Render for AntigravityEnhanceView {
                             .child(
                                 div()
                                     .v_flex()
+                                    .flex_1()
+                                    .min_w_0()
                                     .gap_1()
                                     .child(
                                         div()
@@ -373,6 +383,7 @@ impl Render for AntigravityEnhanceView {
                             .w_full()
                             .items_center()
                             .justify_between()
+                            .gap_4()
                             .p_3p5()
                             .rounded(px(10.))
                             .bg(cx.theme().secondary.opacity(0.28))
@@ -381,6 +392,8 @@ impl Render for AntigravityEnhanceView {
                             .child(
                                 div()
                                     .v_flex()
+                                    .flex_1()
+                                    .min_w_0()
                                     .gap_1()
                                     .child(
                                         div()
@@ -421,6 +434,7 @@ impl Render for AntigravityEnhanceView {
                     .child(
                         div()
                             .h_flex()
+                            .flex_wrap()
                             .gap_2()
                             .children(
                                 [
@@ -467,6 +481,7 @@ impl Render for AntigravityEnhanceView {
                             .child(
                                 div()
                                     .h_flex()
+                                    .flex_wrap()
                                     .w_full()
                                     .items_center()
                                     .justify_between()
@@ -511,12 +526,16 @@ impl Render for AntigravityEnhanceView {
                     .child(
                         div()
                             .h_flex()
+                            .flex_wrap()
                             .w_full()
                             .items_center()
                             .justify_between()
+                            .gap_3()
                             .child(
                                 div()
                                     .v_flex()
+                                    .flex_1()
+                                    .min_w(px(220.))
                                     .gap_1()
                                     .child(
                                         div()
@@ -534,6 +553,7 @@ impl Render for AntigravityEnhanceView {
                             .child(
                                 div()
                                     .h_flex()
+                                    .flex_wrap()
                                     .gap_2()
                                     .child(
                                         AppButton::new("ag-dev-restore")

@@ -71,7 +71,7 @@ where
                     .id(dialog_id)
                     .occlude()
                     .v_flex()
-                    .w(px(620.))
+                    .w(px(740.))
                     .max_w_full()
                     .gap_4()
                     .p_5()
@@ -92,6 +92,8 @@ where
                             .gap_3()
                             .child(
                                 div()
+                                    .flex_1()
+                                    .min_w_0()
                                     .text_base()
                                     .font_semibold()
                                     .text_color(cx.theme().foreground)

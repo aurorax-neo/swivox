@@ -62,6 +62,7 @@ pub fn render_about(store: &Entity<AppStore>, cx: &App) -> impl IntoElement {
                 .child(
                     div()
                         .h_flex()
+                        .flex_wrap()
                         .w_full()
                         .items_center()
                         .justify_between()
@@ -69,6 +70,8 @@ pub fn render_about(store: &Entity<AppStore>, cx: &App) -> impl IntoElement {
                         .child(
                             div()
                                 .h_flex()
+                                .flex_1()
+                                .min_w(px(260.))
                                 .items_center()
                                 .gap_3p5()
                                 .child(
@@ -82,10 +85,13 @@ pub fn render_about(store: &Entity<AppStore>, cx: &App) -> impl IntoElement {
                                 .child(
                                     div()
                                         .v_flex()
+                                        .flex_1()
+                                        .min_w_0()
                                         .gap_1()
                                         .child(
                                             div()
                                                 .h_flex()
+                                                .flex_wrap()
                                                 .items_center()
                                                 .gap_2()
                                                 .child(
@@ -111,7 +117,7 @@ pub fn render_about(store: &Entity<AppStore>, cx: &App) -> impl IntoElement {
                         .child(
                             div()
                                 .h_flex()
-                                .flex_shrink_0()
+                                .flex_wrap()
                                 .items_center()
                                 .gap_2()
                                 .child(
@@ -228,6 +234,7 @@ pub fn render_about(store: &Entity<AppStore>, cx: &App) -> impl IntoElement {
                 .child(
                     div()
                         .h_flex()
+                        .flex_wrap()
                         .w_full()
                         .items_center()
                         .justify_between()
@@ -236,7 +243,7 @@ pub fn render_about(store: &Entity<AppStore>, cx: &App) -> impl IntoElement {
                             div()
                                 .v_flex()
                                 .flex_1()
-                                .min_w_0()
+                                .min_w(px(220.))
                                 .gap_0p5()
                                 .child(
                                     div()

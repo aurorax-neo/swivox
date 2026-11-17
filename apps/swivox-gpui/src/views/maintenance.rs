@@ -104,9 +104,11 @@ impl Render for MaintenanceView {
                     .child(
                         div()
                             .h_flex()
+                            .flex_wrap()
                             .w_full()
                             .items_center()
                             .justify_between()
+                            .gap_2()
                             .child(
                                 div()
                                     .text_sm()

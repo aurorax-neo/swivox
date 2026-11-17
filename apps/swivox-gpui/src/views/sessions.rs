@@ -89,6 +89,7 @@ impl Render for SessionsView {
             let store_apply = self.store.clone();
             div()
                 .h_flex()
+                .flex_wrap()
                 .w_full()
                 .items_center()
                 .justify_between()
@@ -100,6 +101,8 @@ impl Render for SessionsView {
                 .border_color(cx.theme().info.opacity(0.45))
                 .child(
                     div()
+                        .flex_1()
+                        .min_w(px(220.))
                         .text_xs()
                         .font_medium()
                         .text_color(cx.theme().foreground)
@@ -332,6 +335,7 @@ impl Render for SessionsView {
             .child(
                 div()
                     .h_flex()
+                    .flex_wrap()
                     .w_full()
                     .items_center()
                     .justify_between()
@@ -343,7 +347,7 @@ impl Render for SessionsView {
                     .child(
                         div()
                             .h_flex()
-                            .flex_shrink_0()
+                            .flex_wrap()
                             .items_center()
                             .gap_2()
                             .child(
@@ -394,11 +398,12 @@ impl Render for SessionsView {
                     .child(
                         div()
                             .h_flex()
+                            .flex_wrap()
                             .w_full()
                             .items_center()
                             .gap_3()
                             .child(
-                                div().flex_1().min_w_0().child(
+                                div().flex_1().min_w(px(220.)).child(
                                     Input::new(&self.search_input).prefix(
                                         Icon::new(IconName::Search)
                                             .with_size(gpui_kit::component::Size::Size(px(14.)))

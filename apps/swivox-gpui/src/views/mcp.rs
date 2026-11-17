@@ -233,13 +233,14 @@ impl McpView {
                     .child(
                         div()
                             .h_flex()
+                            .flex_wrap()
                             .w_full()
                             .gap_4()
                             .child(
                                 div()
                                     .v_flex()
                                     .flex_1()
-                                    .min_w_0()
+                                    .min_w(px(200.))
                                     .gap_1p5()
                                     .child(
                                         div()
@@ -253,7 +254,7 @@ impl McpView {
                                 div()
                                     .v_flex()
                                     .flex_1()
-                                    .min_w_0()
+                                    .min_w(px(240.))
                                     .gap_1p5()
                                     .child(
                                         div()
@@ -264,6 +265,7 @@ impl McpView {
                                     .child(
                                         div()
                                             .h_flex()
+                                            .flex_wrap()
                                             .gap_2()
                                             .child(
                                                 AppButton::new("mcp-tr-stdio")
@@ -298,12 +300,13 @@ impl McpView {
                         d.child(
                             div()
                                 .h_flex()
+                                .flex_wrap()
                                 .w_full()
                                 .gap_4()
                                 .child(
                                     div()
                                         .v_flex()
-                                        .w(px(220.))
+                                        .w(px(200.))
                                         .gap_1p5()
                                         .child(
                                             div()
@@ -317,7 +320,7 @@ impl McpView {
                                     div()
                                         .v_flex()
                                         .flex_1()
-                                        .min_w_0()
+                                        .min_w(px(200.))
                                         .gap_1p5()
                                         .child(
                                             div()
@@ -330,7 +333,7 @@ impl McpView {
                                 .child(
                                     div()
                                         .v_flex()
-                                        .w(px(210.))
+                                        .w(px(200.))
                                         .gap_1p5()
                                         .child(
                                             div()
@@ -386,11 +389,15 @@ impl McpView {
                             .child(
                                 div()
                                     .h_flex()
+                                    .flex_wrap()
                                     .w_full()
                                     .items_center()
                                     .justify_between()
+                                    .gap_2()
                                     .child(
                                         div()
+                                            .flex_1()
+                                            .min_w(px(220.))
                                             .text_xs()
                                             .text_color(cx.theme().muted_foreground)
                                             .child(t("TOML 表体（支持追加 env / http_headers 等高级字段）")),
@@ -835,6 +842,7 @@ impl Render for McpView {
             .child(
                 div()
                     .h_flex()
+                    .flex_wrap()
                     .w_full()
                     .items_center()
                     .justify_between()
@@ -842,6 +850,7 @@ impl Render for McpView {
                     .child(
                         div()
                             .h_flex()
+                            .flex_wrap()
                             .items_center()
                             .gap_2()
                             .child(AppBadge::secondary(format!(
@@ -857,7 +866,7 @@ impl Render for McpView {
                     .child(
                         div()
                             .h_flex()
-                            .flex_shrink_0()
+                            .flex_wrap()
                             .items_center()
                             .gap_2()
                             .child(

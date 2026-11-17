@@ -417,7 +417,7 @@ mod visual_audit {
 
         let store_for_win = store.clone();
         let window_handle = hcx
-            .open_window(size(px(1240.0), px(860.0)), |window, app| {
+            .open_window(size(px(1140.0), px(820.0)), |window, app| {
                 app.new(|cx| ManagerShell::new(store_for_win, window, cx))
             })
             .expect("open headless window");
@@ -827,7 +827,19 @@ mod visual_audit {
                 }),
             ),
             (
-                "16_light_en_overview.png",
+                "20e_lamplighter_ag_settings.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.active_tool = "antigravity".to_string();
+                            s.lamplighter_tab = "settings";
+                            s.navigate(Route::Lamplighter, cx);
+                        });
+                    });
+                }),
+            ),
+            (
+                "en_01_overview.png",
                 Box::new(|hcx, store| {
                     i18n::set_language(Language::En);
                     hcx.update(|app| {
@@ -836,13 +848,103 @@ mod visual_audit {
                         store.update(app, |s, cx| {
                             s.prefs.theme = UiThemeMode::Light;
                             s.prefs.language = Language::En;
+                            s.active_tool = "codex".to_string();
                             s.navigate(Route::Overview, cx);
                         });
                     });
                 }),
             ),
             (
-                "17_light_en_enhance.png",
+                "en_02_official_accounts.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.navigate(Route::OfficialAccounts, cx);
+                        });
+                    });
+                }),
+            ),
+            (
+                "en_03a_relay_list.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.back_to_relay_list(cx);
+                            s.navigate(Route::Relay, cx);
+                        });
+                    });
+                }),
+            ),
+            (
+                "en_03b_relay_catalog.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.navigate(Route::Relay, cx);
+                            s.open_relay_catalog(cx);
+                        });
+                    });
+                }),
+            ),
+            (
+                "en_03c_relay_editor.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.navigate(Route::Relay, cx);
+                            s.open_new_preset_relay(0, cx);
+                        });
+                    });
+                }),
+            ),
+            (
+                "en_04_multi_launch.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| store.update(app, |s, cx| s.navigate(Route::MultiLaunch, cx)));
+                }),
+            ),
+            (
+                "en_05b_mcp_editor.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.navigate(Route::Context, cx);
+                            s.open_mcp_editor(
+                                "fetch".to_string(),
+                                "command = \"uvx\"\nargs = [\"mcp-server-fetch\"]\n".to_string(),
+                                true,
+                                cx,
+                            );
+                        });
+                    });
+                }),
+            ),
+            (
+                "en_06b_skills_repos.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.navigate(Route::Skills, cx);
+                            s.skills_repos_open = true;
+                            cx.notify();
+                        });
+                    });
+                }),
+            ),
+            (
+                "en_07_sessions.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| store.update(app, |s, cx| s.navigate(Route::Sessions, cx)));
+                }),
+            ),
+            (
+                "en_08_user_scripts.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| store.update(app, |s, cx| s.navigate(Route::UserScripts, cx)));
+                }),
+            ),
+            (
+                "en_09a_enhance_general.png",
                 Box::new(|hcx, store| {
                     hcx.update(|app| {
                         store.update(app, |s, cx| {
@@ -853,17 +955,74 @@ mod visual_audit {
                 }),
             ),
             (
-                "18_light_en_settings.png",
+                "en_09b_enhance_stepwise.png",
                 Box::new(|hcx, store| {
                     hcx.update(|app| {
                         store.update(app, |s, cx| {
-                            s.navigate(Route::Settings, cx);
+                            s.navigate(Route::Enhance, cx);
+                            s.enhance_tab = "stepwise";
+                            cx.notify();
                         });
                     });
                 }),
             ),
             (
-                "18b_light_en_antigravity.png",
+                "en_09c_enhance_dictation.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.navigate(Route::Enhance, cx);
+                            s.enhance_tab = "dictation";
+                            cx.notify();
+                        });
+                    });
+                }),
+            ),
+            (
+                "en_10_plugin_market.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| s.navigate(Route::PluginMarket, cx))
+                    });
+                }),
+            ),
+            (
+                "en_11_agent_cache.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| store.update(app, |s, cx| s.navigate(Route::AgentCache, cx)));
+                }),
+            ),
+            (
+                "en_12_maintenance.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| store.update(app, |s, cx| s.navigate(Route::Maintenance, cx)));
+                }),
+            ),
+            (
+                "en_13_about.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| store.update(app, |s, cx| s.navigate(Route::About, cx)));
+                }),
+            ),
+            (
+                "en_14_settings.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| store.update(app, |s, cx| s.navigate(Route::Settings, cx)));
+                }),
+            ),
+            (
+                "en_19a_ag_overview.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.active_tool = "antigravity".to_string();
+                            s.navigate(Route::Overview, cx);
+                        });
+                    });
+                }),
+            ),
+            (
+                "en_19b_ag_accounts.png",
                 Box::new(|hcx, store| {
                     hcx.update(|app| {
                         store.update(app, |s, cx| {
@@ -874,11 +1033,76 @@ mod visual_audit {
                 }),
             ),
             (
-                "18c_light_en_lamplighter.png",
+                "en_19b2_ag_switch_modal.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.active_tool = "antigravity".to_string();
+                            s.navigate(Route::AntigravityAccounts, cx);
+                            if let Some(first) =
+                                s.ag_snapshot.as_ref().and_then(|sp| sp.accounts.first().cloned())
+                            {
+                                s.ag_use_confirm_account = Some(first);
+                                cx.notify();
+                            }
+                        });
+                    });
+                }),
+            ),
+            (
+                "en_19c_ag_enhance.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.dismiss_all_confirm_modals(cx);
+                            s.active_tool = "antigravity".to_string();
+                            s.navigate(Route::AntigravityEnhance, cx);
+                        });
+                    });
+                }),
+            ),
+            (
+                "en_20a_ll_codex_overview.png",
                 Box::new(|hcx, store| {
                     hcx.update(|app| {
                         store.update(app, |s, cx| {
                             s.active_tool = "codex".to_string();
+                            s.lamplighter_tab = "overview";
+                            s.navigate(Route::Lamplighter, cx);
+                        });
+                    });
+                }),
+            ),
+            (
+                "en_20b_ll_codex_settings.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.active_tool = "codex".to_string();
+                            s.lamplighter_tab = "settings";
+                            s.navigate(Route::Lamplighter, cx);
+                        });
+                    });
+                }),
+            ),
+            (
+                "en_20c_ll_ag_settings.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.active_tool = "antigravity".to_string();
+                            s.lamplighter_tab = "settings";
+                            s.navigate(Route::Lamplighter, cx);
+                        });
+                    });
+                }),
+            ),
+            (
+                "en_20d_ll_ag_overview.png",
+                Box::new(|hcx, store| {
+                    hcx.update(|app| {
+                        store.update(app, |s, cx| {
+                            s.active_tool = "antigravity".to_string();
                             s.lamplighter_tab = "overview";
                             s.navigate(Route::Lamplighter, cx);
                         });

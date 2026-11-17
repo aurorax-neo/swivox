@@ -249,19 +249,38 @@ pub fn format_codex_reset_time_at(reset_time: Option<i64>, now_secs: i64) -> Str
     let hours = (total_minutes % (60 * 24)) / 60;
     let minutes = total_minutes % 60;
 
+    let is_en = crate::i18n::get_language() == crate::i18n::Language::En;
     let mut parts = Vec::new();
     if days > 0 {
-        parts.push(format!("{days}天"));
+        parts.push(if is_en {
+            format!("{days}d")
+        } else {
+            format!("{days}天")
+        });
     }
     if hours > 0 {
-        parts.push(format!("{hours}小时"));
+        parts.push(if is_en {
+            format!("{hours}h")
+        } else {
+            format!("{hours}小时")
+        });
     }
     if minutes > 0 && days == 0 {
-        parts.push(format!("{minutes}分"));
+        parts.push(if is_en {
+            format!("{minutes}m")
+        } else {
+            format!("{minutes}分")
+        });
     }
 
     let relative = if parts.is_empty() {
-        "1分钟内重置".to_string()
+        if is_en {
+            "Resets in <1m".to_string()
+        } else {
+            "1分钟内重置".to_string()
+        }
+    } else if is_en {
+        format!("Resets in {}", parts.join(" "))
     } else {
         format!("{}后重置", parts.join(""))
     };

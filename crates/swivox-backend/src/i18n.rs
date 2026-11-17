@@ -98,6 +98,7 @@ pub fn translate_template_for<S: Display>(lang: Language, key: &str, args: &[S])
             .template
             .get(key)
             .or_else(|| dicts.plain.get(key))
+            .or_else(|| dicts.backend.get(key))
             .copied()
             .unwrap_or(key)
     } else {

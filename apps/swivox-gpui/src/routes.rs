@@ -191,7 +191,7 @@ impl Route {
             Route::AgentCache => t("扫描 Codex 与 Swivox 的已知缓存目录，由你选择清理项目。"),
             Route::Maintenance => t("入口检查与修复、开机启动与应用路径"),
             Route::About => t("版本信息、项目链接、GitHub Release 更新、日志与诊断"),
-            Route::Settings => t("界面主题、全局网络代理与启动参数"),
+            Route::Settings => t("界面主题、语言偏好、代理节点列表与本程序自身代理"),
         }
     }
 }

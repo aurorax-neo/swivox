@@ -514,6 +514,12 @@ impl AppStore {
     }
 
     pub fn navigate(&mut self, next: Route, cx: &mut Context<Self>) {
+        if let Some(req_tool) = next.required_tool() {
+            if self.active_tool != req_tool {
+                self.active_tool = req_tool.to_string();
+                cx.notify();
+            }
+        }
         if !next.is_global() {
             self.last_workspace_route = next;
         }
@@ -555,7 +561,10 @@ impl AppStore {
             Route::Context => self.refresh_mcp_page(false, cx),
             Route::Skills => self.load_local_skills(cx),
             Route::Sessions => self.refresh_sessions(false, false, cx),
-            Route::Enhance => self.refresh_enhance_page(cx),
+            Route::Enhance => {
+                self.network_proxy_snapshot = commands::load_network_proxies().payload;
+                self.refresh_enhance_page(cx);
+            }
             Route::UserScripts => self.refresh_user_scripts_page(false, cx),
             Route::PluginMarket => {
                 if self.plugin_catalog_public.is_none() {
@@ -687,7 +696,10 @@ impl AppStore {
             Route::Context => self.refresh_mcp_page(true, cx),
             Route::Skills => self.refresh_skills_remote(cx),
             Route::Sessions => self.refresh_sessions(false, true, cx),
-            Route::Enhance => self.refresh_enhance_page(cx),
+            Route::Enhance => {
+                self.network_proxy_snapshot = commands::load_network_proxies().payload;
+                self.refresh_enhance_page(cx);
+            }
             Route::UserScripts => self.refresh_user_scripts_page(true, cx),
             Route::PluginMarket => self.load_plugin_market(self.plugin_source, true, cx),
             Route::AgentCache => self.scan_agent_cache_now(cx),

@@ -329,9 +329,12 @@ impl ManagerShell {
                         .child(
                             div()
                                 .flex()
+                                .flex_1()
+                                .min_w_0()
                                 .items_center()
                                 .text_size(px(13.))
-                                .line_height(px(13.))
+                                .line_height(px(15.))
+                                .truncate()
                                 .when(selected, |d| d.font_medium())
                                 .text_color(fg)
                                 .child(route_id.title()),
@@ -363,15 +366,26 @@ impl ManagerShell {
 
         div()
             .v_flex()
-            .w(px(216.))
+            .w(px(228.))
+            .flex_shrink_0()
             .h_full()
             .p_3()
+            .gap_3()
             .justify_between()
             .bg(cx.theme().sidebar)
             .border_r_1()
             .border_color(cx.theme().sidebar_border)
-            .child(div().v_flex().w_full().gap_4().children(top_sections))
-            .child(div().v_flex().w_full().gap_2().children(bottom_sections))
+            .child(
+                div()
+                    .v_flex()
+                    .flex_1()
+                    .min_h_0()
+                    .w_full()
+                    .overflow_y_scrollbar()
+                    .gap_4()
+                    .children(top_sections),
+            )
+            .child(div().v_flex().flex_shrink_0().w_full().gap_2().children(bottom_sections))
     }
 
     fn render_topbar(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -406,15 +420,17 @@ impl ManagerShell {
         let store_ag_ide_stop = self.store.clone();
         let store_ag_ide_launch = self.store.clone();
         let store_ag_clean = self.store.clone();
+        let store_back_ws = self.store.clone();
 
         div()
             .h_flex()
+            .flex_wrap()
             .w_full()
             .px_6()
             .py_4()
             .items_center()
             .justify_between()
-            .gap_4()
+            .gap_3()
             .bg(cx.theme().background)
             .border_b_1()
             .border_color(cx.theme().border)
@@ -422,7 +438,7 @@ impl ManagerShell {
                 div()
                     .v_flex()
                     .flex_1()
-                    .min_w_0()
+                    .min_w(px(220.))
                     .gap_1()
                     .child(
                         div()
@@ -438,6 +454,27 @@ impl ManagerShell {
                             .child(route.subtitle()),
                     ),
             )
+            .when(route.is_global(), |bar| {
+                bar.child(
+                    AppButton::new("topbar-back-workspace")
+                        .outline()
+                        .small()
+                        .icon(IconName::ArrowLeft)
+                        .label(t("返回工作区"))
+                        .on_click(move |_, _, cx| {
+                            store_back_ws.update(cx, |s, cx| {
+                                let target = if s.last_workspace_route.visible_for_tool(&s.active_tool)
+                                    && !s.last_workspace_route.is_global()
+                                {
+                                    s.last_workspace_route
+                                } else {
+                                    Route::Overview
+                                };
+                                s.navigate(target, cx);
+                            });
+                        }),
+                )
+            })
             .when(show_codex_controls, |bar| {
                 let badge_text = format!("Codex {}", status_label(codex_status));
                 let badge = match status_tone(codex_status) {
@@ -449,7 +486,8 @@ impl ManagerShell {
                 bar.child(
                     div()
                         .h_flex()
-                        .flex_shrink_0()
+                        .flex_wrap()
+                        .justify_end()
                         .items_center()
                         .gap_2p5()
                         .child(badge)
@@ -506,7 +544,8 @@ impl ManagerShell {
                 bar.child(
                     div()
                         .h_flex()
-                        .flex_shrink_0()
+                        .flex_wrap()
+                        .justify_end()
                         .items_center()
                         .gap_2()
                         .when(ag_conflict, |row| {
@@ -1271,6 +1310,7 @@ impl Render for ManagerShell {
             self.last_lang = current_lang;
             self.rebuild_localized_views(window, cx);
         }
+        let is_global_route = self.store.read(cx).route.is_global();
         let floating_toast = self.render_floating_toast(cx);
         let confirm_modal = self.render_confirm_modal_overlay(cx);
         let canvas_bg = if cx.theme().is_dark() {
@@ -1286,7 +1326,7 @@ impl Render for ManagerShell {
             .bg(canvas_bg)
             .text_color(cx.theme().foreground)
             .child(self.render_application_rail(cx))
-            .child(self.render_sidebar(cx))
+            .when(!is_global_route, |root| root.child(self.render_sidebar(cx)))
             .child(
                 div()
                     .relative()

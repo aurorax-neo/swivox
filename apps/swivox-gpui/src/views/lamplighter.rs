@@ -209,7 +209,7 @@ impl LamplighterView {
                 div()
                     .v_flex()
                     .flex_1()
-                    .min_w_0()
+                    .min_w(px(180.))
                     .gap_1()
                     .child(
                         div()
@@ -273,6 +273,7 @@ impl LamplighterView {
             .child(
                 div()
                     .h_flex()
+                    .flex_wrap()
                     .w_full()
                     .items_center()
                     .justify_between()
@@ -280,6 +281,8 @@ impl LamplighterView {
                     .child(
                         div()
                             .h_flex()
+                            .flex_1()
+                            .min_w(px(200.))
                             .items_center()
                             .gap_2()
                             .flex_wrap()
@@ -338,14 +341,22 @@ impl LamplighterView {
                     .child(t("等待首次主动轮询或点击右上角「立即刷新全部」读取配额"))
                     .into_any_element()
             } else {
-                div().h_flex().w_full().gap_4().children(bars).into_any_element()
+                div()
+                    .h_flex()
+                    .flex_wrap()
+                    .w_full()
+                    .gap_4()
+                    .children(bars)
+                    .into_any_element()
             })
             .child(
                 div()
                     .h_flex()
+                    .flex_wrap()
                     .w_full()
                     .items_center()
                     .justify_between()
+                    .gap_2()
                     .child(
                         div()
                             .text_xs()
@@ -502,18 +513,144 @@ impl LamplighterView {
         let is_ag = client_id == "antigravity";
         let enabled = self.draft_cfg.enabled;
         let ig_enabled = self.draft_cfg.ignition_for_client(&client_id).enabled;
-        let client_prov_id = if is_ag { "antigravity" } else { "codex" };
-        let client_prov_label = if is_ag {
-            "Antigravity (Gemini) 自动点火"
-        } else {
-            "GPT / Codex 自动点火"
-        };
-        let client_prov_ig = self.draft_cfg.provider_rule(client_prov_id).ignite;
+        let codex_prov_ig = self.draft_cfg.provider_rule("codex").ignite;
+        let ag_gemini_ig = self.draft_cfg.is_antigravity_group_ignite_enabled("Gemini");
+        let ag_claude_gpt_ig = self
+            .draft_cfg
+            .is_antigravity_group_ignite_enabled("Claude / GPT");
         let reset_sig = self.draft_cfg.codex_reset_updates.enabled;
         let mcp_en = self.draft_cfg.mcp_enabled;
         let mcp_key = self.draft_cfg.mcp_key.clone();
         let preset_now = self.draft_cfg.webhook.preset.clone();
         let cid_for_sw = client_id.clone();
+
+        let group_switches_section: AnyElement = if is_ag {
+            div()
+                .v_flex()
+                .w_full()
+                .gap_2()
+                .child(
+                    div()
+                        .h_flex()
+                        .w_full()
+                        .items_center()
+                        .justify_between()
+                        .gap_4()
+                        .p_3()
+                        .rounded(px(8.))
+                        .bg(cx.theme().secondary.opacity(0.24))
+                        .border_1()
+                        .border_color(cx.theme().border)
+                        .child(
+                            div()
+                                .v_flex()
+                                .flex_1()
+                                .min_w_0()
+                                .gap_0p5()
+                                .child(
+                                    div()
+                                        .text_xs()
+                                        .font_medium()
+                                        .child(t("Antigravity · Gemini 额度组自动点火")),
+                                )
+                                .child(
+                                    div()
+                                        .text_xs()
+                                        .text_color(cx.theme().muted_foreground)
+                                        .child(t("5 小时窗口重置后使用轻量 Gemini Flash 模型触发新一轮计时")),
+                                ),
+                        )
+                        .child(
+                            Switch::new("ll-prov-ig-ag-gemini")
+                                .checked(ag_gemini_ig)
+                                .on_click(cx.listener(|v, checked: &bool, _, cx| {
+                                    v.draft_cfg.set_antigravity_group_ignite("Gemini", *checked);
+                                    let cfg = v.collect_config_from_inputs(cx);
+                                    v.store
+                                        .update(cx, |s, cx| s.save_lamplighter_config(cfg, cx));
+                                })),
+                        ),
+                )
+                .child(
+                    div()
+                        .h_flex()
+                        .w_full()
+                        .items_center()
+                        .justify_between()
+                        .gap_4()
+                        .p_3()
+                        .rounded(px(8.))
+                        .bg(cx.theme().secondary.opacity(0.24))
+                        .border_1()
+                        .border_color(cx.theme().border)
+                        .child(
+                            div()
+                                .v_flex()
+                                .flex_1()
+                                .min_w_0()
+                                .gap_0p5()
+                                .child(
+                                    div()
+                                        .text_xs()
+                                        .font_medium()
+                                        .child(t("Antigravity · Claude / GPT 额度组自动点火")),
+                                )
+                                .child(
+                                    div()
+                                        .text_xs()
+                                        .text_color(cx.theme().muted_foreground)
+                                        .child(t("5 小时窗口重置后使用非思考模式 Claude / GPT 模型触发新一轮计时")),
+                                ),
+                        )
+                        .child(
+                            Switch::new("ll-prov-ig-ag-claude-gpt")
+                                .checked(ag_claude_gpt_ig)
+                                .on_click(cx.listener(|v, checked: &bool, _, cx| {
+                                    v.draft_cfg
+                                        .set_antigravity_group_ignite("Claude / GPT", *checked);
+                                    let cfg = v.collect_config_from_inputs(cx);
+                                    v.store
+                                        .update(cx, |s, cx| s.save_lamplighter_config(cfg, cx));
+                                })),
+                        ),
+                )
+                .into_any_element()
+        } else {
+            div()
+                .h_flex()
+                .w_full()
+                .items_center()
+                .justify_between()
+                .gap_4()
+                .p_3()
+                .rounded(px(8.))
+                .bg(cx.theme().secondary.opacity(0.24))
+                .border_1()
+                .border_color(cx.theme().border)
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .text_xs()
+                        .font_medium()
+                        .child(t("GPT / Codex 自动点火")),
+                )
+                .child(
+                    Switch::new("ll-prov-ig-codex")
+                        .checked(codex_prov_ig)
+                        .on_click(cx.listener(|v, checked: &bool, _, cx| {
+                            v.draft_cfg
+                                .providers
+                                .entry("codex".to_string())
+                                .or_default()
+                                .ignite = *checked;
+                            let cfg = v.collect_config_from_inputs(cx);
+                            v.store
+                                .update(cx, |s, cx| s.save_lamplighter_config(cfg, cx));
+                        })),
+                )
+                .into_any_element()
+        };
 
         div()
             .v_flex()
@@ -532,9 +669,12 @@ impl LamplighterView {
                             .w_full()
                             .items_center()
                             .justify_between()
+                            .gap_4()
                             .child(
                                 div()
                                     .v_flex()
+                                    .flex_1()
+                                    .min_w_0()
                                     .gap_1()
                                     .child(
                                         div()
@@ -584,7 +724,10 @@ impl LamplighterView {
                                                 v.draft_cfg
                                                     .ignition_for_client_mut(&cid_for_sw)
                                                     .enabled = *checked;
-                                                cx.notify();
+                                                let cfg = v.collect_config_from_inputs(cx);
+                                                v.store.update(cx, |s, cx| {
+                                                    s.save_lamplighter_config(cfg, cx)
+                                                });
                                             })),
                                     ),
                             )
@@ -628,34 +771,7 @@ impl LamplighterView {
                                     .child(div().w(px(88.)).child(Input::new(&self.poll_secs_input))),
                             ),
                     )
-                    .child(
-                        div()
-                            .h_flex()
-                            .w_full()
-                            .items_center()
-                            .justify_between()
-                            .p_3()
-                            .rounded(px(8.))
-                            .bg(cx.theme().secondary.opacity(0.24))
-                            .border_1()
-                            .border_color(cx.theme().border)
-                            .child(div().text_xs().font_medium().child(t(client_prov_label)))
-                            .child(
-                                Switch::new(SharedString::from(format!(
-                                    "ll-prov-ig-{client_prov_id}"
-                                )))
-                                .checked(client_prov_ig)
-                                .on_click(cx.listener(move |v, checked: &bool, _, cx| {
-                                    let entry = v
-                                        .draft_cfg
-                                        .providers
-                                        .entry(client_prov_id.to_string())
-                                        .or_default();
-                                    entry.ignite = *checked;
-                                    cx.notify();
-                                })),
-                            ),
-                    ),
+                    .child(group_switches_section),
             ))
             // 2. Bark 与通用 Webhook 推送 + 三档提醒阈值
             .child(panel_card(
@@ -667,9 +783,11 @@ impl LamplighterView {
                     .child(
                         div()
                             .h_flex()
+                            .flex_wrap()
                             .w_full()
                             .items_center()
                             .justify_between()
+                            .gap_2()
                             .child(
                                 div()
                                     .text_base()
@@ -703,6 +821,7 @@ impl LamplighterView {
                             .child(
                                 div()
                                     .h_flex()
+                                    .flex_wrap()
                                     .items_center()
                                     .justify_between()
                                     .gap_2()
@@ -714,12 +833,12 @@ impl LamplighterView {
                                             .child(t("通用 Webhook 模板与地址（飞书 / 钉钉 / Telegram / ntfy）")),
                                     )
                                     .child(
-                                        div().h_flex().gap_1p5().children(
+                                        div().h_flex().flex_wrap().gap_1p5().children(
                                             [
-                                                ("feishu", "飞书"),
-                                                ("dingtalk", "钉钉"),
-                                                ("telegram", "Telegram"),
-                                                ("ntfy", "ntfy"),
+                                                ("feishu", t("飞书")),
+                                                ("dingtalk", t("钉钉")),
+                                                ("telegram", "Telegram".to_string()),
+                                                ("ntfy", "ntfy".to_string()),
                                             ]
                                             .into_iter()
                                             .map(|(p, lbl)| {
@@ -802,9 +921,12 @@ impl LamplighterView {
                             .w_full()
                             .items_center()
                             .justify_between()
+                            .gap_4()
                             .child(
                                 div()
                                     .v_flex()
+                                    .flex_1()
+                                    .min_w_0()
                                     .gap_1()
                                     .child(
                                         div()
@@ -834,6 +956,7 @@ impl LamplighterView {
                     .child(
                         div()
                             .h_flex()
+                            .flex_wrap()
                             .w_full()
                             .items_center()
                             .justify_between()
@@ -841,9 +964,11 @@ impl LamplighterView {
                             .child(
                                 div()
                                     .h_flex()
+                                    .flex_wrap()
                                     .items_center()
                                     .gap_2()
                                     .flex_1()
+                                    .min_w(px(220.))
                                     .child(div().w(px(210.)).child(Input::new(&self.mcp_listen_input)))
                                     .when(!mcp_key.is_empty(), |r| {
                                         let key_cp = mcp_key.clone();
@@ -1085,11 +1210,13 @@ impl Render for LamplighterView {
                         .child(
                             div()
                                 .h_flex()
+                                .flex_wrap()
                                 .w_full()
                                 .items_center()
                                 .justify_between()
+                                .gap_2()
                                 .child(
-                                    div().h_flex().gap_2().children(
+                                    div().h_flex().flex_wrap().gap_2().children(
                                         [
                                             ("five-hour", t("5 小时窗口")),
                                             ("seven-day", t("7 天窗口")),

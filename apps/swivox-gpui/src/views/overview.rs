@@ -260,6 +260,7 @@ fn render_2x2_health_panel(
             .child(
                 div()
                     .h_flex()
+                    .flex_wrap()
                     .w_full()
                     .items_center()
                     .justify_between()

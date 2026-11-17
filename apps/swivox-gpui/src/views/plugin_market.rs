@@ -233,6 +233,7 @@ impl Render for PluginMarketView {
             .child(
                 div()
                     .h_flex()
+                    .flex_wrap()
                     .w_full()
                     .items_center()
                     .justify_between()
@@ -240,6 +241,7 @@ impl Render for PluginMarketView {
                     .child(
                         div()
                             .h_flex()
+                            .flex_wrap()
                             .items_center()
                             .gap_2()
                             .child(
@@ -311,11 +313,12 @@ impl Render for PluginMarketView {
                     .child(
                         div()
                             .h_flex()
+                            .flex_wrap()
                             .w_full()
                             .items_center()
                             .gap_3()
                             .child(
-                                div().flex_1().min_w_0().child(
+                                div().flex_1().min_w(px(220.)).child(
                                     Input::new(&self.search_input).prefix(
                                         Icon::new(IconName::Search)
                                             .with_size(gpui_kit::component::Size::Size(px(14.)))
@@ -326,7 +329,7 @@ impl Render for PluginMarketView {
                             .child(
                                 div()
                                     .h_flex()
-                                    .flex_shrink_0()
+                                    .flex_wrap()
                                     .items_center()
                                     .gap_1p5()
                                     .children(filter_btns),

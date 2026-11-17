@@ -340,6 +340,7 @@ impl AntigravityAccountsView {
                     .child(
                         div()
                             .h_flex()
+                            .flex_shrink_0()
                             .items_center()
                             .gap_2()
                             .when_some(validation_url, |row, url| {
@@ -757,11 +758,15 @@ impl Render for AntigravityAccountsView {
                                     .child(
                                         div()
                                             .h_flex()
+                                            .flex_wrap()
                                             .w_full()
                                             .items_center()
                                             .justify_between()
+                                            .gap_2()
                                             .child(
                                                 div()
+                                                    .flex_1()
+                                                    .min_w(px(220.))
                                                     .text_xs()
                                                     .font_semibold()
                                                     .child(t("正在等待浏览器完成 Google OAuth 授权（自动回环捕获，也可手动粘贴回调链接）")),
@@ -769,6 +774,7 @@ impl Render for AntigravityAccountsView {
                                             .child(
                                                 div()
                                                     .h_flex()
+                                                    .flex_wrap()
                                                     .gap_2()
                                                     .child(
                                                         AppButton::new("ag-oauth-copy")

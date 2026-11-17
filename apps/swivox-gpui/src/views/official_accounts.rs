@@ -106,6 +106,7 @@ impl OfficialAccountsView {
                 div()
                     .text_sm()
                     .font_semibold()
+                    .truncate()
                     .text_color(cx.theme().foreground)
                     .child(value.into()),
             )
@@ -135,12 +136,15 @@ impl OfficialAccountsView {
                 .child(
                     div()
                         .h_flex()
+                        .flex_wrap()
                         .w_full()
                         .items_center()
                         .justify_between()
                         .gap_3()
                         .child(
                             div()
+                                .flex_1()
+                                .min_w(px(200.))
                                 .text_sm()
                                 .font_semibold()
                                 .text_color(cx.theme().foreground)
@@ -153,6 +157,7 @@ impl OfficialAccountsView {
                         .child(
                             div()
                                 .h_flex()
+                                .flex_wrap()
                                 .items_center()
                                 .gap_2()
                                 .child(
@@ -202,12 +207,14 @@ impl OfficialAccountsView {
                 .child(
                     div()
                         .h_flex()
+                        .flex_wrap()
                         .w_full()
                         .gap_3()
                         .child(
                             div()
                                 .v_flex()
                                 .flex_1()
+                                .min_w(px(200.))
                                 .gap_1p5()
                                 .child(
                                     div()
@@ -221,6 +228,7 @@ impl OfficialAccountsView {
                             div()
                                 .v_flex()
                                 .flex_1()
+                                .min_w(px(240.))
                                 .gap_1p5()
                                 .child(
                                     div()
@@ -852,6 +860,7 @@ impl OfficialAccountsView {
                     .child(
                         div()
                             .h_flex()
+                            .flex_shrink_0()
                             .items_center()
                             .gap_1p5()
                             .child(
@@ -970,6 +979,7 @@ impl OfficialAccountsView {
             .child(
                 div()
                     .h_flex()
+                    .flex_wrap()
                     .w_full()
                     .items_end()
                     .justify_between()
@@ -977,7 +987,7 @@ impl OfficialAccountsView {
                     .pt_2()
                     .border_t_1()
                     .border_color(cx.theme().border.opacity(0.5))
-                    .child(div().flex_1().min_w_0().child(quota_section))
+                    .child(div().flex_1().min_w(px(220.)).child(quota_section))
                     .child(
                         div()
                             .v_flex()

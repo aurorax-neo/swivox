@@ -408,6 +408,51 @@ impl LamplighterConfig {
         let fallback = self.ignition.clone();
         self.client_ignition.entry(cid).or_insert(fallback)
     }
+
+    /// 判断 Antigravity 指定额度组（如 `"Gemini"` 或 `"Claude / GPT"`）是否已开启自动点火。
+    pub fn is_antigravity_group_ignite_enabled(&self, group_display_name: &str) -> bool {
+        let rule = self.provider_rule("antigravity");
+        if !rule.ignite {
+            return false;
+        }
+        if rule.groups.is_empty() {
+            return true;
+        }
+        rule.groups
+            .iter()
+            .any(|g| g.eq_ignore_ascii_case(group_display_name.trim()))
+    }
+
+    /// 独立开关 Antigravity 指定额度组（`"Gemini"` / `"Claude / GPT"`）的 5h 窗口自动点火。
+    pub fn set_antigravity_group_ignite(&mut self, group_display_name: &str, enabled: bool) {
+        let target = group_display_name.trim();
+        if target.is_empty() {
+            return;
+        }
+        let entry = self
+            .providers
+            .entry("antigravity".to_string())
+            .or_insert_with(|| ProviderRuleConfig {
+                monitor: true,
+                ignite: false,
+                model: String::new(),
+                groups: Vec::new(),
+                models: BTreeMap::new(),
+            });
+        if !entry.ignite {
+            entry.groups.clear();
+        } else if entry.groups.is_empty() {
+            entry.groups = vec!["Gemini".to_string(), "Claude / GPT".to_string()];
+        }
+        if enabled {
+            if !entry.groups.iter().any(|g| g.eq_ignore_ascii_case(target)) {
+                entry.groups.push(target.to_string());
+            }
+        } else {
+            entry.groups.retain(|g| !g.eq_ignore_ascii_case(target));
+        }
+        entry.ignite = !entry.groups.is_empty();
+    }
 }
 
 pub fn generate_mcp_bearer_key() -> String {
@@ -504,5 +549,28 @@ mod tests {
             plan_display_and_default_weight("antigravity", Some("g1-pro-tier")),
             ("Pro".to_string(), 1.0)
         );
+    }
+
+    #[test]
+    fn antigravity_gemini_and_claude_gpt_group_ignition_toggle_independently() {
+        let mut cfg = LamplighterConfig::default();
+        assert!(!cfg.is_antigravity_group_ignite_enabled("Gemini"));
+        assert!(!cfg.is_antigravity_group_ignite_enabled("Claude / GPT"));
+
+        cfg.set_antigravity_group_ignite("Claude / GPT", true);
+        assert!(!cfg.is_antigravity_group_ignite_enabled("Gemini"));
+        assert!(cfg.is_antigravity_group_ignite_enabled("Claude / GPT"));
+        assert!(cfg.provider_rule("antigravity").ignite);
+
+        cfg.set_antigravity_group_ignite("Gemini", true);
+        assert!(cfg.is_antigravity_group_ignite_enabled("Gemini"));
+        assert!(cfg.is_antigravity_group_ignite_enabled("Claude / GPT"));
+
+        cfg.set_antigravity_group_ignite("Claude / GPT", false);
+        assert!(cfg.is_antigravity_group_ignite_enabled("Gemini"));
+        assert!(!cfg.is_antigravity_group_ignite_enabled("Claude / GPT"));
+
+        cfg.set_antigravity_group_ignite("Gemini", false);
+        assert!(!cfg.provider_rule("antigravity").ignite);
     }
 }

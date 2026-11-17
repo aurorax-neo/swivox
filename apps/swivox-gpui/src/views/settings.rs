@@ -1,6 +1,6 @@
 use gpui_kit::assets::IconName;
 use gpui_kit::component::StyledExt as _;
-use gpui_kit::component::input::{Input, InputState, Textarea, TextareaState};
+use gpui_kit::component::input::{Input, InputState};
 use gpui_kit::component::switch::Switch;
 use gpui_kit::component::theme::ActiveTheme as _;
 use gpui_kit::*;
@@ -16,27 +16,16 @@ pub struct SettingsView {
     store: Entity<AppStore>,
     node_name_input: Entity<InputState>,
     node_url_input: Entity<InputState>,
-    extra_args_textarea: Entity<TextareaState>,
 }
 
 impl SettingsView {
     pub fn new(store: Entity<AppStore>, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let init_args = store.read(cx).settings.codex_extra_args.join("\n");
-
         let node_name_input = cx.new(|cx| {
             InputState::new(window, cx).placeholder(t("节点名称（如：Clash 本地）"))
         });
         let node_url_input = cx.new(|cx| {
             InputState::new(window, cx)
                 .placeholder("http://127.0.0.1:7890 / socks5://127.0.0.1:1080")
-        });
-        let extra_args_textarea = cx.new(|cx| {
-            let mut st = TextareaState::new(window, cx)
-                .placeholder(t("每行一个额外 CLI 启动参数，例如：\n--enable-features=Vulkan"));
-            if !init_args.is_empty() {
-                st.set_value(init_args, window, cx);
-            }
-            st
         });
 
         cx.observe(&store, |_, _, cx| cx.notify()).detach();
@@ -45,7 +34,6 @@ impl SettingsView {
             store,
             node_name_input,
             node_url_input,
-            extra_args_textarea,
         }
     }
 
@@ -104,6 +92,7 @@ impl SettingsView {
             .child(
                 div()
                     .h_flex()
+                    .flex_wrap()
                     .w_full()
                     .items_center()
                     .justify_between()
@@ -112,7 +101,7 @@ impl SettingsView {
                         div()
                             .v_flex()
                             .flex_1()
-                            .min_w_0()
+                            .min_w(px(200.))
                             .gap_0p5()
                             .child(
                                 div()
@@ -153,7 +142,6 @@ impl Render for SettingsView {
 
         let ent_node_test = cx.entity();
         let ent_node_add = cx.entity();
-        let ent_args_save = cx.entity();
 
         let node_rows: AnyElement = if nodes.is_empty() {
             div()
@@ -275,6 +263,7 @@ impl Render for SettingsView {
                     .child(
                         div()
                             .h_flex()
+                            .flex_wrap()
                             .w_full()
                             .items_center()
                             .justify_between()
@@ -355,6 +344,7 @@ impl Render for SettingsView {
                     .child(
                         div()
                             .h_flex()
+                            .flex_wrap()
                             .w_full()
                             .items_center()
                             .justify_between()
@@ -406,6 +396,7 @@ impl Render for SettingsView {
                     .child(
                         div()
                             .h_flex()
+                            .flex_wrap()
                             .w_full()
                             .items_center()
                             .justify_between()
@@ -413,6 +404,8 @@ impl Render for SettingsView {
                             .child(
                                 div()
                                     .v_flex()
+                                    .flex_1()
+                                    .min_w(px(220.))
                                     .gap_0p5()
                                     .child(
                                         div()
@@ -425,7 +418,7 @@ impl Render for SettingsView {
                                         div()
                                             .text_xs()
                                             .text_color(cx.theme().muted_foreground)
-                                            .child(t("统一维护 HTTP / HTTPS / SOCKS5 代理节点，供 Swivox 本程序、各客户端与自动点火按需独立选择")),
+                                            .child(t("统一维护 HTTP / HTTPS / SOCKS5 代理节点，供 Swivox 本程序、各客户端增强页与自动点火按需独立选择")),
                                     ),
                             )
                             .child(AppBadge::secondary(format!(
@@ -437,11 +430,12 @@ impl Render for SettingsView {
                     .child(
                         div()
                             .h_flex()
+                            .flex_wrap()
                             .w_full()
                             .items_center()
                             .gap_2()
-                            .child(div().w(px(250.)).child(Input::new(&self.node_name_input)))
-                            .child(div().flex_1().child(Input::new(&self.node_url_input)))
+                            .child(div().w(px(230.)).child(Input::new(&self.node_name_input)))
+                            .child(div().flex_1().min_w(px(220.)).child(Input::new(&self.node_url_input)))
                             .child(
                                 AppButton::new("set-proxy-test")
                                     .outline()
@@ -510,6 +504,7 @@ impl Render for SettingsView {
                     .child(
                         div()
                             .h_flex()
+                            .flex_wrap()
                             .items_center()
                             .gap_2()
                             .child(
@@ -541,7 +536,7 @@ impl Render for SettingsView {
                     )
                     .child(node_rows),
             ))
-            // 3. Swivox 本程序与各客户端独立隔离代理（点火就用对应客户端代理）
+            // 3. Swivox 本程序自身代理（各客户端代理已归入各自增强页）
             .child(panel_card(
                 cx,
                 div()
@@ -557,13 +552,13 @@ impl Render for SettingsView {
                                     .text_sm()
                                     .font_semibold()
                                     .text_color(cx.theme().foreground)
-                                    .child(t("本程序与各客户端隔离代理分配（点火自动使用对应客户端代理）")),
+                                    .child(t("Swivox 本程序自身代理")),
                             )
                             .child(
                                 div()
                                     .text_xs()
                                     .text_color(cx.theme().muted_foreground)
-                                    .child(t("Swivox 本程序、Codex、Antigravity 桌面版与 Antigravity IDE 各自从上方代理列表中独立选择、互不串流；Lamplighter 配额轮询与 5h 点火严格复用所属客户端及账号代理")),
+                                    .child(t("仅控制 Swivox 自身的网络请求；Codex 与 Antigravity 的客户端及自动点火隔离代理请前往各自工作区的「增强」页面独立配置")),
                             ),
                     )
                     .child(self.render_proxy_assignment_row(
@@ -575,101 +570,50 @@ impl Render for SettingsView {
                         &px_snap.effective_app_self,
                         false,
                         &nodes,
-                    ))
-                    .child(self.render_proxy_assignment_row(
-                        cx,
-                        "codex",
-                        t("Codex 客户端与 Codex 点火代理"),
-                        t("用于 Codex 桌面启动、OpenAI OAuth 登录、官方账号配额刷新及 Lamplighter Codex 点火"),
-                        &px_snap.config.clients.codex,
-                        &px_snap.effective_codex,
-                        true,
-                        &nodes,
-                    ))
-                    .child(self.render_proxy_assignment_row(
-                        cx,
-                        "antigravity_desktop",
-                        t("Antigravity 桌面版与 Agy 点火代理"),
-                        t("用于 Antigravity 桌面版免 TUN 启动、Google OAuth、三端点配额查询及 Lamplighter Agy 点火"),
-                        &px_snap.config.clients.antigravity_desktop,
-                        &px_snap.effective_antigravity_desktop,
-                        true,
-                        &nodes,
-                    ))
-                    .child(self.render_proxy_assignment_row(
-                        cx,
-                        "antigravity_ide",
-                        t("Antigravity IDE 编辑器代理"),
-                        t("用于 Antigravity IDE 免 TUN 独立代理启动（与桌面版代理完全隔离）"),
-                        &px_snap.config.clients.antigravity_ide,
-                        &px_snap.effective_antigravity_ide,
-                        true,
-                        &nodes,
                     )),
             ))
-            // 4. Codex 附加参数与恢复默认
+            // 4. 全局默认设置重置
             .child(panel_card(
                 cx,
                 div()
-                    .v_flex()
+                    .h_flex()
+                    .flex_wrap()
                     .w_full()
-                    .gap_3()
+                    .items_center()
+                    .justify_between()
+                    .gap_4()
                     .child(
                         div()
-                            .text_sm()
-                            .font_semibold()
-                            .text_color(cx.theme().foreground)
-                            .child(t("Codex 附加启动参数与重置")),
-                    )
-                    .child(Textarea::new(&self.extra_args_textarea).h(px(95.)))
-                    .child(
-                        div()
-                            .h_flex()
-                            .w_full()
-                            .items_center()
-                            .justify_between()
+                            .v_flex()
+                            .flex_1()
+                            .min_w(px(220.))
+                            .gap_1()
                             .child(
-                                AppButton::new("set-reset-trigger")
-                                    .outline()
-                                    .small()
-                                    .icon(IconName::Trash)
-                                    .label(t("恢复默认设置"))
-                                    .on_click(move |_, _, cx| {
-                                        store_reset_open.update(cx, |s, cx| {
-                                            s.reset_confirm_open = true;
-                                            cx.notify();
-                                        });
-                                    }),
+                                div()
+                                    .text_sm()
+                                    .font_semibold()
+                                    .text_color(cx.theme().foreground)
+                                    .child(t("全局默认设置重置")),
                             )
                             .child(
-                                AppButton::new("set-save-extra-args")
-                                    .primary()
-                                    .small()
-                                    .icon(IconName::Save)
-                                    .label(t("保存启动参数"))
-                                    .on_click(move |_, _, cx| {
-                                        ent_args_save.update(cx, |v, cx| {
-                                            let lines: Vec<String> = v
-                                                .extra_args_textarea
-                                                .read(cx)
-                                                .value()
-                                                .lines()
-                                                .map(str::trim)
-                                                .filter(|s| !s.is_empty())
-                                                .map(str::to_string)
-                                                .collect();
-                                            v.store.update(cx, |s, cx| {
-                                                let mut next = s.settings.clone();
-                                                next.codex_extra_args = lines;
-                                                s.persist_settings_with_notice(
-                                                    next,
-                                                    t("启动参数"),
-                                                    cx,
-                                                );
-                                            });
-                                        });
-                                    }),
+                                div()
+                                    .text_xs()
+                                    .text_color(cx.theme().muted_foreground)
+                                    .child(t("将增强开关与常规界面偏好恢复为默认值（已保存的账号凭据与代理节点列表不受影响）")),
                             ),
+                    )
+                    .child(
+                        AppButton::new("set-reset-trigger")
+                            .outline()
+                            .small()
+                            .icon(IconName::Trash)
+                            .label(t("恢复默认设置"))
+                            .on_click(move |_, _, cx| {
+                                store_reset_open.update(cx, |s, cx| {
+                                    s.reset_confirm_open = true;
+                                    cx.notify();
+                                });
+                            }),
                     ),
             ))
     }

@@ -179,12 +179,13 @@ impl SkillsView {
                     .child(
                         div()
                             .h_flex()
+                            .flex_wrap()
                             .w_full()
                             .gap_2()
-                            .child(div().flex_1().min_w_0().child(Input::new(&self.repo_owner_input)))
-                            .child(div().flex_1().min_w_0().child(Input::new(&self.repo_name_input)))
+                            .child(div().flex_1().min_w(px(150.)).child(Input::new(&self.repo_owner_input)))
+                            .child(div().flex_1().min_w(px(150.)).child(Input::new(&self.repo_name_input)))
                             .child(div().w(px(110.)).child(Input::new(&self.repo_branch_input)))
-                            .child(div().flex_1().min_w_0().child(Input::new(&self.repo_subdir_input)))
+                            .child(div().flex_1().min_w(px(180.)).child(Input::new(&self.repo_subdir_input)))
                             .child(
                                 AppButton::new("skill-repo-add-btn")
                                     .primary()
@@ -476,6 +477,7 @@ impl Render for SkillsView {
             .child(
                 div()
                     .h_flex()
+                    .flex_wrap()
                     .w_full()
                     .items_center()
                     .justify_between()
@@ -483,6 +485,7 @@ impl Render for SkillsView {
                     .child(
                         div()
                             .h_flex()
+                            .flex_wrap()
                             .items_center()
                             .gap_2()
                             .child(AppBadge::secondary(format!(
@@ -551,11 +554,12 @@ impl Render for SkillsView {
                     .child(
                         div()
                             .h_flex()
+                            .flex_wrap()
                             .w_full()
                             .items_center()
                             .gap_3()
                             .child(
-                                div().flex_1().min_w_0().child(
+                                div().flex_1().min_w(px(220.)).child(
                                     Input::new(&self.search_input).prefix(
                                         Icon::new(IconName::Search)
                                             .with_size(gpui_kit::component::Size::Size(px(14.)))
@@ -566,7 +570,7 @@ impl Render for SkillsView {
                             .child(
                                 div()
                                     .h_flex()
-                                    .flex_shrink_0()
+                                    .flex_wrap()
                                     .items_center()
                                     .gap_1p5()
                                     .children(filter_buttons),

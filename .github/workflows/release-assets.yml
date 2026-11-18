@@ -266,11 +266,25 @@ jobs:
             echo "notarized: $dmg"
           done
 
+      - name: Extract release notes from CHANGELOG.md
+        run: |
+          VERSION="${RELEASE_TAG#v}"
+          VERSION="${VERSION#V}"
+          awk -v ver="$VERSION" '
+            $0 ~ "^## " ver "([[:space:]]|$)" { found=1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
+          if [ ! -s "$RUNNER_TEMP/release-notes.md" ]; then
+            printf "Swivox %s\n" "$RELEASE_TAG" > "$RUNNER_TEMP/release-notes.md"
+          fi
+
       - name: Upload macOS DMG
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           draft: ${{ github.event_name == 'push' || inputs.draft }}
+          body_path: ${{ runner.temp }}/release-notes.md
           files: |
             dist/macos/*.dmg
 

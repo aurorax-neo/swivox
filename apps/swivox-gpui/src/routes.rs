@@ -206,7 +206,14 @@ pub enum StatusTone {
 pub fn status_tone(status: &str) -> StatusTone {
     if matches!(
         status,
-        "found" | "installed" | "ok" | "running" | "running_degraded" | "connected"
+        "found"
+            | "installed"
+            | "ok"
+            | "running"
+            | "running_degraded"
+            | "connected"
+            | "ready"
+            | "compatible"
     ) {
         StatusTone::Good
     } else if matches!(status, "failed" | "missing") {
@@ -301,6 +308,9 @@ mod tests {
         set_language(Language::Zh);
         assert_eq!(Route::Overview.title(), "概览");
         assert_eq!(status_label("running"), "运行中");
+        assert_eq!(status_tone("ready"), StatusTone::Good);
+        assert_eq!(status_tone("compatible"), StatusTone::Good);
+        assert_eq!(status_tone("not_checked"), StatusTone::Warn);
     }
 
     #[test]

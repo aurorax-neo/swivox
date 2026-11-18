@@ -285,7 +285,7 @@ pub struct AppStore {
     pub checking_update: bool,
     pub installing_update: bool,
 
-    pub proxy_testing: bool,
+    pub proxy_testing_targets: HashSet<String>,
     pub reset_confirm_open: bool,
     pub pending_action_confirm: Option<PendingActionConfirm>,
     pub network_proxy_snapshot: NetworkProxySnapshot,
@@ -460,7 +460,7 @@ impl AppStore {
             checking_update: false,
             installing_update: false,
 
-            proxy_testing: false,
+            proxy_testing_targets: HashSet::new(),
             reset_confirm_open: false,
             pending_action_confirm: None,
             network_proxy_snapshot: commands::load_network_proxies().payload,
@@ -2954,17 +2954,26 @@ impl AppStore {
         self.set_notice(t("客户端代理隔离"), msg, &status, cx);
     }
 
-    pub fn test_global_proxy_url(&mut self, url: String, cx: &mut Context<Self>) {
-        if self.proxy_testing {
+    pub fn is_proxy_testing(&self, target_key: &str) -> bool {
+        self.proxy_testing_targets.contains(target_key)
+    }
+
+    pub fn test_proxy_url_for_target(
+        &mut self,
+        target_key: impl Into<String>,
+        url: String,
+        cx: &mut Context<Self>,
+    ) {
+        let key = target_key.into();
+        if !self.proxy_testing_targets.insert(key.clone()) {
             return;
         }
-        self.proxy_testing = true;
         cx.notify();
         self.spawn_tokio(
             cx,
             async move { commands::test_launch_proxy(url).await },
-            |store, res, cx| {
-                store.proxy_testing = false;
+            move |store, res, cx| {
+                store.proxy_testing_targets.remove(&key);
                 store.set_notice(t("代理连通性测试"), res.message, &res.status, cx);
             },
         );

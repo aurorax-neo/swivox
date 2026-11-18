@@ -129,7 +129,7 @@ impl Render for SettingsView {
         let theme = data.prefs.theme;
         let lang = data.prefs.language;
         let auto_models_dev = data.settings.auto_update_models_dev;
-        let proxy_testing = data.proxy_testing;
+        let draft_proxy_testing = data.is_proxy_testing("draft");
         let px_snap = data.network_proxy_snapshot.clone();
         let nodes = px_snap.config.nodes.clone();
 
@@ -163,6 +163,8 @@ impl Render for SettingsView {
                     let node_name_del = node.name.clone();
                     let node_url_del = node.url.clone();
                     let node_url_test = node.url.clone();
+                    let node_test_key = format!("node:{}", node.id);
+                    let node_testing = data.is_proxy_testing(&node_test_key);
                     let st_test = self.store.clone();
                     let st_del = self.store.clone();
 
@@ -207,12 +209,19 @@ impl Render for SettingsView {
                                     )))
                                     .outline()
                                     .small()
-                                    .disabled(proxy_testing)
+                                    .disabled(node_testing)
                                     .icon(IconName::FlaskConical)
-                                    .label(t("测速"))
+                                    .label(if node_testing {
+                                        t("测试中…")
+                                    } else {
+                                        t("测速")
+                                    })
                                     .on_click(move |_, _, cx| {
+                                        let key = node_test_key.clone();
                                         let u = node_url_test.clone();
-                                        st_test.update(cx, |s, cx| s.test_global_proxy_url(u, cx));
+                                        st_test.update(cx, |s, cx| {
+                                            s.test_proxy_url_for_target(key, u, cx)
+                                        });
                                     }),
                                 )
                                 .child(
@@ -453,9 +462,9 @@ impl Render for SettingsView {
                                 AppButton::new("set-proxy-test")
                                     .outline()
                                     .small()
-                                    .disabled(proxy_testing)
+                                    .disabled(draft_proxy_testing)
                                     .icon(IconName::FlaskConical)
-                                    .label(if proxy_testing {
+                                    .label(if draft_proxy_testing {
                                         t("测试中…")
                                     } else {
                                         t("测试连通性")
@@ -469,7 +478,7 @@ impl Render for SettingsView {
                                                 .trim()
                                                 .to_string();
                                             v.store.update(cx, |s, cx| {
-                                                s.test_global_proxy_url(u, cx)
+                                                s.test_proxy_url_for_target("draft", u, cx)
                                             });
                                         });
                                     }),

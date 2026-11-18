@@ -159,6 +159,9 @@ fn build_antigravity_health_items(snap: Option<&AntigravitySnapshot>) -> Vec<Hea
 
     let account_proxy_card = match snap {
         Some(s) => {
+            let has_account = !s.accounts.is_empty()
+                || s.live_desktop_email.is_some()
+                || s.live_ide_email.is_some();
             let email = s
                 .live_desktop_email
                 .clone()
@@ -174,8 +177,12 @@ fn build_antigravity_health_items(snap: Option<&AntigravitySnapshot>) -> Vec<Hea
                 .unwrap_or_else(|| t("系统直连"));
             HealthCardData {
                 title: t("账号与免 TUN 隔离代理"),
-                status: "ready".to_string(),
-                ok: !s.accounts.is_empty() || s.live_desktop_email.is_some(),
+                status: if has_account {
+                    "ready".to_string()
+                } else {
+                    "not_checked".to_string()
+                },
+                ok: has_account,
                 detail: format!("{email} · {}: {desk_proxy} · IDE: {ide_proxy}", t("桌面版")),
             }
         }
@@ -190,6 +197,7 @@ fn build_antigravity_health_items(snap: Option<&AntigravitySnapshot>) -> Vec<Hea
     let enhance_card = match snap {
         Some(s) => {
             let cdp_ready = s.desktop_install.managed_cdp_ready || s.ide_install.managed_cdp_ready;
+            let any_enabled = s.enable_context_ring || s.enable_ui_localization;
             let display_port = s
                 .desktop_install
                 .active_cdp_port
@@ -209,10 +217,12 @@ fn build_antigravity_health_items(snap: Option<&AntigravitySnapshot>) -> Vec<Hea
                 title: t("CDP 汉化与上下文圆环"),
                 status: if cdp_ready {
                     "connected".to_string()
-                } else {
+                } else if any_enabled {
                     "ready".to_string()
+                } else {
+                    "disabled".to_string()
                 },
-                ok: cdp_ready || s.enable_context_ring || s.enable_ui_localization,
+                ok: cdp_ready || any_enabled,
                 detail: format!("127.0.0.1:{display_port} · {i18n_lbl} · {ring_lbl}"),
             }
         }

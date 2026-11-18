@@ -2,9 +2,10 @@
 
 use chrono::{Local, TimeZone};
 use gpui_kit::assets::IconName;
+use gpui_kit::component::Icon;
 use gpui_kit::component::input::{Input, InputEvent, InputState, Textarea, TextareaState};
 use gpui_kit::component::theme::ActiveTheme as _;
-use gpui_kit::component::StyledExt as _;
+use gpui_kit::component::{Sizable as _, StyledExt as _};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 use swivox_backend::commands;
@@ -28,7 +29,7 @@ pub struct AntigravityAccountsView {
 impl AntigravityAccountsView {
     pub fn new(store: Entity<AppStore>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let search_input = cx.new(|cx| {
-            InputState::new(window, cx).placeholder(t("搜索 Google 邮箱、备注或订阅等级"))
+            InputState::new(window, cx).placeholder(t("搜索邮箱、备注或订阅等级"))
         });
         let manual_callback_input = cx.new(|cx| {
             InputState::new(window, cx)
@@ -608,12 +609,15 @@ impl Render for AntigravityAccountsView {
             })
             .collect();
 
+        let has_search_query = !query.is_empty();
         let st_oauth = self.store.clone();
         let st_gcp = self.store.clone();
         let st_scan = self.store.clone();
         let st_imp = self.store.clone();
         let st_exp = self.store.clone();
         let st_ref = self.store.clone();
+        let st_clear_search = self.store.clone();
+        let search_inp_clear = self.search_input.clone();
 
         div()
             .v_flex()
@@ -649,7 +653,7 @@ impl Render for AntigravityAccountsView {
                                 .w_full()
                                 .items_center()
                                 .justify_between()
-                                .gap_3()
+                                .gap_2()
                                 .flex_wrap()
                                 .child(
                                     div()
@@ -662,7 +666,8 @@ impl Render for AntigravityAccountsView {
                                                 .primary()
                                                 .small()
                                                 .icon(IconName::UserPlus)
-                                                .label(t("Google OAuth 登录"))
+                                                .label(t("Google 登录"))
+                                                .tooltip(t("Google OAuth 登录"))
                                                 .on_click(move |_, _, cx| {
                                                     st_oauth.update(cx, |s, cx| {
                                                         s.start_antigravity_oauth("personal", cx)
@@ -674,7 +679,8 @@ impl Render for AntigravityAccountsView {
                                                 .outline()
                                                 .small()
                                                 .icon(IconName::ShieldCheck)
-                                                .label(t("GCP 企业登录"))
+                                                .label(t("GCP 企业"))
+                                                .tooltip(t("GCP 企业登录"))
                                                 .on_click(move |_, _, cx| {
                                                     st_gcp.update(cx, |s, cx| {
                                                         s.start_antigravity_oauth("gcp", cx)
@@ -687,7 +693,8 @@ impl Render for AntigravityAccountsView {
                                                 .small()
                                                 .disabled(loading)
                                                 .icon(IconName::Download)
-                                                .label(t("扫描导入本机账号"))
+                                                .label(t("读取本机"))
+                                                .tooltip(t("扫描导入本机账号"))
                                                 .on_click(move |_, _, cx| {
                                                     st_scan.update(cx, |s, cx| {
                                                         s.import_local_antigravity_accounts(cx)
@@ -699,7 +706,8 @@ impl Render for AntigravityAccountsView {
                                                 .outline()
                                                 .small()
                                                 .icon(IconName::Upload)
-                                                .label(t("批量导入 Token"))
+                                                .label(t("导入"))
+                                                .tooltip(t("批量导入 Token"))
                                                 .on_click(move |_, _, cx| {
                                                     st_imp.update(cx, |s, cx| {
                                                         s.ag_import_open = !s.ag_import_open;
@@ -711,33 +719,66 @@ impl Render for AntigravityAccountsView {
                                             AppButton::new("ag-export-json")
                                                 .outline()
                                                 .small()
+                                                .disabled(total == 0)
                                                 .icon(IconName::Copy)
-                                                .label(t("导出 JSON"))
+                                                .label(t("导出"))
+                                                .tooltip(t("导出 JSON"))
                                                 .on_click(move |_, _, cx| {
                                                     st_exp.update(cx, |s, cx| {
                                                         s.export_antigravity_accounts(cx)
                                                     });
                                                 }),
-                                        )
-                                        .child(
-                                            AppButton::new("ag-refresh-all")
-                                                .outline()
-                                                .small()
-                                                .disabled(loading)
-                                                .icon(IconName::RefreshCw)
-                                                .label(t("刷新全部配额"))
-                                                .on_click(move |_, _, cx| {
-                                                    st_ref.update(cx, |s, cx| {
-                                                        s.refresh_all_antigravity_quotas(cx)
-                                                    });
-                                                }),
                                         ),
                                 )
                                 .child(
-                                    div()
-                                        .w(px(240.))
-                                        .child(Input::new(&self.search_input)),
+                                    AppButton::new("ag-refresh-all")
+                                        .outline()
+                                        .small()
+                                        .disabled(loading || total == 0)
+                                        .icon(IconName::RefreshCw)
+                                        .label(t("刷新全部配额"))
+                                        .on_click(move |_, _, cx| {
+                                            st_ref.update(cx, |s, cx| {
+                                                s.refresh_all_antigravity_quotas(cx)
+                                            });
+                                        }),
                                 ),
+                        )
+                        .child(
+                            div()
+                                .h_flex()
+                                .w_full()
+                                .items_center()
+                                .gap_1p5()
+                                .child(
+                                    div().flex_1().child(
+                                        Input::new(&self.search_input).prefix(
+                                            Icon::new(IconName::Search)
+                                                .with_size(gpui_kit::component::Size::Size(px(
+                                                    14.,
+                                                )))
+                                                .text_color(cx.theme().muted_foreground),
+                                        ),
+                                    ),
+                                )
+                                .when(has_search_query, |d| {
+                                    d.child(
+                                        AppButton::new("ag-clear-search")
+                                            .ghost()
+                                            .small_icon()
+                                            .icon(IconName::X)
+                                            .tooltip(t("清除搜索"))
+                                            .on_click(move |_, window, cx| {
+                                                search_inp_clear.update(cx, |inp, cx| {
+                                                    inp.set_value("", window, cx);
+                                                });
+                                                st_clear_search.update(cx, |s, cx| {
+                                                    s.ag_search_query.clear();
+                                                    cx.notify();
+                                                });
+                                            }),
+                                    )
+                                }),
                         )
                         .when_some(oauth_session, |col, sess| {
                             let url_open = sess.verification_uri.clone();
@@ -920,7 +961,7 @@ impl Render for AntigravityAccountsView {
                                 .text_color(cx.theme().muted_foreground)
                                 .child(tf(
                                     "点击上方「{0}」或「{1}」即可开始管理多账号配额与无感热切号。",
-                                    &[&t("Google OAuth 登录"), &t("扫描导入本机账号")],
+                                    &[&t("Google 登录"), &t("读取本机")],
                                 )),
                         ),
                 )

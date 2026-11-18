@@ -131,7 +131,7 @@ jobs:
     # 单个通用包（universal）同时支持 Intel 与 Apple Silicon，
     # 用户不必再自己判断架构，Release 也只多一个而不是两个产物。
     name: macOS DMG (universal)
-    runs-on: macos-14
+    runs-on: macos-latest
     steps:
       - name: Checkout release tag
         uses: actions/checkout@v4

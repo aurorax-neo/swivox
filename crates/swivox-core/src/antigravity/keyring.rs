@@ -2,6 +2,7 @@
 
 use std::path::PathBuf;
 
+#[cfg(unix)]
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use chrono::{SecondsFormat, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
@@ -9,6 +10,7 @@ use serde_json::json;
 
 use super::db::DiscoveredLocalToken;
 
+#[cfg(unix)]
 const GO_KEYRING_PREFIX: &str = "go-keyring-base64:";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

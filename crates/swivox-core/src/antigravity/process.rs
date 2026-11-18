@@ -59,10 +59,10 @@ fn read_macos_bundle_exec_and_version(app_bundle: &Path) -> Option<(PathBuf, Opt
         return None;
     }
     let plist = app_bundle.join("Contents").join("Info.plist");
-    let mut exec_name = None;
-    let mut version = None;
     #[cfg(target_os = "macos")]
-    {
+    let (exec_name, version): (Option<String>, Option<String>) = {
+        let mut exec_name = None;
+        let mut version = None;
         if plist.is_file() {
             if let Ok(out) = Command::new("/usr/libexec/PlistBuddy")
                 .args(["-c", "Print :CFBundleExecutable", &plist.to_string_lossy()])
@@ -89,9 +89,13 @@ fn read_macos_bundle_exec_and_version(app_bundle: &Path) -> Option<(PathBuf, Opt
                 }
             }
         }
-    }
+        (exec_name, version)
+    };
     #[cfg(not(target_os = "macos"))]
-    let _ = plist;
+    let (exec_name, version): (Option<String>, Option<String>) = {
+        let _ = plist;
+        (None, None)
+    };
 
     let macos_dir = app_bundle.join("Contents").join("MacOS");
     let fallback_stem = app_bundle

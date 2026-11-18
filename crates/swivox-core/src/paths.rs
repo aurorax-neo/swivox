@@ -16,6 +16,7 @@ const OFFICIAL_ACCOUNTS_FILE: &str = "official-accounts.json";
 const NETWORK_PROXIES_FILE: &str = "network-proxies.json";
 const ANTIGRAVITY_STATE_FILE: &str = "antigravity-accounts.json";
 const ANTIGRAVITY_DEVICE_BASELINE_FILE: &str = "antigravity-device-original.json";
+const ANTIGRAVITY_OAUTH_CLIENTS_CACHE_FILE: &str = "antigravity-oauth-clients.json";
 const LAMPLIGHTER_DIR: &str = "lamplighter";
 const USER_SCRIPTS_DIR: &str = "user_scripts";
 const USER_SCRIPTS_CONFIG_FILE: &str = "user_scripts.json";
@@ -121,6 +122,11 @@ pub fn default_antigravity_state_path() -> PathBuf {
 /// Antigravity 本机原始设备指纹基线备份路径（`~/.swivox/antigravity-device-original.json`）。
 pub fn default_antigravity_device_baseline_path() -> PathBuf {
     default_app_state_dir().join(ANTIGRAVITY_DEVICE_BASELINE_FILE)
+}
+
+/// 从本机已安装 Antigravity 客户端提取的 OAuth 客户端参数缓存路径（`~/.swivox/antigravity-oauth-clients.json`）。
+pub fn default_antigravity_oauth_clients_cache_path() -> PathBuf {
+    default_app_state_dir().join(ANTIGRAVITY_OAUTH_CLIENTS_CACHE_FILE)
 }
 
 /// Lamplighter（点灯人）状态与额度历史根目录（`~/.swivox/lamplighter`）。

@@ -2311,6 +2311,7 @@ fn is_sensitive_state_file(path: &Path) -> bool {
             | "settings.json"
             | "official-accounts.json"
             | "antigravity-accounts.json"
+            | "antigravity-oauth-clients.json"
             | "network-proxies.json"
             | "oauth_creds.json"
     ) || path.starts_with(crate::paths::default_app_state_dir())

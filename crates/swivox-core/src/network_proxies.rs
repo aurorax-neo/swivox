@@ -59,17 +59,23 @@ pub struct ClientProxyAssignments {
     #[serde(default = "default_system_selection")]
     pub codex: String,
     #[serde(default = "default_system_selection")]
+    pub codex_ignition: String,
+    #[serde(default = "default_system_selection")]
     pub antigravity_desktop: String,
     #[serde(default = "default_system_selection")]
     pub antigravity_ide: String,
+    #[serde(default = "default_system_selection")]
+    pub antigravity_ignition: String,
 }
 
 impl Default for ClientProxyAssignments {
     fn default() -> Self {
         Self {
             codex: default_system_selection(),
+            codex_ignition: default_system_selection(),
             antigravity_desktop: default_system_selection(),
             antigravity_ide: default_system_selection(),
+            antigravity_ignition: default_system_selection(),
         }
     }
 }
@@ -104,8 +110,10 @@ pub struct NetworkProxySnapshot {
     pub config: NetworkProxyConfig,
     pub effective_app_self: String,
     pub effective_codex: String,
+    pub effective_codex_ignition: String,
     pub effective_antigravity_desktop: String,
     pub effective_antigravity_ide: String,
+    pub effective_antigravity_ignition: String,
 }
 
 fn sanitize_selection(raw: &str, allow_app: bool, nodes: &[ProxyNodeEntry]) -> String {
@@ -152,10 +160,14 @@ impl NetworkProxyConfig {
         self.nodes = cleaned_nodes;
         self.app_self_proxy = sanitize_selection(&self.app_self_proxy, false, &self.nodes);
         self.clients.codex = sanitize_selection(&self.clients.codex, true, &self.nodes);
+        self.clients.codex_ignition =
+            sanitize_selection(&self.clients.codex_ignition, true, &self.nodes);
         self.clients.antigravity_desktop =
             sanitize_selection(&self.clients.antigravity_desktop, true, &self.nodes);
         self.clients.antigravity_ide =
             sanitize_selection(&self.clients.antigravity_ide, true, &self.nodes);
+        self.clients.antigravity_ignition =
+            sanitize_selection(&self.clients.antigravity_ignition, true, &self.nodes);
     }
 
     pub fn find_node(&self, node_id: &str) -> Option<&ProxyNodeEntry> {
@@ -166,8 +178,10 @@ impl NetworkProxyConfig {
     pub fn client_selection(&self, client_key: &str) -> &str {
         match client_key.trim().to_ascii_lowercase().as_str() {
             "codex" => &self.clients.codex,
+            "codex_ignition" => &self.clients.codex_ignition,
             "antigravity" | "antigravity_desktop" | "desktop" => &self.clients.antigravity_desktop,
             "antigravity_ide" | "ide" => &self.clients.antigravity_ide,
+            "antigravity_ignition" => &self.clients.antigravity_ignition,
             _ => &self.clients.codex,
         }
     }
@@ -235,11 +249,13 @@ fn migrate_from_legacy_states() -> NetworkProxyConfig {
         match g_mode.trim() {
             "direct" => {
                 cfg.clients.codex = "direct".to_string();
+                cfg.clients.codex_ignition = "direct".to_string();
             }
             "custom" => {
                 if let Some(sel) = ensure_migrated_node(&mut cfg.nodes, "默认本地代理", g_url) {
                     cfg.app_self_proxy = sel.clone();
-                    cfg.clients.codex = sel;
+                    cfg.clients.codex = sel.clone();
+                    cfg.clients.codex_ignition = sel;
                 }
             }
             _ => {}
@@ -263,13 +279,15 @@ fn migrate_from_legacy_states() -> NetworkProxyConfig {
             "direct" => {
                 cfg.clients.antigravity_desktop = "direct".to_string();
                 cfg.clients.antigravity_ide = "direct".to_string();
+                cfg.clients.antigravity_ignition = "direct".to_string();
             }
             "custom" => {
                 if let Some(sel) =
                     ensure_migrated_node(&mut cfg.nodes, "Antigravity 代理", ag_url)
                 {
                     cfg.clients.antigravity_desktop = sel.clone();
-                    cfg.clients.antigravity_ide = sel;
+                    cfg.clients.antigravity_ide = sel.clone();
+                    cfg.clients.antigravity_ignition = sel;
                 }
             }
             _ => {}
@@ -488,8 +506,10 @@ pub fn get_network_proxy_snapshot() -> NetworkProxySnapshot {
     NetworkProxySnapshot {
         effective_app_self: describe_selection(&cfg, &cfg.app_self_proxy),
         effective_codex: describe_selection(&cfg, &cfg.clients.codex),
+        effective_codex_ignition: describe_selection(&cfg, &cfg.clients.codex_ignition),
         effective_antigravity_desktop: describe_selection(&cfg, &cfg.clients.antigravity_desktop),
         effective_antigravity_ide: describe_selection(&cfg, &cfg.clients.antigravity_ide),
+        effective_antigravity_ignition: describe_selection(&cfg, &cfg.clients.antigravity_ignition),
         config: cfg,
     }
 }
@@ -525,8 +545,10 @@ mod tests {
             format!("node:{jp_id}"),
             ClientProxyAssignments {
                 codex: format!("node:{us_id}"),
+                codex_ignition: "direct".to_string(),
                 antigravity_desktop: "direct".to_string(),
                 antigravity_ide: format!("node:{jp_id}"),
+                antigravity_ignition: format!("node:{us_id}"),
             },
         )
         .unwrap();
@@ -540,12 +562,20 @@ mod tests {
             Some("socks5://127.0.0.1:1088")
         );
         assert_eq!(
+            resolve_client_proxy_spec("codex_ignition").as_deref(),
+            Some("direct")
+        );
+        assert_eq!(
             resolve_client_proxy_spec("antigravity_desktop").as_deref(),
             Some("direct")
         );
         assert_eq!(
             resolve_client_proxy_spec("antigravity_ide").as_deref(),
             Some("http://127.0.0.1:7891")
+        );
+        assert_eq!(
+            resolve_client_proxy_spec("antigravity_ignition").as_deref(),
+            Some("socks5://127.0.0.1:1088")
         );
 
         set_network_proxies_path_for_tests(prev);

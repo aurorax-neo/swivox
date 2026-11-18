@@ -199,6 +199,7 @@ impl Render for AntigravityEnhanceView {
             .as_ref()
             .and_then(|s| s.effective_ide_proxy.clone())
             .unwrap_or_else(|| px_snap.effective_antigravity_ide.clone());
+        let eff_ag_ig_proxy = px_snap.effective_antigravity_ignition.clone();
         let dev_profile = snap.as_ref().and_then(|s| s.current_device_profile.clone());
         let has_baseline = snap.as_ref().is_some_and(|s| s.has_device_baseline);
         let live_cdp_port = snap.as_ref().and_then(|s| {
@@ -246,6 +247,10 @@ impl Render for AntigravityEnhanceView {
             &px_snap.config.clients.antigravity_desktop,
         );
         let ide_btns = build_slot_btns("antigravity_ide", &px_snap.config.clients.antigravity_ide);
+        let ag_ig_btns = build_slot_btns(
+            "antigravity_ignition",
+            &px_snap.config.clients.antigravity_ignition,
+        );
 
         div()
             .v_flex()
@@ -276,13 +281,13 @@ impl Render for AntigravityEnhanceView {
                                         div()
                                             .text_base()
                                             .font_semibold()
-                                            .child(t("免 TUN 隔离代理启动（桌面版与 IDE 各自独立）")),
+                                            .child(t("免 TUN 隔离代理（桌面版 / IDE / 点火各自独立）")),
                                     )
                                     .child(
                                         div()
                                             .text_xs()
                                             .text_color(cx.theme().muted_foreground)
-                                            .child(t("启动时同时向 Electron 渲染层与后台 language_server 注入所选代理，无需系统 TUN 网卡；Agy 点火自动复用桌面版代理")),
+                                            .child(t("启动时同时向 Electron 渲染层与后台 language_server 注入所选代理，无需系统 TUN 网卡；点火与监控代理独立隔离")),
                                     ),
                             )
                             .child(
@@ -320,7 +325,7 @@ impl Render for AntigravityEnhanceView {
                                         div()
                                             .text_xs()
                                             .font_semibold()
-                                            .child(t("Antigravity 桌面版与 Agy 点火代理")),
+                                            .child(t("Antigravity 桌面版代理")),
                                     )
                                     .child(AppBadge::info(format!(
                                         "{}: {eff_desk_proxy}",
@@ -359,6 +364,37 @@ impl Render for AntigravityEnhanceView {
                                     ))),
                             )
                             .child(div().h_flex().flex_wrap().gap_1p5().children(ide_btns)),
+                    )
+                    .child(
+                        div()
+                            .v_flex()
+                            .w_full()
+                            .gap_2()
+                            .p_3()
+                            .rounded(px(8.))
+                            .bg(cx.theme().secondary.opacity(0.24))
+                            .border_1()
+                            .border_color(cx.theme().border)
+                            .child(
+                                div()
+                                    .h_flex()
+                                    .flex_wrap()
+                                    .w_full()
+                                    .items_center()
+                                    .justify_between()
+                                    .gap_2()
+                                    .child(
+                                        div()
+                                            .text_xs()
+                                            .font_semibold()
+                                            .child(t("Antigravity 点火代理")),
+                                    )
+                                    .child(AppBadge::info(format!(
+                                        "{}: {eff_ag_ig_proxy}",
+                                        t("当前生效")
+                                    ))),
+                            )
+                            .child(div().h_flex().flex_wrap().gap_1p5().children(ag_ig_btns)),
                     ),
             ))
             // 卡片 2：可逆界面汉化与上下文监控圆环

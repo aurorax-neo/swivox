@@ -2937,6 +2937,7 @@ impl AppStore {
         match slot {
             "app_self" => app_self = selection,
             "codex" => clients.codex = selection,
+            "codex_ignition" => clients.codex_ignition = selection,
             "antigravity_desktop" => {
                 clients.antigravity_desktop = selection;
                 swivox_core::antigravity::clear_legacy_launch_proxy_override();
@@ -2945,6 +2946,7 @@ impl AppStore {
                 clients.antigravity_ide = selection;
                 swivox_core::antigravity::clear_legacy_launch_proxy_override();
             }
+            "antigravity_ignition" => clients.antigravity_ignition = selection,
             _ => {}
         }
         let res = commands::save_network_proxy_assignments(app_self, clients);

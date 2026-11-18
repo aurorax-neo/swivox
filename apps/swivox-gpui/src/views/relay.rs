@@ -157,15 +157,7 @@ impl RelayView {
         let model_val = row.model.clone();
         let win_val = row.window.clone();
         let compact_val = row.auto_compact.clone();
-        let make_win_placeholder = |m: &str| {
-            let pv = resolve_model_window_preview(m);
-            if pv.matched {
-                format!("{} {}", t("自动"), pv.window_compact)
-            } else {
-                t("保底 1M")
-            }
-        };
-        let win_placeholder = make_win_placeholder(&model_val);
+        let win_placeholder = resolve_model_window_preview(&model_val).window_compact;
 
         let model_input = cx.new(|cx| {
             let mut s = InputState::new(window, cx).placeholder("deepseek-v4-pro[1M]");
@@ -191,14 +183,7 @@ impl RelayView {
                     if let Some(ctrl) = view.row_controls.iter_mut().find(|r| r.row_uid == uid)
                         && ctrl.window_input.read(cx).value().is_empty()
                     {
-                        let next_ph = {
-                            let pv = resolve_model_window_preview(&cur_m);
-                            if pv.matched {
-                                format!("{} {}", t("自动"), pv.window_compact)
-                            } else {
-                                t("保底 1M")
-                            }
-                        };
+                        let next_ph = resolve_model_window_preview(&cur_m).window_compact;
                         ctrl.window_input =
                             cx.new(|cx| InputState::new(window, cx).placeholder(next_ph));
                     }
@@ -2536,8 +2521,10 @@ impl RelayView {
             })
             .collect();
 
+        let has_model_rows = !self.row_controls.is_empty();
         let ent_fetch = cx.entity();
         let ent_add_row = cx.entity();
+        let ent_clear_rows = cx.entity();
         let ent_sync_toml = cx.entity();
         let ent_save_live_toml = cx.entity();
 
@@ -2783,7 +2770,7 @@ impl RelayView {
                                                 .text_color(cx.theme().muted_foreground)
                                                 .child(format!(
                                                     "{}（{}：{}）",
-                                                    t("保留上游原模型名；自动匹配窗口，未命中默认保底 1M"),
+                                                    t("支持 deepseek-v4-pro[1M] 后缀语法，由 Swivox 生成原生 model_catalog_json"),
                                                     t("内置档位"),
                                                     CONTEXT_WINDOW_PRESETS
                                                         .iter()
@@ -2799,6 +2786,23 @@ impl RelayView {
                                         .flex_shrink_0()
                                         .items_center()
                                         .gap_2()
+                                        .child(
+                                            AppButton::new("ed-clear-models")
+                                                .outline()
+                                                .small()
+                                                .disabled(!has_model_rows)
+                                                .icon(IconName::Trash)
+                                                .label(t("清空模型"))
+                                                .on_click(move |_, window, cx| {
+                                                    ent_clear_rows.update(cx, |v, cx| {
+                                                        v.row_controls.clear();
+                                                        v.model_input.update(cx, |inp, cx| {
+                                                            inp.set_value("", window, cx);
+                                                        });
+                                                        cx.notify();
+                                                    });
+                                                }),
+                                        )
                                         .child(
                                             AppButton::new("ed-fetch-models")
                                                 .secondary()
@@ -2868,21 +2872,50 @@ impl RelayView {
                                         ),
                                 ),
                         )
-                        .child(
-                            div()
-                                .h_flex()
-                                .w_full()
-                                .gap_2()
-                                .px_2p5()
-                                .text_size(px(11.))
-                                .font_semibold()
-                                .text_color(cx.theme().muted_foreground)
-                                .child(div().flex_1().min_w(px(150.)).child(t("模型 ID (支持 [1M] 后缀)")))
-                                .child(div().w(px(234.)).child(t("上下文窗口与快捷档位")))
-                                .child(div().w(px(96.)).child(t("自动压缩 %")))
-                                .child(div().w(px(224.)).flex().justify_end().child(t("图片策略与操作"))),
-                        )
-                        .children(table_rows),
+                        .when(has_model_rows, |d| {
+                            d.child(
+                                div()
+                                    .h_flex()
+                                    .w_full()
+                                    .gap_2()
+                                    .px_2p5()
+                                    .text_size(px(11.))
+                                    .font_semibold()
+                                    .text_color(cx.theme().muted_foreground)
+                                    .child(
+                                        div()
+                                            .flex_1()
+                                            .min_w(px(150.))
+                                            .child(t("模型 ID (支持 [1M] 后缀)")),
+                                    )
+                                    .child(div().w(px(234.)).child(t("上下文窗口与快捷档位")))
+                                    .child(div().w(px(96.)).child(t("自动压缩 %")))
+                                    .child(
+                                        div()
+                                            .w(px(224.))
+                                            .flex()
+                                            .justify_end()
+                                            .child(t("图片策略与操作")),
+                                    ),
+                            )
+                            .children(table_rows)
+                        })
+                        .when(!has_model_rows, |d| {
+                            d.child(
+                                div()
+                                    .p_4()
+                                    .w_full()
+                                    .rounded(px(8.))
+                                    .bg(cx.theme().secondary.opacity(0.18))
+                                    .border_1()
+                                    .border_color(cx.theme().border)
+                                    .text_xs()
+                                    .text_color(cx.theme().muted_foreground)
+                                    .child(t(
+                                        "暂无已配置的模型，可点击右上角「从上游获取模型」或「添加模型」。",
+                                    )),
+                            )
+                        }),
                 ))
             })
             .child(panel_card(

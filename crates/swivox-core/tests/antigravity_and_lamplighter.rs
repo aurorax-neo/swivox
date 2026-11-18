@@ -387,12 +387,32 @@ fn network_proxies_and_lamplighter_clients_and_accounts_are_strictly_isolated() 
     .unwrap();
     let ag_ide_node = cfg_px.nodes[3].id.clone();
 
+    let cfg_px = upsert_proxy_node(
+        None,
+        "Codex 点火独立代理".to_string(),
+        "http://127.0.0.1:7894".to_string(),
+        None,
+    )
+    .unwrap();
+    let codex_ig_node = cfg_px.nodes[4].id.clone();
+
+    let cfg_px = upsert_proxy_node(
+        None,
+        "Agy 点火独立代理".to_string(),
+        "http://127.0.0.1:7895".to_string(),
+        None,
+    )
+    .unwrap();
+    let ag_ig_node = cfg_px.nodes[5].id.clone();
+
     update_proxy_assignments(
         format!("node:{self_node}"),
         ClientProxyAssignments {
             codex: format!("node:{codex_node}"),
+            codex_ignition: format!("node:{codex_ig_node}"),
             antigravity_desktop: format!("node:{ag_desk_node}"),
             antigravity_ide: format!("node:{ag_ide_node}"),
+            antigravity_ignition: format!("node:{ag_ig_node}"),
         },
     )
     .unwrap();
@@ -447,11 +467,11 @@ fn network_proxies_and_lamplighter_clients_and_accounts_are_strictly_isolated() 
     };
     assert_eq!(
         resolve_effective_ignition_proxy_spec(&codex_cred).as_deref(),
-        Some("socks5://127.0.0.1:1081")
+        Some("http://127.0.0.1:7894")
     );
     assert_eq!(
         resolve_effective_ignition_proxy_spec(&ag_cred).as_deref(),
-        Some("http://127.0.0.1:7892")
+        Some("http://127.0.0.1:7895")
     );
 
     // 2. 验证各客户端点火状态与历史目录在物理磁盘上完全隔离（clients/codex vs clients/antigravity）

@@ -106,9 +106,13 @@ fn describe_cred_effective_proxy(cred: &providers::UnifiedCredential) -> String 
 fn build_client_effective_proxies() -> BTreeMap<String, String> {
     let snap = crate::network_proxies::get_network_proxy_snapshot();
     let mut map = BTreeMap::new();
-    map.insert("codex".to_string(), snap.effective_codex);
+    map.insert("codex".to_string(), snap.effective_codex_ignition);
     map.insert(
         "antigravity".to_string(),
+        snap.effective_antigravity_ignition,
+    );
+    map.insert(
+        "antigravity_desktop".to_string(),
         snap.effective_antigravity_desktop,
     );
     map.insert(

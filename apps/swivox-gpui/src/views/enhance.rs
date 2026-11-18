@@ -235,33 +235,36 @@ impl EnhanceView {
             (data.settings.clone(), data.network_proxy_snapshot.clone())
         };
         let st_goto_settings = self.store.clone();
-        let cur_codex_sel = px_snap.config.clients.codex.clone();
-        let mut codex_px_opts = vec![
-            ("system".to_string(), t("跟随系统代理")),
-            ("app".to_string(), t("跟随本程序")),
-            ("direct".to_string(), t("强制直连")),
-        ];
-        for n in &px_snap.config.nodes {
-            codex_px_opts.push((format!("node:{}", n.id), n.name.clone()));
-        }
-        let codex_px_btns: Vec<AnyElement> = codex_px_opts
-            .into_iter()
-            .map(|(sel, lbl)| {
-                let selected = cur_codex_sel == sel;
-                let st = self.store.clone();
-                let b = AppButton::new(SharedString::from(format!("codex-enh-px-{sel}")))
-                    .small()
-                    .label(lbl);
-                let b = if selected { b.selected(true) } else { b.outline() };
-                b.on_click(move |_, _, cx| {
-                    let next_sel = sel.clone();
-                    st.update(cx, |s, cx| {
-                        s.update_self_or_client_proxy_assignment("codex", next_sel, cx);
-                    });
+        let build_codex_slot_btns = |slot: &'static str, cur_sel: &str| -> Vec<AnyElement> {
+            let mut opts = vec![
+                ("system".to_string(), t("跟随系统代理")),
+                ("app".to_string(), t("跟随本程序")),
+                ("direct".to_string(), t("强制直连")),
+            ];
+            for n in &px_snap.config.nodes {
+                opts.push((format!("node:{}", n.id), n.name.clone()));
+            }
+            opts.into_iter()
+                .map(|(sel, lbl)| {
+                    let selected = cur_sel == sel;
+                    let st = self.store.clone();
+                    let b = AppButton::new(SharedString::from(format!("codex-enh-{slot}-{sel}")))
+                        .small()
+                        .label(lbl);
+                    let b = if selected { b.selected(true) } else { b.outline() };
+                    b.on_click(move |_, _, cx| {
+                        let next_sel = sel.clone();
+                        st.update(cx, |s, cx| {
+                            s.update_self_or_client_proxy_assignment(slot, next_sel, cx);
+                        });
+                    })
+                    .into_any_element()
                 })
-                .into_any_element()
-            })
-            .collect();
+                .collect()
+        };
+        let codex_px_btns = build_codex_slot_btns("codex", &px_snap.config.clients.codex);
+        let codex_ig_btns =
+            build_codex_slot_btns("codex_ignition", &px_snap.config.clients.codex_ignition);
 
         let rows = vec![
             self.switch_row(
@@ -375,13 +378,13 @@ impl EnhanceView {
                                             .text_sm()
                                             .font_semibold()
                                             .text_color(cx.theme().foreground)
-                                            .child(t("Codex 客户端与 Codex 点火隔离代理")),
+                                            .child(t("Codex 客户端与点火隔离代理")),
                                     )
                                     .child(
                                         div()
                                             .text_xs()
                                             .text_color(cx.theme().muted_foreground)
-                                            .child(t("用于 Codex 桌面启动、OpenAI OAuth 登录、官方账号配额刷新及 Lamplighter Codex 点火（与本程序及 Antigravity 完全隔离）")),
+                                            .child(t("用于 Codex 桌面启动、OpenAI OAuth 登录、官方账号配额刷新及独立自动点火（与本程序及 Antigravity 完全隔离）")),
                                     ),
                             )
                             .child(
@@ -419,7 +422,7 @@ impl EnhanceView {
                                         div()
                                             .text_xs()
                                             .font_semibold()
-                                            .child(t("Codex 客户端与 Codex 点火代理")),
+                                            .child(t("Codex 客户端代理")),
                                     )
                                     .child(AppBadge::info(format!(
                                         "{}: {}",
@@ -428,6 +431,38 @@ impl EnhanceView {
                                     ))),
                             )
                             .child(div().h_flex().flex_wrap().gap_1p5().children(codex_px_btns)),
+                    )
+                    .child(
+                        div()
+                            .v_flex()
+                            .w_full()
+                            .gap_2()
+                            .p_3()
+                            .rounded(px(8.))
+                            .bg(cx.theme().secondary.opacity(0.24))
+                            .border_1()
+                            .border_color(cx.theme().border)
+                            .child(
+                                div()
+                                    .h_flex()
+                                    .flex_wrap()
+                                    .w_full()
+                                    .items_center()
+                                    .justify_between()
+                                    .gap_2()
+                                    .child(
+                                        div()
+                                            .text_xs()
+                                            .font_semibold()
+                                            .child(t("Codex 点火代理")),
+                                    )
+                                    .child(AppBadge::info(format!(
+                                        "{}: {}",
+                                        t("当前生效"),
+                                        px_snap.effective_codex_ignition
+                                    ))),
+                            )
+                            .child(div().h_flex().flex_wrap().gap_1p5().children(codex_ig_btns)),
                     ),
             ))
             .child(panel_card(cx, div().v_flex().w_full().gap_2p5().children(rows)))

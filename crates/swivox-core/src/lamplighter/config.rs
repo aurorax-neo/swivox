@@ -28,11 +28,11 @@ pub fn client_id_for_credential_source(source_kind: &str, provider: &str) -> &'s
     }
 }
 
-/// 将 Lamplighter 客户端域映射为 `network_proxies` 的客户端代理键。
+/// 将 Lamplighter 客户端域映射为 `network_proxies` 的独立点火代理键。
 pub fn proxy_client_key_for_lamplighter_client(client_id: &str) -> &'static str {
     match normalize_client_id(client_id) {
-        "antigravity" => "antigravity_desktop",
-        _ => "codex",
+        "antigravity" => "antigravity_ignition",
+        _ => "codex_ignition",
     }
 }
 

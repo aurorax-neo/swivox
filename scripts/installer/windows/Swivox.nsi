@@ -72,9 +72,6 @@ Section "Install"
   SetOutPath "$INSTDIR"
   ; 与 Rust 安装入口共用卸载登记，必须在本轮写登记之前判断是否覆盖升级。
   ReadRegStr $ExistingInstall HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Swivox" "InstallLocation"
-  StrCmp $ExistingInstall "" 0 existing_install_checked
-  ReadRegStr $ExistingInstall HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Swivox" "InstallLocation"
-  existing_install_checked:
 
   Push "swivox.exe"
   Call WaitForProcessExit
@@ -124,7 +121,7 @@ Section "Install"
   DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Swivox"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Swivox" "DisplayName" "Swivox"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Swivox" "DisplayVersion" "${VERSION}"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Swivox" "Publisher" "BigPizzaV3"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Swivox" "Publisher" "aurorax-neo"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Swivox" "DisplayIcon" "$INSTDIR\swivox.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Swivox" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Swivox" "UninstallString" '"$INSTDIR\uninstall.exe"'
@@ -179,7 +176,6 @@ Section "Uninstall"
 
   ; 正式键 + legacy 键都删（issue #2339）：正式键是运行时写入的 Swivox，
   ; legacy 是历史安装器和旧版运行时的 Swivox，存量机器上可能两条并存。
-  DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Swivox"
   DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Swivox"
   DeleteRegKey HKCU "Software\Swivox"
 

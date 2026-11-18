@@ -403,16 +403,26 @@ pub fn enumerate_antigravity_processes() -> Vec<RunningAgProcess> {
             if !lower_exe.contains("antigravity") && !lower_probe.contains("antigravity") && !is_ls {
                 continue;
             }
+            let full_cmdline = crate::windows_integration::process_command_line(proc.process_id)
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or_else(|| probe_path.clone());
+            let lower_cmd = full_cmdline.to_ascii_lowercase();
             let is_ide = lower_probe.contains("antigravity ide")
                 || lower_probe.contains("antigravity-ide")
-                || lower_probe.contains("antigravity_ide");
+                || lower_probe.contains("antigravity_ide")
+                || lower_cmd.contains("--subclient_type=ide");
+            let is_helper = is_ls
+                || lower_exe.contains("crashpad")
+                || lower_cmd.contains("--type=")
+                || lower_cmd.contains("node-ipc")
+                || lower_cmd.contains("--standalone");
             results.push(RunningAgProcess {
                 pid: proc.process_id,
                 ppid: proc.parent_process_id,
                 is_ide,
                 is_language_server: is_ls,
-                is_helper: is_ls || lower_exe.contains("crashpad"),
-                command_line: probe_path,
+                is_helper,
+                command_line: full_cmdline,
             });
         }
     }
@@ -435,6 +445,7 @@ fn parse_unix_ps_line(line: &str) -> Option<(u32, u32, &str)> {
     Some((pid, ppid, cmdline))
 }
 
+#[cfg(unix)]
 fn classify_command_line(pid: u32, ppid: u32, cmdline: &str) -> Option<RunningAgProcess> {
     let lower = cmdline.to_ascii_lowercase();
     // 提取可执行路径部分（处理 macOS .app/Contents/... 中带空格路径）

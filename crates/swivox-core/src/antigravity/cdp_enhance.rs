@@ -847,84 +847,131 @@ fn parse_proto_duration_secs(val: Option<&Value>) -> Option<f64> {
 }
 
 async fn discover_local_language_server_endpoint() -> Option<LanguageServerEndpoint> {
-    #[cfg(unix)]
-    {
-        let procs = super::process::enumerate_antigravity_processes();
-        let candidates: Vec<_> = procs
+    let procs = super::process::enumerate_antigravity_processes();
+    let candidates: Vec<_> = procs
+        .iter()
+        .filter(|p| p.is_language_server)
+        .filter_map(|p| Some((p.pid, extract_csrf_from_cmdline(&p.command_line)?)))
+        .collect();
+    if candidates.is_empty() {
+        return None;
+    }
+
+    let cache_slot = CACHED_LS_ENDPOINT.get_or_init(|| Mutex::new(None));
+    if let Ok(guard) = cache_slot.lock()
+        && let Some(cached) = guard.clone()
+        && candidates
             .iter()
-            .filter(|p| p.is_language_server)
-            .filter_map(|p| Some((p.pid, extract_csrf_from_cmdline(&p.command_line)?)))
-            .collect();
-        if candidates.is_empty() {
-            return None;
-        }
+            .any(|(pid, csrf)| *pid == cached.pid && *csrf == cached.csrf)
+    {
+        return Some(cached);
+    }
 
-        let cache_slot = CACHED_LS_ENDPOINT.get_or_init(|| Mutex::new(None));
-        if let Ok(guard) = cache_slot.lock()
-            && let Some(cached) = guard.clone()
-            && candidates
-                .iter()
-                .any(|(pid, csrf)| *pid == cached.pid && *csrf == cached.csrf)
-        {
-            return Some(cached);
+    for (pid, csrf) in candidates {
+        let ports = discover_listening_ports_for_pid(pid);
+        if ports.is_empty() {
+            continue;
         }
-
-        for (pid, csrf) in candidates {
-            let Ok(out) = std::process::Command::new("/usr/sbin/lsof")
-                .args([
-                    "-nP",
-                    "-a",
-                    "-p",
-                    &pid.to_string(),
-                    "-iTCP",
-                    "-sTCP:LISTEN",
-                    "-Fn",
-                ])
-                .output()
-            else {
+        for (scheme, is_https) in [("http", false), ("https", true)] {
+            let Some(client) = build_ls_http_client(is_https, Duration::from_millis(800)) else {
                 continue;
             };
-            let text = String::from_utf8_lossy(&out.stdout);
-            let ports: Vec<u16> = text
-                .lines()
-                .filter_map(|line| line.strip_prefix('n')?.rsplit(':').next()?.parse::<u16>().ok())
-                .collect();
-
-            for (scheme, is_https) in [("http", false), ("https", true)] {
-                let Some(client) = build_ls_http_client(is_https, Duration::from_millis(800))
-                else {
-                    continue;
-                };
-                for port in &ports {
-                    let base_url = format!(
-                        "{scheme}://127.0.0.1:{port}/exa.language_server_pb.LanguageServerService"
-                    );
-                    if let Ok(resp) = client
-                        .post(format!("{base_url}/GetUserStatus"))
-                        .header("Content-Type", "application/json")
-                        .header("Connect-Protocol-Version", "1")
-                        .header("x-codeium-csrf-token", &csrf)
-                        .json(&json!({}))
-                        .send()
-                        .await
-                        && resp.status().is_success()
-                    {
-                        let ep = LanguageServerEndpoint {
-                            pid,
-                            base_url,
-                            is_https,
-                            csrf: csrf.clone(),
-                        };
-                        if let Ok(mut guard) = cache_slot.lock() {
-                            *guard = Some(ep.clone());
-                        }
-                        return Some(ep);
+            for port in &ports {
+                let base_url = format!(
+                    "{scheme}://127.0.0.1:{port}/exa.language_server_pb.LanguageServerService"
+                );
+                if let Ok(resp) = client
+                    .post(format!("{base_url}/GetUserStatus"))
+                    .header("Content-Type", "application/json")
+                    .header("Connect-Protocol-Version", "1")
+                    .header("x-codeium-csrf-token", &csrf)
+                    .json(&json!({}))
+                    .send()
+                    .await
+                    && resp.status().is_success()
+                {
+                    let ep = LanguageServerEndpoint {
+                        pid,
+                        base_url,
+                        is_https,
+                        csrf: csrf.clone(),
+                    };
+                    if let Ok(mut guard) = cache_slot.lock() {
+                        *guard = Some(ep.clone());
                     }
+                    return Some(ep);
                 }
             }
         }
     }
     None
+}
+
+fn discover_listening_ports_for_pid(pid: u32) -> Vec<u16> {
+    #[cfg(unix)]
+    {
+        let Ok(out) = std::process::Command::new("/usr/sbin/lsof")
+            .args([
+                "-nP",
+                "-a",
+                "-p",
+                &pid.to_string(),
+                "-iTCP",
+                "-sTCP:LISTEN",
+                "-Fn",
+            ])
+            .output()
+        else {
+            return Vec::new();
+        };
+        let text = String::from_utf8_lossy(&out.stdout);
+        text.lines()
+            .filter_map(|line| line.strip_prefix('n')?.rsplit(':').next()?.parse::<u16>().ok())
+            .collect()
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt as _;
+        let mut cmd = std::process::Command::new("netstat");
+        cmd.args(["-ano", "-p", "tcp"]).creation_flags(0x0800_0000);
+        let Ok(out) = cmd.output() else {
+            return Vec::new();
+        };
+        parse_windows_netstat_listening_ports(&String::from_utf8_lossy(&out.stdout), pid)
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = pid;
+        Vec::new()
+    }
+}
+
+#[cfg(any(windows, test))]
+fn parse_windows_netstat_listening_ports(text: &str, target_pid: u32) -> Vec<u16> {
+    let mut ports = Vec::new();
+    for line in text.lines() {
+        let cols: Vec<&str> = line.split_whitespace().collect();
+        if cols.len() < 5 || !cols[0].eq_ignore_ascii_case("TCP") {
+            continue;
+        }
+        if !cols[3].eq_ignore_ascii_case("LISTENING") {
+            continue;
+        }
+        let Ok(pid) = cols[4].parse::<u32>() else {
+            continue;
+        };
+        if pid != target_pid {
+            continue;
+        }
+        if let Some(port_str) = cols[1].rsplit(':').next()
+            && let Ok(port) = port_str.parse::<u16>()
+            && port > 0
+            && !ports.contains(&port)
+        {
+            ports.push(port);
+        }
+    }
+    ports
 }
 
 fn extract_csrf_from_cmdline(cmd: &str) -> Option<String> {
@@ -1027,5 +1074,21 @@ mod tests {
         assert_eq!(out["context"]["endpointModel"], "gemini-4-hydrogen");
         assert_eq!(out["speed"]["tokensPerSecond"], 200.0);
         assert_eq!(out["speed"]["ttftSeconds"], 0.5);
+    }
+
+    #[test]
+    fn parses_windows_netstat_listening_ports_for_pid() {
+        let sample = "\
+  Proto  Local Address          Foreign Address        State           PID
+  TCP    127.0.0.1:50602        0.0.0.0:0              LISTENING       76326
+  TCP    127.0.0.1:50603        0.0.0.0:0              LISTENING       76326
+  TCP    127.0.0.1:50603        127.0.0.1:59123        ESTABLISHED     76326
+  TCP    [::1]:50628            [::]:0                 LISTENING       76326
+  TCP    127.0.0.1:9999         0.0.0.0:0              LISTENING       1234
+";
+        assert_eq!(
+            parse_windows_netstat_listening_ports(sample, 76326),
+            vec![50602, 50603, 50628]
+        );
     }
 }

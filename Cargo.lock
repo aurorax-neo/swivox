@@ -7636,7 +7636,7 @@ dependencies = [
 
 [[package]]
 name = "swivox-backend"
-version = "0.1.5"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -7655,7 +7655,7 @@ dependencies = [
 
 [[package]]
 name = "swivox-core"
-version = "0.1.5"
+version = "0.2.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -7688,7 +7688,7 @@ dependencies = [
 
 [[package]]
 name = "swivox-data"
-version = "0.1.5"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "base64",
@@ -7707,7 +7707,7 @@ dependencies = [
 
 [[package]]
 name = "swivox-gpui"
-version = "0.1.5"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -7733,7 +7733,7 @@ dependencies = [
 
 [[package]]
 name = "swivox-launcher"
-version = "0.1.5"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "async-trait",

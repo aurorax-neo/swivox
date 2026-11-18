@@ -123,7 +123,7 @@ Version: ${VERSION}
 Section: misc
 Priority: optional
 Architecture: ${ARCH}
-Maintainer: BigPizzaV3 <1727732@qq.com>
+Maintainer: aurorax-neo <https://github.com/aurorax-neo/swivox>
 Installed-Size: ${installed_size}
 Depends: libc6 (>= 2.34), libgcc-s1 (>= 4.2), libstdc++6 (>= 13), libdbus-1-3, libglib2.0-0t64, libgtk-3-0t64, libayatana-appindicator3-1, libxkbcommon0, libxkbcommon-x11-0, libwayland-client0, libvulkan1, libxcb1, libfontconfig1, libfreetype6, libssl3t64 (>= 3.0.0), libz3-4, libasound2t64
 

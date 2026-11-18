@@ -22,11 +22,15 @@ test("retired project enhancements have no UI, dispatch or scanner entry", () =>
 test("old backend switches cannot enable retired features", () => {
   const style = readFileSync(`${__dirname}/renderer-inject/10-style.js`, "utf8");
   const begin = style.indexOf("  function defaultSwivoxSettings()");
-  const end = style.indexOf("  // Dream skin runtime", begin);
+  const end = style.indexOf("  function setSwivoxSetting(", begin);
   assert.ok(begin >= 0 && end > begin);
   const context = vm.createContext({
     window: {}, localStorage: { getItem: () => "{}" },
     conversationViewDefaultWidth: 900, swivoxSettingsKey: "fixture",
+    backendSwivoxSettings: () => ({
+      nativeMenuPlacement: false,
+      stepwise: true,
+    }),
     swivoxBackendSettings: {
       enhancementsEnabled: true,
       codexAppZedRemoteOpen: true, codexAppUpstreamWorktreeCreate: true,
@@ -180,6 +184,8 @@ function forceChineseContext({ enabled = true, managed = null, current = "en-US"
       current = params.value;
       return null;
     },
+    readCodexAppSetting: async (key) => (await context.codexStateCall("get-setting", { params: { key } }))?.value,
+    writeCodexAppSetting: async (key, value) => context.codexStateCall("set-setting", { params: { key, value } }),
   });
   return {
     context, calls, writes, reloads, local, session, managedKey,

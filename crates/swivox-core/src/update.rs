@@ -420,11 +420,11 @@ async fn read_limited_body(
 }
 
 fn update_http_client() -> anyhow::Result<reqwest::Client> {
-    Ok(reqwest::Client::builder()
-        .user_agent(format!("Swivox/{}", crate::version::VERSION))
-        .connect_timeout(UPDATE_CONNECT_TIMEOUT)
-        .timeout(UPDATE_DOWNLOAD_TIMEOUT)
-        .build()?)
+    crate::http_client::proxied_client_with_timeouts(
+        &format!("Swivox/{}", crate::version::VERSION),
+        UPDATE_CONNECT_TIMEOUT,
+        UPDATE_DOWNLOAD_TIMEOUT,
+    )
 }
 
 pub fn download_asset_to(

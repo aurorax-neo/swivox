@@ -1883,6 +1883,8 @@ pub const EN_PLAIN_ENTRIES: &[(&str, &str)] = &[
     ("未检测到在线登录", "No live login detected"),
     ("Pro / Ultra 账号", "Pro / Ultra accounts"),
     ("本机实时登录", "Current live login"),
+    ("保底 1M", "1M default"),
+    ("保留上游原模型名；自动匹配窗口，未命中默认保底 1M", "Preserves exact upstream model IDs; auto-matches context windows and defaults unmatched models to 1M"),
     ("Google 登录", "Google OAuth"),
     ("GCP 企业", "GCP"),
     ("读取本机", "Scan Local"),

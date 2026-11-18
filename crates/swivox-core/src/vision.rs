@@ -334,7 +334,7 @@ fn strip_all_images(messages: &mut [Value]) {
 // ── Context window ────────────────────────────────────────────────────
 
 /// 从 relay 配置解析模型上下文窗口上限（token 数）。
-/// 三级 fallback：model_windows JSON → context_window 全局 → 272_000 硬兜底。
+/// 四级 fallback：model_windows JSON → context_window 全局 → 内置/models.dev 元数据 → 1M 硬保底。
 /// map 查表走与 `image_handling_mode` 同一套 key 归一化（剥后缀 + 大小写回退），
 /// 否则按模型配好的窗口会被请求体里的 `[1M]` 后缀整条错过（issue #2345）。
 fn resolve_context_window(
@@ -355,7 +355,16 @@ fn resolve_context_window(
             return w;
         }
     }
-    272_000
+    if let Some(meta) = crate::model_suffix::builtin_model_metadata(request_model)
+        && let Some(w) = meta
+            .entry
+            .get("context_window")
+            .and_then(Value::as_u64)
+            .filter(|v| *v > 0)
+    {
+        return w;
+    }
+    crate::model_suffix::UNMATCHED_FALLBACK_CONTEXT_WINDOW
 }
 
 /// bytes/2 粗估 token 数。主流 tokenizer 对中英文混合内容的压缩比约 1.5-2 bytes/token，
@@ -1672,8 +1681,8 @@ mod tests {
 
     #[test]
     fn resolve_context_window_falls_back_to_hard_default() {
-        let w = resolve_context_window("{}", "0", "unknown");
-        assert_eq!(w, 272_000);
+        let w = resolve_context_window("{}", "0", "unknown-unmatched-model-xyz");
+        assert_eq!(w, 1_000_000);
     }
 
     #[test]

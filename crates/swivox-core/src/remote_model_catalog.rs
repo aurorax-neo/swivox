@@ -90,7 +90,11 @@ pub fn parse_models_dev_json(root: &Value) -> (Vec<Value>, HashMap<String, Value
             let name = m_obj.get("name").and_then(Value::as_str).unwrap_or(id);
             let desc = m_obj.get("description").and_then(Value::as_str).unwrap_or("");
             let limit = m_obj.get("limit").and_then(Value::as_object);
-            let context_window = limit.and_then(|l| l.get("context")).and_then(Value::as_u64).unwrap_or(128_000);
+            let context_window = limit
+                .and_then(|l| l.get("context"))
+                .and_then(Value::as_u64)
+                .filter(|v| *v > 0)
+                .unwrap_or(crate::model_suffix::UNMATCHED_FALLBACK_CONTEXT_WINDOW);
             let max_output = limit.and_then(|l| l.get("output")).and_then(Value::as_u64).unwrap_or(8_192);
             let reasoning = m_obj.get("reasoning").and_then(Value::as_bool).unwrap_or(false);
             let reasoning_levels = if reasoning {
@@ -278,6 +282,21 @@ pub fn query_models_dev_catalog(slug: &str) -> Option<Value> {
     if dashed != leaf {
         if let Some(hit) = cache.index_by_slug.get(&dashed) {
             return Some(hit.clone());
+        }
+    }
+
+    // 只读剥离中转渠道标签与变体后缀（如 [VIP]claude-sonnet-4-6-thinking -> claude-sonnet-4-6），绝不改写原模型名
+    let cleaned =
+        crate::model_suffix::strip_lookup_channel_and_variant_decorations(slug).to_ascii_lowercase();
+    if !cleaned.is_empty() && cleaned != raw && cleaned != leaf {
+        if let Some(hit) = cache.index_by_slug.get(&cleaned) {
+            return Some(hit.clone());
+        }
+        let cleaned_dashed = cleaned.replace('.', "-");
+        if cleaned_dashed != cleaned {
+            if let Some(hit) = cache.index_by_slug.get(&cleaned_dashed) {
+                return Some(hit.clone());
+            }
         }
     }
 

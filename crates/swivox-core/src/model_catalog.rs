@@ -709,8 +709,12 @@ fn interpret_models_response(
     }
     let models = unique_strings(parse_model_payload(&payload));
     if !models.is_empty() {
+        let windows = parse_model_window_hints(&payload);
         safe_source["status"] = json!("ok");
         safe_source["models"] = json!(models.len());
+        if !windows.is_empty() {
+            safe_source["model_windows"] = json!(windows);
+        }
         return (models, safe_source);
     }
     // HTTP 200 且无业务错误信封：维持既有语义，按“网关可达但 0 个模型”处理
@@ -818,10 +822,18 @@ fn responses_api_status(status: &str, endpoint: &str, message: &str) -> Value {
 pub async fn fetch_relay_profile_model_ids(
     profile: &RelayProfile,
 ) -> anyhow::Result<(Vec<String>, String)> {
+    let (models, _windows, endpoint) = fetch_relay_profile_models_with_windows(profile).await?;
+    Ok((models, endpoint))
+}
+
+pub async fn fetch_relay_profile_models_with_windows(
+    profile: &RelayProfile,
+) -> anyhow::Result<(Vec<String>, HashMap<String, u64>, String)> {
     // 官方登录 profile 没有 Base URL：带账号 OAuth 凭据读官方模型目录，
     // 「从上游获取」按钮对官方账号同样可用（issue 讨论场景：聚合成员要填模型列表）。
     if crate::official_login::member_uses_official_login_transport(profile) {
-        return fetch_official_login_model_ids(profile).await;
+        let (models, endpoint) = fetch_official_login_model_ids(profile).await?;
+        return Ok((models, HashMap::new(), endpoint));
     }
     if crate::official_login::is_official_login_profile(profile)
         && profile.base_url.trim().is_empty()
@@ -860,7 +872,15 @@ pub async fn fetch_relay_profile_model_ids(
             .unwrap_or("上游没有返回可用模型");
         anyhow::bail!("{message}");
     }
-    Ok((models, endpoint))
+    let mut windows = HashMap::new();
+    if let Some(obj) = status.get("model_windows").and_then(Value::as_object) {
+        for (k, v) in obj {
+            if let Some(tokens) = v.as_u64().filter(|n| *n > 0) {
+                windows.insert(k.clone(), tokens);
+            }
+        }
+    }
+    Ok((models, windows, endpoint))
 }
 
 /// 官方模型目录的客户端版本参数；与 Codex CLI 的取值保持一致。
@@ -980,6 +1000,83 @@ fn models_endpoint(base_url: &str) -> String {
         return format!("{cleaned}/models");
     }
     format!("{cleaned}/v1/models")
+}
+
+fn parse_positive_u64(v: &Value) -> Option<u64> {
+    v.as_u64()
+        .or_else(|| v.as_str().and_then(|s| s.trim().parse::<u64>().ok()))
+        .filter(|n| *n > 0)
+}
+
+/// 从上游 `/v1/models` 响应体提取可选的每模型上下文窗口提示（如 OpenRouter / LiteLLM / vLLM / NewAPI
+/// 返回的 `context_length`、`context_window`、`max_model_len`、`input_token_limit` 或 `limit.context`），
+/// 键严格保留上游原始模型 ID，绝不篡改原名。
+pub(crate) fn parse_model_window_hints(payload: &Value) -> HashMap<String, u64> {
+    let mut out = HashMap::new();
+    collect_model_window_hints(payload, &mut out);
+    out
+}
+
+fn collect_model_window_hints(payload: &Value, out: &mut HashMap<String, u64>) {
+    if let Some(array) = payload.as_array() {
+        for item in array {
+            let Some(object) = item.as_object() else {
+                continue;
+            };
+            let Some(model_id) = ["id", "model", "name"]
+                .iter()
+                .filter_map(|key| {
+                    object
+                        .get(*key)
+                        .and_then(Value::as_str)
+                        .map(|value| model_id_from_field(key, value))
+                        .filter(|value| !value.is_empty())
+                })
+                .next()
+            else {
+                continue;
+            };
+            let win = [
+                "context_length",
+                "context_window",
+                "max_context_length",
+                "max_context_window",
+                "max_model_len",
+                "input_token_limit",
+            ]
+            .iter()
+            .find_map(|k| object.get(*k).and_then(parse_positive_u64))
+            .or_else(|| {
+                object
+                    .get("limit")
+                    .and_then(Value::as_object)
+                    .and_then(|l| l.get("context"))
+                    .and_then(parse_positive_u64)
+            })
+            .or_else(|| {
+                object
+                    .get("top_provider")
+                    .and_then(Value::as_object)
+                    .and_then(|tp| tp.get("context_length"))
+                    .and_then(parse_positive_u64)
+            });
+            if let Some(tokens) = win {
+                out.entry(model_id.to_string()).or_insert(tokens);
+            }
+        }
+        return;
+    }
+    let Some(object) = payload.as_object() else {
+        return;
+    };
+    for key in ["data", "models", "items"] {
+        if let Some(value) = object.get(key) {
+            collect_model_window_hints(value, out);
+            if !out.is_empty() {
+                return;
+            }
+        }
+    }
 }
 
 fn parse_model_payload(payload: &Value) -> Vec<String> {

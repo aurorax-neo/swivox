@@ -615,7 +615,68 @@ pub fn serialize_model_window_rows(rows: &[ModelWindowRow]) -> SerializedModelRo
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ModelWindowPreview {
+    pub matched: bool,
+    pub window_compact: String,
+    pub source: String,
+}
+
+/// 在不改动上游原始模型名的前提下，预览该模型未手填窗口时的实际生效窗口：
+/// - 若带 `[1M]` 行内后缀，显示该后缀值；
+/// - 若命中内置 / 运行时 / `models.dev` 元数据，返回匹配窗口与来源名；
+/// - 若均未命中，返回默认保底 `1M`（`UNMATCHED_FALLBACK_CONTEXT_WINDOW`）。
+pub fn resolve_model_window_preview(model_raw: &str) -> ModelWindowPreview {
+    let trimmed = model_raw.trim();
+    if trimmed.is_empty() {
+        return ModelWindowPreview {
+            matched: false,
+            window_compact: format_tokens_compact(
+                swivox_core::model_suffix::UNMATCHED_FALLBACK_CONTEXT_WINDOW,
+            ),
+            source: String::new(),
+        };
+    }
+    let (slug, inline_win) = parse_model_suffix(trimmed);
+    if let Some(tokens) = inline_win {
+        return ModelWindowPreview {
+            matched: true,
+            window_compact: format_tokens_compact(tokens),
+            source: "suffix".to_string(),
+        };
+    }
+    if let Some(meta) = swivox_core::model_suffix::builtin_model_metadata(&slug)
+        && let Some(tokens) = meta
+            .entry
+            .get("context_window")
+            .or_else(|| meta.entry.get("max_context_window"))
+            .and_then(Value::as_u64)
+            .filter(|v| *v > 0)
+    {
+        return ModelWindowPreview {
+            matched: true,
+            window_compact: format_tokens_compact(tokens),
+            source: meta.source,
+        };
+    }
+    ModelWindowPreview {
+        matched: false,
+        window_compact: format_tokens_compact(
+            swivox_core::model_suffix::UNMATCHED_FALLBACK_CONTEXT_WINDOW,
+        ),
+        source: String::new(),
+    }
+}
+
 pub fn merge_fetched_models_into_rows(rows: &mut Vec<ModelWindowRow>, fetched: &[String]) -> usize {
+    merge_fetched_models_with_windows_into_rows(rows, fetched, &HashMap::new())
+}
+
+pub fn merge_fetched_models_with_windows_into_rows(
+    rows: &mut Vec<ModelWindowRow>,
+    fetched: &[String],
+    upstream_windows: &HashMap<String, u64>,
+) -> usize {
     let mut existing: HashSet<String> = rows
         .iter()
         .map(|r| model_slug_from_row_name(&r.model))
@@ -631,9 +692,16 @@ pub fn merge_fetched_models_into_rows(rows: &mut Vec<ModelWindowRow>, fetched: &
         if slug.is_empty() || !existing.insert(slug) {
             continue;
         }
+        // 严格保留上游原始模型名 trimmed；仅当上游 /v1/models 明确声明了窗口时填入 window
+        let win = upstream_windows
+            .get(trimmed)
+            .copied()
+            .filter(|v| *v > 0)
+            .map(format_tokens_compact)
+            .unwrap_or_default();
         rows.push(ModelWindowRow {
             model: trimmed.to_string(),
-            window: String::new(),
+            window: win,
             auto_compact: DEFAULT_AUTO_COMPACT_PERCENT.to_string(),
             image_handling: "send-as-is".to_string(),
         });
@@ -1160,5 +1228,35 @@ mod tests {
         .unwrap();
         assert_eq!(legacy.relay_mode, RelayMode::PureApi);
         assert!(!legacy.official_mix_api_key);
+    }
+
+    #[test]
+    fn fetched_models_preserve_upstream_names_and_preview_defaults_unmatched_to_1m() {
+        let mut rows = Vec::new();
+        let fetched = vec![
+            "[官逆]claude-3-5-sonnet-thinking".to_string(),
+            "my-org/totally-unknown-model-v3".to_string(),
+            "openrouter/custom-256k".to_string(),
+        ];
+        let mut upstream_wins = HashMap::new();
+        upstream_wins.insert("openrouter/custom-256k".to_string(), 256_000);
+
+        let added =
+            merge_fetched_models_with_windows_into_rows(&mut rows, &fetched, &upstream_wins);
+        assert_eq!(added, 3);
+        assert_eq!(rows[0].model, "[官逆]claude-3-5-sonnet-thinking");
+        assert_eq!(rows[0].window, "");
+        assert_eq!(rows[1].model, "my-org/totally-unknown-model-v3");
+        assert_eq!(rows[1].window, "");
+        assert_eq!(rows[2].model, "openrouter/custom-256k");
+        assert_eq!(rows[2].window, "256k");
+
+        let p0 = resolve_model_window_preview(&rows[0].model);
+        assert!(p0.matched);
+        assert_eq!(p0.window_compact, "200k");
+
+        let p1 = resolve_model_window_preview(&rows[1].model);
+        assert!(!p1.matched);
+        assert_eq!(p1.window_compact, "1M");
     }
 }

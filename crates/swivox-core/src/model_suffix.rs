@@ -9,6 +9,9 @@ use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 use std::time::SystemTime;
 
+/// 未命中任何元数据且用户未显式配置窗口时的默认保底上下文窗口（1M = 1_000_000 tokens）。
+pub const UNMATCHED_FALLBACK_CONTEXT_WINDOW: u64 = 1_000_000;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModelCatalogEntry {
     pub slug: String,
@@ -707,7 +710,7 @@ pub fn builtin_model_metadata_index() -> Vec<Value> {
 /// 采用 template-clone 思路：取 codex 自带 bundled entry 做模板，
 /// 再覆盖 slug / display_name / description / context_window / max_context_window /
 /// effective_context_window_percent / priority / auto_compact_token_limit 等字段。
-/// 无后缀条目用 fallback_window；fallback 也无时回落 272000（codex 默认）。
+/// 无后缀条目优先用 fallback_window / 命中的元数据窗口；未命中任何元数据时统一保底 1M（1_000_000），且始终保留上游原始模型名。
 /// auto_compact_token_limit 仅在条目带显式百分比时写入；否则留 null，保持 Codex 默认行为。
 pub fn build_model_catalog_json(
     entries: &[ModelCatalogEntry],
@@ -749,16 +752,21 @@ pub(crate) fn build_model_catalog_json_with_capabilities(
                     .map(|template| (template, false))
                     .unwrap_or_else(|| model_template_entry(&entry.slug))
             };
-            let metadata_window = model.get("context_window").and_then(Value::as_u64);
-            let metadata_max_window = model.get("max_context_window").and_then(Value::as_u64);
+            let has_explicit_template = !deepseek_metadata && template.is_some();
+            let metadata_window = (has_model_metadata || has_explicit_template)
+                .then(|| model.get("context_window").and_then(Value::as_u64))
+                .flatten();
+            let metadata_max_window = (has_model_metadata || has_explicit_template)
+                .then(|| model.get("max_context_window").and_then(Value::as_u64))
+                .flatten();
             let context_window = entry
                 .suffix_window
                 .or(fallback_window)
                 .or(metadata_window)
-                .unwrap_or(272_000);
+                .unwrap_or(UNMATCHED_FALLBACK_CONTEXT_WINDOW);
             // 用户显式配置窗口（后缀 / 每模型窗口 / profile 全局）时两字段同值；
-            // 未显式配置时保留官方模板的 max_context_window 上限——gpt-5.6 / gpt-6
-            // 官方为 272000/872000，压平成同值会把 codex 侧 872K 能力上限写低（#2191）。
+            // 已命中元数据时保留官方模板的 max_context_window 上限（#2191）；
+            // 未命中任何元数据时两字段统一走 1M 保底。
             let max_context_window = entry
                 .suffix_window
                 .or(fallback_window)
@@ -969,13 +977,81 @@ fn strip_model_release_suffix(s: &str) -> &str {
     s
 }
 
+/// 仅用于只读查表归一化：剥离中转站常见渠道前缀（如 `[VIP]`、`【特惠】`）与常见变体后缀
+/// （如 `-thinking`、`-preview`、`-latest`、`-fp8` 等），绝不修改模型的真实 `slug` 或 `display_name`。
+pub(crate) fn strip_lookup_channel_and_variant_decorations(raw: &str) -> String {
+    let mut s = raw.trim();
+    loop {
+        let next = if let Some(rest) = s.strip_prefix('[') {
+            rest.split_once(']').map(|(_, r)| r.trim())
+        } else if let Some(rest) = s.strip_prefix('【') {
+            rest.split_once('】').map(|(_, r)| r.trim())
+        } else if let Some(rest) = s.strip_prefix('(') {
+            rest.split_once(')').map(|(_, r)| r.trim())
+        } else if let Some(rest) = s.strip_prefix('（') {
+            rest.split_once('）').map(|(_, r)| r.trim())
+        } else {
+            None
+        };
+        match next {
+            Some(r) if !r.is_empty() => s = r,
+            _ => break,
+        }
+    }
+    s = path_leaf(s).trim();
+
+    let mut owned = s.to_string();
+    const VARIANT_SUFFIXES: &[&str] = &[
+        "-non-thinking",
+        "-nothinking",
+        "-thinking",
+        "-reasoning",
+        "-preview",
+        "-latest",
+        "-online",
+        "-search",
+        "-free",
+        "-bf16",
+        "-fp16",
+        "-fp8",
+        "-int8",
+        "-int4",
+        "-awq",
+        "-gptq",
+    ];
+    loop {
+        let before_date = strip_model_release_suffix(&owned).to_string();
+        let mut current = before_date;
+        let lower = current.to_ascii_lowercase();
+        let mut stripped_any = false;
+        for suffix in VARIANT_SUFFIXES {
+            if lower.len() > suffix.len() && lower.ends_with(suffix) {
+                let keep = current.len() - suffix.len();
+                current.truncate(keep);
+                stripped_any = true;
+                break;
+            }
+        }
+        let after_date = strip_model_release_suffix(&current).to_string();
+        if after_date == owned && !stripped_any {
+            break;
+        }
+        if after_date.is_empty() {
+            break;
+        }
+        owned = after_date;
+    }
+    owned
+}
+
 /// 按 slug 查找 catalog 条目：
 /// 1. 精确匹配；
 /// 2. 大小写不敏感匹配；
 /// 3. 剥离路径前缀后匹配（如 openai/gpt-4o -> gpt-4o）；
 /// 4. 剥离日期后缀后匹配（如 gpt-4o-2024-08-06 -> gpt-4o）；
 /// 5. 剥离路径前缀与日期后缀后匹配；
-/// 6. 常见别名匹配（如 deepseek-chat -> deepseek-v4-flash）。
+/// 6. 常见别名匹配（如 deepseek-chat -> deepseek-v4-flash）；
+/// 7. 剥离中转渠道标签与变体后缀做只读查表匹配（不改动原模型名）。
 fn find_catalog_entry<'a>(models: &'a [Value], slug: &str) -> Option<&'a Value> {
     if let Some(entry) = models
         .iter()
@@ -1024,10 +1100,30 @@ fn find_catalog_entry<'a>(models: &'a [Value], slug: &str) -> Option<&'a Value> 
             return Some(entry);
         }
     }
-    let alias = match stripped_leaf.to_ascii_lowercase().as_str() {
+    let cleaned = strip_lookup_channel_and_variant_decorations(slug);
+    if !cleaned.is_empty()
+        && !cleaned.eq_ignore_ascii_case(slug)
+        && !cleaned.eq_ignore_ascii_case(leaf)
+        && !cleaned.eq_ignore_ascii_case(stripped_leaf)
+    {
+        if let Some(entry) = models.iter().find(|entry| {
+            entry
+                .get("slug")
+                .and_then(Value::as_str)
+                .is_some_and(|candidate| candidate.eq_ignore_ascii_case(&cleaned))
+        }) {
+            return Some(entry);
+        }
+    }
+    let alias_key = if !cleaned.is_empty() {
+        cleaned.to_ascii_lowercase()
+    } else {
+        stripped_leaf.to_ascii_lowercase()
+    };
+    let alias = match alias_key.as_str() {
         "deepseek-chat" => Some("deepseek-v4-flash"),
         "deepseek-reasoner" => Some("deepseek-v4-pro"),
-        "chatgpt-4o-latest" => Some("gpt-4o"),
+        "chatgpt-4o" | "chatgpt-4o-latest" => Some("gpt-4o"),
         _ => None,
     };
     if let Some(alias_slug) = alias {
@@ -1066,15 +1162,11 @@ fn bundled_catalog_models() -> &'static Vec<Value> {
     })
 }
 
-/// 未命中内置元数据时生成链的真实回退，供管理器显示。
+/// 未命中内置元数据时生成链的真实回退（保底 1M），供管理器显示。
 pub fn fallback_template_info() -> Option<(String, u64)> {
     let entry = first_bundled_template_entry()?;
     let slug = entry.get("slug")?.as_str()?.to_string();
-    let context_window = entry
-        .get("context_window")
-        .and_then(Value::as_u64)
-        .unwrap_or(272_000);
-    Some((slug, context_window))
+    Some((slug, UNMATCHED_FALLBACK_CONTEXT_WINDOW))
 }
 
 /// 缓存每份静态 catalog 的解析结果，但只在锁内完成查找并返回 owned Value。

@@ -8,8 +8,9 @@ use swivox_backend::phase2_rules::{
 use swivox_backend::phase3_rules::{
     CONTEXT_WINDOW_PRESETS, DEFAULT_AUTO_COMPACT_PERCENT, ModelWindowRow, PROVIDER_PRESETS,
     PresetCategory, ProviderViewKind, apply_editable_fields_to_profile,
-    hydrate_profile_editable_fields, merge_fetched_models_into_rows, model_slug_from_row_name,
-    relay_provider_view, toggle_aggregate_member, validate_model_window_rows,
+    hydrate_profile_editable_fields, merge_fetched_models_with_windows_into_rows,
+    model_slug_from_row_name, relay_provider_view, resolve_model_window_preview,
+    toggle_aggregate_member, validate_model_window_rows,
 };
 use swivox_core::relay_config::relay_profile_model;
 use swivox_core::settings::{
@@ -156,6 +157,15 @@ impl RelayView {
         let model_val = row.model.clone();
         let win_val = row.window.clone();
         let compact_val = row.auto_compact.clone();
+        let make_win_placeholder = |m: &str| {
+            let pv = resolve_model_window_preview(m);
+            if pv.matched {
+                format!("{} {}", t("自动"), pv.window_compact)
+            } else {
+                t("保底 1M")
+            }
+        };
+        let win_placeholder = make_win_placeholder(&model_val);
 
         let model_input = cx.new(|cx| {
             let mut s = InputState::new(window, cx).placeholder("deepseek-v4-pro[1M]");
@@ -163,7 +173,7 @@ impl RelayView {
             s
         });
         let window_input = cx.new(|cx| {
-            let mut s = InputState::new(window, cx).placeholder("128k / 1M");
+            let mut s = InputState::new(window, cx).placeholder(win_placeholder);
             s.set_value(win_val, window, cx);
             s
         });
@@ -172,6 +182,31 @@ impl RelayView {
             s.set_value(compact_val, window, cx);
             s
         });
+        cx.subscribe_in(
+            &model_input,
+            window,
+            move |view, m_inp, ev: &InputEvent, window, cx| {
+                if matches!(ev, InputEvent::Change) {
+                    let cur_m = m_inp.read(cx).value().to_string();
+                    if let Some(ctrl) = view.row_controls.iter_mut().find(|r| r.row_uid == uid)
+                        && ctrl.window_input.read(cx).value().is_empty()
+                    {
+                        let next_ph = {
+                            let pv = resolve_model_window_preview(&cur_m);
+                            if pv.matched {
+                                format!("{} {}", t("自动"), pv.window_compact)
+                            } else {
+                                t("保底 1M")
+                            }
+                        };
+                        ctrl.window_input =
+                            cx.new(|cx| InputState::new(window, cx).placeholder(next_ph));
+                    }
+                    cx.notify();
+                }
+            },
+        )
+        .detach();
 
         ModelRowControls {
             row_uid: uid,
@@ -230,12 +265,16 @@ impl RelayView {
         }
 
         let fetched_opt = self.store.read(cx).last_fetched_models.clone();
-        if let Some((seq, models)) = fetched_opt
+        if let Some((seq, models, upstream_windows)) = fetched_opt
             && seq != self.applied_fetched_seq
         {
             self.applied_fetched_seq = seq;
             let mut current_rows = self.collect_model_rows(cx);
-            let added = merge_fetched_models_into_rows(&mut current_rows, &models);
+            let added = merge_fetched_models_with_windows_into_rows(
+                &mut current_rows,
+                &models,
+                &upstream_windows,
+            );
             if added > 0 {
                 let start = current_rows.len().saturating_sub(added);
                 for r in &current_rows[start..] {
@@ -2421,10 +2460,10 @@ impl RelayView {
                     .child(
                         div()
                             .h_flex()
-                            .w(px(224.))
+                            .w(px(234.))
                             .items_center()
                             .gap_1()
-                            .child(div().w(px(88.)).child(Input::new(&ctrl.window_input)))
+                            .child(div().w(px(98.)).child(Input::new(&ctrl.window_input)))
                             .children(quick_presets),
                     )
                     .child(div().w(px(96.)).child(Input::new(&ctrl.compact_input)))
@@ -2744,7 +2783,7 @@ impl RelayView {
                                                 .text_color(cx.theme().muted_foreground)
                                                 .child(format!(
                                                     "{}（{}：{}）",
-                                                    t("支持 deepseek-v4-pro[1M] 后缀语法，由 Swivox 生成原生 model_catalog_json"),
+                                                    t("保留上游原模型名；自动匹配窗口，未命中默认保底 1M"),
                                                     t("内置档位"),
                                                     CONTEXT_WINDOW_PRESETS
                                                         .iter()
@@ -2839,7 +2878,7 @@ impl RelayView {
                                 .font_semibold()
                                 .text_color(cx.theme().muted_foreground)
                                 .child(div().flex_1().min_w(px(150.)).child(t("模型 ID (支持 [1M] 后缀)")))
-                                .child(div().w(px(224.)).child(t("上下文窗口与快捷档位")))
+                                .child(div().w(px(234.)).child(t("上下文窗口与快捷档位")))
                                 .child(div().w(px(96.)).child(t("自动压缩 %")))
                                 .child(div().w(px(224.)).flex().justify_end().child(t("图片策略与操作"))),
                         )

@@ -1074,3 +1074,52 @@ fn generated_catalog_models_always_contain_required_fields() {
         );
     }
 }
+
+#[test]
+fn unmatched_models_default_to_1m_and_preserve_exact_upstream_names() {
+    let _lock = RUNTIME_CACHE_ENV_LOCK.lock().unwrap();
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(temp.path()).unwrap();
+    let _guard = CodexHomeEnvGuard::set(temp.path());
+
+    let raw_list =
+        "ycj-001/brand-new-private-model-v9\n[特惠]claude-3-5-sonnet-thinking\nPro/openai/gpt-4o-2024-08-06-preview";
+    let entries = collect_catalog_entries(
+        raw_list,
+        &HashMap::new(),
+        &HashMap::new(),
+        "ycj-001/brand-new-private-model-v9",
+    );
+    let catalog: serde_json::Value =
+        serde_json::from_str(&build_model_catalog_json(&entries, None)).unwrap();
+    let models = catalog["models"].as_array().unwrap();
+    assert_eq!(models.len(), 3);
+
+    // 1. 完全未知的上游模型：100% 保留原名，上下文窗口与最大窗口保底 1M (1_000_000)
+    assert_eq!(models[0]["slug"], "ycj-001/brand-new-private-model-v9");
+    assert_eq!(
+        models[0]["display_name"],
+        "ycj-001/brand-new-private-model-v9"
+    );
+    assert_eq!(models[0]["context_window"], 1_000_000);
+    assert_eq!(models[0]["max_context_window"], 1_000_000);
+
+    // 2. 带中转渠道前缀与 -thinking 后缀的模型：只读归一化命中 200k，但 slug / display_name 100% 保留上游原名
+    assert_eq!(models[1]["slug"], "[特惠]claude-3-5-sonnet-thinking");
+    assert_eq!(
+        models[1]["display_name"],
+        "[特惠]claude-3-5-sonnet-thinking"
+    );
+    assert_eq!(models[1]["context_window"], 200_000);
+
+    // 3. 多级路径前缀 + 日期快照 + -preview 变体：命中 128k，且 slug / display_name 100% 保留上游原名
+    assert_eq!(models[2]["slug"], "Pro/openai/gpt-4o-2024-08-06-preview");
+    assert_eq!(
+        models[2]["display_name"],
+        "Pro/openai/gpt-4o-2024-08-06-preview"
+    );
+    assert_eq!(models[2]["context_window"], 128_000);
+
+    let (_, fallback_win) = swivox_core::model_suffix::fallback_template_info().unwrap();
+    assert_eq!(fallback_win, 1_000_000);
+}

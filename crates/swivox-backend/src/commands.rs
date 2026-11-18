@@ -254,6 +254,8 @@ pub struct StepwiseTestPayload {
 pub struct RelayProfileModelsPayload {
     pub models: Vec<String>,
     pub endpoint: String,
+    #[serde(default)]
+    pub model_windows: std::collections::HashMap<String, u64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -2644,10 +2646,14 @@ pub fn query_builtin_model_metadata(slug: String) -> CommandResult<Value> {
             // 回退值从 bundled 静态资产首条实时取，不写死——
             // sync_official_models.py 调整首条后这里自动跟随。
             let (fallback_slug, fallback_window) =
-                swivox_core::model_suffix::fallback_template_info()
-                    .unwrap_or_else(|| ("gpt-5.5".to_string(), 272_000));
+                swivox_core::model_suffix::fallback_template_info().unwrap_or_else(|| {
+                    (
+                        "gpt-5.5".to_string(),
+                        swivox_core::model_suffix::UNMATCHED_FALLBACK_CONTEXT_WINDOW,
+                    )
+                });
             ok(
-                "未命中内置元数据，生成时回退官方模板。",
+                "未命中内置元数据，保留原模型名并默认保底 1M。",
                 json!({
                     "matched": false,
                     "fallback": {
@@ -5281,13 +5287,17 @@ pub async fn fetch_relay_profile_models(
     } else {
         profile.name.trim()
     };
-    match swivox_core::model_catalog::fetch_relay_profile_model_ids(&profile).await {
-        Ok((models, endpoint)) => {
+    match swivox_core::model_catalog::fetch_relay_profile_models_with_windows(&profile).await {
+        Ok((models, model_windows, endpoint)) => {
             let models =
                 swivox_core::model_catalog::sort_relay_model_ids_for_display(&models);
             ok(
                 &format!("已从「{profile_name}」获取 {} 个模型。", models.len()),
-                RelayProfileModelsPayload { models, endpoint },
+                RelayProfileModelsPayload {
+                    models,
+                    endpoint,
+                    model_windows,
+                },
             )
         }
         Err(error) => failed(
@@ -5295,6 +5305,7 @@ pub async fn fetch_relay_profile_models(
             RelayProfileModelsPayload {
                 models: Vec::new(),
                 endpoint: String::new(),
+                model_windows: std::collections::HashMap::new(),
             },
         ),
     }

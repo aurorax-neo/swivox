@@ -218,7 +218,7 @@ pub struct AppStore {
     pub doctor_result: Option<ProviderDoctorPayload>,
     pub fetching_models: bool,
     pub fetched_models_seq: u64,
-    pub last_fetched_models: Option<(u64, Vec<String>)>,
+    pub last_fetched_models: Option<(u64, Vec<String>, std::collections::HashMap<String, u64>)>,
     pub relay_files: Option<RelayFilesPayload>,
     #[cfg(feature = "visual-audit")]
     pub relay_audit_dropdown: Option<&'static str>,
@@ -1954,8 +1954,11 @@ impl AppStore {
                 store.fetching_models = false;
                 if res.status == "ok" {
                     store.fetched_models_seq = store.fetched_models_seq.wrapping_add(1);
-                    store.last_fetched_models =
-                        Some((store.fetched_models_seq, res.payload.models));
+                    store.last_fetched_models = Some((
+                        store.fetched_models_seq,
+                        res.payload.models,
+                        res.payload.model_windows,
+                    ));
                 }
                 store.set_notice(t("获取上游模型"), res.message, &res.status, cx);
             },

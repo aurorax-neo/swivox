@@ -180,6 +180,8 @@ pub fn install_panic_logger() {
 
 /// 窗口启动前执行的标准初始化动作（日志、清理已下载安装包、官方账号同步、旧包迁移）。
 pub fn run_startup_housekeeping() {
+    // 历史版本以 0644/0755 写下的凭据文件，启动时一次性收紧为 0600/0700。
+    swivox_core::settings::tighten_state_permissions();
     let _ = swivox_core::diagnostic_log::append_diagnostic_log(
         "manager.start",
         serde_json::json!({

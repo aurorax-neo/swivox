@@ -80,9 +80,13 @@ pub fn format_window_summary_line(
 }
 
 fn json_escape_inner(raw: &str) -> String {
-    serde_json::to_string(raw)
-        .unwrap_or_else(|_| "\"\"".to_string())
-        .trim_matches('"')
+    // 只剥掉 serde_json 输出最外层的一对引号；trim_matches 会把内容末尾转义后的 `\"` 一起吃掉，
+    // 留下悬空反斜杠破坏模板 JSON。
+    let quoted = serde_json::to_string(raw).unwrap_or_else(|_| "\"\"".to_string());
+    quoted
+        .strip_prefix('"')
+        .and_then(|value| value.strip_suffix('"'))
+        .unwrap_or("")
         .to_string()
 }
 

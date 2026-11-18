@@ -70,8 +70,10 @@
       state.outlineStatus = "error";
       state.outlineError = error?.message || "大纲暂不可用";
     }).finally(() => {
-      if (!requestCurrent()) return;
+      // 先无条件释放 in-flight 句柄：上下文切换后若提前 return，outlineRefreshPromise 永远不清，
+      // 之后每次刷新都直接复用这个已完成的 promise，大纲功能被锁死。
       if (state.outlineRefreshPromise === task) state.outlineRefreshPromise = null;
+      if (!requestCurrent()) return;
       if (state.activeTab === "outline") renderFloat({ preserveMorph: true });
     });
     state.outlineRefreshPromise = task;

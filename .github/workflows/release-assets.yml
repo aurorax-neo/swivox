@@ -292,8 +292,12 @@ jobs:
         run: |
           set -euo pipefail
           gh release view "$TAG" --repo "$REPO" --json assets,body,tagName,url > release.json
+          # 下载全部附件计算 SHA-256，写入 latest.json 供客户端更新前校验完整性。
+          mkdir -p release-assets
+          gh release download "$TAG" --repo "$REPO" --dir release-assets --clobber
           node <<'NODE'
           const fs = require("fs");
+          const crypto = require("crypto");
           const release = JSON.parse(fs.readFileSync("release.json", "utf8"));
           const repo = process.env.REPO;
           const tag = release.tagName || process.env.TAG;
@@ -312,7 +316,11 @@ jobs:
           const assets = (release.assets || [])
             .map((asset) => asset.name)
             .filter((name) => name !== "latest.json")
-            .map((name) => ({ name, url: `${baseUrl}/${encodeURIComponent(name)}` }));
+            .map((name) => {
+              const file = `release-assets/${name}`;
+              const sha256 = crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+              return { name, url: `${baseUrl}/${encodeURIComponent(name)}`, sha256 };
+            });
           const payload = {
             version: `v${version}`,
             // 草稿的 release.url 是临时 untagged 地址，静态元数据必须使用正式 tag 链接。

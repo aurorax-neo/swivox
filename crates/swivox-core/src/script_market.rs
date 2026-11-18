@@ -79,19 +79,51 @@ pub async fn fetch_market_manifest(url: &str) -> anyhow::Result<ScriptMarketMani
     parse_market_manifest(raw)
 }
 
+/// 单个市场脚本的体积上限：脚本会被注入到 Codex 渲染进程，正常远小于该值。
+const MAX_MARKET_SCRIPT_BYTES: usize = 2 * 1024 * 1024;
+
+/// 市场脚本只允许 HTTPS 且不得携带凭据；明文 HTTP 可被中间人替换为任意代码。
+pub fn validate_script_url(url: &str) -> anyhow::Result<()> {
+    let parsed = url::Url::parse(url.trim()).context("脚本地址无效")?;
+    anyhow::ensure!(
+        parsed.scheme() == "https"
+            && parsed.host_str().is_some()
+            && parsed.username().is_empty()
+            && parsed.password().is_none(),
+        "拒绝下载非 HTTPS 的市场脚本：{url}"
+    );
+    Ok(())
+}
+
 pub async fn download_script(url: &str) -> anyhow::Result<Vec<u8>> {
+    validate_script_url(url)?;
     let client = crate::http_client::proxied_client("Swivox/script-market")?;
-    Ok(client
+    let mut response = client
         .get(url)
         .send()
         .await
         .with_context(|| format!("failed to request script {url}"))?
         .error_for_status()
-        .with_context(|| format!("script download returned an error status {url}"))?
-        .bytes()
+        .with_context(|| format!("script download returned an error status {url}"))?;
+    if response
+        .content_length()
+        .is_some_and(|length| length > MAX_MARKET_SCRIPT_BYTES as u64)
+    {
+        anyhow::bail!("市场脚本超过 2 MiB 上限");
+    }
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
         .await
         .context("failed to read script download body")?
-        .to_vec())
+    {
+        anyhow::ensure!(
+            bytes.len() + chunk.len() <= MAX_MARKET_SCRIPT_BYTES,
+            "市场脚本超过 2 MiB 上限"
+        );
+        bytes.extend_from_slice(&chunk);
+    }
+    Ok(bytes)
 }
 
 pub fn install_market_script_content(

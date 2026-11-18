@@ -84,7 +84,7 @@ Section "Install"
   ; 双程序版本升级时只保留统一应用；清理失败则停止，避免残留旧管理工具。
   Delete "$INSTDIR\swivox-manager.exe"
   IfFileExists "$INSTDIR\swivox-manager.exe" 0 legacy_binary_removed
-    MessageBox MB_OK|MB_ICONSTOP "旧管理工具仍被占用。请退出 Swivox 后重新安装。"
+    MessageBox MB_OK|MB_ICONSTOP "旧管理工具仍被占用。请退出 Swivox 后重新安装。" /SD IDOK
     Abort
   legacy_binary_removed:
   File "${ROOT}\dist\windows\app\swivox.exe"
@@ -127,7 +127,8 @@ Section "Install"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Swivox" "Publisher" "BigPizzaV3"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Swivox" "DisplayIcon" "$INSTDIR\swivox.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Swivox" "InstallLocation" "$INSTDIR"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Swivox" "UninstallString" "$INSTDIR\uninstall.exe"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Swivox" "UninstallString" '"$INSTDIR\uninstall.exe"'
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Swivox" "QuietUninstallString" '"$INSTDIR\uninstall.exe" /S'
 
   ; 注册 swivox:// URL 协议（issue #2354）。
   ; 键名与值同 swivox-core 的 install::windows::register_url_protocol 保持一致，
@@ -167,8 +168,11 @@ Section "Uninstall"
 
   ; NSIS 的 Delete 遇到被占用文件会静默失败，用户会误以为卸载干净。
   ; 残留检测提示用户先从托盘退出，避免“卸载后重装”继续失败（issue #2362）。
-  IfFileExists "$INSTDIR\swivox.exe" 0 +2
-    MessageBox MB_OK|MB_ICONEXCLAMATION "Swivox 仍被占用，未能删除。请从系统托盘退出 Swivox（或结束该进程）后重新卸载或安装。"
+  ; 主程序删不掉就中止：继续往下会删掉 uninstall.exe 与卸载登记，留下无法再次卸载的残留。
+  IfFileExists "$INSTDIR\swivox.exe" 0 main_binary_removed
+    MessageBox MB_OK|MB_ICONEXCLAMATION "Swivox 仍被占用，未能删除。请从系统托盘退出 Swivox（或结束该进程）后重新卸载。" /SD IDOK
+    Abort
+  main_binary_removed:
 
   Delete "$INSTDIR\uninstall.exe"
   RMDir "$INSTDIR"
@@ -178,6 +182,10 @@ Section "Uninstall"
   DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Swivox"
   DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Swivox"
   DeleteRegKey HKCU "Software\Swivox"
+
+  ; 清理开机自启项，避免卸载后残留指向已删除程序的启动项。
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "SwivoxWatcher"
+  Delete "$SMSTARTUP\SwivoxWatcher.lnk"
 
   ; 清理安装器注册的 URL 协议（与 install::windows::uninstall_shortcuts 行为一致）。
   ; 仅删除本产品自有键，不影响用户其他协议注册。

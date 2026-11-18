@@ -18,6 +18,7 @@ pub mod foreign_reasoning;
 pub mod http_client;
 pub mod install;
 pub mod lamplighter;
+pub mod macos_keychain;
 pub mod launcher;
 pub mod manager_navigation;
 pub mod mcp_config;
@@ -87,6 +88,11 @@ pub fn windows_apply_swivox_icon_to_process_window(
     icon_resource_path: std::path::PathBuf,
 ) -> bool {
     windows_integration::apply_swivox_icon_to_process_window(process_id, icon_resource_path)
+}
+
+#[cfg(windows)]
+pub fn windows_process_command_line(process_id: u32) -> Option<String> {
+    windows_integration::process_command_line(process_id)
 }
 
 #[cfg(windows)]

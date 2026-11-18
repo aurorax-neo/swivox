@@ -91,6 +91,7 @@ struct PendingOAuthSession {
     state: String,
     redirect_uri: String,
     client_key: String,
+    code_verifier: String,
     code_rx: Option<oneshot::Receiver<Result<String, String>>>,
     cancel_tx: Option<oneshot::Sender<()>>,
 }
@@ -213,6 +214,31 @@ pub fn parse_manual_oauth_input(raw_input: &str, expected_state: Option<&str>) -
     Ok(decoded.trim().to_string())
 }
 
+fn pkce_challenge(verifier: &str) -> String {
+    use base64::Engine as _;
+    use sha2::{Digest, Sha256};
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()))
+}
+
+fn callback_state_matches(path: &str, expected_state: &str) -> bool {
+    let Ok(url) = Url::parse(&format!("http://localhost{path}")) else {
+        return false;
+    };
+    !expected_state.is_empty()
+        && url
+            .query_pairs()
+            .find(|(key, _)| key == "state")
+            .is_some_and(|(_, value)| value == expected_state)
+}
+
+fn html_escape(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
+}
+
 pub fn cancel_pending_oauth_session() {
     if let Ok(mut guard) = pending_slot().lock()
         && let Some(mut session) = guard.take()
@@ -243,6 +269,13 @@ pub async fn start_oauth_login(client_key: Option<&str>) -> anyhow::Result<Antig
 
     let state = Uuid::new_v4().to_string();
     let login_id = Uuid::new_v4().to_string();
+    // PKCE（RFC 7636，S256）：即使授权码在回调环节被截获，也无法脱离本进程换取令牌。
+    let code_verifier = format!(
+        "{}{}",
+        Uuid::new_v4().simple(),
+        Uuid::new_v4().simple()
+    );
+    let code_challenge = pkce_challenge(&code_verifier);
 
     let mut auth_url = Url::parse(GOOGLE_AUTH_URL)?;
     auth_url
@@ -254,7 +287,9 @@ pub async fn start_oauth_login(client_key: Option<&str>) -> anyhow::Result<Antig
         .append_pair("access_type", "offline")
         .append_pair("prompt", "consent")
         .append_pair("include_granted_scopes", "true")
-        .append_pair("state", &state);
+        .append_pair("state", &state)
+        .append_pair("code_challenge", &code_challenge)
+        .append_pair("code_challenge_method", "S256");
 
     let (code_tx, code_rx) = oneshot::channel::<Result<String, String>>();
     let (cancel_tx, mut cancel_rx) = oneshot::channel::<()>();
@@ -287,6 +322,18 @@ pub async fn start_oauth_login(client_key: Option<&str>) -> anyhow::Result<Antig
                     let _ = stream.write_all(resp.as_bytes()).await;
                     continue;
                 }
+                // 回环回调必须携带与发起时一致的 state；缺失即拒绝（防登录 CSRF）。
+                // 校验失败不终止监听，避免本机其他网页抢先打一枪就把正常登录搅黄。
+                if !callback_state_matches(path, &expected_state) {
+                    let html = "<!doctype html><html><head><meta charset='utf-8'><title>授权失败</title></head><body><h3>Antigravity 授权失败</h3><p>OAuth state 缺失或不匹配，请从 Swivox 重新发起登录。</p></body></html>";
+                    let resp = format!(
+                        "HTTP/1.1 400 Bad Request\r\nContent-Type: text/html; charset=utf-8\r\nContent-Security-Policy: default-src 'none'\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                        html.len(),
+                        html
+                    );
+                    let _ = stream.write_all(resp.as_bytes()).await;
+                    continue;
+                }
                 match parse_manual_oauth_input(path, Some(&expected_state)) {
                     Ok(code) => {
                         let html = "<!doctype html><html><head><meta charset='utf-8'><title>Swivox - Antigravity 授权成功</title><style>body{background:#0b0f19;color:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}.card{background:#131a2a;border:1px solid #26324d;border-radius:14px;padding:32px 40px;text-align:center;box-shadow:0 16px 40px rgba(0,0,0,.4)}h2{margin:0 0 8px;color:#38bdf8}p{margin:0;color:#9ca3af;font-size:14px}</style></head><body><div class='card'><h2>Antigravity 登录成功</h2><p>您可以关闭此浏览器标签页并返回 Swivox。</p></div></body></html>";
@@ -302,10 +349,10 @@ pub async fn start_oauth_login(client_key: Option<&str>) -> anyhow::Result<Antig
                     Err(err) => {
                         let html = format!(
                             "<!doctype html><html><head><meta charset='utf-8'><title>授权失败</title></head><body><h3>Antigravity 授权失败</h3><p>{}</p></body></html>",
-                            err
+                            html_escape(&err.to_string())
                         );
                         let resp = format!(
-                            "HTTP/1.1 400 Bad Request\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                            "HTTP/1.1 400 Bad Request\r\nContent-Type: text/html; charset=utf-8\r\nContent-Security-Policy: default-src 'none'\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                             html.len(),
                             html
                         );
@@ -330,6 +377,7 @@ pub async fn start_oauth_login(client_key: Option<&str>) -> anyhow::Result<Antig
             state,
             redirect_uri: redirect_uri.clone(),
             client_key: normalized_key.to_string(),
+            code_verifier,
             code_rx: Some(code_rx),
             cancel_tx: Some(cancel_tx),
         });
@@ -347,7 +395,7 @@ pub async fn wait_for_oauth_callback(
     login_id: &str,
     proxy_spec: Option<&str>,
 ) -> anyhow::Result<(ExchangedGoogleTokens, GoogleUserInfo)> {
-    let (rx, redirect_uri, client_key) = {
+    let (rx, redirect_uri, client_key, code_verifier) = {
         let mut guard = pending_slot()
             .lock()
             .map_err(|_| anyhow::anyhow!("OAuth 会话锁异常"))?;
@@ -360,7 +408,12 @@ pub async fn wait_for_oauth_callback(
         let Some(rx) = session.code_rx.take() else {
             bail!("正在等待该 OAuth 会话完成，请勿重复提交。");
         };
-        (rx, session.redirect_uri.clone(), session.client_key.clone())
+        (
+            rx,
+            session.redirect_uri.clone(),
+            session.client_key.clone(),
+            session.code_verifier.clone(),
+        )
     };
 
     let code = rx
@@ -369,7 +422,14 @@ pub async fn wait_for_oauth_callback(
         .map_err(|e| anyhow::anyhow!(e))?;
 
     cancel_pending_oauth_session();
-    let tokens = exchange_authorization_code(&code, &redirect_uri, Some(&client_key), proxy_spec).await?;
+    let tokens = exchange_authorization_code_with_verifier(
+        &code,
+        &redirect_uri,
+        Some(&client_key),
+        proxy_spec,
+        Some(&code_verifier),
+    )
+    .await?;
     let user = fetch_google_userinfo(&tokens.access_token, proxy_spec).await?;
     Ok((tokens, user))
 }
@@ -378,7 +438,7 @@ pub async fn complete_manual_oauth_callback(
     raw_input: &str,
     proxy_spec: Option<&str>,
 ) -> anyhow::Result<(ExchangedGoogleTokens, GoogleUserInfo)> {
-    let (expected_state, redirect_uri, client_key) = {
+    let (expected_state, redirect_uri, client_key, code_verifier) = {
         let guard = pending_slot()
             .lock()
             .map_err(|_| anyhow::anyhow!("OAuth 会话锁异常"))?;
@@ -389,12 +449,20 @@ pub async fn complete_manual_oauth_callback(
             session.state.clone(),
             session.redirect_uri.clone(),
             session.client_key.clone(),
+            session.code_verifier.clone(),
         )
     };
 
     let code = parse_manual_oauth_input(raw_input, Some(&expected_state))?;
     cancel_pending_oauth_session();
-    let tokens = exchange_authorization_code(&code, &redirect_uri, Some(&client_key), proxy_spec).await?;
+    let tokens = exchange_authorization_code_with_verifier(
+        &code,
+        &redirect_uri,
+        Some(&client_key),
+        proxy_spec,
+        Some(&code_verifier),
+    )
+    .await?;
     let user = fetch_google_userinfo(&tokens.access_token, proxy_spec).await?;
     Ok((tokens, user))
 }
@@ -416,18 +484,32 @@ pub async fn exchange_authorization_code(
     client_key: Option<&str>,
     proxy_spec: Option<&str>,
 ) -> anyhow::Result<ExchangedGoogleTokens> {
+    exchange_authorization_code_with_verifier(code, redirect_uri, client_key, proxy_spec, None).await
+}
+
+async fn exchange_authorization_code_with_verifier(
+    code: &str,
+    redirect_uri: &str,
+    client_key: Option<&str>,
+    proxy_spec: Option<&str>,
+    code_verifier: Option<&str>,
+) -> anyhow::Result<ExchangedGoogleTokens> {
     let (norm_key, client_id, client_secret) = client_credentials_for(client_key);
     let client = build_http_client_for_proxy(proxy_spec, 25)?;
+    let mut form = vec![
+        ("client_id", client_id),
+        ("client_secret", client_secret),
+        ("code", code),
+        ("redirect_uri", redirect_uri),
+        ("grant_type", "authorization_code"),
+    ];
+    if let Some(verifier) = code_verifier.filter(|value| !value.is_empty()) {
+        form.push(("code_verifier", verifier));
+    }
     let resp = client
         .post(GOOGLE_TOKEN_URL)
         .header("User-Agent", OAUTH_USER_AGENT)
-        .form(&[
-            ("client_id", client_id),
-            ("client_secret", client_secret),
-            ("code", code),
-            ("redirect_uri", redirect_uri),
-            ("grant_type", "authorization_code"),
-        ])
+        .form(&form)
         .send()
         .await
         .context("请求 Google OAuth Token 接口失败")?;
@@ -546,6 +628,22 @@ pub async fn fetch_google_userinfo(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn loopback_callback_requires_matching_state() {
+        assert!(callback_state_matches("/oauth-callback?state=s1&code=c", "s1"));
+        assert!(!callback_state_matches("/oauth-callback?code=attacker", "s1"));
+        assert!(!callback_state_matches("/oauth-callback?state=other&code=c", "s1"));
+    }
+
+    #[test]
+    fn pkce_challenge_matches_rfc7636_example() {
+        assert_eq!(
+            pkce_challenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"),
+            "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+        );
+        assert_eq!(html_escape("<b>&\"'"), "&lt;b&gt;&amp;&quot;&#39;");
+    }
 
     #[test]
     fn parses_manual_callback_url_and_encoded_code() {

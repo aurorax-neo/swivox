@@ -1024,13 +1024,22 @@ fn endpoint_allowed(
             "余额与额度接口必须与所选供应商同源，使用 HTTPS（本机回环地址可用 HTTP），且网址不能包含凭据",
         ));
     }
-    if url.host_str().is_some_and(|h| {
-        matches!(
-            h,
-            "metadata.google.internal" | "metadata.goog" | "100.100.100.200"
-        ) || h.starts_with("169.254.")
-            || h.starts_with("fe80:")
-    }) {
+    let link_local_or_metadata = match url.host() {
+        Some(url::Host::Domain(h)) => {
+            let h = h.trim_end_matches('.').to_ascii_lowercase();
+            matches!(h.as_str(), "metadata.google.internal" | "metadata.goog")
+        }
+        Some(url::Host::Ipv4(ip)) => ip.is_link_local() || ip.octets() == [100, 100, 100, 200],
+        // url 解析出的 IPv6 不带方括号；还原 IPv4-mapped 后再判断链路本地。
+        Some(url::Host::Ipv6(ip)) => {
+            (ip.segments()[0] & 0xffc0) == 0xfe80
+                || ip.to_ipv4_mapped().is_some_and(|v4| {
+                    v4.is_link_local() || v4.octets() == [100, 100, 100, 200]
+                })
+        }
+        None => false,
+    };
+    if link_local_or_metadata {
         return Err(error("不能访问云元数据或 link-local 地址"));
     }
     Ok(url)

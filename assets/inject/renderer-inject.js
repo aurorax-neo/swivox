@@ -6139,8 +6139,19 @@
    * 加载失败时若不兜底就会留一块空白。失败替换交给委托监听（见 handleExtensionIconError），
    * 不用内联 onerror，避免在字符串拼 HTML 时引入另一处转义面。
    */
+  function swivoxSafeHttpUrl(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    try {
+      const parsed = new URL(raw);
+      return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.href : "";
+    } catch {
+      return "";
+    }
+  }
+
   function extensionIconMarkup(icon) {
-    const url = String(icon || "").trim();
+    const url = swivoxSafeHttpUrl(icon);
     if (!url) return extensionIconSvg();
     return `<img class="swivox-extensions-icon-img" src="${escapeHtml(url)}" alt="" loading="lazy" />`;
   }
@@ -6197,7 +6208,8 @@
     const tags = marketItem?.tags || [];
     const requirements = marketItem?.requirements || [];
     const limitations = marketItem?.limitations || [];
-    const homepage = marketItem?.homepage || local?.homepage || "";
+    // 只接受 http(s) 链接：javascript:/data: 等协议经 escapeHtml 后仍能在点击时执行。
+    const homepage = swivoxSafeHttpUrl(marketItem?.homepage || local?.homepage || "");
     const isInstalled = sel.kind === "installed";
     const updateAvailable = isInstalled && marketItem && version && local?.version && local.version !== version;
 
@@ -15577,12 +15589,41 @@
     return node;
   }
 
+  function swivoxSanitizeSvgMarkup(markup) {
+    try {
+      const doc = new DOMParser().parseFromString(String(markup), "image/svg+xml");
+      const root = doc.documentElement;
+      if (!root || root.nodeName.toLowerCase() !== "svg" || doc.querySelector("parsererror")) return "";
+      root.querySelectorAll("script, foreignObject, iframe, object, embed, style, use").forEach((node) => node.remove());
+      [root, ...root.querySelectorAll("*")].forEach((node) => {
+        Array.from(node.attributes).forEach((attr) => {
+          const name = attr.name.toLowerCase();
+          const value = String(attr.value || "").trim().toLowerCase();
+          if (name.startsWith("on") || ((name === "href" || name === "xlink:href") && !value.startsWith("#"))) {
+            node.removeAttribute(attr.name);
+          } else if (value.startsWith("javascript:") || value.startsWith("data:text/html")) {
+            node.removeAttribute(attr.name);
+          }
+        });
+      });
+      return new XMLSerializer().serializeToString(root);
+    } catch {
+      return "";
+    }
+  }
+
   /** 取一个拓展项的图标：允许传 SVG 字符串，没给就用默认字形。 */
   function swivoxExtensionIconMarkup(definition) {
     const icon = definition?.icon;
     if (typeof icon !== "string" || !icon.trim()) return `<span aria-hidden="true">◇</span>`;
     // 只接受 svg 或文本字形：注入任意 HTML 会让拓展有机会破坏内置 UI 结构。
-    if (/^\s*<svg[\s>]/i.test(icon)) return `<span class="swivox-ext-icon" aria-hidden="true">${icon}</span>`;
+    // SVG 先解析清洗（去掉 script/foreignObject 与 on* 事件、javascript: 链接）再序列化，
+    // 仅凭前缀正则放行会让 `<svg onload=...>` 之类的载荷直接进 innerHTML。
+    if (/^\s*<svg[\s>]/i.test(icon)) {
+      const cleaned = swivoxSanitizeSvgMarkup(icon);
+      if (cleaned) return `<span class="swivox-ext-icon" aria-hidden="true">${cleaned}</span>`;
+      return `<span aria-hidden="true">◇</span>`;
+    }
     return `<span class="swivox-ext-icon" aria-hidden="true">${escapeHtml(icon)}</span>`;
   }
 
@@ -15814,7 +15855,8 @@
         + `</div>${control}</div>`;
     }).join("");
     // 整块包一层：dispose 后能一次性摘掉，测试也好定位。
-    return `<div data-swivox-ext-menu="true">${rows}</div>`;
+    // 必须带 data-swivox-ext：否则扫描调度会把拓展自己插入的节点当成宿主变化，形成自喂扫描循环（issue #1960）。
+    return `<div data-swivox-ext-menu="true" data-swivox-ext="">${rows}</div>`;
   }
 
   /**

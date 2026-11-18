@@ -2641,7 +2641,7 @@ pub async fn open_models_proxy_request(
             "wireApi": UpstreamWireApi::Responses
         }),
     );
-    let request = crate::http_client::proxied_client(&effective_user_agent(
+    let request = crate::http_client::proxied_streaming_client(&effective_user_agent(
         &relay.user_agent,
         original_user_agent,
     ))?
@@ -2698,7 +2698,7 @@ pub async fn open_audio_transcriptions_proxy_request(
             "bodyBytes": body.len()
         }),
     );
-    let request = crate::http_client::proxied_client(&effective_user_agent(
+    let request = crate::http_client::proxied_streaming_client(&effective_user_agent(
         &relay.user_agent,
         original_user_agent,
     ))?
@@ -2831,7 +2831,7 @@ async fn open_image_proxy_request(
             "endpointKind": endpoint_kind.name()
         }),
     );
-    let request = crate::http_client::proxied_client(&effective_user_agent(
+    let request = crate::http_client::proxied_streaming_client(&effective_user_agent(
         &relay.user_agent,
         original_user_agent,
     ))?
@@ -3038,7 +3038,7 @@ pub async fn open_chat_completions_proxy_request(
         .and_then(Value::as_bool)
         .unwrap_or(false);
 
-    let request = crate::http_client::proxied_client(&effective_user_agent(
+    let request = crate::http_client::proxied_streaming_client(&effective_user_agent(
         &relay.user_agent,
         original_user_agent,
     ))?
@@ -3216,12 +3216,13 @@ async fn upstream_request_parts(
         }
     }
 
+    // 兜底只记日志，不再 debug_assert：用户正文里本来就可能出现 data:image/ 文本（代码片段、测试夹具），
+    // Debug 构建因此崩溃会把正常请求打断。
     if guard_inline_image_data_urls(&mut body) {
         let _ = crate::diagnostic_log::append_diagnostic_log(
             "inline_image_data_url_leak",
             json!({ "model": model, "protocol": format!("{:?}", relay.protocol) }),
         );
-        debug_assert!(false, "base64 图片泄漏进文本字段，检查协议转换路径");
     }
 
     let wire_api = match relay.protocol {
@@ -3288,7 +3289,7 @@ async fn send_responses_upstream_request_with_timeout(
     header_timeout: Duration,
 ) -> anyhow::Result<reqwest::Response> {
     let mut builder = upstream_request_builder(
-        crate::http_client::proxied_client(&effective_user_agent(
+        crate::http_client::proxied_streaming_client(&effective_user_agent(
             &relay.user_agent,
             original_user_agent,
         ))?,
@@ -7211,6 +7212,9 @@ fn strip_data_url_prefix(url: &str) -> Option<String> {
     Some(payload.to_string())
 }
 
+/// 小于该长度的 data URL 视为正文里的普通文本（约 750 字节图片数据以下）。
+const MIN_INLINE_IMAGE_DATA_URL_CHARS: usize = 1024;
+
 /// 若 `text` 含 base64 图片 data URL，返回替换成占位符后的文本；否则 `None`。
 fn redact_image_data_urls(text: &str) -> Option<String> {
     if !text.contains(IMAGE_DATA_URL_PREFIX) {
@@ -7218,9 +7222,9 @@ fn redact_image_data_urls(text: &str) -> Option<String> {
     }
     let mut out = String::new();
     let mut rest = text;
+    let mut replaced = false;
     while let Some(start) = rest.find(IMAGE_DATA_URL_PREFIX) {
         out.push_str(&rest[..start]);
-        out.push_str("[image omitted]");
         let tail = &rest[start..];
         // data URL 由 base64 字母表加少量分隔符组成，遇到其它字符即结束。
         let end = tail
@@ -7229,7 +7233,18 @@ fn redact_image_data_urls(text: &str) -> Option<String> {
                     || matches!(c, '+' | '/' | '=' | ':' | ';' | ',' | '.' | '-' | '_'))
             })
             .unwrap_or(tail.len());
+        // 只替换真正携带大块 base64 载荷的 data URL；正文里提到 `data:image/png;base64,`
+        // 之类的短文本（文档、代码示例）原样保留，不能被静默篡改。
+        if end >= MIN_INLINE_IMAGE_DATA_URL_CHARS {
+            out.push_str("[image omitted]");
+            replaced = true;
+        } else {
+            out.push_str(&tail[..end]);
+        }
         rest = &tail[end..];
+    }
+    if !replaced {
+        return None;
     }
     out.push_str(rest);
     Some(out)
@@ -7875,5 +7890,22 @@ mod compaction_probe_body_limit_tests {
             .await
             .unwrap_err();
         assert!(error.to_string().contains("上游响应体超过"));
+    }
+}
+
+#[cfg(test)]
+mod inline_image_guard_tests {
+    use super::*;
+
+    #[test]
+    fn short_data_url_mentions_are_left_intact() {
+        let mut body = json!({ "input": "示例：data:image/png;base64,iVBORw0KGgo= 结束" });
+        assert!(!guard_inline_image_data_urls(&mut body));
+        assert!(body["input"].as_str().unwrap().contains("data:image/png;base64,"));
+
+        let payload = "A".repeat(4096);
+        let mut leaked = json!({ "input": format!("前缀 data:image/png;base64,{payload} 后缀") });
+        assert!(guard_inline_image_data_urls(&mut leaked));
+        assert_eq!(leaked["input"], "前缀 [image omitted] 后缀");
     }
 }

@@ -1489,8 +1489,12 @@ fn multi_worker_process_matches(pid: u32, options_path: &Path) -> bool {
     }
     #[cfg(windows)]
     {
-        let _ = options_path;
-        true
+        // 与 Unix 分支一致按命令行核验身份：manifest 里的 pid 可能已被系统回收复用，
+        // 直接返回 true 会让 taskkill /F 误杀无关进程。命令行读不到时宁可不杀。
+        swivox_core::windows_process_command_line(pid).is_some_and(|command| {
+            command.contains("--swivox-multi-worker")
+                && command.contains(&options_path.to_string_lossy().to_string())
+        })
     }
     #[cfg(not(any(unix, windows)))]
     {
@@ -1682,10 +1686,23 @@ fn multi_instance_slug(value: &str) -> String {
         slug = slug.replace("--", "-");
     }
     let slug = slug.trim_matches('-').to_string();
-    if slug.is_empty() {
+    let base = if slug.is_empty() {
         "instance".to_string()
     } else {
         slug.chars().take(64).collect()
+    };
+    // 含非 ASCII 字符（如中文名）时上面的替换会丢信息，「主号」「小号」都会变成 instance
+    // 而共用同一状态目录。追加原始值的稳定短哈希区分；纯 ASCII 名称保持旧目录不变。
+    if value.is_ascii() {
+        base
+    } else {
+        let mut hash: u64 = 0xcbf29ce484222325;
+        for byte in value.as_bytes() {
+            hash ^= u64::from(*byte);
+            hash = hash.wrapping_mul(0x100000001b3);
+        }
+        let base: String = base.chars().take(55).collect();
+        format!("{base}-{:08x}", hash as u32)
     }
 }
 
@@ -6290,6 +6307,9 @@ fn diagnostics_report() -> String {
         },
     );
     let settings = SettingsStore::default().load().unwrap_or_default();
+    // 诊断报告会被复制到剪贴板并贴进 issue：供应商密钥、OAuth 令牌必须脱敏。
+    let mut settings = serde_json::to_value(&settings).unwrap_or(Value::Null);
+    swivox_core::settings::redact_settings_secrets(&mut settings);
     let generated_at_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -8843,6 +8863,9 @@ model_reasoning_effort = "high"
             "Deep-Seek-profile"
         );
         assert_eq!(multi_instance_slug("///"), "instance");
+        assert_ne!(multi_instance_slug("主号"), multi_instance_slug("小号"));
+        assert_eq!(multi_instance_slug("主号"), multi_instance_slug("主号"));
+        assert!(multi_instance_slug(&"中".repeat(200)).len() <= 64);
         assert!(multi_instance_slug(&"x".repeat(200)).len() <= 64);
     }
 

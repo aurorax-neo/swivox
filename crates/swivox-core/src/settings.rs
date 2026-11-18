@@ -1367,6 +1367,31 @@ fn validate_settings_snapshot(bytes: &[u8]) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// 渲染层拿到的是脱敏快照；若有人把快照原样回写，占位符不能覆盖磁盘上的真实密钥。
+fn restore_redacted_profile_secrets(profiles: &mut [RelayProfile], previous: &Map<String, Value>) {
+    let existing = previous
+        .get("relayProfiles")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|value| serde_json::from_value::<RelayProfile>(value.clone()).ok())
+        .map(|profile| (profile.id.clone(), profile))
+        .collect::<HashMap<_, _>>();
+    for profile in profiles {
+        let old = existing.get(&profile.id);
+        for (current, previous) in [
+            (&mut profile.api_key, old.map(|p| p.api_key.clone())),
+            (&mut profile.vlm_api_key, old.map(|p| p.vlm_api_key.clone())),
+            (&mut profile.auth_contents, old.map(|p| p.auth_contents.clone())),
+            (&mut profile.config_contents, old.map(|p| p.config_contents.clone())),
+        ] {
+            if current.contains(REDACTED_SECRET) {
+                *current = previous.unwrap_or_default();
+            }
+        }
+    }
+}
+
 fn merge_known_setting_fields(target: &mut Map<String, Value>, source: &Map<String, Value>) {
     if let Some(patch) = source.get("dictation").and_then(Value::as_object) {
         let mut dictation = target
@@ -1624,7 +1649,11 @@ fn merge_known_setting_fields(target: &mut Map<String, Value>, source: &Map<Stri
     if let Some(value) = source.get("relayBaseUrl").and_then(Value::as_str) {
         target.insert("relayBaseUrl".to_string(), Value::String(value.to_string()));
     }
-    if let Some(value) = source.get("relayApiKey").and_then(Value::as_str) {
+    if let Some(value) = source
+        .get("relayApiKey")
+        .and_then(Value::as_str)
+        .filter(|value| !value.contains(REDACTED_SECRET))
+    {
         target.insert("relayApiKey".to_string(), Value::String(value.to_string()));
     }
     if let Some(value) = source.get("relayProfiles").and_then(Value::as_array) {
@@ -1661,6 +1690,7 @@ fn merge_known_setting_fields(target: &mut Map<String, Value>, source: &Map<Stri
                 existing_count
             );
         } else {
+            restore_redacted_profile_secrets(&mut profiles, target);
             preserve_official_mix_bearer_tokens(&mut profiles, target);
             target.insert(
                 "relayProfiles".to_string(),
@@ -1985,6 +2015,117 @@ fn resolve_symlink_target(path: &Path) -> Option<PathBuf> {
     resolved.then_some(current)
 }
 
+/// 渲染层 / 诊断报告看到的设置快照中用于替代密钥的占位值（保持非空，便于前端做「已配置」判断）。
+pub const REDACTED_SECRET: &str = "********";
+
+const SECRET_FIELD_NAMES: &[&str] = &[
+    "apikey",
+    "vlmapikey",
+    "relayapikey",
+    "codexappstepwiseapikey",
+    "authcontents",
+    "accesstoken",
+    "refreshtoken",
+    "idtoken",
+    "token",
+    "secret",
+    "clientsecret",
+    "password",
+    "bottoken",
+];
+
+/// 递归脱敏设置 JSON：密钥字段替换为占位符，TOML 文本中的令牌行打码。
+/// 只用于对外展示（CDP 桥接 `/settings/get`、诊断报告），不得回写磁盘。
+pub fn redact_settings_secrets(value: &mut Value) {
+    match value {
+        Value::Object(map) => {
+            for (key, child) in map.iter_mut() {
+                let lower = key.to_ascii_lowercase();
+                if SECRET_FIELD_NAMES.contains(&lower.as_str()) {
+                    if let Value::String(text) = child {
+                        if !text.trim().is_empty() {
+                            *text = REDACTED_SECRET.to_string();
+                        }
+                        continue;
+                    }
+                }
+                if lower.ends_with("configcontents") {
+                    if let Value::String(text) = child {
+                        *text = redact_toml_secret_lines(text);
+                        continue;
+                    }
+                }
+                if lower == "headers" || lower == "customheaders" {
+                    redact_header_values(child);
+                    continue;
+                }
+                redact_settings_secrets(child);
+            }
+        }
+        Value::Array(items) => items.iter_mut().for_each(redact_settings_secrets),
+        _ => {}
+    }
+}
+
+fn redact_header_values(value: &mut Value) {
+    match value {
+        Value::Object(map) => {
+            for (name, child) in map.iter_mut() {
+                let lower = name.to_ascii_lowercase();
+                if lower.contains("auth") || lower.contains("key") || lower.contains("token") {
+                    if let Value::String(text) = child {
+                        *text = REDACTED_SECRET.to_string();
+                    }
+                } else {
+                    redact_header_values(child);
+                }
+            }
+        }
+        Value::Array(items) => items.iter_mut().for_each(redact_header_values),
+        Value::String(text) => {
+            // 文本形式的请求头（每行 `Name: value`）
+            *text = text
+                .lines()
+                .map(|line| match line.split_once(':') {
+                    Some((name, _))
+                        if {
+                            let lower = name.to_ascii_lowercase();
+                            lower.contains("auth") || lower.contains("key") || lower.contains("token")
+                        } =>
+                    {
+                        format!("{name}: {REDACTED_SECRET}")
+                    }
+                    _ => line.to_string(),
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+        }
+        _ => {}
+    }
+}
+
+fn redact_toml_secret_lines(text: &str) -> String {
+    text.lines()
+        .map(|line| {
+            let Some((key, _)) = line.split_once('=') else {
+                return line.to_string();
+            };
+            let lower = key.trim().to_ascii_lowercase();
+            if lower.contains("token")
+                || lower.contains("api_key")
+                || lower.contains("apikey")
+                || lower.contains("secret")
+                || lower.contains("password")
+            {
+                format!("{}= \"{REDACTED_SECRET}\"", key)
+            } else {
+                line.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 pub fn atomic_write(path: &Path, bytes: &[u8]) -> anyhow::Result<()> {
     atomic_write_with(path, |file| file.write_all(bytes))
 }
@@ -2000,6 +2141,7 @@ pub fn atomic_write_with(
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .with_context(|| format!("failed to create directory {}", parent.display()))?;
+        restrict_state_dir_permissions(parent);
     }
 
     // 保留原文件权限：临时文件默认权限不一定和它一致。
@@ -2012,12 +2154,18 @@ pub fn atomic_write_with(
         }
     };
     let temp_path = temp_path_for(path);
+    let sensitive = is_sensitive_state_file(path);
     let write_result = (|| -> std::io::Result<()> {
-        let mut temp_file = File::create(&temp_path)?;
+        // 临时文件独占新建（create_new），且 Unix 上一开始就是 0600：
+        // 内容可能是令牌/API Key，不能先以 umask 默认权限落盘再 chmod。
+        let mut temp_file = create_private_temp_file(&temp_path)?;
         write_contents(&mut temp_file)?;
         temp_file.flush()?;
-        if let Some(permissions) = existing_permissions {
-            temp_file.set_permissions(permissions)?;
+        match existing_permissions {
+            // 凭据类文件即使旧文件是 0644 也收紧到 0600（迁移历史遗留权限）。
+            Some(_) if sensitive => {}
+            Some(permissions) => temp_file.set_permissions(permissions)?,
+            None => {}
         }
         // rename 前必须落盘：只 flush 时内容可能还在页缓存里，断电或崩溃后会留下全 NUL 的配置文件（#2450）。
         temp_file.sync_all()?;
@@ -2084,20 +2232,144 @@ fn replace_file(source: &Path, target: &Path) -> anyhow::Result<()> {
         .unwrap_or_else(|| anyhow::anyhow!("替换文件失败")))
 }
 
+/// 临时文件名带进程号与进程内序号：并发写同一目标时各写各的临时文件，
+/// 避免共享固定的 `<file>.tmp` 互相截断后 rename 出损坏内容。
 fn temp_path_for(path: &Path) -> PathBuf {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+    let seq = SEQ.fetch_add(1, Ordering::Relaxed);
     let mut temp_path = path.to_path_buf();
     let extension = path.extension().and_then(|value| value.to_str());
+    let suffix = format!("{}.{seq}.tmp", std::process::id());
     temp_path.set_extension(match extension {
-        Some(extension) => format!("{extension}.tmp"),
-        None => "tmp".to_string(),
+        Some(extension) => format!("{extension}.{suffix}"),
+        None => suffix,
     });
     temp_path
+}
+
+fn create_private_temp_file(path: &Path) -> std::io::Result<File> {
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    options.open(path)
+}
+
+/// 含令牌/API Key 的状态文件：写入时强制 0600。
+fn is_sensitive_state_file(path: &Path) -> bool {
+    let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
+        return false;
+    };
+    matches!(
+        name,
+        "auth.json"
+            | "settings.json"
+            | "official-accounts.json"
+            | "antigravity-accounts.json"
+            | "network-proxies.json"
+            | "oauth_creds.json"
+    ) || path.starts_with(crate::paths::default_app_state_dir())
+}
+
+/// 收紧 `~/.swivox` 目录及其中凭据文件、`~/.codex/auth.json` 的权限（仅 Unix，失败忽略）。
+pub fn tighten_state_permissions() {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let state_dir = crate::paths::default_app_state_dir();
+        restrict_state_dir_permissions(&state_dir);
+        let mut files = Vec::new();
+        if let Ok(entries) = fs::read_dir(&state_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().is_some_and(|ext| ext == "json") {
+                    files.push(path);
+                }
+            }
+        }
+        files.push(crate::codex_home::default_codex_home_dir().join("auth.json"));
+        for path in files {
+            let Ok(metadata) = fs::symlink_metadata(&path) else {
+                continue;
+            };
+            if metadata.is_file() && metadata.permissions().mode() & 0o077 != 0 {
+                let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o600));
+            }
+        }
+    }
+}
+
+/// `~/.swivox` 状态根目录收紧为 0700，其他目录保持系统默认。
+fn restrict_state_dir_permissions(dir: &Path) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let state_dir = crate::paths::default_app_state_dir();
+        if dir == state_dir {
+            if let Ok(metadata) = fs::metadata(dir) {
+                if metadata.permissions().mode() & 0o077 != 0 {
+                    let _ = fs::set_permissions(dir, fs::Permissions::from_mode(0o700));
+                }
+            }
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = dir;
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn redact_settings_secrets_masks_nested_keys_and_toml_tokens() {
+        let mut value = json!({
+            "relayApiKey": "sk-top-secret",
+            "relayProfiles": [{
+                "id": "a",
+                "apiKey": "sk-profile-secret",
+                "vlmApiKey": "",
+                "authContents": "{\"tokens\":{\"refresh_token\":\"rt-secret\"}}",
+                "configContents": "model = \"gpt\"\nexperimental_bearer_token = \"bearer-secret\"",
+                "baseUrl": "https://example.com"
+            }],
+            "dictation": { "apiKey": "asr-secret" }
+        });
+        redact_settings_secrets(&mut value);
+        let text = value.to_string();
+        for secret in ["sk-top-secret", "sk-profile-secret", "rt-secret", "bearer-secret", "asr-secret"] {
+            assert!(!text.contains(secret), "{secret} leaked: {text}");
+        }
+        assert_eq!(value["relayProfiles"][0]["apiKey"], REDACTED_SECRET);
+        assert_eq!(value["relayProfiles"][0]["vlmApiKey"], "");
+        assert_eq!(value["relayProfiles"][0]["baseUrl"], "https://example.com");
+        assert!(value["relayProfiles"][0]["configContents"]
+            .as_str()
+            .unwrap()
+            .contains("model = \"gpt\""));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn atomic_write_creates_sensitive_files_private() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = temp_dir();
+        let path = dir.join("auth.json");
+        fs::write(&path, b"{}").unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+        atomic_write(&path, b"{\"k\":1}").unwrap();
+        assert_eq!(fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
+        let fresh = dir.join("fresh.json");
+        atomic_write(&fresh, b"{}").unwrap();
+        assert_eq!(fs::metadata(&fresh).unwrap().permissions().mode() & 0o777, 0o600);
+    }
     use std::sync::atomic::{AtomicU64, Ordering};
 
     static NEXT_TEMP_ID: AtomicU64 = AtomicU64::new(0);
@@ -2121,7 +2393,12 @@ mod tests {
         atomic_write(&path, b"new").unwrap();
 
         assert_eq!(std::fs::read(&path).unwrap(), b"new");
-        assert!(!dir.join("settings.json.tmp").exists());
+        let leftovers = fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|entry| entry.file_name().to_string_lossy().ends_with(".tmp"))
+            .count();
+        assert_eq!(leftovers, 0);
         std::fs::remove_dir_all(dir).unwrap();
     }
 

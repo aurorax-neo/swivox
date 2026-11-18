@@ -54,9 +54,9 @@ install_rust() {
         echo ">>> Rust 已安装: $(cargo --version)"
         return
     fi
-    echo ">>> 安装 Rust toolchain (rustup)..."
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
-    echo ">>> Rust 安装完成: $(cargo --version)"
+    # 不再自动执行 `curl | sh`：远程脚本未经校验，且本脚本常以 sudo 运行。
+    echo "!!! 未找到 cargo。请先按 https://rustup.rs 的说明自行安装 Rust（stable），然后重新运行本脚本。" >&2
+    exit 1
 }
 
 # ── 3. 构建 GPUI 原生二进制（纯 Rust） ──────────────────────────────────────
@@ -106,7 +106,7 @@ Type=Application
 Categories=Development;Utility;
 Terminal=false
 StartupNotify=true
-MimeType=x-scheme-handler/swivox;x-scheme-handler/dreamskin;
+MimeType=x-scheme-handler/swivox;
 EOF
 
     # ── 复制文档 ──
@@ -163,7 +163,8 @@ EOF
     chmod 755 "$DEB_DIR/DEBIAN/prerm"
 
     # ── 创建 deb ──
-    dpkg-deb --build "$DEB_DIR" "$deb_path"
+    # --root-owner-group：包内文件属主统一为 root:root，避免继承构建者的 UID/GID。
+    dpkg-deb --root-owner-group --build "$DEB_DIR" "$deb_path"
     echo ">>> .deb 构建完成: $deb_path"
 }
 

@@ -2880,7 +2880,9 @@ impl AppStore {
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
                 store.set_notice(t("执行更新"), res.message, &res.status, cx);
-                if res.status == "ok" && launched && cfg!(target_os = "macos") {
+                // macOS 由更新助手替换应用；Windows 安装器会等待 swivox.exe 退出，
+                // 主程序不退出会把安装向导卡在「等待程序关闭」。
+                if res.status == "ok" && launched && (cfg!(target_os = "macos") || cfg!(windows)) {
                     swivox_backend::run_graceful_shutdown();
                     cx.quit();
                 }

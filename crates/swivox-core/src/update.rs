@@ -206,6 +206,9 @@ pub async fn perform_update(
         .asset_url
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("没有可下载的 Release asset"))?;
+    // Release 信息可能来自调用方传参：下载前锁定为官方仓库的 HTTPS 发布地址，
+    // 防止被替换成任意来源的安装包后直接执行。
+    validate_release_asset_url(url)?;
     let _ = crate::diagnostic_log::append_diagnostic_log(
         "update.perform.start",
         json!({
@@ -235,7 +238,7 @@ pub async fn perform_update(
             return Err(anyhow::anyhow!("下载安装包失败：{error}"));
         }
     };
-    let bytes = match response.bytes().await {
+    let bytes = match read_limited_body(response, MAX_UPDATE_ASSET_BYTES).await {
         Ok(bytes) => bytes,
         Err(error) => {
             let _ = crate::diagnostic_log::append_diagnostic_log(
@@ -245,6 +248,13 @@ pub async fn perform_update(
             return Err(anyhow::anyhow!("读取安装包失败：{error}"));
         }
     };
+    if let Err(error) = verify_asset_digest(release, &bytes).await {
+        let _ = crate::diagnostic_log::append_diagnostic_log(
+            "update.verify.failed",
+            json!({ "version": release.version, "assetName": release.asset_name, "error": error.to_string() }),
+        );
+        return Err(error);
+    }
     let _ = crate::diagnostic_log::append_diagnostic_log(
         "update.download.completed",
         json!({
@@ -313,6 +323,100 @@ pub async fn perform_update(
         installer_path,
         launched: true,
     })
+}
+
+/// 从对应版本的 latest.json 中取出该安装包的 SHA-256（发布流水线写入）。
+pub fn asset_sha256_from_latest_json(payload: &Value, asset_name: &str) -> Option<String> {
+    payload
+        .get("assets")?
+        .as_array()?
+        .iter()
+        .find(|asset| asset.get("name").and_then(Value::as_str) == Some(asset_name))?
+        .get("sha256")?
+        .as_str()
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| value.len() == 64 && value.bytes().all(|b| b.is_ascii_hexdigit()))
+}
+
+/// 校验下载的安装包摘要。Windows 安装包没有系统级签名校验兜底，缺少摘要即拒绝执行；
+/// macOS 另有 codesign / TeamIdentifier 校验，摘要缺失（旧版本发布）时仅记录。
+async fn verify_asset_digest(release: &Release, bytes: &[u8]) -> anyhow::Result<()> {
+    use sha2::{Digest, Sha256};
+    let name = release
+        .asset_name
+        .as_deref()
+        .ok_or_else(|| anyhow::anyhow!("没有可下载的 Release asset"))?;
+    let tag = release.version.trim();
+    anyhow::ensure!(
+        !tag.is_empty() && tag.bytes().all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b)),
+        "Release 版本号无效：{tag}"
+    );
+    let latest_url = format!(
+        "https://github.com{OFFICIAL_RELEASE_PATH_PREFIX}{tag}/latest.json"
+    );
+    let expected = match update_http_client()?
+        .get(&latest_url)
+        .header(reqwest::header::ACCEPT, "application/json")
+        .send()
+        .await
+        .and_then(reqwest::Response::error_for_status)
+    {
+        Ok(response) => response
+            .json::<Value>()
+            .await
+            .ok()
+            .and_then(|payload| asset_sha256_from_latest_json(&payload, name)),
+        Err(_) => None,
+    };
+    let actual = format!("{:x}", Sha256::digest(bytes));
+    match expected {
+        Some(expected) => {
+            anyhow::ensure!(
+                expected == actual,
+                "安装包 SHA-256 校验失败（期望 {expected}，实际 {actual}），已拒绝安装"
+            );
+            Ok(())
+        }
+        None if cfg!(target_os = "macos") => Ok(()),
+        None => anyhow::bail!("发布元数据缺少安装包 SHA-256，已拒绝执行未经校验的安装包"),
+    }
+}
+
+/// 安装包体积上限，防止异常响应无界占用内存。
+const MAX_UPDATE_ASSET_BYTES: usize = 512 * 1024 * 1024;
+
+const OFFICIAL_RELEASE_PATH_PREFIX: &str = "/aurorax-neo/swivox/releases/download/";
+
+pub fn validate_release_asset_url(raw: &str) -> anyhow::Result<()> {
+    let url = url::Url::parse(raw.trim()).map_err(|_| anyhow::anyhow!("安装包地址无效"))?;
+    let official = url.scheme() == "https"
+        && url.username().is_empty()
+        && url.password().is_none()
+        && url.host_str() == Some("github.com")
+        && url.port().is_none()
+        && url.path().starts_with(OFFICIAL_RELEASE_PATH_PREFIX);
+    anyhow::ensure!(official, "拒绝下载非官方发布地址的安装包：{raw}");
+    Ok(())
+}
+
+async fn read_limited_body(
+    mut response: reqwest::Response,
+    limit: usize,
+) -> anyhow::Result<Vec<u8>> {
+    if response
+        .content_length()
+        .is_some_and(|length| length > limit as u64)
+    {
+        anyhow::bail!("安装包超过 {} MiB 上限", limit / 1024 / 1024);
+    }
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response.chunk().await? {
+        if bytes.len() + chunk.len() > limit {
+            anyhow::bail!("安装包超过 {} MiB 上限", limit / 1024 / 1024);
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    Ok(bytes)
 }
 
 fn update_http_client() -> anyhow::Result<reqwest::Client> {

@@ -1619,6 +1619,41 @@ fn remove_legacy_dictation_helper_receipt_at(path: &Path) {
     let _ = std::fs::remove_file(path);
 }
 
+/// 本地 helper 的 Host 校验：缺失 Host（HTTP/1.0 本机工具）放行，其余必须是回环地址。
+fn helper_host_is_loopback(host: Option<&str>) -> bool {
+    let Some(host) = host.map(str::trim).filter(|value| !value.is_empty()) else {
+        return true;
+    };
+    let Ok(url) = url::Url::parse(&format!("http://{host}/")) else {
+        return false;
+    };
+    match url.host() {
+        Some(url::Host::Domain(domain)) => domain.eq_ignore_ascii_case("localhost"),
+        Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
+        Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+        None => false,
+    }
+}
+
+/// 允许的 Origin：无 Origin（本机进程）、Electron 渲染进程自定义协议、`null`、以及回环地址页面。
+fn helper_origin_is_trusted(origin: Option<&str>) -> bool {
+    let Some(origin) = origin.map(str::trim).filter(|value| !value.is_empty()) else {
+        return true;
+    };
+    if origin.eq_ignore_ascii_case("null") {
+        return true;
+    }
+    let Ok(url) = url::Url::parse(origin) else {
+        return false;
+    };
+    match url.scheme() {
+        "app" | "vscode-file" | "vscode-webview" | "file" => true,
+        // host_str 对 IPv6 会带方括号，可直接作为 Host 头解析
+        "http" | "https" => helper_host_is_loopback(url.host_str()),
+        _ => false,
+    }
+}
+
 async fn handle_helper_connection(
     mut stream: tokio::net::TcpStream,
     remote_addr: Option<SocketAddr>,
@@ -1679,6 +1714,30 @@ async fn handle_helper_connection(
             name.trim().eq_ignore_ascii_case("origin") && !value.trim().is_empty()
         })
     });
+    // 所有本地 helper 请求：Host 必须是回环地址（防 DNS Rebinding），
+    // 带 Origin 时只接受 Codex/Antigravity 渲染进程与本机页面，拒绝任意外部网页跨域写入
+    // （例如向 /diagnostics/log 灌入 32 MiB 数据冲掉真实诊断记录）。
+    let host_header = header_value_from_headers(&request_headers, "host");
+    let origin_header = header_value_from_headers(&request_headers, "origin");
+    // 用户显式用 SWIVOX_HELPER_BIND 绑定到非回环地址（如供 WSL 访问）时不做 Host 限制。
+    let host_check_applies = helper_host_is_loopback(Some(&helper_bind_host()));
+    if (host_check_applies && !helper_host_is_loopback(host_header.as_deref()))
+        || !helper_origin_is_trusted(origin_header.as_deref())
+    {
+        let body = serde_json::to_vec(&serde_json::json!({
+            "status": "forbidden",
+            "message": "本地服务只接受本机客户端的请求。"
+        }))?;
+        write_http_response(
+            &mut stream,
+            "403 Forbidden",
+            "application/json; charset=utf-8",
+            &body,
+        )
+        .await?;
+        stream.shutdown().await?;
+        return Ok(());
+    }
     if is_billable && has_origin {
         let body = serde_json::to_vec(&serde_json::json!({
             "status": "forbidden",
@@ -4495,6 +4554,23 @@ fn activate_packaged_app_blocking(app_user_model_id: &str, arguments: &str) -> a
             CoUninitialize();
         }
         result.map_err(Into::into)
+    }
+}
+
+#[cfg(test)]
+mod helper_origin_tests {
+    use super::*;
+
+    #[test]
+    fn helper_rejects_foreign_web_origins_and_rebinding_hosts() {
+        assert!(helper_origin_is_trusted(None));
+        assert!(helper_origin_is_trusted(Some("app://-")));
+        assert!(helper_origin_is_trusted(Some("vscode-file://vscode-app")));
+        assert!(helper_origin_is_trusted(Some("http://127.0.0.1:1420")));
+        assert!(!helper_origin_is_trusted(Some("https://evil.example")));
+        assert!(helper_host_is_loopback(Some("127.0.0.1:58319")));
+        assert!(helper_host_is_loopback(Some("localhost:58319")));
+        assert!(!helper_host_is_loopback(Some("rebind.evil.example:58319")));
     }
 }
 

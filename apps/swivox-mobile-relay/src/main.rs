@@ -153,7 +153,8 @@ async fn main() -> anyhow::Result<()> {
     let bind = env::var("SWIVOX_MOBILE_RELAY_BIND")
         .ok()
         .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| "0.0.0.0:57323".to_string());
+        // 默认只监听回环地址；需要局域网/公网暴露时由部署者显式设置 SWIVOX_MOBILE_RELAY_BIND。
+        .unwrap_or_else(|| "127.0.0.1:57323".to_string());
     let listener = TcpListener::bind(&bind)
         .await
         .with_context(|| format!("failed to bind mobile relay server on {bind}"))?;
@@ -522,7 +523,8 @@ async fn relay_status(state: &Arc<Mutex<RelayState>>) -> RelayStatus {
             let host_online = detail.host.is_some();
             let client_online = detail.client.is_some();
             RoomStatus {
-                room: room.clone(),
+                // 房间号即连接凭据的一部分，状态页只展示脱敏前缀，避免未鉴权枚举后劫持房间。
+                room: mask_room_id(room),
                 host_online,
                 client_online,
                 connections: u8::from(host_online) + u8::from(client_online),
@@ -548,6 +550,11 @@ async fn relay_status(state: &Arc<Mutex<RelayState>>) -> RelayStatus {
         forwarded_bytes: state.forwarded_bytes,
         room_details,
     }
+}
+
+fn mask_room_id(room: &str) -> String {
+    let prefix: String = room.chars().take(3).collect();
+    format!("{prefix}…")
 }
 
 fn relay_test_page() -> String {
@@ -795,10 +802,8 @@ async function cryptoKey() {
   return crypto.subtle.importKey("raw", digest, "AES-GCM", false, ["encrypt", "decrypt"]);
 }
 async function encrypt(payload) {
-  if (!crypto?.subtle) {
-    setStatus("当前浏览器禁用 WebCrypto，已使用兼容模式", true);
-    return { type: "plaintext", payload };
-  }
+  // 不再降级为明文：非安全上下文下直接拒绝发送，保证端到端加密不被绕过。
+  if (!crypto?.subtle) throw new Error("当前页面不是安全上下文，WebCrypto 不可用，已拒绝明文发送");
   const key = await cryptoKey();
   const nonce = crypto.getRandomValues(new Uint8Array(12));
   const plain = new TextEncoder().encode(JSON.stringify(payload));
@@ -806,7 +811,6 @@ async function encrypt(payload) {
   return { type: "encrypted", nonce: b64url(nonce), payload: b64url(encrypted) };
 }
 async function decrypt(envelope) {
-  if (envelope?.type === "plaintext") return envelope.payload;
   if (!envelope || envelope.type !== "encrypted") throw new Error("收到未加密数据包");
   const key = await cryptoKey();
   const nonce = b64urlDecode(envelope.nonce);

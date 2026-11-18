@@ -216,7 +216,14 @@ pub async fn run_weixin_connect_with_codex_path(
                 update_status(&status, |current| {
                     current.state = "running".to_string();
                     current.message =
-                        format!("已忽略来自非白名单发送方的消息：{}", message.from_user_id);
+                        if config.allow_from.trim().is_empty() {
+                            format!(
+                                "白名单为空，已忽略消息：{}（请在白名单中填写该 ID，或填 * 允许所有人）",
+                                message.from_user_id
+                            )
+                        } else {
+                            format!("已忽略来自非白名单发送方的消息：{}", message.from_user_id)
+                        };
                 });
                 continue;
             }
@@ -407,10 +414,11 @@ fn compact_work_dir(work_dir: &std::path::Path) -> String {
     path.into_owned()
 }
 
+/// 白名单默认拒绝（fail-closed）：留空不再放行所有人，需显式填写发送方 ID 或 `*`。
+/// 微信桥接以 approvalPolicy=never 驱动 app-server，空白名单放行等同于向任意发送方开放本机。
 fn is_allowed_peer(allow_from: &str, peer: &str) -> bool {
     let allow_from = allow_from.trim();
-    allow_from.is_empty()
-        || allow_from == "*"
+    allow_from == "*"
         || allow_from
             .split(',')
             .map(str::trim)
@@ -513,7 +521,8 @@ mod tests {
 
     #[test]
     fn allow_from_supports_wildcard_and_comma_separated_ids() {
-        assert!(is_allowed_peer("", "a@im.wechat"));
+        assert!(!is_allowed_peer("", "a@im.wechat"));
+        assert!(!is_allowed_peer("  ", "a@im.wechat"));
         assert!(is_allowed_peer("*", "a@im.wechat"));
         assert!(is_allowed_peer("a@im.wechat, b@im.wechat", "b@im.wechat"));
         assert!(!is_allowed_peer("a@im.wechat", "b@im.wechat"));

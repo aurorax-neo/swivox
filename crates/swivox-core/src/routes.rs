@@ -303,6 +303,23 @@ pub async fn handle_bridge_request(
                 .to_string();
             result_value(ctx.data.undo(undo_token).await)
         }
+        "/session/export" => {
+            let session_id = payload
+                .get("session_id")
+                .or_else(|| payload.get("sessionId"))
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            crate::session_share::export_rollout(
+                &crate::relay_config::default_codex_home_dir(),
+                &session_id,
+            )
+        }
+        // 仅内置会话分享使用，不加入第三方拓展路由白名单。
+        "/session/import" => crate::session_share::import_rollout(
+            &crate::relay_config::default_codex_home_dir(),
+            &payload,
+        ),
         "/export-markdown" => result_value(
             ctx.data
                 .export_markdown(session_from_payload(&payload))
@@ -736,6 +753,17 @@ fn settings_payload_value(
     let mut value = serde_json::to_value(settings)?;
     if let Some(object) = value.as_object_mut() {
         object.remove("codexAppStepwiseApiKey");
+        // dictation.apiKey 需要单独转换成 apiKeyConfigured，先取出再统一脱敏其余密钥。
+        let dictation = object.remove("dictation");
+        let mut rest = Value::Object(std::mem::take(object));
+        // 渲染层与第三方用户脚本同处主世界，供应商 API Key、官方 OAuth 令牌等一律不下发明文。
+        crate::settings::redact_settings_secrets(&mut rest);
+        if let Value::Object(rest) = rest {
+            *object = rest;
+        }
+        if let Some(dictation) = dictation {
+            object.insert("dictation".to_string(), dictation);
+        }
         if let Some(dictation) = object.get_mut("dictation").and_then(Value::as_object_mut) {
             let configured = dictation
                 .remove("apiKey")
@@ -775,6 +803,34 @@ mod dictation_privacy_tests {
             assert_eq!(result["codexAppSessionShare"], enabled);
             assert_eq!(result["enhancementsEnabled"], false);
         }
+    }
+
+    #[test]
+    fn llm_proxy_blocks_mapped_and_trailing_dot_hosts() {
+        assert!(is_blocked_llm_proxy_host("localhost."));
+        assert!(is_blocked_llm_proxy_host("[::ffff:127.0.0.1]"));
+        assert!(is_blocked_llm_proxy_host("[::ffff:169.254.169.254]"));
+        assert!(is_blocked_llm_proxy_host("metadata.google.internal"));
+        assert!(!is_blocked_llm_proxy_host("api.openai.com"));
+        assert!(is_blocked_ip("10.1.2.3".parse().unwrap()));
+        assert!(!is_blocked_ip("8.8.8.8".parse().unwrap()));
+    }
+
+    #[test]
+    fn settings_bridge_redacts_relay_profile_secrets() {
+        let mut settings = BackendSettings::default();
+        let mut profile = settings.active_relay_profile();
+        profile.api_key = "sk-fake-relay-secret".to_string();
+        profile.auth_contents = r#"{"tokens":{"refresh_token":"rt-fake-secret"}}"#.to_string();
+        settings.relay_profiles = vec![profile];
+        let result = settings_payload_value(settings, String::new()).unwrap();
+        let text = result.to_string();
+        assert!(!text.contains("sk-fake-relay-secret"));
+        assert!(!text.contains("rt-fake-secret"));
+        assert_eq!(
+            result["relayProfiles"][0]["authContents"],
+            crate::settings::REDACTED_SECRET
+        );
     }
 
     #[test]
@@ -888,11 +944,16 @@ async fn llm_proxy_value(payload: Value) -> anyhow::Result<Value> {
         anyhow::bail!("LLM Bridge 请求体过大");
     }
 
+    // 连接前解析并核验所有地址，再把连接钉死到已校验的地址上，防 DNS Rebinding。
+    let host = url.host_str().unwrap_or_default().to_string();
+    let port = url.port_or_known_default().unwrap_or(443);
+    let addrs = resolve_public_addrs(&host, port).await?;
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_millis(timeout_ms))
         .redirect(reqwest::redirect::Policy::none())
+        .resolve_to_addrs(&host, &addrs)
         .build()?;
-    let response = client
+    let mut response = client
         .post(url)
         .headers(llm_proxy_headers(&payload)?)
         .body(body)
@@ -911,9 +972,13 @@ async fn llm_proxy_value(payload: Value) -> anyhow::Result<Value> {
             anyhow::bail!("LLM Bridge 响应体过大");
         }
     }
-    let bytes = response.bytes().await?;
-    if bytes.len() > 4 * 1024 * 1024 {
-        anyhow::bail!("LLM Bridge 响应体过大");
+    // 分块累加：无 Content-Length 的 chunked 响应也不能无界读入内存。
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response.chunk().await? {
+        if bytes.len() + chunk.len() > 4 * 1024 * 1024 {
+            anyhow::bail!("LLM Bridge 响应体过大");
+        }
+        bytes.extend_from_slice(&chunk);
     }
     let body_text = String::from_utf8_lossy(&bytes).to_string();
     let body_json = if content_type
@@ -958,36 +1023,77 @@ fn is_blocked_llm_proxy_host(host: &str) -> bool {
         .trim()
         .trim_start_matches('[')
         .trim_end_matches(']')
+        .trim_end_matches('.')
         .to_lowercase();
     if host.is_empty()
         || host == "localhost"
         || host.ends_with(".localhost")
         || host.ends_with(".local")
+        || host.ends_with(".internal")
     {
         return true;
     }
     if let Ok(ip) = std::net::IpAddr::from_str(&host) {
-        return match ip {
-            std::net::IpAddr::V4(ip) => {
-                ip.is_loopback()
-                    || ip.is_private()
-                    || ip.is_link_local()
-                    || ip.is_multicast()
-                    || ip.is_broadcast()
-                    || ip.is_documentation()
-                    || ip.octets()[0] == 0
-                    || ip.octets()[0] == 100 && (64..=127).contains(&ip.octets()[1])
-            }
-            std::net::IpAddr::V6(ip) => {
-                ip.is_loopback()
-                    || ip.is_unspecified()
-                    || ip.is_multicast()
-                    || (ip.segments()[0] & 0xfe00) == 0xfc00
-                    || (ip.segments()[0] & 0xffc0) == 0xfe80
-            }
-        };
+        return is_blocked_ip(ip);
     }
     false
+}
+
+/// 回环 / 私网 / 链路本地 / CGNAT / 云元数据等非公网地址一律拒绝；
+/// IPv4-mapped / IPv4-compatible IPv6 先还原为 IPv4 再判断。
+pub(crate) fn is_blocked_ip(ip: std::net::IpAddr) -> bool {
+    match ip {
+        std::net::IpAddr::V4(ip) => {
+            ip.is_loopback()
+                || ip.is_private()
+                || ip.is_link_local()
+                || ip.is_multicast()
+                || ip.is_broadcast()
+                || ip.is_documentation()
+                || ip.is_unspecified()
+                || ip.octets()[0] == 0
+                || ip.octets()[0] == 100 && (64..=127).contains(&ip.octets()[1])
+                || ip.octets()[0] >= 240
+        }
+        std::net::IpAddr::V6(ip) => {
+            if let Some(v4) = ip.to_ipv4_mapped() {
+                return is_blocked_ip(std::net::IpAddr::V4(v4));
+            }
+            let segments = ip.segments();
+            if segments[..6].iter().all(|segment| *segment == 0) && !ip.is_loopback() {
+                // ::a.b.c.d（IPv4-compatible，已弃用但部分栈仍会路由）
+                let v4 = std::net::Ipv4Addr::new(
+                    (segments[6] >> 8) as u8,
+                    segments[6] as u8,
+                    (segments[7] >> 8) as u8,
+                    segments[7] as u8,
+                );
+                if !v4.is_unspecified() {
+                    return is_blocked_ip(std::net::IpAddr::V4(v4));
+                }
+            }
+            ip.is_loopback()
+                || ip.is_unspecified()
+                || ip.is_multicast()
+                || (segments[0] & 0xfe00) == 0xfc00
+                || (segments[0] & 0xffc0) == 0xfe80
+        }
+    }
+}
+
+async fn resolve_public_addrs(host: &str, port: u16) -> anyhow::Result<Vec<std::net::SocketAddr>> {
+    let bare = host.trim_start_matches('[').trim_end_matches(']');
+    let addrs = tokio::net::lookup_host((bare, port))
+        .await
+        .map_err(|_| anyhow::anyhow!("Base URL 主机名无法解析"))?
+        .collect::<Vec<_>>();
+    if addrs.is_empty() {
+        anyhow::bail!("Base URL 主机名无法解析");
+    }
+    if addrs.iter().any(|addr| is_blocked_ip(addr.ip())) {
+        anyhow::bail!("Base URL 不得指向本机或私有网络");
+    }
+    Ok(addrs)
 }
 
 fn llm_proxy_headers(payload: &Value) -> anyhow::Result<HeaderMap> {

@@ -822,11 +822,13 @@ fn provider_sync_reports_rollback_when_rewrite_write_fails() {
     fs::create_dir(&home).unwrap();
     write_provider_config(&home, "apigather");
     let first_rollout = home.join("sessions/rollout-a.jsonl");
-    let blocked_rollout = home.join("sessions/rollout-b.jsonl");
+    // 原子写入的临时文件名带「.<pid>.<序号>.tmp」后缀，无法再靠预先占用固定 .tmp 路径注入失败；
+    // 用 250 字符的文件名：原文件合法，但临时文件名超过 NAME_MAX(255)，写入必然失败（非权限类错误）。
+    let long_name = format!("rollout-{}.jsonl", "b".repeat(250 - "rollout-.jsonl".len()));
+    let blocked_rollout = home.join("sessions").join(long_name);
     write_rollout(&first_rollout, "openai", "thread-a", "C:/workspace");
     write_rollout(&blocked_rollout, "openai", "thread-b", "C:/workspace");
     let original_first_rollout = fs::read(&first_rollout).unwrap();
-    fs::create_dir(blocked_rollout.with_extension("jsonl.tmp")).unwrap();
     let mut progress = Vec::new();
 
     let result = run_provider_sync_with_target_and_progress(Some(&home), None, |event| {
@@ -3608,16 +3610,27 @@ fn session_index_preview_preserves_relation_only_sqlite_thread_references() {
     assert!(preview.candidates.is_empty());
 }
 
+#[cfg(unix)]
 #[test]
 fn session_index_cleanup_write_failure_reports_backup_and_preserves_original() {
+    use std::os::unix::fs::PermissionsExt;
     let tmp = tempdir().unwrap();
     let home = tmp.path().join(".codex");
     fs::create_dir(&home).unwrap();
     let stale_id = "019f4e36-490e-7ae0-8e78-a8b3ab33a428";
     let original = format!("{}\n", session_index_line(stale_id, "stale"));
-    fs::write(home.join("session_index.jsonl"), &original).unwrap();
+    // session_index.jsonl 是指向只读目录中文件的符号链接：读取与备份正常，
+    // 但原子写入会落到只读目录，临时文件无法创建，从而稳定注入写入失败。
+    let locked_dir = tmp.path().join("locked");
+    fs::create_dir(&locked_dir).unwrap();
+    fs::write(locked_dir.join("session_index.jsonl"), &original).unwrap();
+    std::os::unix::fs::symlink(
+        locked_dir.join("session_index.jsonl"),
+        home.join("session_index.jsonl"),
+    )
+    .unwrap();
     let preview = preview_session_index_cleanup(Some(&home)).unwrap();
-    fs::create_dir(home.join("session_index.jsonl.tmp")).unwrap();
+    fs::set_permissions(&locked_dir, fs::Permissions::from_mode(0o555)).unwrap();
 
     let error = apply_session_index_cleanup(
         Some(&home),
@@ -3625,6 +3638,7 @@ fn session_index_cleanup_write_failure_reports_backup_and_preserves_original() {
         &[stale_id.to_string()],
     )
     .unwrap_err();
+    fs::set_permissions(&locked_dir, fs::Permissions::from_mode(0o755)).unwrap();
 
     assert!(error.message.contains("原子写入"));
     let backup = error.backup_dir.expect("failure must expose backup");

@@ -70,21 +70,44 @@ pub async fn import_shared_session_url(home: &Path, url: &str) -> anyhow::Result
                     _ => None,
                 })
         })
-        .filter(|id| (20..=32).contains(&id.len()))
+        .filter(|id| {
+            (20..=32).contains(&id.len())
+                && id
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+        })
         .context("分享链接缺少有效的会话 ID")?;
 
     let mut endpoint = parsed.clone();
     endpoint.set_path(&format!("/api/shares/{share_id}"));
     endpoint.set_query(None);
     endpoint.set_fragment(None);
-    let record = reqwest::get(endpoint)
+    let client = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(60))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .context("创建分享会话请求失败")?;
+    let mut response = client
+        .get(endpoint)
+        .send()
         .await
         .context("读取分享会话失败")?
         .error_for_status()
-        .context("分享会话不存在、已撤销或已过期")?
-        .json::<Value>()
-        .await
-        .context("分享会话响应格式无效")?;
+        .context("分享会话不存在、已撤销或已过期")?;
+    // 加密后体积约为明文的 4/3，再留出 JSON 包装余量；流式累加，超限立即中止。
+    let limit = MAX_ROLLOUT_BYTES.saturating_mul(2);
+    if response.content_length().is_some_and(|length| length as usize > limit) {
+        bail!("分享会话超过导入大小限制");
+    }
+    let mut body = Vec::new();
+    while let Some(chunk) = response.chunk().await.context("读取分享会话失败")? {
+        if body.len() + chunk.len() > limit {
+            bail!("分享会话超过导入大小限制");
+        }
+        body.extend_from_slice(&chunk);
+    }
+    let record: Value = serde_json::from_slice(&body).context("分享会话响应格式无效")?;
     let encrypted = record
         .get("encrypted")
         .context("分享会话缺少加密内容")?;
@@ -332,8 +355,10 @@ fn register_imported_thread(
     add!("model_provider", model_provider.to_string());
     add!("cwd", cwd);
     add!("title", title.to_string());
-    add!("sandbox_policy", r#"{"type":"disabled"}"#.to_string());
-    add!("approval_mode", "never".to_string());
+    // 导入的是外部来源的会话：一律以只读沙箱 + 按需审批登记，
+    // 不能让分享包里的间接提示注入在本机免审批、无沙箱地执行命令。
+    add!("sandbox_policy", r#"{"type":"read-only"}"#.to_string());
+    add!("approval_mode", "on-request".to_string());
     add!("tokens_used", 0_i64);
     add!("has_user_event", 1_i64);
     add!("archived", 0_i64);

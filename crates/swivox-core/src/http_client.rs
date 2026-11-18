@@ -39,15 +39,36 @@ pub fn proxied_client_with_timeouts(
     connect_timeout: std::time::Duration,
     total_timeout: std::time::Duration,
 ) -> anyhow::Result<reqwest::Client> {
+    build_proxied_client(
+        user_agent,
+        reqwest::Client::builder()
+            .connect_timeout(connect_timeout)
+            .timeout(total_timeout),
+    )
+}
+
+/// 协议代理转发上游用的客户端：不设端到端总超时（长推理的 SSE 流可能持续数分钟），
+/// 改为「响应头超时由调用方 tokio::time::timeout 控制 + 读取空闲超时」，
+/// 上游卡死不吐字节时仍会被及时断开。
+pub fn proxied_streaming_client(user_agent: &str) -> anyhow::Result<reqwest::Client> {
+    build_proxied_client(
+        user_agent,
+        reqwest::Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .read_timeout(std::time::Duration::from_secs(300)),
+    )
+}
+
+fn build_proxied_client(
+    user_agent: &str,
+    builder: reqwest::ClientBuilder,
+) -> anyhow::Result<reqwest::Client> {
     let ua = if user_agent.trim().is_empty() {
         format!("Swivox/{}", env!("CARGO_PKG_VERSION"))
     } else {
         user_agent.trim().to_string()
     };
-    let mut builder = reqwest::Client::builder()
-        .user_agent(ua)
-        .connect_timeout(connect_timeout)
-        .timeout(total_timeout);
+    let mut builder = builder.user_agent(ua);
     let env_map: std::collections::HashMap<String, String> = std::env::vars().collect();
     if !crate::proxy::has_proxy_environment(&env_map) {
         let configured_proxy = crate::network_proxies::resolve_app_self_proxy_spec();

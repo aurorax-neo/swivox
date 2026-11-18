@@ -69,11 +69,15 @@ jobs:
 
       - name: Build Windows installer
         shell: pwsh
+        env:
+          # 通过环境变量传入，避免 ${{ }} 直接展开进 PowerShell 双引号字符串造成命令注入。
+          GH_REF_NAME: ${{ github.ref_name }}
+          GH_RUN_NUMBER: ${{ github.run_number }}
         run: |
-          $version = "${{ github.ref_name }}".TrimStart("v", "V")
-          $version = $version -replace '[\\/]', '-'
+          $version = $env:GH_REF_NAME.TrimStart("v", "V")
+          $version = $version -replace '[^0-9A-Za-z._+-]', '-'
           if (-not $version -or $version -eq "main") {
-            $version = "0.0.0-${{ github.run_number }}"
+            $version = "0.0.0-$env:GH_RUN_NUMBER"
           }
           # NSIS 的 64 位安装目录与 Chocolatey PATH 更新均需要兼容。
           $candidates = @(

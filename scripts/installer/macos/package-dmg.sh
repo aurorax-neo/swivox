@@ -158,7 +158,8 @@ sign_app() {
     extra=(--entitlements "$ENTITLEMENTS")
   fi
   codesign --force "${SIGN_ARGS[@]}" ${extra[@]+"${extra[@]}"} "$app_dir/Contents/MacOS/$executable"
-  codesign --force "${SIGN_ARGS[@]}" "$app_dir"
+  # bundle 二次签名会重写主程序签名，必须同样带上 entitlements，否则权限声明被抹掉。
+  codesign --force "${SIGN_ARGS[@]}" ${extra[@]+"${extra[@]}"} "$app_dir"
 }
 
 sign_dmg() {

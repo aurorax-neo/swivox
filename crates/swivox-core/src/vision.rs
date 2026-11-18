@@ -1191,29 +1191,40 @@ pub async fn strip_image_blocks(
 
     // 7. 截断注入以适配上下文窗口。
     // estimate_tokens = bytes/2，故 available × 2 = 可用字节预算。
-    let available_chars = available.saturating_mul(2) as usize;
-    let mut total_chars = 0usize;
-    let mut truncated = false;
-    for (_msg_idx, desc) in descriptions.iter_mut().rev() {
-        let desc_chars = desc.chars().count();
-        total_chars += desc_chars;
-        if total_chars > available_chars {
-            let keep = desc_chars.saturating_sub(total_chars - available_chars);
-            *desc = desc.chars().take(keep.max(1)).collect::<String>() + "\n[历史图片描述已省略]";
-            truncated = true;
-            break;
+    // 全程按 UTF-8 字节计（与 estimate_tokens 同口径），从最新消息往前保留；
+    // 截断条目要为省略提示预留空间，且截断后的条目本身必须保留，更早的全部丢弃。
+    const OMITTED_SUFFIX: &str = "\n[历史图片描述已省略]";
+    let available_bytes = available.saturating_mul(2) as usize;
+    let mut used_bytes = 0usize;
+    let mut over_budget = false;
+    let mut drop_keys = Vec::new();
+    for (msg_idx, desc) in descriptions.iter_mut().rev() {
+        if over_budget {
+            drop_keys.push(*msg_idx);
+            continue;
         }
-    }
-    if truncated {
-        let mut keys: Vec<usize> = descriptions.keys().copied().collect();
-        keys.sort();
-        let mut cum = 0usize;
-        for k in keys.iter().rev() {
-            cum += descriptions[k].chars().count();
-            if cum > available_chars {
-                descriptions.remove(k);
+        if used_bytes + desc.len() <= available_bytes {
+            used_bytes += desc.len();
+            continue;
+        }
+        over_budget = true;
+        let remaining = available_bytes.saturating_sub(used_bytes);
+        if remaining > OMITTED_SUFFIX.len() {
+            let mut cut = remaining - OMITTED_SUFFIX.len();
+            while cut > 0 && !desc.is_char_boundary(cut) {
+                cut -= 1;
+            }
+            if cut > 0 {
+                desc.truncate(cut);
+                desc.push_str(OMITTED_SUFFIX);
+                used_bytes = available_bytes;
+                continue;
             }
         }
+        drop_keys.push(*msg_idx);
+    }
+    for key in drop_keys {
+        descriptions.remove(&key);
     }
 
     // 8. 删除所有 image 块。

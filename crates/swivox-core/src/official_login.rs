@@ -492,6 +492,7 @@ async fn resolve_official_credential_with(
     let token_url = token_url_override
         .map(str::to_string)
         .unwrap_or_else(oauth_token_url);
+    let mut used_refresh_token = login.refresh_token.clone();
     let refreshed = match refresh_codex_tokens(&token_url, &login.refresh_token).await {
         Ok(tokens) => tokens,
         Err(error) => {
@@ -502,7 +503,10 @@ async fn resolve_official_credential_with(
             match live {
                 Some(live) if live.account_id == login.account_id => {
                     match refresh_codex_tokens(&token_url, &live.refresh_token).await {
-                        Ok(tokens) => tokens,
+                        Ok(tokens) => {
+                            used_refresh_token = live.refresh_token.clone();
+                            tokens
+                        }
                         Err(retry_error) => {
                             mark_refresh_failure(&account_key);
                             return Err(retry_error);
@@ -528,6 +532,15 @@ async fn resolve_official_credential_with(
         &refreshed.access_token,
         &refreshed.refresh_token,
         &account_id,
+    );
+    // 同一令牌还保存在账号库与 live auth.json 中：轮换后一并换新，避免另外两份副本失效。
+    crate::official_accounts::sync_rotated_official_tokens(
+        &used_refresh_token,
+        &crate::official_accounts::OfficialTokens {
+            id_token: String::new(),
+            access_token: refreshed.access_token.clone(),
+            refresh_token: Some(refreshed.refresh_token.clone()).filter(|v| !v.trim().is_empty()),
+        },
     );
     Ok(OfficialCredential {
         access_token: refreshed.access_token,

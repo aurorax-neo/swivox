@@ -395,6 +395,27 @@ pub struct AntigravityEnhanceStatus {
 
 static ENHANCE_SUPERVISOR_RUNNING: OnceLock<Mutex<bool>> = OnceLock::new();
 
+/// 只向 Electron 内部协议加载的应用页注入：调试端口若被其他 Chromium/浏览器占用，
+/// 其普通网页（http/https）、chrome:// 与 devtools:// 页面一律跳过。
+fn is_antigravity_renderer_url(url: &str) -> bool {
+    let lower = url.trim().to_ascii_lowercase();
+    if lower.is_empty()
+        || lower.starts_with("chrome")
+        || lower.starts_with("devtools://")
+        || lower.starts_with("about:")
+    {
+        return false;
+    }
+    if lower.starts_with("http://") || lower.starts_with("https://") {
+        // 应用自带的本地页面（回环地址）仍放行；外部网站一律不注入。
+        return url::Url::parse(&lower)
+            .ok()
+            .and_then(|parsed| parsed.host_str().map(str::to_string))
+            .is_some_and(|host| matches!(host.as_str(), "localhost" | "127.0.0.1" | "[::1]"));
+    }
+    true
+}
+
 /// 向指定本地 CDP 端口的所有 Antigravity 页面即时同步最新可逆汉化与上下文圆环脚本（开关关闭时立即无损卸载还原原文）。
 pub async fn apply_cdp_enhancements_once(
     cdp_port: u16,
@@ -435,7 +456,10 @@ pub async fn apply_cdp_enhancements_once(
 
     let mut attached_pages = 0usize;
     for target in targets {
-        if target.target_type != "page" || !is_safe_loopback_ws(&target.ws_url) {
+        if target.target_type != "page"
+            || !is_safe_loopback_ws(&target.ws_url)
+            || !is_antigravity_renderer_url(&target.url)
+        {
             continue;
         }
         let is_ide = target.url.ends_with("/workbench.html");

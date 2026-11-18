@@ -235,22 +235,21 @@ pub fn write_system_keyring_and_gemini_files(
 
     #[cfg(target_os = "macos")]
     {
+        use anyhow::Context as _;
         let encoded = format!("{GO_KEYRING_PREFIX}{}", STANDARD.encode(payload_json.as_bytes()));
         let _ = std::process::Command::new("/usr/bin/security")
             .args(["delete-generic-password", "-s", "gemini", "-a", "antigravity"])
             .output();
-        let _ = std::process::Command::new("/usr/bin/security")
-            .args([
-                "add-generic-password",
-                "-s",
-                "gemini",
-                "-a",
-                "antigravity",
-                "-w",
-                &encoded,
-                "-A",
-            ])
-            .output();
+        // 密钥经 stdin 传给 `security -i`，不再出现在进程参数里。
+        // 保留 -A：该条目由 Antigravity 进程读取，去掉会导致其每次启动弹出钥匙串授权。
+        crate::macos_keychain::add_generic_password(
+            "gemini",
+            "antigravity",
+            encoded.as_bytes(),
+            false,
+            true,
+        )
+        .context("写入 Antigravity 钥匙串凭据失败")?;
     }
 
     #[cfg(windows)]

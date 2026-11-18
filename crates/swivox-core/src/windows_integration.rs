@@ -302,8 +302,9 @@ fn read_registry_string_values(
         let mut name = vec![0u16; 256];
         let mut name_len = name.len() as u32;
         let mut value_type = 0u32;
-        let mut data = vec![0u8; 8192];
-        let mut data_len = data.len() as u32;
+        // 用 u16 缓冲区保证 2 字节对齐：从 Vec<u8> 强转 &[u16] 是未对齐 UB。
+        let mut data = vec![0u16; 16 * 1024];
+        let mut data_len = (data.len() * 2) as u32;
         let result = unsafe {
             RegEnumValueW(
                 key,
@@ -312,7 +313,7 @@ fn read_registry_string_values(
                 &mut name_len,
                 None,
                 Some(&mut value_type),
-                Some(data.as_mut_ptr()),
+                Some(data.as_mut_ptr().cast::<u8>()),
                 Some(&mut data_len),
             )
         };
@@ -323,12 +324,7 @@ fn read_registry_string_values(
             .to_string_lossy()
             .to_string();
         let value = if value_type == REG_SZ.0 || value_type == REG_EXPAND_SZ.0 {
-            let units = unsafe {
-                std::slice::from_raw_parts(
-                    data.as_ptr().cast::<u16>(),
-                    (data_len as usize).div_ceil(2),
-                )
-            };
+            let units = &data[..(data_len as usize).div_ceil(2).min(data.len())];
             let len = units.iter().position(|ch| *ch == 0).unwrap_or(units.len());
             Some(
                 OsString::from_wide(&units[..len])
@@ -513,6 +509,16 @@ struct RemoteUnicodeString {
     buffer: *const u16,
 }
 
+/// WOW64（32 位）进程里的 `UNICODE_STRING`。
+#[cfg(windows)]
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct RemoteUnicodeString32 {
+    length: u16,
+    maximum_length: u16,
+    buffer: u32,
+}
+
 // `NtQueryInformationProcess` 没有出现在 windows crate 的导出里；按本文件 IP Helper
 // 的既有做法直接声明 NT ABI，不为一项查询扩大 windows crate 的 feature 面。
 #[cfg(windows)]
@@ -590,8 +596,18 @@ fn read_command_line_at(
     if parameters == 0 {
         return None;
     }
-    let command_line: RemoteUnicodeString =
-        read_process_memory(handle, parameters.checked_add(command_line_offset)?)?;
+    // WOW64 进程的 UNICODE_STRING 是 32 位布局（u16, u16, u32 指针），不能按 64 位结构读。
+    let command_line_address = parameters.checked_add(command_line_offset)?;
+    let command_line = if pointer_is_32_bit {
+        let raw: RemoteUnicodeString32 = read_process_memory(handle, command_line_address)?;
+        RemoteUnicodeString {
+            length: raw.length,
+            maximum_length: raw.maximum_length,
+            buffer: raw.buffer as usize as *const u16,
+        }
+    } else {
+        read_process_memory::<RemoteUnicodeString>(handle, command_line_address)?
+    };
     let length = command_line.length as usize;
     // 尺寸自检：长度是字节数、必须为偶数，且不超过其容量与 Windows 命令行上限。
     // 32 位布局误读到 64 位进程时，这里通常就能拦住。

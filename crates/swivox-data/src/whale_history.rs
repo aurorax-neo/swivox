@@ -410,7 +410,10 @@ impl HistoryIndex {
             discovery: Vec::new(),
             discovering: false,
             roots: Vec::new(),
-            last_scan: Instant::now() - Duration::from_secs(60),
+            // 开机 60 秒内 Instant 减法会下溢 panic 并毒化全局缓存锁，改用 checked_sub。
+            last_scan: Instant::now()
+                .checked_sub(Duration::from_secs(60))
+                .unwrap_or_else(Instant::now),
             next_file: 0,
             touched: Instant::now(),
             truncated: false,

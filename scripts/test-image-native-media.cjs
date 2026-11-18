@@ -210,7 +210,7 @@ async function main() {
     }, { width: 700, height: 600 }, { deviceScaleFactor: 2 });
   }
   check("ordinary-image-controls-retain-patterned-wallpaper-fits", async page => {
-    const pattern = `[image omitted]${(await sharp(Buffer.from(
+    const pattern = `data:image/png;base64,${(await sharp(Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60"><rect width="120" height="60" fill="#2850c8"/><path d="M0 0H60V60H0Z" fill="#c85a28"/></svg>'
     )).png().toBuffer()).toString("base64")}`;
     await page.setContent(`<style>body{margin:0;background:#181818}

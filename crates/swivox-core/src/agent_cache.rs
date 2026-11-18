@@ -564,13 +564,13 @@ fn apps_from_process_names(names: &str) -> BTreeSet<String> {
             .next()
             .unwrap_or("")
             .trim_end_matches(".exe");
-        // 管理工具自身需要保持运行；Swivox 客户端与 Codex 共用缓存。
-        if executable.contains("manager") || executable == "ps" {
+        // 管理工具自身（统一二进制 `swivox` / Swivox.app）需要保持运行，不能把自己当成阻塞项；
+        // 真正共用缓存的是 Codex 及其 Helper，以及代为拉起 Codex 的 launcher。
+        if executable.contains("manager") || executable == "ps" || executable == "swivox" {
             continue;
         }
         if name.contains("codex.app/")
-            || name.contains("swivox.app/")
-            || ["codex", "swivox", "swivox-launcher", "swivox"].contains(&executable)
+            || ["codex", "swivox-launcher"].contains(&executable)
             || executable.starts_with("codex helper")
         {
             running.insert("Codex".into());

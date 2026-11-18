@@ -133,28 +133,34 @@ pub fn settings_with_payload(mut settings: BackendSettings, payload: &Value) -> 
     {
         settings.codex_app_stepwise_direct_send = value;
     }
+    let saved_base_url = settings
+        .codex_app_stepwise_base_url
+        .trim()
+        .trim_end_matches('/')
+        .to_string();
+    let mut base_url_changed = false;
     if let Some(value) = raw_settings
         .get("codexAppStepwiseBaseUrl")
         .and_then(Value::as_str)
     {
-        settings.codex_app_stepwise_base_url = value.trim().trim_end_matches('/').to_string();
+        let next = value.trim().trim_end_matches('/').to_string();
+        base_url_changed = next != saved_base_url;
+        settings.codex_app_stepwise_base_url = next;
     }
-    if let Some(value) = raw_settings
+    let payload_api_key = raw_settings
         .get("codexAppStepwiseApiKey")
         .and_then(Value::as_str)
-    {
-        settings.codex_app_stepwise_api_key = value.trim().to_string();
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && !value.contains(crate::settings::REDACTED_SECRET));
+    if let Some(value) = payload_api_key {
+        settings.codex_app_stepwise_api_key = value.to_string();
+    } else if base_url_changed {
+        // 调用方把请求指向新的地址却没有同时提供密钥时，绝不把已保存的密钥
+        // （或环境变量里的密钥）发往该地址，防止渲染层脚本借此外带凭据。
+        settings.codex_app_stepwise_api_key.clear();
+        settings.codex_app_stepwise_api_key_env.clear();
     }
-    if let Some(value) = raw_settings
-        .get("codexAppStepwiseApiKeyEnv")
-        .and_then(Value::as_str)
-    {
-        settings.codex_app_stepwise_api_key_env = if value.trim().is_empty() {
-            crate::settings::default_stepwise_api_key_env()
-        } else {
-            value.trim().to_string()
-        };
-    }
+    // codexAppStepwiseApiKeyEnv 不接受桥接请求覆盖：否则可读取任意进程环境变量并外发。
     if let Some(value) = raw_settings
         .get("codexAppStepwiseProtocol")
         .and_then(Value::as_str)
@@ -692,7 +698,11 @@ fn stepwise_api_key(settings: &BackendSettings) -> String {
     if !direct.is_empty() {
         return direct.to_string();
     }
-    std::env::var(settings.codex_app_stepwise_api_key_env.trim())
+    let env_name = settings.codex_app_stepwise_api_key_env.trim();
+    if env_name.is_empty() {
+        return String::new();
+    }
+    std::env::var(env_name)
         .unwrap_or_default()
         .trim()
         .to_string()
@@ -904,6 +914,30 @@ mod tests {
         );
         assert_eq!(user_payload["lastAssistantMessage"], "已完成实现。");
         assert!(user_payload.get("languageInput").is_none());
+    }
+
+    #[test]
+    fn settings_with_payload_never_sends_saved_key_to_new_url_or_custom_env() {
+        let mut saved = BackendSettings::default();
+        saved.codex_app_stepwise_base_url = "https://saved.example.test/v1".to_string();
+        saved.codex_app_stepwise_api_key = "sk-saved".to_string();
+        let redirected = settings_with_payload(
+            saved.clone(),
+            &json!({ "settings": {
+                "codexAppStepwiseBaseUrl": "https://attacker.example.test",
+                "codexAppStepwiseApiKeyEnv": "HOME"
+            }}),
+        );
+        assert!(stepwise_api_key(&redirected).is_empty());
+        let same_url = settings_with_payload(
+            saved,
+            &json!({ "settings": { "codexAppStepwiseApiKeyEnv": "HOME" }}),
+        );
+        assert_eq!(stepwise_api_key(&same_url), "sk-saved");
+        assert_eq!(
+            same_url.codex_app_stepwise_api_key_env,
+            crate::settings::default_stepwise_api_key_env()
+        );
     }
 
     #[test]

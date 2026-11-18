@@ -2,6 +2,11 @@ name: Issue triage
 
 on:
   workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "要清理自动标签的 issue 编号"
+        required: true
+        type: number
 
 permissions:
   issues: write
@@ -16,7 +21,13 @@ jobs:
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const issue = context.payload.issue;
+            // workflow_dispatch 没有 context.payload.issue，需按输入的编号读取。
+            const issueNumber = Number(context.payload.inputs?.issue_number || context.payload.issue?.number);
+            if (!Number.isInteger(issueNumber) || issueNumber <= 0) {
+              core.setFailed("缺少有效的 issue_number 输入");
+              return;
+            }
+            const { data: issue } = await github.rest.issues.get({ owner, repo, issue_number: issueNumber });
             const automaticLabels = new Set([
               "needs triage",
               "type: bug",

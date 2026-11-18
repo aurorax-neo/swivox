@@ -415,18 +415,19 @@ fn sync_codex_keychain_if_present(codex_home: &Path, auth_json: &str) {
         .ok()
         .and_then(|v| serde_json::to_string(&v).ok())
         .unwrap_or_else(|| auth_json.trim().to_string());
-    let _ = std::process::Command::new("security")
-        .args([
-            "add-generic-password",
-            "-U",
-            "-s",
-            CODEX_KEYCHAIN_SERVICE,
-            "-a",
-            &account,
-            "-w",
-            &compact,
-        ])
-        .output();
+    // 密钥经 stdin 传给 `security -i`，不出现在进程参数里。
+    if let Err(error) = crate::macos_keychain::add_generic_password(
+        CODEX_KEYCHAIN_SERVICE,
+        &account,
+        compact.as_bytes(),
+        true,
+        false,
+    ) {
+        let _ = crate::diagnostic_log::append_diagnostic_log(
+            "official_accounts.keychain_sync_failed",
+            serde_json::json!({ "error": error.to_string() }),
+        );
+    }
 }
 
 #[cfg(all(target_os = "macos", not(test)))]
@@ -2322,11 +2323,107 @@ fn extract_window_metrics(window: Option<&Value>) -> (i32, Option<i64>, Option<i
 }
 
 fn persist_account_tokens(account_id: &str, tokens: &OfficialTokens) {
-    let _guard = state_lock().lock().unwrap_or_else(|e| e.into_inner());
-    let mut state = load_state_unlocked();
-    if let Some(acct) = state.accounts.iter_mut().find(|a| a.id == account_id) {
-        acct.tokens = tokens.clone();
+    let previous = {
+        let _guard = state_lock().lock().unwrap_or_else(|e| e.into_inner());
+        let mut state = load_state_unlocked();
+        let Some(acct) = state.accounts.iter_mut().find(|a| a.id == account_id) else {
+            return;
+        };
+        let previous = std::mem::replace(&mut acct.tokens, tokens.clone());
         let _ = save_state_unlocked(&state);
+        previous
+    };
+    // refresh_token 是单次轮换的：账号库刷新后，仍持有旧令牌的 live auth.json（及钥匙串）
+    // 与供应商快照 authContents 必须同步换新，否则正在运行的 Codex 下次刷新会被判 reused 而掉线。
+    if let Some(old_refresh) = previous
+        .refresh_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        propagate_rotated_tokens(old_refresh, tokens);
+    }
+}
+
+/// 供应商代理侧（official_login）刷新令牌后调用：把账号库中持有旧 refresh_token 的账号、
+/// live auth.json 与其他供应商快照一并换新。
+pub fn sync_rotated_official_tokens(old_refresh: &str, tokens: &OfficialTokens) {
+    let old_refresh = old_refresh.trim();
+    if old_refresh.is_empty() {
+        return;
+    }
+    {
+        let _guard = state_lock().lock().unwrap_or_else(|e| e.into_inner());
+        let mut state = load_state_unlocked();
+        let mut changed = false;
+        for acct in state.accounts.iter_mut() {
+            if acct.tokens.refresh_token.as_deref().map(str::trim) == Some(old_refresh) {
+                if !tokens.access_token.trim().is_empty() {
+                    acct.tokens.access_token = tokens.access_token.clone();
+                }
+                if !tokens.id_token.trim().is_empty() {
+                    acct.tokens.id_token = tokens.id_token.clone();
+                }
+                if tokens.refresh_token.is_some() {
+                    acct.tokens.refresh_token = tokens.refresh_token.clone();
+                }
+                changed = true;
+            }
+        }
+        if changed {
+            let _ = save_state_unlocked(&state);
+        }
+    }
+    propagate_rotated_tokens(old_refresh, tokens);
+}
+
+/// 把 auth.json 文本中与旧 refresh_token 同源的令牌替换为新令牌；不同源或无法解析时返回 None。
+fn auth_json_with_rotated_tokens(
+    contents: &str,
+    old_refresh: &str,
+    tokens: &OfficialTokens,
+) -> Option<String> {
+    let mut value: Value = serde_json::from_str(contents).ok()?;
+    let token_obj = value.get_mut("tokens")?.as_object_mut()?;
+    if token_obj.get("refresh_token").and_then(Value::as_str) != Some(old_refresh) {
+        return None;
+    }
+    if !tokens.access_token.trim().is_empty() {
+        token_obj.insert("access_token".into(), Value::String(tokens.access_token.clone()));
+    }
+    if !tokens.id_token.trim().is_empty() {
+        token_obj.insert("id_token".into(), Value::String(tokens.id_token.clone()));
+    }
+    if let Some(refresh) = tokens.refresh_token.as_deref().filter(|v| !v.trim().is_empty()) {
+        token_obj.insert("refresh_token".into(), Value::String(refresh.to_string()));
+    }
+    serde_json::to_string_pretty(&value).ok()
+}
+
+fn propagate_rotated_tokens(old_refresh: &str, tokens: &OfficialTokens) {
+    let codex_home = crate::codex_home::default_codex_home_dir();
+    let auth_path = codex_home.join("auth.json");
+    if let Ok(contents) = std::fs::read_to_string(&auth_path)
+        && let Some(updated) = auth_json_with_rotated_tokens(&contents, old_refresh, tokens)
+        && crate::settings::atomic_write(&auth_path, updated.as_bytes()).is_ok()
+    {
+        sync_codex_keychain_if_present(&codex_home, &updated);
+    }
+
+    let store = crate::settings::SettingsStore::default();
+    if let Ok(mut settings) = store.load() {
+        let mut changed = false;
+        for profile in settings.relay_profiles.iter_mut() {
+            if let Some(updated) =
+                auth_json_with_rotated_tokens(&profile.auth_contents, old_refresh, tokens)
+            {
+                profile.auth_contents = updated;
+                changed = true;
+            }
+        }
+        if changed {
+            let _ = store.save(&settings);
+        }
     }
 }
 
@@ -2553,6 +2650,23 @@ pub async fn test_proxy_connectivity(proxy_url: &str) -> anyhow::Result<ProxyCon
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rotated_tokens_only_replace_same_lineage_auth_json() {
+        let tokens = OfficialTokens {
+            id_token: "id-new".into(),
+            access_token: "at-new".into(),
+            refresh_token: Some("rt-new".into()),
+        };
+        let live = r#"{"OPENAI_API_KEY":null,"tokens":{"access_token":"at-old","refresh_token":"rt-old","id_token":"id-old","account_id":"acc"}}"#;
+        let updated = auth_json_with_rotated_tokens(live, "rt-old", &tokens).unwrap();
+        let value: Value = serde_json::from_str(&updated).unwrap();
+        assert_eq!(value["tokens"]["refresh_token"], "rt-new");
+        assert_eq!(value["tokens"]["access_token"], "at-new");
+        assert_eq!(value["tokens"]["account_id"], "acc");
+        assert!(auth_json_with_rotated_tokens(live, "rt-other", &tokens).is_none());
+        assert!(auth_json_with_rotated_tokens("not json", "rt-old", &tokens).is_none());
+    }
 
     fn make_fake_jwt(payload: Value) -> String {
         let header = URL_SAFE_NO_PAD.encode(br#"{"alg":"none","typ":"JWT"}"#);

@@ -65,7 +65,29 @@ pub fn sync_mcp_server(handle: &tokio::runtime::Handle, enabled: bool, listen_ad
     *guard = Some((want_sig, stop_tx));
 
     handle.spawn(async move {
-        let Ok(listener) = TcpListener::bind(&addr).await else {
+        // 只允许回环地址：该服务以 Bearer 密钥保护，但不应被暴露到局域网。
+        if !listen_addr_is_loopback(&addr) {
+            let _ = crate::diagnostic_log::append_diagnostic_log(
+                "lamplighter.mcp.non_loopback_rejected",
+                json!({ "listen": addr }),
+            );
+            return;
+        }
+        // 热更新时旧监听可能尚未释放端口，短暂重试，避免一次 AddrInUse 就永久假死。
+        let mut listener = None;
+        for _ in 0..30 {
+            match TcpListener::bind(&addr).await {
+                Ok(bound) => {
+                    listener = Some(bound);
+                    break;
+                }
+                Err(_) if !*stop_rx.borrow() => {
+                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                }
+                Err(_) => return,
+            }
+        }
+        let Some(listener) = listener else {
             let _ = crate::diagnostic_log::append_diagnostic_log(
                 "lamplighter.mcp.bind_failed",
                 json!({ "listen": addr }),
@@ -84,13 +106,10 @@ pub fn sync_mcp_server(handle: &tokio::runtime::Handle, enabled: bool, listen_ad
                     let Ok((mut stream, _)) = accepted else { continue };
                     let expected_key = key.clone();
                     tokio::spawn(async move {
-                        let mut buf = vec![0u8; 65_536];
-                        let n = stream.read(&mut buf).await.unwrap_or(0);
-                        if n == 0 {
+                        let Some((head, body)) = read_http_request(&mut stream).await else {
                             return;
-                        }
-                        let raw = String::from_utf8_lossy(&buf[..n]);
-                        let mut lines = raw.lines();
+                        };
+                        let mut lines = head.lines();
                         let req_line = lines.next().unwrap_or("");
                         let mut parts = req_line.split_whitespace();
                         let method = parts.next().unwrap_or("");
@@ -98,6 +117,7 @@ pub fn sync_mcp_server(handle: &tokio::runtime::Handle, enabled: bool, listen_ad
 
                         let mut auth_header = None;
                         let mut origin_header = None;
+                        let mut host_header = None;
                         for line in lines {
                             if line.is_empty() {
                                 break;
@@ -107,6 +127,8 @@ pub fn sync_mcp_server(handle: &tokio::runtime::Handle, enabled: bool, listen_ad
                                     auth_header = Some(v.trim().to_string());
                                 } else if k.eq_ignore_ascii_case("origin") {
                                     origin_header = Some(v.trim().to_string());
+                                } else if k.eq_ignore_ascii_case("host") {
+                                    host_header = Some(v.trim().to_string());
                                 }
                             }
                         }
@@ -119,6 +141,11 @@ pub fn sync_mcp_server(handle: &tokio::runtime::Handle, enabled: bool, listen_ad
                             let _ = write_http_json(&mut stream, 405, "Method Not Allowed", &json!({"error": "POST required"})).await;
                             return;
                         }
+                        // Host 必须是回环地址，防 DNS Rebinding 把浏览器请求打进本地服务。
+                        if !host_is_loopback(host_header.as_deref()) {
+                            let _ = write_http_json(&mut stream, 403, "Forbidden", &json!({"error": "forbidden host"})).await;
+                            return;
+                        }
                         if !origin_is_safe_loopback(origin_header.as_deref()) {
                             let _ = write_http_json(&mut stream, 403, "Forbidden", &json!({"error": "forbidden origin"})).await;
                             return;
@@ -129,7 +156,8 @@ pub fn sync_mcp_server(handle: &tokio::runtime::Handle, enabled: bool, listen_ad
                             return;
                         }
 
-                        let body_slice = raw.split("\r\n\r\n").nth(1).unwrap_or("{}");
+                        let body_text = String::from_utf8_lossy(&body);
+                        let body_slice = if body_text.trim().is_empty() { "{}" } else { body_text.as_ref() };
                         let reply = handle_mcp_jsonrpc(body_slice).await;
                         let _ = write_http_json(&mut stream, 200, "OK", &reply).await;
                     });
@@ -137,6 +165,95 @@ pub fn sync_mcp_server(handle: &tokio::runtime::Handle, enabled: bool, listen_ad
             }
         }
     });
+}
+
+const MAX_MCP_REQUEST_BYTES: usize = 1024 * 1024;
+
+fn listen_addr_is_loopback(addr: &str) -> bool {
+    use std::net::ToSocketAddrs;
+    addr.to_socket_addrs()
+        .map(|mut addrs| {
+            let all: Vec<_> = addrs.by_ref().collect();
+            !all.is_empty() && all.iter().all(|a| a.ip().is_loopback())
+        })
+        .unwrap_or(false)
+}
+
+fn host_is_loopback(host: Option<&str>) -> bool {
+    let Some(host) = host.map(str::trim).filter(|value| !value.is_empty()) else {
+        return false;
+    };
+    let Ok(url) = url::Url::parse(&format!("http://{host}/")) else {
+        return false;
+    };
+    match url.host() {
+        Some(url::Host::Domain(domain)) => domain.eq_ignore_ascii_case("localhost"),
+        Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
+        Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+        None => false,
+    }
+}
+
+/// 读完整个 HTTP 请求：请求头与正文可能分多次 TCP 写入到达，必须按 Content-Length 读满。
+async fn read_http_request(stream: &mut tokio::net::TcpStream) -> Option<(String, Vec<u8>)> {
+    let read_all = async {
+        let mut buf = Vec::new();
+        let mut chunk = [0u8; 8192];
+        let header_end = loop {
+            if let Some(pos) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                break pos;
+            }
+            if buf.len() > MAX_MCP_REQUEST_BYTES {
+                return None;
+            }
+            let n = stream.read(&mut chunk).await.ok()?;
+            if n == 0 {
+                return None;
+            }
+            buf.extend_from_slice(&chunk[..n]);
+        };
+        let head = String::from_utf8_lossy(&buf[..header_end]).to_string();
+        let content_length = head
+            .lines()
+            .filter_map(|line| line.split_once(':'))
+            .find(|(k, _)| k.trim().eq_ignore_ascii_case("content-length"))
+            .and_then(|(_, v)| v.trim().parse::<usize>().ok())
+            .unwrap_or(0);
+        if content_length > MAX_MCP_REQUEST_BYTES {
+            return None;
+        }
+        let mut body = buf[header_end + 4..].to_vec();
+        while body.len() < content_length {
+            let n = stream.read(&mut chunk).await.ok()?;
+            if n == 0 {
+                break;
+            }
+            body.extend_from_slice(&chunk[..n]);
+        }
+        body.truncate(content_length);
+        Some((head, body))
+    };
+    tokio::time::timeout(std::time::Duration::from_secs(10), read_all)
+        .await
+        .ok()
+        .flatten()
+}
+
+/// `refresh_quotas` 的限频：60 秒内只执行一次全量刷新。
+fn try_acquire_refresh_slot() -> bool {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static LAST_REFRESH_MS: AtomicU64 = AtomicU64::new(0);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    let last = LAST_REFRESH_MS.load(Ordering::Relaxed);
+    if last != 0 && now.saturating_sub(last) < 60_000 {
+        return false;
+    }
+    LAST_REFRESH_MS
+        .compare_exchange(last, now, Ordering::AcqRel, Ordering::Relaxed)
+        .is_ok()
 }
 
 async fn write_http_json(
@@ -232,8 +349,12 @@ async fn handle_mcp_jsonrpc(raw_body: &str) -> Value {
                     json!({ "events": snap.events })
                 }
                 "refresh_quotas" => {
-                    let res = super::refresh_all_now().await;
-                    json!({ "ok": res.is_ok() })
+                    if try_acquire_refresh_slot() {
+                        let res = super::refresh_all_now().await;
+                        json!({ "ok": res.is_ok() })
+                    } else {
+                        json!({ "ok": false, "error": "rate limited: 60 秒内只能刷新一次" })
+                    }
                 }
                 _ => json!({ "error": "unknown tool" }),
             };
@@ -253,5 +374,44 @@ async fn handle_mcp_jsonrpc(raw_body: &str) -> Value {
             "id": id,
             "error": { "code": -32601, "message": "Method not found" }
         }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_loopback_hosts_and_binds_are_accepted() {
+        assert!(host_is_loopback(Some("127.0.0.1:58318")));
+        assert!(host_is_loopback(Some("localhost:58318")));
+        assert!(host_is_loopback(Some("[::1]:58318")));
+        assert!(!host_is_loopback(Some("evil.example:58318")));
+        assert!(!host_is_loopback(None));
+        assert!(listen_addr_is_loopback("127.0.0.1:58318"));
+        assert!(!listen_addr_is_loopback("0.0.0.0:58318"));
+    }
+
+    #[tokio::test]
+    async fn reads_body_sent_in_separate_tcp_writes() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let client = tokio::spawn(async move {
+            let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+            let body = br#"{"jsonrpc":"2.0","id":1,"method":"initialize"}"#;
+            let head = format!(
+                "POST /mcp HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: {}\r\n\r\n",
+                body.len()
+            );
+            stream.write_all(head.as_bytes()).await.unwrap();
+            stream.flush().await.unwrap();
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            stream.write_all(body).await.unwrap();
+        });
+        let (mut server, _) = listener.accept().await.unwrap();
+        let (head, body) = read_http_request(&mut server).await.unwrap();
+        client.await.unwrap();
+        assert!(head.starts_with("POST /mcp"));
+        assert_eq!(body, br#"{"jsonrpc":"2.0","id":1,"method":"initialize"}"#);
     }
 }

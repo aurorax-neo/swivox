@@ -677,11 +677,27 @@ fn normalize_desktop_path(value: &str) -> Option<String> {
     if trimmed.is_empty() {
         return None;
     }
-    let mut path = trimmed.replace('/', r"\");
-    while path.len() > 3 && path.ends_with('\\') {
-        path.pop();
+    // 只有 Windows 形态的路径（盘符 / UNC / 含反斜杠）才统一成反斜杠；
+    // macOS/Linux 的 POSIX 路径必须保持 `/`，否则切换供应商后工作区全部失效。
+    if looks_like_windows_path(trimmed) {
+        let mut path = trimmed.replace('/', r"\");
+        while path.len() > 3 && path.ends_with('\\') {
+            path.pop();
+        }
+        Some(path)
+    } else {
+        let mut path = trimmed.to_string();
+        while path.len() > 1 && path.ends_with('/') {
+            path.pop();
+        }
+        Some(path)
     }
-    Some(path)
+}
+
+fn looks_like_windows_path(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    let drive = bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':';
+    drive || value.starts_with("\\\\") || value.contains('\\')
 }
 
 fn create_backup(home: &Path, original: &Value) -> anyhow::Result<PathBuf> {
@@ -715,4 +731,22 @@ fn now_ms() -> u128 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis()
+}
+
+#[cfg(test)]
+mod path_shape_tests {
+    use super::*;
+
+    #[test]
+    fn posix_workspace_paths_keep_forward_slashes() {
+        assert_eq!(
+            normalize_desktop_path("/Users/me/work/app/").as_deref(),
+            Some("/Users/me/work/app")
+        );
+        assert_eq!(normalize_desktop_path("/").as_deref(), Some("/"));
+        assert_eq!(
+            normalize_desktop_path("C:/work/app/").as_deref(),
+            Some(r"C:\work\app")
+        );
+    }
 }

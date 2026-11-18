@@ -339,6 +339,11 @@ fn request_macos_exit(app_dir: &Path, _instance: &InstanceKey, _graceful: bool) 
         .file_stem()
         .and_then(|value| value.to_str())
         .unwrap_or("ChatGPT")
+        // AppleScript 字符串字面量：先转义反斜杠再转义引号，并去掉控制字符，防止逃逸注入。
+        .chars()
+        .filter(|ch| !ch.is_control())
+        .collect::<String>()
+        .replace('\\', "\\\\")
         .replace('"', "\\\"");
     let script = format!(r#"tell application "{app_name}" to quit"#);
     match std::process::Command::new("osascript")

@@ -29,6 +29,10 @@ const SKILL_MANIFEST_FILE: &str = "SKILL.md";
 const BUNDLED_SKILLS_DIR: &str = ".system";
 /// 单个仓库 zip 的下载上限。skill 仓库都是纯文本，64 MiB 足够宽松了。
 const REPO_ZIP_DOWNLOAD_LIMIT_BYTES: usize = 64 * 1024 * 1024;
+/// 解压后的单个 skill 体积/文件数上限，防 Zip Bomb 撑爆内存与磁盘。
+const SKILL_EXTRACT_TOTAL_LIMIT_BYTES: u64 = 256 * 1024 * 1024;
+const SKILL_EXTRACT_FILE_LIMIT_BYTES: u64 = 64 * 1024 * 1024;
+const SKILL_EXTRACT_MAX_FILES: usize = 20_000;
 
 /// 一个 skill 仓库源。`subdir` 为空表示 skill 目录直接放在仓库根下。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -850,6 +854,8 @@ pub fn extract_skill_subtree(
     let mut archive =
         zip::ZipArchive::new(Cursor::new(zip_bytes)).context("skill 仓库压缩包无法解析")?;
     let mut wrote_manifest = false;
+    let mut extracted_bytes: u64 = 0;
+    let mut extracted_files: usize = 0;
 
     for index in 0..archive.len() {
         let mut file = archive
@@ -885,9 +891,23 @@ pub fn extract_skill_subtree(
             std::fs::create_dir_all(parent)
                 .with_context(|| format!("创建目录失败：{}", parent.display()))?;
         }
+        extracted_files += 1;
+        if extracted_files > SKILL_EXTRACT_MAX_FILES {
+            anyhow::bail!("skill 文件数量超过 {SKILL_EXTRACT_MAX_FILES} 个上限");
+        }
+        // 不信任条目头里声明的大小：按实际解压字节计数，超限立即中止。
         let mut contents = Vec::new();
-        file.read_to_end(&mut contents)
+        (&mut file)
+            .take(SKILL_EXTRACT_FILE_LIMIT_BYTES + 1)
+            .read_to_end(&mut contents)
             .with_context(|| format!("读取压缩包条目 {} 失败", file.name()))?;
+        if contents.len() as u64 > SKILL_EXTRACT_FILE_LIMIT_BYTES {
+            anyhow::bail!("skill 中的文件 {} 解压后超过 64 MiB 上限", file.name());
+        }
+        extracted_bytes += contents.len() as u64;
+        if extracted_bytes > SKILL_EXTRACT_TOTAL_LIMIT_BYTES {
+            anyhow::bail!("skill 解压后总体积超过 256 MiB 上限");
+        }
         std::fs::write(&output_path, contents)
             .with_context(|| format!("写入 {} 失败", output_path.display()))?;
         if inner == SKILL_MANIFEST_FILE {
@@ -1048,11 +1068,22 @@ pub async fn download_repo_zip(repo: &SkillRepo) -> anyhow::Result<Vec<u8>> {
             github_status_hint(status.as_u16())
         );
     }
-    let bytes = response.bytes().await.context("读取仓库压缩包内容失败")?;
-    if bytes.len() > REPO_ZIP_DOWNLOAD_LIMIT_BYTES {
-        anyhow::bail!("仓库压缩包太大：{} 字节", bytes.len());
+    if response
+        .content_length()
+        .is_some_and(|length| length > REPO_ZIP_DOWNLOAD_LIMIT_BYTES as u64)
+    {
+        anyhow::bail!("仓库压缩包超过 64 MiB 上限");
     }
-    Ok(bytes.to_vec())
+    // 流式累加，chunked 响应没有 Content-Length 也不能无界读入内存。
+    let mut response = response;
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response.chunk().await.context("读取仓库压缩包内容失败")? {
+        if bytes.len() + chunk.len() > REPO_ZIP_DOWNLOAD_LIMIT_BYTES {
+            anyhow::bail!("仓库压缩包超过 64 MiB 上限");
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    Ok(bytes)
 }
 
 /// 软链优先，失败回退复制。Windows 上建目录软链要开发者模式或管理员权限，

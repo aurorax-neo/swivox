@@ -347,8 +347,19 @@
    * 加载失败时若不兜底就会留一块空白。失败替换交给委托监听（见 handleExtensionIconError），
    * 不用内联 onerror，避免在字符串拼 HTML 时引入另一处转义面。
    */
+  function swivoxSafeHttpUrl(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    try {
+      const parsed = new URL(raw);
+      return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.href : "";
+    } catch {
+      return "";
+    }
+  }
+
   function extensionIconMarkup(icon) {
-    const url = String(icon || "").trim();
+    const url = swivoxSafeHttpUrl(icon);
     if (!url) return extensionIconSvg();
     return `<img class="swivox-extensions-icon-img" src="${escapeHtml(url)}" alt="" loading="lazy" />`;
   }
@@ -405,7 +416,8 @@
     const tags = marketItem?.tags || [];
     const requirements = marketItem?.requirements || [];
     const limitations = marketItem?.limitations || [];
-    const homepage = marketItem?.homepage || local?.homepage || "";
+    // 只接受 http(s) 链接：javascript:/data: 等协议经 escapeHtml 后仍能在点击时执行。
+    const homepage = swivoxSafeHttpUrl(marketItem?.homepage || local?.homepage || "");
     const isInstalled = sel.kind === "installed";
     const updateAvailable = isInstalled && marketItem && version && local?.version && local.version !== version;
 

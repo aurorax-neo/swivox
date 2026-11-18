@@ -201,11 +201,17 @@ impl Render for AntigravityEnhanceView {
             .unwrap_or_else(|| px_snap.effective_antigravity_ide.clone());
         let dev_profile = snap.as_ref().and_then(|s| s.current_device_profile.clone());
         let has_baseline = snap.as_ref().is_some_and(|s| s.has_device_baseline);
+        let live_cdp_port = snap.as_ref().and_then(|s| {
+            s.desktop_install
+                .active_cdp_port
+                .or(s.ide_install.active_cdp_port)
+        });
         let nodes = px_snap.config.nodes.clone();
 
         let st_regen = self.store.clone();
         let st_restore = self.store.clone();
         let st_goto_settings = self.store.clone();
+        let st_sync_cdp = self.store.clone();
 
         let build_slot_btns = |slot: &'static str, cur_sel: &str| -> Vec<AnyElement> {
             let mut opts = vec![
@@ -364,19 +370,54 @@ impl Render for AntigravityEnhanceView {
                     .gap_3p5()
                     .child(
                         div()
-                            .v_flex()
-                            .gap_1()
+                            .h_flex()
+                            .flex_wrap()
+                            .w_full()
+                            .items_center()
+                            .justify_between()
+                            .gap_3()
                             .child(
                                 div()
-                                    .text_base()
-                                    .font_semibold()
-                                    .child(t("CDP 动态增强（可逆汉化与上下文圆环）")),
+                                    .v_flex()
+                                    .flex_1()
+                                    .min_w(px(220.))
+                                    .gap_1()
+                                    .child(
+                                        div()
+                                            .text_base()
+                                            .font_semibold()
+                                            .child(t("CDP 动态增强（可逆汉化与上下文圆环）")),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_xs()
+                                            .text_color(cx.theme().muted_foreground)
+                                            .child(t("完全通过本地回环 CDP 实时挂载，不触碰 .app 安装包内任何文件，不破坏 macOS 代码签名")),
+                                    ),
                             )
                             .child(
                                 div()
-                                    .text_xs()
-                                    .text_color(cx.theme().muted_foreground)
-                                    .child(t("完全通过本地回环 CDP 实时挂载，不触碰 .app 安装包内任何文件，不破坏 macOS 代码签名")),
+                                    .h_flex()
+                                    .flex_wrap()
+                                    .items_center()
+                                    .gap_2()
+                                    .child(if let Some(port) = live_cdp_port {
+                                        AppBadge::good(format!("CDP 127.0.0.1:{port}"))
+                                    } else {
+                                        AppBadge::warn(t("CDP 待连接"))
+                                    })
+                                    .child(
+                                        AppButton::new("ag-sync-cdp-now")
+                                            .outline()
+                                            .small()
+                                            .icon(IconName::RefreshCw)
+                                            .label(t("立即同步"))
+                                            .on_click(move |_, _, cx| {
+                                                st_sync_cdp.update(cx, |s, cx| {
+                                                    s.sync_antigravity_enhance_now(cx);
+                                                });
+                                            }),
+                                    ),
                             ),
                     )
                     .child(
@@ -495,6 +536,7 @@ impl Render for AntigravityEnhanceView {
                                     let b = if active { b.selected(true) } else { b.outline() };
                                     b.on_click(cx.listener(move |v, _, _, cx| {
                                         v.target_mode = m.to_string();
+                                        v.persist_now(cx);
                                         cx.notify();
                                     }))
                                 }),

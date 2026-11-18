@@ -26,6 +26,10 @@ pub struct AntigravityInstallation {
     pub version: Option<String>,
     pub running: bool,
     pub managed_cdp_ready: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_cdp_port: Option<u16>,
+    #[serde(default)]
+    pub proxy_injected: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -232,11 +236,30 @@ pub fn discover_installation(
         .filter(|p| p.is_ide == is_ide && !p.is_helper && !p.is_language_server)
         .collect();
     let running = !main_running.is_empty();
-    let managed_cdp_ready = running
-        && (main_running
-            .iter()
-            .any(|p| p.command_line.contains("--remote-debugging-port="))
-            || cdp_port_responding(cdp_port));
+    let proxy_injected = running
+        && main_running.iter().any(|p| {
+            p.command_line.contains("--proxy-server=")
+                || p.command_line.contains("--no-proxy-server")
+                || p.command_line.contains("--remote-debugging-address=")
+        });
+    let user_data_dir = if is_ide {
+        super::db::ide_user_data_dir()
+    } else {
+        super::db::desktop_user_data_dir()
+    };
+    let active_cdp_port = if running {
+        read_devtools_active_port(&user_data_dir)
+            .or_else(|| {
+                main_running
+                    .iter()
+                    .find_map(|p| extract_nonzero_cdp_port(&p.command_line))
+                    .filter(|port| cdp_port_responding(*port))
+            })
+            .or_else(|| cdp_port_responding(cdp_port).then_some(cdp_port))
+    } else {
+        None
+    };
+    let managed_cdp_ready = active_cdp_port.is_some();
 
     AntigravityInstallation {
         kind: target.as_str().to_string(),
@@ -246,7 +269,72 @@ pub fn discover_installation(
         version,
         running,
         managed_cdp_ready,
+        active_cdp_port,
+        proxy_injected,
     }
+}
+
+/// 读取 Chromium/Electron 自动写入 `<UserDataDir>/DevToolsActivePort` 的随机回环调试端口。
+/// Antigravity 2.x 默认以 `--remote-debugging-port=0` 启动并将真实端口写入该文件首行。
+pub fn read_devtools_active_port(user_data_dir: &Path) -> Option<u16> {
+    let raw = std::fs::read_to_string(user_data_dir.join("DevToolsActivePort")).ok()?;
+    let port = raw.lines().next()?.trim().parse::<u16>().ok()?;
+    if port == 0 || !cdp_port_responding(port) {
+        return None;
+    }
+    Some(port)
+}
+
+fn extract_nonzero_cdp_port(cmdline: &str) -> Option<u16> {
+    let marker = "--remote-debugging-port=";
+    let idx = cmdline.find(marker)?;
+    let digits: String = cmdline[idx + marker.len()..]
+        .chars()
+        .take_while(|c| c.is_ascii_digit())
+        .collect();
+    let port = digits.parse::<u16>().ok()?;
+    (port > 0).then_some(port)
+}
+
+/// 汇总当前运行中的 Antigravity（桌面版与 IDE）所有可达的本地回环 CDP 端口。
+pub fn discover_active_cdp_ports(configured_port: u16) -> Vec<u16> {
+    let procs = enumerate_antigravity_processes();
+    let desktop_running = procs
+        .iter()
+        .any(|p| !p.is_ide && !p.is_helper && !p.is_language_server);
+    let ide_running = procs
+        .iter()
+        .any(|p| p.is_ide && !p.is_helper && !p.is_language_server);
+
+    let mut ports = Vec::new();
+    let mut push_unique = |p: u16| {
+        if p > 0 && !ports.contains(&p) {
+            ports.push(p);
+        }
+    };
+
+    if desktop_running
+        && let Some(p) = read_devtools_active_port(&super::db::desktop_user_data_dir())
+    {
+        push_unique(p);
+    }
+    if ide_running
+        && let Some(p) = read_devtools_active_port(&super::db::ide_user_data_dir())
+    {
+        push_unique(p);
+    }
+    for proc in procs.iter().filter(|p| !p.is_helper && !p.is_language_server) {
+        if let Some(p) = extract_nonzero_cdp_port(&proc.command_line)
+            && cdp_port_responding(p)
+        {
+            push_unique(p);
+        }
+    }
+    if configured_port > 0 && (desktop_running || ide_running) && cdp_port_responding(configured_port)
+    {
+        push_unique(configured_port);
+    }
+    ports
 }
 
 pub fn cdp_port_responding(port: u16) -> bool {
@@ -604,34 +692,24 @@ pub fn launch_antigravity_instance(
         bail!("未检测到 Antigravity 安装位置，请在「Antigravity 增强」中指定应用路径。");
     };
 
-    if install.running && !install.managed_cdp_ready {
-        if !force_clean_conflict {
+    let effective_proxy = resolve_launch_proxy_for_target(target, proxy_mode, custom_proxy_url);
+
+    if install.running && !force_clean_conflict {
+        let needs_proxy_restart = effective_proxy.is_some() && !install.proxy_injected;
+        if needs_proxy_restart || !install.managed_cdp_ready {
             return Ok(AntigravityLaunchOutcome {
                 launched: false,
                 conflict: true,
                 target_kind: target.as_str().to_string(),
-                cdp_port,
-                effective_proxy: None,
-                message: "检测到已有未挂载免 TUN 代理/CDP 的 Antigravity 进程在运行，请点击「清理并重启」以生效。".to_string(),
+                cdp_port: install.active_cdp_port.unwrap_or(cdp_port),
+                effective_proxy,
+                message: if needs_proxy_restart {
+                    "检测到运行中的 Antigravity 尚未注入免 TUN 代理参数，请点击「重启桌面版」或「清理冲突」使代理生效。".to_string()
+                } else {
+                    "检测到已有未挂载免 TUN 代理/CDP 的 Antigravity 进程在运行，请点击「清理冲突」以生效。".to_string()
+                },
             });
         }
-        let _ = stop_antigravity_target(is_ide);
-    } else if install.running && force_clean_conflict {
-        let _ = stop_antigravity_target(is_ide);
-    }
-
-    let selected_port = if install.running && install.managed_cdp_ready {
-        cdp_port
-    } else if crate::ports::can_bind_loopback_port(cdp_port) || cdp_port_responding(cdp_port) {
-        cdp_port
-    } else {
-        crate::ports::find_available_loopback_port()
-    };
-
-    let effective_proxy = resolve_launch_proxy_for_target(target, proxy_mode, custom_proxy_url);
-
-    // 若已在受管运行且非强制重开，在 macOS 上直接前置激活应用窗口
-    if install.running && install.managed_cdp_ready && !force_clean_conflict {
         #[cfg(target_os = "macos")]
         if let Some(ref bundle) = install.app_or_exe_path {
             let _ = Command::new("/usr/bin/open").arg(bundle).status();
@@ -640,11 +718,21 @@ pub fn launch_antigravity_instance(
             launched: true,
             conflict: false,
             target_kind: target.as_str().to_string(),
-            cdp_port: selected_port,
+            cdp_port: install.active_cdp_port.unwrap_or(cdp_port),
             effective_proxy,
             message: "已聚焦运行中的受管 Antigravity 实例。".to_string(),
         });
     }
+
+    if install.running && force_clean_conflict {
+        let _ = stop_antigravity_target(is_ide);
+    }
+
+    let selected_port = if crate::ports::can_bind_loopback_port(cdp_port) || cdp_port_responding(cdp_port) {
+        cdp_port
+    } else {
+        crate::ports::find_available_loopback_port()
+    };
 
     let mut args = vec![
         format!("--remote-debugging-port={selected_port}"),

@@ -2934,8 +2934,14 @@ impl AppStore {
         match slot {
             "app_self" => app_self = selection,
             "codex" => clients.codex = selection,
-            "antigravity_desktop" => clients.antigravity_desktop = selection,
-            "antigravity_ide" => clients.antigravity_ide = selection,
+            "antigravity_desktop" => {
+                clients.antigravity_desktop = selection;
+                swivox_core::antigravity::clear_legacy_launch_proxy_override();
+            }
+            "antigravity_ide" => {
+                clients.antigravity_ide = selection;
+                swivox_core::antigravity::clear_legacy_launch_proxy_override();
+            }
             _ => {}
         }
         let res = commands::save_network_proxy_assignments(app_self, clients);
@@ -3291,6 +3297,18 @@ impl AppStore {
                 )
                 .await
             },
+            |store, res, cx| {
+                store.ag_snapshot = Some(res.payload.snapshot);
+                store.tool_entries = commands::list_tools().payload.tools;
+                store.set_notice(t("Antigravity 增强"), res.message, &res.status, cx);
+            },
+        );
+    }
+
+    pub fn sync_antigravity_enhance_now(&mut self, cx: &mut Context<Self>) {
+        self.spawn_tokio(
+            cx,
+            async move { antigravity_commands::sync_antigravity_enhance_now().await },
             |store, res, cx| {
                 store.ag_snapshot = Some(res.payload.snapshot);
                 store.tool_entries = commands::list_tools().payload.tools;

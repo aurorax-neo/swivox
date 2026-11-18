@@ -190,6 +190,11 @@ fn build_antigravity_health_items(snap: Option<&AntigravitySnapshot>) -> Vec<Hea
     let enhance_card = match snap {
         Some(s) => {
             let cdp_ready = s.desktop_install.managed_cdp_ready || s.ide_install.managed_cdp_ready;
+            let display_port = s
+                .desktop_install
+                .active_cdp_port
+                .or(s.ide_install.active_cdp_port)
+                .unwrap_or(s.cdp_port);
             let i18n_lbl = if s.enable_ui_localization {
                 t("可逆汉化已开")
             } else {
@@ -208,7 +213,7 @@ fn build_antigravity_health_items(snap: Option<&AntigravitySnapshot>) -> Vec<Hea
                     "ready".to_string()
                 },
                 ok: cdp_ready || s.enable_context_ring || s.enable_ui_localization,
-                detail: format!("127.0.0.1:{} · {i18n_lbl} · {ring_lbl}", s.cdp_port),
+                detail: format!("127.0.0.1:{display_port} · {i18n_lbl} · {ring_lbl}"),
             }
         }
         None => HealthCardData {

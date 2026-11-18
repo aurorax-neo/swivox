@@ -980,70 +980,82 @@ pub fn update_account_metadata(
     proxy_mode: Option<String>,
     egress_proxy_url: Option<String>,
 ) -> anyhow::Result<()> {
-    let mut state = load_antigravity_state();
-    let acc = state
-        .accounts
-        .iter_mut()
-        .find(|a| a.id == account_id)
-        .context("未找到指定的 Antigravity 账号")?;
-    if let Some(l) = label {
-        let trimmed = l.trim();
-        acc.label = (!trimmed.is_empty()).then(|| trimmed.to_string());
-    }
-    if let Some(mode) = proxy_mode {
-        let m = mode.trim();
-        acc.proxy_mode = if m.starts_with("node:") && m.len() > 5 {
-            m.to_string()
-        } else {
-            match m {
-                "direct" => "direct".to_string(),
-                "custom" => "custom".to_string(),
-                _ => "inherit".to_string(),
-            }
-        };
-    }
-    if let Some(url) = egress_proxy_url {
-        let trimmed = url.trim();
-        acc.egress_proxy_url = (!trimmed.is_empty()).then(|| trimmed.to_string());
-    }
-    save_antigravity_state(&state)
+    update_antigravity_state(|state| {
+        let acc = state
+            .accounts
+            .iter_mut()
+            .find(|a| a.id == account_id)
+            .context("未找到指定的 Antigravity 账号")?;
+        if let Some(l) = label {
+            let trimmed = l.trim();
+            acc.label = (!trimmed.is_empty()).then(|| trimmed.to_string());
+        }
+        if let Some(mode) = proxy_mode {
+            let m = mode.trim();
+            acc.proxy_mode = if m.starts_with("node:") && m.len() > 5 {
+                m.to_string()
+            } else {
+                match m {
+                    "direct" => "direct".to_string(),
+                    "custom" => "custom".to_string(),
+                    _ => "inherit".to_string(),
+                }
+            };
+        }
+        if let Some(url) = egress_proxy_url {
+            let trimmed = url.trim();
+            acc.egress_proxy_url = (!trimmed.is_empty()).then(|| trimmed.to_string());
+        }
+        Ok::<(), anyhow::Error>(())
+    })?
 }
 
 pub fn delete_account(account_id: &str) -> anyhow::Result<()> {
-    let mut state = load_antigravity_state();
-    let before = state.accounts.len();
-    state.accounts.retain(|a| a.id != account_id);
-    if state.accounts.len() == before {
-        bail!("未找到要删除的 Antigravity 账号。");
-    }
-    if state.active_account_id.as_deref() == Some(account_id) {
-        state.active_account_id = state.accounts.first().map(|a| a.id.clone());
-    }
-    save_antigravity_state(&state)
+    update_antigravity_state(|state| {
+        let before = state.accounts.len();
+        state.accounts.retain(|a| a.id != account_id);
+        if state.accounts.len() == before {
+            bail!("未找到要删除的 Antigravity 账号。");
+        }
+        if state.active_account_id.as_deref() == Some(account_id) {
+            state.active_account_id = state.accounts.first().map(|a| a.id.clone());
+        }
+        Ok::<(), anyhow::Error>(())
+    })?
+}
+
+/// 当用户在「免 TUN 隔离代理」卡片切换桌面版/IDE 专属代理时，清理旧版统一 `launch_proxy_mode` 残留覆盖。
+pub fn clear_legacy_launch_proxy_override() {
+    let _ = update_antigravity_state(|state| {
+        if state.launch_proxy_mode != "inherit" || !state.launch_proxy_url.is_empty() {
+            state.launch_proxy_mode = "inherit".to_string();
+            state.launch_proxy_url.clear();
+        }
+    });
 }
 
 /// 重新生成一套全新的随机设备指纹并应用到目标 `storage.json` 与 `state.vscdb`。
 pub fn regenerate_and_apply_device_profile(account_id: Option<&str>) -> anyhow::Result<AntigravityDeviceProfile> {
-    let mut state = load_antigravity_state();
     let profile = generate_device_profile();
     let now = Utc::now().timestamp();
+    let preferred_target = update_antigravity_state(|state| {
+        let target_id = account_id
+            .map(ToString::to_string)
+            .or_else(|| state.active_account_id.clone());
+        if let Some(id) = target_id
+            && let Some(acc) = state.accounts.iter_mut().find(|a| a.id == id)
+        {
+            acc.device_profile = Some(profile.clone());
+            acc.device_history.push(AntigravityDeviceHistoryEntry {
+                label: "手动重置指纹".to_string(),
+                created_at: now,
+                profile: profile.clone(),
+            });
+        }
+        state.preferred_target
+    })?;
 
-    let target_id = account_id
-        .map(ToString::to_string)
-        .or_else(|| state.active_account_id.clone());
-    if let Some(id) = target_id
-        && let Some(acc) = state.accounts.iter_mut().find(|a| a.id == id)
-    {
-        acc.device_profile = Some(profile.clone());
-        acc.device_history.push(AntigravityDeviceHistoryEntry {
-            label: "手动重置指纹".to_string(),
-            created_at: now,
-            profile: profile.clone(),
-        });
-        save_antigravity_state(&state)?;
-    }
-
-    let data_dir = user_data_dir_for(state.preferred_target);
+    let data_dir = user_data_dir_for(preferred_target);
     write_device_profile_to_storage_json(&storage_json_path(&data_dir), &profile)?;
     let _ = db::sync_device_profile_to_state_vscdb(&state_vscdb_path(&data_dir), &profile);
     Ok(profile)

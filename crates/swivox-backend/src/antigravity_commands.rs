@@ -346,26 +346,28 @@ pub async fn save_antigravity_enhance_settings(
     enable_context_ring: bool,
     cdp_port: u16,
 ) -> CommandResult<AntigravityEnhanceSyncPayload> {
-    let mut state = antigravity::load_antigravity_state();
-    state.preferred_target = AntigravityClientKind::parse(&preferred_target);
-    state.custom_desktop_path = custom_desktop_path.trim().to_string();
-    state.custom_ide_path = custom_ide_path.trim().to_string();
-    state.launch_proxy_mode = match launch_proxy_mode.trim() {
-        "direct" => "direct".to_string(),
-        "custom" => "custom".to_string(),
-        m if m.starts_with("node:") => m.to_string(),
-        _ => "inherit".to_string(),
-    };
-    state.launch_proxy_url = launch_proxy_url.trim().to_string();
-    state.enable_ui_localization = enable_ui_localization;
-    state.enable_context_ring = enable_context_ring;
-    state.cdp_port = if cdp_port == 0 {
+    let effective_port = if cdp_port == 0 {
         DEFAULT_ANTIGRAVITY_CDP_PORT
     } else {
         cdp_port
     };
+    let save_res = antigravity::update_antigravity_state(|state| {
+        state.preferred_target = AntigravityClientKind::parse(&preferred_target);
+        state.custom_desktop_path = custom_desktop_path.trim().to_string();
+        state.custom_ide_path = custom_ide_path.trim().to_string();
+        state.launch_proxy_mode = match launch_proxy_mode.trim() {
+            "direct" => "direct".to_string(),
+            "custom" => "custom".to_string(),
+            m if m.starts_with("node:") => m.to_string(),
+            _ => "inherit".to_string(),
+        };
+        state.launch_proxy_url = launch_proxy_url.trim().to_string();
+        state.enable_ui_localization = enable_ui_localization;
+        state.enable_context_ring = enable_context_ring;
+        state.cdp_port = effective_port;
+    });
 
-    if let Err(err) = antigravity::save_antigravity_state(&state) {
+    if let Err(err) = save_res {
         return failed(
             err.to_string(),
             AntigravityEnhanceSyncPayload {
@@ -375,21 +377,60 @@ pub async fn save_antigravity_enhance_settings(
         );
     }
 
-    // 立即向运行中页面热同步（关闭汉化开关时瞬间还原英文原文，零重启！）
+    // 立即向运行中页面热同步（含自动发现的 DevToolsActivePort，关闭汉化开关时瞬间还原英文原文，零重启！）
     let enhance = antigravity::apply_cdp_enhancements_once(
-        state.cdp_port,
-        state.enable_ui_localization,
-        state.enable_context_ring,
+        effective_port,
+        enable_ui_localization,
+        enable_context_ring,
     )
     .await;
 
+    let msg = if enhance.connected {
+        format!(
+            "已保存设置并实时同步至运行中的 Antigravity（127.0.0.1:{}，{} 个页面）。",
+            enhance.cdp_port, enhance.attached_pages
+        )
+    } else {
+        "已保存 Antigravity 增强与免 TUN 代理设置。".to_string()
+    };
+
     ok(
-        "已保存 Antigravity 增强与免 TUN 代理设置。",
+        msg,
         AntigravityEnhanceSyncPayload {
             enhance,
             snapshot: antigravity::build_antigravity_snapshot(),
         },
     )
+}
+
+pub async fn sync_antigravity_enhance_now() -> CommandResult<AntigravityEnhanceSyncPayload> {
+    let state = antigravity::load_antigravity_state();
+    let port = if state.cdp_port == 0 {
+        DEFAULT_ANTIGRAVITY_CDP_PORT
+    } else {
+        state.cdp_port
+    };
+    let enhance = antigravity::apply_cdp_enhancements_once(
+        port,
+        state.enable_ui_localization,
+        state.enable_context_ring,
+    )
+    .await;
+    let snapshot = antigravity::build_antigravity_snapshot();
+    if enhance.connected {
+        ok(
+            format!(
+                "已同步 CDP 动态增强至运行中的 Antigravity（127.0.0.1:{}，{} 个页面）。",
+                enhance.cdp_port, enhance.attached_pages
+            ),
+            AntigravityEnhanceSyncPayload { enhance, snapshot },
+        )
+    } else {
+        failed(
+            "未检测到可达的 Antigravity CDP 页面，请确认 Antigravity 已启动并打开会话窗口。",
+            AntigravityEnhanceSyncPayload { enhance, snapshot },
+        )
+    }
 }
 
 pub async fn launch_antigravity(

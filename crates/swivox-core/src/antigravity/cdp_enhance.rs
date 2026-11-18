@@ -25,16 +25,28 @@ const AG_RENDERER_TEMPLATE: &str = r#"(() => {
   window.__easyagMountGeneration = generation;
 
   function installI18n(win, doc, dictionary, enabled) {
+    if (!enabled) {
+      win.__easyagI18n?.dispose();
+      return;
+    }
+    if (win.__easyagI18n?.active === true) {
+      win.__easyagI18n.scan?.(doc.body || doc.documentElement);
+      return;
+    }
     win.__easyagI18n?.dispose();
     const texts = new Map();
     const attributes = new Map();
-    const ignored = 'script,style,pre,code,textarea,[contenteditable="true"],[data-testid*="message-content"]';
+    const ignored = 'script,style,pre,code,textarea,[contenteditable="true"],[data-testid*="message-content"],[data-testid="planner-response-text"],[data-testid="breadcrumb-segment"],[data-testid="project-header"],#swivox-ag-context-monitor';
     const ignoredElement = el => el?.closest?.(ignored);
     function lookup(key) {
       if (typeof dictionary[key] === 'string') return dictionary[key];
       const count = key.match(/^(\d+) active conversations$/);
       if (count && dictionary['{count} active conversations']) {
         return dictionary['{count} active conversations'].replace('{count}', count[1]);
+      }
+      const filesChanged = key.match(/^(\d+) files? changed$/i);
+      if (filesChanged) {
+        return `${filesChanged[1]} 个文件已更改`;
       }
       const quota = key.match(/^(You have used some of your (?:weekly|5-hour) limit, it will fully refresh in )(.+)\.$/);
       if (!quota) return null;
@@ -90,7 +102,12 @@ const AG_RENDERER_TEMPLATE: &str = r#"(() => {
       for (const el of attributes.keys()) if (!el.isConnected) attributes.delete(el);
     });
     const runtime = {
+      active: true,
+      scan(root) {
+        translate(root);
+      },
       dispose() {
+        runtime.active = false;
         observer.disconnect();
         for (const [node, rec] of texts) {
           if (node.nodeValue === rec.translated) node.nodeValue = rec.original;
@@ -106,16 +123,14 @@ const AG_RENDERER_TEMPLATE: &str = r#"(() => {
       }
     };
     win.__easyagI18n = runtime;
-    if (enabled) {
-      translate(doc.body || doc.documentElement);
-      observer.observe(doc.documentElement, {
-        subtree: true,
-        childList: true,
-        characterData: true,
-        attributes: true,
-        attributeFilter: ['placeholder', 'title', 'aria-label']
-      });
-    }
+    translate(doc.body || doc.documentElement);
+    observer.observe(doc.documentElement, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ['placeholder', 'title', 'aria-label']
+    });
   }
 
   function currentConversationId(win, doc, target) {
@@ -154,8 +169,17 @@ const AG_RENDERER_TEMPLATE: &str = r#"(() => {
   }
 
   function installContextWidget(win, doc, enabled, report) {
+    if (!enabled) {
+      win.__easyagContext?.dispose();
+      return;
+    }
+    if (win.__easyagContext?.active === true) {
+      win.__easyagContext.updateReporter?.(report);
+      win.__easyagContext.syncNow?.();
+      return;
+    }
     win.__easyagContext?.dispose();
-    if (!enabled) return;
+    let currentReport = report;
     let node, shadow, button, card, composer, data, route = '', pending, lastFetch = 0, sequence = 0, disposed = false;
     let observer, resizeObserver, frame;
     const visible = el => el?.isConnected && !el.closest('[hidden],[inert]') && el.getClientRects().length && win.getComputedStyle(el).visibility !== 'hidden';
@@ -282,28 +306,40 @@ const AG_RENDERER_TEMPLATE: &str = r#"(() => {
       if (!node) createNode();
       if (!node.isConnected || changed) { hideCard(); found.row.insertBefore(node, found.branch.nextSibling); }
     }
-    function refresh() {
-      if (!enabled || disposed || doc.hidden || !route || !node?.isConnected) return;
+    function refresh(force = false) {
+      if (!enabled || disposed || (!force && doc.hidden) || !route || !node?.isConnected) return;
+      if (force) pending = null;
       if (pending && Date.now() - pending.at < 20000) return;
-      if (Date.now() - lastFetch < 3000) return;
+      if (!force && Date.now() - lastFetch < 3000) return;
       const requestId = String(++sequence);
       pending = { requestId, conversationId: route, at: Date.now() };
       lastFetch = Date.now();
-      try { report({ type: 'context-metrics', requestId, conversationId: route }); } catch { pending = null; }
+      try { currentReport({ type: 'context-metrics', requestId, conversationId: route }); } catch { pending = null; }
     }
     function receive(requestId, result) {
       if (disposed || !pending || pending.requestId !== requestId || result?.conversationId !== pending.conversationId) return;
       pending = null; data = result; render();
     }
-    const timer = win.setInterval(() => { mount(); refresh(); }, 1200);
+    const timer = win.setInterval(() => { mount(); refresh(false); }, 1200);
     win.__easyagContext = {
+      active: true,
+      hasRoute() {
+        return Boolean(route && node?.isConnected);
+      },
+      updateReporter(fn) {
+        if (typeof fn === 'function') currentReport = fn;
+      },
+      syncNow() {
+        mount();
+        refresh(true);
+      },
       receive,
       dispose() {
         disposed = true; hideCard(); node?.remove(); win.clearInterval(timer);
         delete win.__easyagContext;
       }
     };
-    mount(); refresh();
+    mount(); refresh(true);
   }
 
   function boot() {
@@ -317,8 +353,12 @@ const AG_RENDERER_TEMPLATE: &str = r#"(() => {
       if (typeof window[BINDING] === 'function') window[BINDING](JSON.stringify(ev));
     });
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
-  else boot();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot, { once: true });
+    return { hasRoute: false };
+  }
+  boot();
+  return { hasRoute: Boolean(window.__easyagContext?.hasRoute?.()) };
 })();"#;
 
 fn merged_dictionary_json() -> &'static String {
@@ -395,19 +435,31 @@ pub struct AntigravityEnhanceStatus {
 
 static ENHANCE_SUPERVISOR_RUNNING: OnceLock<Mutex<bool>> = OnceLock::new();
 
-/// 只向 Electron 内部协议加载的应用页注入：调试端口若被其他 Chromium/浏览器占用，
-/// 其普通网页（http/https）、chrome:// 与 devtools:// 页面一律跳过。
+#[derive(Debug, Clone)]
+struct LanguageServerEndpoint {
+    pid: u32,
+    base_url: String,
+    is_https: bool,
+    csrf: String,
+}
+
+static CACHED_LS_ENDPOINT: OnceLock<Mutex<Option<LanguageServerEndpoint>>> = OnceLock::new();
+
+/// 只向 Electron 内部协议或本地回环加载的应用页注入：调试端口若被其他浏览器占用，
+/// 外部网页（http/https）、data/blob 闪屏页、chrome:// 与 devtools:// 页面一律跳过。
 fn is_antigravity_renderer_url(url: &str) -> bool {
     let lower = url.trim().to_ascii_lowercase();
     if lower.is_empty()
         || lower.starts_with("chrome")
         || lower.starts_with("devtools://")
         || lower.starts_with("about:")
+        || lower.starts_with("data:")
+        || lower.starts_with("blob:")
     {
         return false;
     }
     if lower.starts_with("http://") || lower.starts_with("https://") {
-        // 应用自带的本地页面（回环地址）仍放行；外部网站一律不注入。
+        // 应用自带的本地页面（回环地址）放行；外部网站一律不注入。
         return url::Url::parse(&lower)
             .ok()
             .and_then(|parsed| parsed.host_str().map(str::to_string))
@@ -416,13 +468,29 @@ fn is_antigravity_renderer_url(url: &str) -> bool {
     true
 }
 
-/// 向指定本地 CDP 端口的所有 Antigravity 页面即时同步最新可逆汉化与上下文圆环脚本（开关关闭时立即无损卸载还原原文）。
+async fn is_non_codex_cdp_endpoint(client: &reqwest::Client, port: u16) -> bool {
+    let ver_url = format!("http://127.0.0.1:{port}/json/version");
+    let Ok(resp) = client.get(&ver_url).send().await else {
+        return true;
+    };
+    let Ok(val) = resp.json::<Value>().await else {
+        return true;
+    };
+    let ua = val
+        .get("User-Agent")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    !ua.contains("codex") && !ua.contains("chatgpt")
+}
+
+/// 自动探测运行中 Antigravity（含 `DevToolsActivePort` 随机端口与显式配置端口）的所有页面，
+/// 即时同步最新可逆汉化与上下文圆环脚本（开关关闭时立即无损卸载还原原文）。
 pub async fn apply_cdp_enhancements_once(
     cdp_port: u16,
     enable_i18n: bool,
     enable_context_ring: bool,
 ) -> AntigravityEnhanceStatus {
-    let list_url = format!("http://127.0.0.1:{cdp_port}/json/list");
     let Ok(client) = reqwest::Client::builder()
         .no_proxy()
         .timeout(Duration::from_millis(1200))
@@ -436,42 +504,50 @@ pub async fn apply_cdp_enhancements_once(
         };
     };
 
-    let Ok(resp) = client.get(&list_url).send().await else {
-        return AntigravityEnhanceStatus {
-            connected: false,
-            cdp_port,
-            attached_pages: 0,
-            last_error: None,
-        };
-    };
-
-    let Ok(targets) = resp.json::<Vec<CdpPageTarget>>().await else {
-        return AntigravityEnhanceStatus {
-            connected: false,
-            cdp_port,
-            attached_pages: 0,
-            last_error: Some("解析 CDP 目标列表失败".to_string()),
-        };
-    };
+    let mut candidate_ports = super::process::discover_active_cdp_ports(cdp_port);
+    if candidate_ports.is_empty() && cdp_port > 0 {
+        candidate_ports.push(cdp_port);
+    }
 
     let mut attached_pages = 0usize;
-    for target in targets {
-        if target.target_type != "page"
-            || !is_safe_loopback_ws(&target.ws_url)
-            || !is_antigravity_renderer_url(&target.url)
-        {
+    let mut active_port: Option<u16> = None;
+
+    for port in candidate_ports {
+        if !is_non_codex_cdp_endpoint(&client, port).await {
             continue;
         }
-        let is_ide = target.url.ends_with("/workbench.html");
-        let script = build_renderer_injection_script(enable_i18n, enable_context_ring, is_ide);
-        if eval_on_cdp_page(&target.ws_url, &script, enable_context_ring).await.is_ok() {
-            attached_pages += 1;
+        let list_url = format!("http://127.0.0.1:{port}/json/list");
+        let Ok(resp) = client.get(&list_url).send().await else {
+            continue;
+        };
+        let Ok(targets) = resp.json::<Vec<CdpPageTarget>>().await else {
+            continue;
+        };
+
+        for target in targets {
+            if target.target_type != "page"
+                || !is_safe_loopback_ws(&target.ws_url)
+                || !is_antigravity_renderer_url(&target.url)
+            {
+                continue;
+            }
+            let is_ide = target.url.ends_with("/workbench.html");
+            let script = build_renderer_injection_script(enable_i18n, enable_context_ring, is_ide);
+            if eval_on_cdp_page(&target.ws_url, &script, enable_context_ring)
+                .await
+                .is_ok()
+            {
+                attached_pages += 1;
+                if active_port.is_none() {
+                    active_port = Some(port);
+                }
+            }
         }
     }
 
     AntigravityEnhanceStatus {
         connected: attached_pages > 0,
-        cdp_port,
+        cdp_port: active_port.unwrap_or(cdp_port),
         attached_pages,
         last_error: None,
     }
@@ -502,8 +578,9 @@ async fn eval_on_cdp_page(ws_url: &str, script: &str, bind_context: bool) -> any
         ws.send(Message::Text(cmd.to_string().into())).await?;
     }
 
-    // 读取响应并处理可能立即到达的一次 context-metrics 查询请求
-    let deadline = tokio::time::Instant::now() + Duration::from_millis(850);
+    // 读取响应并处理立即到达的 context-metrics 查询请求；无活跃会话或回写完成后立即退出。
+    let deadline = tokio::time::Instant::now() + Duration::from_millis(2200);
+    let mut metrics_requested = false;
     while tokio::time::Instant::now() < deadline {
         let Ok(Some(Ok(Message::Text(txt)))) =
             tokio::time::timeout_at(deadline, ws.next()).await
@@ -530,6 +607,7 @@ async fn eval_on_cdp_page(ws_url: &str, script: &str, bind_context: bool) -> any
                     .unwrap_or("")
                     .to_string();
                 if !req_id.is_empty() && !conv_id.is_empty() {
+                    metrics_requested = true;
                     let metrics = query_local_language_server_metrics(&conv_id).await;
                     let reply_expr = format!(
                         "window.__easyagContext?.receive({}, {})",
@@ -549,7 +627,20 @@ async fn eval_on_cdp_page(ws_url: &str, script: &str, bind_context: bool) -> any
                         .await;
                 }
             }
-            if msg.get("id").and_then(Value::as_i64) == Some(commands.len() as i64) && !bind_context
+            let msg_id = msg.get("id").and_then(Value::as_i64);
+            if !bind_context && msg_id == Some(commands.len() as i64) {
+                break;
+            }
+            if bind_context && msg_id == Some(99) {
+                break;
+            }
+            if bind_context
+                && msg_id == Some(4)
+                && !metrics_requested
+                && msg
+                    .pointer("/result/result/value/hasRoute")
+                    .and_then(Value::as_bool)
+                    == Some(false)
             {
                 break;
             }
@@ -560,30 +651,35 @@ async fn eval_on_cdp_page(ws_url: &str, script: &str, bind_context: bool) -> any
     Ok(())
 }
 
+fn build_ls_http_client(is_https: bool, timeout: Duration) -> Option<reqwest::Client> {
+    let mut builder = reqwest::Client::builder().no_proxy().timeout(timeout);
+    if is_https {
+        // 仅用于连接 127.0.0.1 上的本地 language_server 自签名回环端口。
+        builder = builder.danger_accept_invalid_certs(true);
+    }
+    builder.build().ok()
+}
+
 /// 通过本机 `language_server` 只读 Connect-RPC (`GetUserStatus` + `GetCascadeTrajectory`) 查询会话上下文估算与生成速度。
 async fn query_local_language_server_metrics(conversation_id: &str) -> Value {
-    let Some((port, csrf)) = discover_local_language_server_endpoint().await else {
+    let Some(ep) = discover_local_language_server_endpoint().await else {
         return json!({
             "conversationId": conversation_id,
             "state": "unavailable"
         });
     };
 
-    let Ok(client) = reqwest::Client::builder()
-        .no_proxy()
-        .timeout(Duration::from_millis(1800))
-        .build()
-    else {
+    let Some(client) = build_ls_http_client(ep.is_https, Duration::from_millis(1800)) else {
         return json!({ "conversationId": conversation_id, "state": "unavailable" });
     };
 
-    let base = format!("http://127.0.0.1:{port}/exa.language_server_pb.LanguageServerService");
+    let base = &ep.base_url;
     let mut placeholder_labels = BTreeMap::<String, String>::new();
     if let Ok(resp) = client
         .post(format!("{base}/GetUserStatus"))
         .header("Content-Type", "application/json")
         .header("Connect-Protocol-Version", "1")
-        .header("x-codeium-csrf-token", &csrf)
+        .header("x-codeium-csrf-token", &ep.csrf)
         .json(&json!({}))
         .send()
         .await
@@ -593,11 +689,13 @@ async fn query_local_language_server_metrics(conversation_id: &str) -> Value {
             .and_then(Value::as_array)
     {
         for cfg in configs {
-            if let (Some(model), Some(label)) = (
-                cfg.pointer("/modelOrAlias/model").and_then(Value::as_str),
-                cfg.get("label").and_then(Value::as_str),
-            ) {
-                placeholder_labels.insert(model.to_string(), label.to_string());
+            if let Some(label) = cfg.get("label").and_then(Value::as_str) {
+                if let Some(model) = cfg.pointer("/modelOrAlias/model").and_then(Value::as_str) {
+                    placeholder_labels.insert(model.to_string(), label.to_string());
+                }
+                if let Some(model_id) = cfg.get("modelId").and_then(Value::as_str) {
+                    placeholder_labels.insert(model_id.to_string(), label.to_string());
+                }
             }
         }
     }
@@ -606,7 +704,7 @@ async fn query_local_language_server_metrics(conversation_id: &str) -> Value {
         .post(format!("{base}/GetCascadeTrajectory"))
         .header("Content-Type", "application/json")
         .header("Connect-Protocol-Version", "1")
-        .header("x-codeium-csrf-token", &csrf)
+        .header("x-codeium-csrf-token", &ep.csrf)
         .json(&json!({
             "cascadeId": conversation_id,
             "trajectoryVerbosity": 2
@@ -614,6 +712,9 @@ async fn query_local_language_server_metrics(conversation_id: &str) -> Value {
         .send()
         .await
     else {
+        if let Ok(mut guard) = CACHED_LS_ENDPOINT.get_or_init(|| Mutex::new(None)).lock() {
+            *guard = None;
+        }
         return json!({ "conversationId": conversation_id, "state": "unavailable" });
     };
 
@@ -621,6 +722,19 @@ async fn query_local_language_server_metrics(conversation_id: &str) -> Value {
         return json!({ "conversationId": conversation_id, "state": "unavailable" });
     };
 
+    extract_trajectory_metrics(conversation_id, &traj_json, &placeholder_labels)
+}
+
+fn parse_u64_json(val: Option<&Value>) -> Option<u64> {
+    let v = val?;
+    v.as_u64().or_else(|| v.as_str()?.trim().parse::<u64>().ok())
+}
+
+fn extract_trajectory_metrics(
+    conversation_id: &str,
+    traj_json: &Value,
+    placeholder_labels: &BTreeMap<String, String>,
+) -> Value {
     let items = traj_json
         .pointer("/trajectory/generatorMetadata")
         .and_then(Value::as_array)
@@ -632,52 +746,51 @@ async fn query_local_language_server_metrics(conversation_id: &str) -> Value {
 
     for item in items.iter().rev() {
         let Some(chat) = item.get("chatModel") else { continue };
-        if context_val.is_null()
-            && let Some(cwm) = item.pointer("/chatStartMetadata/contextWindowMetadata")
-        {
-            let used = cwm
-                .get("estimatedTokensUsed")
-                .and_then(Value::as_u64)
-                .or_else(|| {
-                    cwm.get("estimatedTokensUsed")
-                        .and_then(Value::as_str)
-                        .and_then(|s| s.parse().ok())
-                })
-                .unwrap_or(0);
-            let max_toks = cwm
-                .get("maxContextTokens")
-                .and_then(Value::as_u64)
-                .or_else(|| {
-                    cwm.get("maxContextTokens")
-                        .and_then(Value::as_str)
-                        .and_then(|s| s.parse().ok())
-                });
-            let frac = max_toks
-                .filter(|m| *m > 0)
-                .map(|m| (used as f64 / m as f64).clamp(0.0, 1.0));
-            let raw_model = chat
-                .get("modelDisplayName")
-                .or_else(|| chat.get("modelName"))
-                .or_else(|| chat.get("model"))
-                .and_then(Value::as_str)
-                .unwrap_or("");
-            let model_label = placeholder_labels
-                .get(raw_model)
-                .cloned()
-                .unwrap_or_else(|| raw_model.to_string());
-            let endpoint_model = chat
-                .get("responseModel")
-                .or_else(|| chat.pointer("/usage/responseModel"))
-                .and_then(Value::as_str)
-                .filter(|s| !s.starts_with("MODEL_PLACEHOLDER_"))
-                .unwrap_or("");
-            context_val = json!({
-                "usedTokens": used,
-                "maxTokens": max_toks,
-                "usedFraction": frac,
-                "model": model_label,
-                "endpointModel": endpoint_model,
+        if context_val.is_null() {
+            // Antigravity 2.x 将 chatStartMetadata 挂在 chatModel 下；同时兼容旧版顶层挂法与 usage 估算兜底。
+            let cwm = chat
+                .pointer("/chatStartMetadata/contextWindowMetadata")
+                .or_else(|| item.pointer("/chatStartMetadata/contextWindowMetadata"));
+            let usage_fallback_tokens = chat.get("usage").and_then(|u| {
+                let input = parse_u64_json(u.get("inputTokens")).unwrap_or(0);
+                let cached = parse_u64_json(u.get("cacheReadTokens")).unwrap_or(0);
+                let total = input.saturating_add(cached);
+                (total > 0).then_some(total)
             });
+
+            if cwm.is_some() || usage_fallback_tokens.is_some() {
+                let used = cwm
+                    .and_then(|c| parse_u64_json(c.get("estimatedTokensUsed")))
+                    .or(usage_fallback_tokens)
+                    .unwrap_or(0);
+                let max_toks = cwm.and_then(|c| parse_u64_json(c.get("maxContextTokens")));
+                let frac = max_toks
+                    .filter(|m| *m > 0)
+                    .map(|m| (used as f64 / m as f64).clamp(0.0, 1.0));
+                let raw_model = chat
+                    .get("modelDisplayName")
+                    .or_else(|| chat.get("modelName"))
+                    .or_else(|| chat.get("model"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
+                let model_label = placeholder_labels
+                    .get(raw_model)
+                    .cloned()
+                    .unwrap_or_else(|| raw_model.to_string());
+                let endpoint_model = chat
+                    .get("responseModel")
+                    .or_else(|| chat.pointer("/usage/responseModel"))
+                    .and_then(Value::as_str)
+                    .filter(|s| !s.starts_with("MODEL_PLACEHOLDER_"))
+                    .unwrap_or("");
+                context_val = json!({
+                    "usedTokens": used,
+                    "maxTokens": max_toks,
+                    "usedFraction": frac,
+                    "model": model_label,
+                    "endpointModel": endpoint_model,
+                });
+            }
         }
 
         if speed_val.is_null()
@@ -685,10 +798,8 @@ async fn query_local_language_server_metrics(conversation_id: &str) -> Value {
             && dur_secs > 0.05
             && let Some(usage) = chat.get("usage")
         {
-            let out_tokens = usage
-                .get("responseOutputTokens")
-                .or_else(|| usage.get("outputTokens"))
-                .and_then(|v| v.as_u64().or_else(|| v.as_str()?.parse().ok()))
+            let out_tokens = parse_u64_json(usage.get("responseOutputTokens"))
+                .or_else(|| parse_u64_json(usage.get("outputTokens")))
                 .unwrap_or(0);
             if out_tokens > 0 {
                 let ttft = parse_proto_duration_secs(chat.get("timeToFirstToken"));
@@ -735,49 +846,80 @@ fn parse_proto_duration_secs(val: Option<&Value>) -> Option<f64> {
     None
 }
 
-async fn discover_local_language_server_endpoint() -> Option<(u16, String)> {
+async fn discover_local_language_server_endpoint() -> Option<LanguageServerEndpoint> {
     #[cfg(unix)]
     {
         let procs = super::process::enumerate_antigravity_processes();
-        let ls = procs.iter().find(|p| p.is_language_server)?;
-        let csrf = extract_csrf_from_cmdline(&ls.command_line)?;
-        let out = std::process::Command::new("/usr/sbin/lsof")
-            .args([
-                "-nP",
-                "-a",
-                "-p",
-                &ls.pid.to_string(),
-                "-iTCP",
-                "-sTCP:LISTEN",
-                "-Fn",
-            ])
-            .output()
-            .ok()?;
-        let text = String::from_utf8_lossy(&out.stdout);
-        let client = reqwest::Client::builder()
-            .no_proxy()
-            .timeout(Duration::from_millis(800))
-            .build()
-            .ok()?;
-        for line in text.lines() {
-            if let Some(addr) = line.strip_prefix('n')
-                && let Some(port_str) = addr.rsplit(':').next()
-                && let Ok(port) = port_str.parse::<u16>()
-            {
-                let url = format!(
-                    "http://127.0.0.1:{port}/exa.language_server_pb.LanguageServerService/GetUserStatus"
-                );
-                if let Ok(resp) = client
-                    .post(url)
-                    .header("Content-Type", "application/json")
-                    .header("Connect-Protocol-Version", "1")
-                    .header("x-codeium-csrf-token", &csrf)
-                    .json(&json!({}))
-                    .send()
-                    .await
-                    && resp.status().is_success()
-                {
-                    return Some((port, csrf));
+        let candidates: Vec<_> = procs
+            .iter()
+            .filter(|p| p.is_language_server)
+            .filter_map(|p| Some((p.pid, extract_csrf_from_cmdline(&p.command_line)?)))
+            .collect();
+        if candidates.is_empty() {
+            return None;
+        }
+
+        let cache_slot = CACHED_LS_ENDPOINT.get_or_init(|| Mutex::new(None));
+        if let Ok(guard) = cache_slot.lock()
+            && let Some(cached) = guard.clone()
+            && candidates
+                .iter()
+                .any(|(pid, csrf)| *pid == cached.pid && *csrf == cached.csrf)
+        {
+            return Some(cached);
+        }
+
+        for (pid, csrf) in candidates {
+            let Ok(out) = std::process::Command::new("/usr/sbin/lsof")
+                .args([
+                    "-nP",
+                    "-a",
+                    "-p",
+                    &pid.to_string(),
+                    "-iTCP",
+                    "-sTCP:LISTEN",
+                    "-Fn",
+                ])
+                .output()
+            else {
+                continue;
+            };
+            let text = String::from_utf8_lossy(&out.stdout);
+            let ports: Vec<u16> = text
+                .lines()
+                .filter_map(|line| line.strip_prefix('n')?.rsplit(':').next()?.parse::<u16>().ok())
+                .collect();
+
+            for (scheme, is_https) in [("http", false), ("https", true)] {
+                let Some(client) = build_ls_http_client(is_https, Duration::from_millis(800))
+                else {
+                    continue;
+                };
+                for port in &ports {
+                    let base_url = format!(
+                        "{scheme}://127.0.0.1:{port}/exa.language_server_pb.LanguageServerService"
+                    );
+                    if let Ok(resp) = client
+                        .post(format!("{base_url}/GetUserStatus"))
+                        .header("Content-Type", "application/json")
+                        .header("Connect-Protocol-Version", "1")
+                        .header("x-codeium-csrf-token", &csrf)
+                        .json(&json!({}))
+                        .send()
+                        .await
+                        && resp.status().is_success()
+                    {
+                        let ep = LanguageServerEndpoint {
+                            pid,
+                            base_url,
+                            is_https,
+                            csrf: csrf.clone(),
+                        };
+                        if let Ok(mut guard) = cache_slot.lock() {
+                            *guard = Some(ep.clone());
+                        }
+                        return Some(ep);
+                    }
                 }
             }
         }
@@ -798,7 +940,7 @@ fn extract_csrf_from_cmdline(cmd: &str) -> Option<String> {
     (!token.is_empty()).then_some(token)
 }
 
-/// 启动常驻后台监督任务：当开启了汉化或上下文圆环时，每 3.5 秒自动保持与运行中 Antigravity 的同步与遥测桥接。
+/// 启动常驻后台监督任务：当开启了汉化或上下文圆环时，自动发现运行中 Antigravity 的 `DevToolsActivePort` 并保持实时同步。
 pub fn ensure_background_enhance_supervisor(handle: tokio::runtime::Handle) {
     let slot = ENHANCE_SUPERVISOR_RUNNING.get_or_init(|| Mutex::new(false));
     if let Ok(mut guard) = slot.lock() {
@@ -809,8 +951,10 @@ pub fn ensure_background_enhance_supervisor(handle: tokio::runtime::Handle) {
     }
 
     handle.spawn(async move {
+        let mut first_tick = true;
         loop {
-            tokio::time::sleep(Duration::from_millis(3500)).await;
+            tokio::time::sleep(Duration::from_millis(if first_tick { 800 } else { 3500 })).await;
+            first_tick = false;
             let state = super::load_antigravity_state();
             if !state.enable_ui_localization && !state.enable_context_ring {
                 continue;
@@ -820,7 +964,7 @@ pub fn ensure_background_enhance_supervisor(handle: tokio::runtime::Handle) {
             } else {
                 state.cdp_port
             };
-            if super::process::cdp_port_responding(port) {
+            if !super::process::discover_active_cdp_ports(port).is_empty() {
                 let _ = apply_cdp_enhancements_once(
                     port,
                     state.enable_ui_localization,
@@ -830,4 +974,58 @@ pub fn ensure_background_enhance_supervisor(handle: tokio::runtime::Handle) {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn renderer_url_filter_skips_splash_and_external_pages() {
+        assert!(!is_antigravity_renderer_url("data:text/html,<h1>splash</h1>"));
+        assert!(!is_antigravity_renderer_url("blob:https://127.0.0.1:50602/abc"));
+        assert!(!is_antigravity_renderer_url("about:srcdoc"));
+        assert!(!is_antigravity_renderer_url("https://example.com/c/123"));
+        assert!(is_antigravity_renderer_url(
+            "https://127.0.0.1:50602/c/0f76994e-012a-4a47-9334-91eeecdb0da2"
+        ));
+        assert!(is_antigravity_renderer_url(
+            "vscode-file://vscode-app/Applications/Antigravity%20IDE.app/workbench.html"
+        ));
+    }
+
+    #[test]
+    fn extracts_context_window_from_chat_model_nested_start_metadata() {
+        let traj = json!({
+            "trajectory": {
+                "generatorMetadata": [{
+                    "chatModel": {
+                        "model": "MODEL_PLACEHOLDER_M526",
+                        "modelDisplayName": "Gemini 4 Hydrogen (Medium)",
+                        "responseModel": "gemini-4-hydrogen",
+                        "streamingDuration": "2.0s",
+                        "timeToFirstToken": "0.5s",
+                        "usage": {
+                            "inputTokens": "2600",
+                            "cacheReadTokens": "110000",
+                            "responseOutputTokens": "400"
+                        },
+                        "chatStartMetadata": {
+                            "contextWindowMetadata": {
+                                "estimatedTokensUsed": 118240,
+                                "maxContextTokens": 512000
+                            }
+                        }
+                    }
+                }]
+            }
+        });
+        let out = extract_trajectory_metrics("conv-1", &traj, &BTreeMap::new());
+        assert_eq!(out["context"]["usedTokens"], 118240);
+        assert_eq!(out["context"]["maxTokens"], 512000);
+        assert_eq!(out["context"]["model"], "Gemini 4 Hydrogen (Medium)");
+        assert_eq!(out["context"]["endpointModel"], "gemini-4-hydrogen");
+        assert_eq!(out["speed"]["tokensPerSecond"], 200.0);
+        assert_eq!(out["speed"]["ttftSeconds"], 0.5);
+    }
 }

@@ -191,6 +191,9 @@ fn strip_compaction_trigger(mut body: Value) -> Value {
 /// - input 末尾注入 user 摘要指令；
 /// - tools/parallel_tool_calls 清空，避免摘要阶段触发工具调用。
 fn rewrite_request_for_compaction(mut body: Value) -> Value {
+    if !body.is_object() {
+        return body;
+    }
     if let Some(items) = body.get_mut("input").and_then(Value::as_array_mut) {
         items.push(json!({
             "type": "message",
@@ -3346,6 +3349,9 @@ fn validate_upstream(relay: &crate::settings::RelayProfile) -> anyhow::Result<()
     if relay.base_url.trim().is_empty() {
         anyhow::bail!("上游 Base URL 不能为空");
     }
+    if is_local_protocol_proxy_base_url(&relay.base_url) {
+        anyhow::bail!("上游 Base URL 不能指向本地协议代理");
+    }
     if relay.api_key.trim().is_empty() && !relay.uses_no_auth() {
         anyhow::bail!("上游 Key 不能为空");
     }
@@ -4121,7 +4127,7 @@ impl ChatSseState {
 
         {
             let state = self.tools.entry(chat_index).or_default();
-            if let Some(id) = id_delta {
+            if let Some(id) = id_delta.filter(|id| !id.is_empty()) {
                 state.call_id = id;
             }
             // 流式场景下 thought_signature/extra_content 通常随首个分片到达，
@@ -4821,6 +4827,11 @@ fn append_responses_item(
                     "arguments": arguments
                 }
             }));
+            if let Some(extra) = recall_tool_call_extra_content(call_id) {
+                if let Some(last) = pending_tool_calls.last_mut() {
+                    last["extra_content"] = extra;
+                }
+            }
         }
         Some("tool_search_call") => {
             // Codex 的 tool_search 是客户端执行的代理工具，历史回放时按
@@ -4844,6 +4855,11 @@ fn append_responses_item(
                     )
                 }
             }));
+            if let Some(extra) = recall_tool_call_extra_content(call_id) {
+                if let Some(last) = pending_tool_calls.last_mut() {
+                    last["extra_content"] = extra;
+                }
+            }
         }
         Some("tool_search_output") => {
             let call_id = item.get("call_id").and_then(Value::as_str).unwrap_or("");
@@ -4905,6 +4921,11 @@ fn append_responses_item(
                         "arguments": responses_arguments_to_chat(tool_use.get("input").unwrap_or(&json!({})))
                     }
                 }));
+                if let Some(extra) = recall_tool_call_extra_content(call_id) {
+                    if let Some(last) = pending_tool_calls.last_mut() {
+                        last["extra_content"] = extra;
+                    }
+                }
             }
         }
         Some("tool_result") => {

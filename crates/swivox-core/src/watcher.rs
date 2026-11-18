@@ -610,7 +610,7 @@ pub fn macos_desktop_main_processes_from_snapshot<'a>(
             continue;
         }
         if let Some(flag) = &debug_flag
-            && !process.args.contains(flag)
+            && !args_has_debug_flag(&process.args, flag)
         {
             continue;
         }
@@ -1938,6 +1938,23 @@ pub(crate) fn find_macos_codex_processes_for_debug_port(debug_port: u16) -> Vec<
     )
 }
 
+/// 精确匹配命令行中的 `remote-debugging-port=<port>` 参数边界，防止端口前缀（如 922 匹配 9222）误判。
+fn args_has_debug_flag(args: &str, flag: &str) -> bool {
+    args.match_indices(flag).any(|(idx, _)| {
+        let before_ok = idx == 0
+            || matches!(
+                args[..idx].chars().next_back(),
+                Some('-' | ' ' | '\t' | '"' | '\'')
+            );
+        let after = &args[idx + flag.len()..];
+        let after_ok = after.is_empty()
+            || after.starts_with(char::is_whitespace)
+            || after.starts_with('"')
+            || after.starts_with('\'');
+        before_ok && after_ok
+    })
+}
+
 #[cfg(target_os = "macos")]
 fn macos_codex_process_ids_for_debug_port<'a>(
     process_lines: impl IntoIterator<Item = &'a str>,
@@ -1951,7 +1968,7 @@ fn macos_codex_process_ids_for_debug_port<'a>(
             let (pid, args) = trimmed.split_once(char::is_whitespace)?;
             let process_id = pid.parse::<u32>().ok()?;
             let is_desktop_main = is_macos_codex_desktop_main(args);
-            (is_desktop_main && args.contains(&debug_flag)).then_some(process_id)
+            (is_desktop_main && args_has_debug_flag(args, &debug_flag)).then_some(process_id)
         })
         .collect::<Vec<_>>();
     ids.sort_unstable();
@@ -2157,4 +2174,25 @@ fn startup_shortcut_path() -> Option<PathBuf> {
             .join("Startup")
             .join(WATCHER_STARTUP_SHORTCUT_NAME)
     })
+}
+
+#[cfg(test)]
+mod debug_flag_boundary_tests {
+    use super::args_has_debug_flag;
+
+    #[test]
+    fn debug_port_flag_does_not_match_longer_port_prefix() {
+        assert!(!args_has_debug_flag(
+            "/Applications/Codex.app/Contents/MacOS/Codex --remote-debugging-port=9222",
+            "remote-debugging-port=922"
+        ));
+        assert!(args_has_debug_flag(
+            "/Applications/Codex.app/Contents/MacOS/Codex --remote-debugging-port=922 --user-data-dir=/tmp/x",
+            "remote-debugging-port=922"
+        ));
+        assert!(args_has_debug_flag(
+            "\"/Applications/Codex.app/Contents/MacOS/Codex\" \"--remote-debugging-port=922\"",
+            "remote-debugging-port=922"
+        ));
+    }
 }

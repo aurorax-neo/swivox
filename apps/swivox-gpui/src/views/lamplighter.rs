@@ -30,10 +30,14 @@ pub struct LamplighterView {
     mcp_listen_input: Entity<InputState>,
     draft_cfg: LamplighterConfig,
     last_client_id: String,
+    /// 快照到达并写入表单后才视为已水合；此前保存会以磁盘上的真实配置为底，
+    /// 不能把默认值（空 Bark/Webhook、默认阈值）写回覆盖用户配置。
+    hydrated: bool,
 }
 
 impl LamplighterView {
     pub fn new(store: Entity<AppStore>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let hydrated = store.read(cx).lamplighter_snapshot.is_some();
         let (draft_cfg, init_client_id) = {
             let s = store.read(cx);
             (
@@ -119,11 +123,36 @@ impl LamplighterView {
             mcp_listen_input,
             draft_cfg,
             last_client_id: init_client_id,
+            hydrated,
         }
+    }
+
+    fn hydrate_inputs(&mut self, cfg: LamplighterConfig, client_id: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let ig = cfg.ignition_for_client(client_id).clone();
+        let values = [
+            (&self.bark_url_input, cfg.bark_url.clone()),
+            (&self.webhook_url_input, cfg.webhook.url.clone()),
+            (&self.poll_secs_input, cfg.poll_interval_seconds.to_string()),
+            (&self.start_hour_input, ig.start_hour.to_string()),
+            (&self.end_hour_input, ig.end_hour.to_string()),
+            (&self.notice_th_input, format!("{:.0}", cfg.notice_threshold)),
+            (&self.low_th_input, format!("{:.0}", cfg.low_threshold)),
+            (&self.crit_th_input, format!("{:.0}", cfg.critical_threshold)),
+            (&self.mcp_listen_input, cfg.mcp_listen.clone()),
+        ];
+        for (input, value) in values {
+            input.update(cx, |state, cx| state.set_value(value, window, cx));
+        }
+        self.draft_cfg = cfg;
+        self.hydrated = true;
     }
 
     fn collect_config_from_inputs(&mut self, cx: &App) -> LamplighterConfig {
         let client_id = self.store.read(cx).active_lamplighter_client_id();
+        if !self.hydrated {
+            // 表单尚未拿到快照：以磁盘配置为底，避免把默认值写回。
+            self.draft_cfg = swivox_core::lamplighter::store::load_config();
+        }
         let mut cfg = self.draft_cfg.clone();
         cfg.bark_url = self.bark_url_input.read(cx).value().to_string();
         cfg.webhook.url = self.webhook_url_input.read(cx).value().to_string();
@@ -1038,6 +1067,13 @@ impl Render for LamplighterView {
                 s.lamplighter_loading,
             )
         };
+
+        if !self.hydrated {
+            if let Some(ref sp) = snap {
+                self.hydrate_inputs(sp.config.clone(), &client_id, window, cx);
+                self.last_client_id = client_id.clone();
+            }
+        }
 
         if self.last_client_id != client_id {
             self.last_client_id = client_id.clone();

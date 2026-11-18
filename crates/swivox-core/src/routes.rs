@@ -225,7 +225,17 @@ pub async fn handle_bridge_request(
             crate::dictation::cancel_bridge(&payload).map_err(anyhow::Error::from)
         }
         "/settings/set" => {
-            settings_value(&ctx, ctx.settings.set_settings(payload.clone()).await).await
+            // 渲染层与第三方用户脚本同处主世界，桥接写设置只放行渲染层 UI 实际会写的字段：
+            // 布尔开关 + 少数枚举字符串。Base URL、密钥、环境变量名、启动参数、供应商列表等
+            // 一律只能在管理器里修改，防止脚本改写配置后借合法请求外带凭据。
+            let (patch, rejected) = sanitize_bridge_settings_patch(&payload);
+            if !rejected.is_empty() {
+                let _ = crate::diagnostic_log::append_diagnostic_log(
+                    "bridge.settings_set_rejected_keys",
+                    json!({ "keys": rejected }),
+                );
+            }
+            settings_value(&ctx, ctx.settings.set_settings(patch).await).await
         }
         "/user-scripts/list" => {
             ctx.runtime
@@ -740,6 +750,40 @@ impl BridgeDataService for UnavailableDataService {
     }
 }
 
+/// 渲染层可写的非布尔设置项（取值为短字符串或简单对象）。
+const BRIDGE_WRITABLE_VALUE_KEYS: &[&str] = &["codexAppTypingEffect", "codexAppStepwiseGenerationMode"];
+
+/// 渲染层布尔开关中仍需拒绝的项：它们决定流量去向，只允许在管理器中修改。
+const BRIDGE_BLOCKED_BOOL_KEYS: &[&str] = &["relayProfilesEnabled"];
+
+fn sanitize_bridge_settings_patch(payload: &Value) -> (Value, Vec<String>) {
+    let mut accepted = serde_json::Map::new();
+    let mut rejected = Vec::new();
+    let Some(object) = payload.as_object() else {
+        return (Value::Object(accepted), rejected);
+    };
+    for (key, value) in object {
+        let allowed = match value {
+            Value::Bool(_) => !BRIDGE_BLOCKED_BOOL_KEYS.contains(&key.as_str()),
+            Value::String(text) => {
+                BRIDGE_WRITABLE_VALUE_KEYS.contains(&key.as_str()) && text.len() <= 64
+            }
+            Value::Object(map) => {
+                BRIDGE_WRITABLE_VALUE_KEYS.contains(&key.as_str())
+                    && map.values().all(|v| v.is_boolean() || v.is_number() || v.is_string())
+                    && value.to_string().len() <= 1024
+            }
+            _ => false,
+        };
+        if allowed {
+            accepted.insert(key.clone(), value.clone());
+        } else {
+            rejected.push(key.clone());
+        }
+    }
+    (Value::Object(accepted), rejected)
+}
+
 fn settings_payload_value(
     mut settings: BackendSettings,
     codex_app_version: String,
@@ -803,6 +847,26 @@ mod dictation_privacy_tests {
             assert_eq!(result["codexAppSessionShare"], enabled);
             assert_eq!(result["enhancementsEnabled"], false);
         }
+    }
+
+    #[test]
+    fn bridge_settings_patch_only_allows_renderer_toggles() {
+        let (patch, rejected) = sanitize_bridge_settings_patch(&json!({
+            "codexAppSessionShare": true,
+            "codexAppStepwiseGenerationMode": "manual",
+            "codexAppStepwiseBaseUrl": "https://attacker.example",
+            "codexAppStepwiseApiKeyEnv": "AWS_SECRET_ACCESS_KEY",
+            "codexExtraArgs": ["--evil"],
+            "relayProfiles": [],
+            "relayProfilesEnabled": false
+        }));
+        assert_eq!(patch["codexAppSessionShare"], true);
+        assert_eq!(patch["codexAppStepwiseGenerationMode"], "manual");
+        assert!(patch.get("codexAppStepwiseBaseUrl").is_none());
+        assert!(patch.get("codexExtraArgs").is_none());
+        assert!(patch.get("relayProfiles").is_none());
+        assert!(patch.get("relayProfilesEnabled").is_none());
+        assert_eq!(rejected.len(), 5);
     }
 
     #[test]
@@ -1312,5 +1376,22 @@ mod dictation_disabled_route_tests {
         })).await;
         assert_eq!(response["status"], "failed");
         assert!(response["message"].as_str().unwrap().contains("未启用"));
+    }
+
+    #[test]
+    fn bridge_settings_patch_drops_sensitive_fields_and_preserves_ui_toggles() {
+        let (filtered, dropped) = super::sanitize_bridge_settings_patch(&json!({
+            "codexAppAutoExpandChip": true,
+            "codexAppTypingEffect": "smooth",
+            "relayProfiles": [{ "id": "evil", "baseUrl": "https://evil.example" }],
+            "codexAppStepwiseBaseUrl": "https://evil.example",
+            "codexAppStepwiseApiKey": "sk-stolen",
+        }));
+        assert_eq!(filtered["codexAppAutoExpandChip"], true);
+        assert_eq!(filtered["codexAppTypingEffect"], "smooth");
+        assert!(filtered.get("relayProfiles").is_none());
+        assert!(filtered.get("codexAppStepwiseBaseUrl").is_none());
+        assert!(filtered.get("codexAppStepwiseApiKey").is_none());
+        assert_eq!(dropped.len(), 3);
     }
 }

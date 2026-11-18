@@ -32,7 +32,7 @@ impl AntigravityAccountsView {
         });
         let manual_callback_input = cx.new(|cx| {
             InputState::new(window, cx)
-                .placeholder("http://localhost:xxxxx/oauth-callback?code=...")
+                .placeholder("http://localhost:xxxxx/auth/callback?code=...")
         });
         let import_textarea = cx.new(|cx| {
             TextareaState::new(window, cx)

@@ -4,6 +4,14 @@
   const swivoxIsNodeTestHarness = typeof process === "object" && !!process.versions?.node;
   if (!swivoxIsNodeTestHarness && (window.top !== window || window.self !== window || !window.electronBridge || !/^app:\/\/\-\//i.test(window.location.href))) return;
   const swivoxIsWindowsPlatform = /\bWindows\b/i.test(navigator.userAgent || "");
+  const swivoxInternalBridgeToken = typeof window.__swivoxClaimInternalBridgeToken === "function"
+    ? window.__swivoxClaimInternalBridgeToken()
+    : undefined;
+  function callSwivoxInternalBridge(path, payload) {
+    return swivoxInternalBridgeToken !== undefined
+      ? window.__codexSessionDeleteBridge(path, payload, swivoxInternalBridgeToken)
+      : window.__codexSessionDeleteBridge(path, payload);
+  }
 
   function installSwivoxForceChineseLocale() {
     const config = window.__SWIVOX_FORCE_CHINESE_LOCALE__;

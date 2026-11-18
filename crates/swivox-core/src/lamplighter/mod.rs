@@ -307,6 +307,11 @@ pub fn get_lamplighter_snapshot_for_client(
                 gkey.clone(),
                 (cred.provider.clone(), disp_label.clone(), weight),
             );
+            let last_updated_at = client_state
+                .groups
+                .get(&gkey)
+                .map(|g| g.last_seen)
+                .unwrap_or(0);
             groups.push(MonitoredGroupView {
                 client_id: (*cid).to_string(),
                 group_key: gkey,
@@ -328,11 +333,7 @@ pub fn get_lamplighter_snapshot_for_client(
                 last_ignition_at: (ts.last_success_at > 0).then_some(ts.last_success_at),
                 last_ignition_model: ts.last_model,
                 paused_reason: ts.paused_reason,
-                last_updated_at: client_state
-                    .groups
-                    .get(&cred.account_key)
-                    .map(|g| g.last_seen)
-                    .unwrap_or(0),
+                last_updated_at,
             });
         }
     }
@@ -594,6 +595,12 @@ async fn run_poll_and_ignition_cycle_for_client(
             .filter(|(c, _)| c.client_id == cid)
             .cloned()
             .collect();
+        let valid_account_keys: std::collections::HashSet<String> = client_creds
+            .iter()
+            .map(|(c, _)| c.account_key.clone())
+            .collect();
+        let mut refreshed_account_keys: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
         let mut updated_views: Vec<MonitoredGroupView> = Vec::new();
 
         for (mut cred, base_label) in client_creds {
@@ -617,6 +624,7 @@ async fn run_poll_and_ignition_cycle_for_client(
 
             match providers::query_credential_quotas(&mut cred, cfg.request_timeout_seconds).await {
                 Ok(raw_groups) => {
+                    refreshed_account_keys.insert(cred.account_key.clone());
                     if let Ok(mut cache) = runtime_cache().lock() {
                         cache.last_active_at.insert(cred.account_key.clone(), now);
                     }
@@ -1027,8 +1035,23 @@ async fn run_poll_and_ignition_cycle_for_client(
 
         let _ = store::save_client_state(cid, &state);
         if let Ok(mut cache) = runtime_cache().lock() {
-            if !updated_views.is_empty() {
-                cache.groups_by_client.insert(cid.to_string(), updated_views);
+            // 保留本次被动跳过或查询失败但仍存在的账号缓存项，避免单账号刷新覆盖掉同客户端其它账号。
+            let mut merged: Vec<MonitoredGroupView> = cache
+                .groups_by_client
+                .get(cid)
+                .map(|prev| {
+                    prev.iter()
+                        .filter(|view| {
+                            valid_account_keys.contains(&view.account_key)
+                                && !refreshed_account_keys.contains(&view.account_key)
+                        })
+                        .cloned()
+                        .collect()
+                })
+                .unwrap_or_default();
+            merged.extend(updated_views);
+            if !merged.is_empty() || valid_account_keys.is_empty() {
+                cache.groups_by_client.insert(cid.to_string(), merged);
             }
             cache.last_poll_by_client.insert(cid.to_string(), now);
             cache.next_poll_by_client.insert(cid.to_string(), next_poll);

@@ -4,6 +4,14 @@
   const swivoxIsNodeTestHarness = typeof process === "object" && !!process.versions?.node;
   if (!swivoxIsNodeTestHarness && (window.top !== window || window.self !== window || !window.electronBridge || !/^app:\/\/\-\//i.test(window.location.href))) return;
   const swivoxIsWindowsPlatform = /\bWindows\b/i.test(navigator.userAgent || "");
+  const swivoxInternalBridgeToken = typeof window.__swivoxClaimInternalBridgeToken === "function"
+    ? window.__swivoxClaimInternalBridgeToken()
+    : undefined;
+  function callSwivoxInternalBridge(path, payload) {
+    return swivoxInternalBridgeToken !== undefined
+      ? window.__codexSessionDeleteBridge(path, payload, swivoxInternalBridgeToken)
+      : window.__codexSessionDeleteBridge(path, payload);
+  }
 
   function installSwivoxForceChineseLocale() {
     const config = window.__SWIVOX_FORCE_CHINESE_LOCALE__;
@@ -6369,23 +6377,36 @@
     if (swivoxScriptMarket.loaded && !force) return;
     swivoxScriptMarket = { ...swivoxScriptMarket, loading: true };
     if (swivoxActiveEntry() === "extensions") refreshSwivoxExtensionsView();
-    const result = await postJson("/script-market/list", {});
-    if (Array.isArray(result?.scripts)) {
-      swivoxScriptMarket = {
-        scripts: result.scripts,
-        loaded: true,
-        loading: false,
-        message: result.message || "",
-      };
-    } else {
+    try {
+      const result = await postJson("/script-market/list", {});
+      if (Array.isArray(result?.scripts)) {
+        swivoxScriptMarket = {
+          scripts: result.scripts,
+          loaded: true,
+          loading: false,
+          message: result.message || "",
+        };
+      } else {
+        swivoxScriptMarket = {
+          ...swivoxScriptMarket,
+          loaded: true,
+          loading: false,
+          message: result?.message || "拓展加载失败",
+        };
+      }
+    } catch (error) {
       swivoxScriptMarket = {
         ...swivoxScriptMarket,
         loaded: true,
         loading: false,
-        message: result?.message || "拓展加载失败",
+        message: error?.message || "拓展加载失败",
       };
+    } finally {
+      if (swivoxScriptMarket.loading) {
+        swivoxScriptMarket = { ...swivoxScriptMarket, loading: false };
+      }
+      if (swivoxActiveEntry() === "extensions") refreshSwivoxExtensionsView();
     }
-    if (swivoxActiveEntry() === "extensions") refreshSwivoxExtensionsView();
   }
 
   async function installScriptFromMarket(id) {
@@ -9464,10 +9485,13 @@
       sendSwivoxDiagnostic("bridge_missing_for_route", { path });
       return { status: "failed", message: "桥接不可用，请重启启动器" };
     }
+    const invokeInternalBridge = typeof callSwivoxInternalBridge === "function"
+      ? callSwivoxInternalBridge
+      : (route, body) => window.__codexSessionDeleteBridge(route, body);
     function bridgeWithBackendTimeout(path, payload) {
       let request;
       try {
-        request = window.__codexSessionDeleteBridge(path, payload);
+        request = invokeInternalBridge(path, payload);
       } catch (error) {
         recordSwivoxBridgeFailure();
         return Promise.resolve({ status: "failed", message: error?.message || "未连接" });
@@ -9504,7 +9528,7 @@
         });
         return fallback;
       }
-      const bridgeResult = await window.__codexSessionDeleteBridge(path, payload);
+      const bridgeResult = await invokeInternalBridge(path, payload);
       recordSwivoxBridgeSuccess();
       return bridgeResult;
     } catch (error) {

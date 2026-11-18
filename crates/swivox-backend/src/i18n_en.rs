@@ -1950,6 +1950,8 @@ pub const EN_PLAIN_ENTRIES: &[(&str, &str)] = &[
     ("圆环已开", "Ring ON"),
     ("圆环关闭", "Ring OFF"),
     ("CDP 汉化与上下文圆环", "CDP Localization & Context Ring"),
+    ("配置仍在加载，请稍后再保存。", "Configuration is still loading; please try saving again in a moment."),
+    ("CDP 端口需为 1024–65535 之间的整数。", "CDP port must be an integer between 1024 and 65535."),
 ];
 
 pub const EN_TEMPLATE_ENTRIES: &[(&str, &str)] = &[

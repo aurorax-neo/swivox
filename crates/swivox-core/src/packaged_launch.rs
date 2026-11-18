@@ -286,7 +286,8 @@ fn activation_script_for(
         "-PackageFamilyName '{package_family_name}' -AppId '{app_id}' "
     ));
     script.push_str("-Command 'cmd.exe' ");
-    script.push_str(&format!("-Args '/d /c \"{wrapper}\"' "));
+    // `/s` 配合外层双引号对，确保 wrapper 路径含空格或括号（如 `(x86)`）时内层引号不被剥离。
+    script.push_str(&format!("-Args '/d /s /c \"\"{wrapper}\"\"' "));
     script.push_str("-PreventBreakaway; ");
     script.push_str("if ($created -and $created.Id) { \"PID=$($created.Id)\" }");
     Ok(script)
@@ -772,7 +773,7 @@ mod tests {
         assert!(script.contains("-PackageFamilyName 'OpenAI.Codex_2p2nqsd0c76g0'"));
         assert!(script.contains("-AppId 'App'"));
         assert!(script.contains("-Command 'cmd.exe'"));
-        assert!(script.contains(r#"-Args '/d /c "C:\state dir\packaged-launch.cmd"'"#));
+        assert!(script.contains(r#"-Args '/d /s /c ""C:\state dir\packaged-launch.cmd""'"#));
         assert!(script.contains("-PreventBreakaway"));
         assert!(script.contains("$ErrorActionPreference = 'Stop'"));
         // 脚本里只允许出现包身份、路径与 PID 标记：不能带凭据。
@@ -786,7 +787,15 @@ mod tests {
     fn activation_script_escapes_single_quotes_in_the_wrapper_path() {
         let script = activation_script(AUMID, Path::new(r"C:\Users\O'Brien\w.cmd")).unwrap();
 
-        assert!(script.contains(r#"-Args '/d /c "C:\Users\O''Brien\w.cmd"'"#));
+        assert!(script.contains(r#"-Args '/d /s /c ""C:\Users\O''Brien\w.cmd""'"#));
+    }
+
+    #[test]
+    fn activation_script_preserves_parentheses_in_wrapper_path() {
+        let script =
+            activation_script(AUMID, Path::new(r"C:\Program Files (x86)\Swivox\w.cmd")).unwrap();
+
+        assert!(script.contains(r#"-Args '/d /s /c ""C:\Program Files (x86)\Swivox\w.cmd""'"#));
     }
 
     #[test]

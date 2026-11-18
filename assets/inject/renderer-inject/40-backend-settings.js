@@ -577,23 +577,36 @@
     if (swivoxScriptMarket.loaded && !force) return;
     swivoxScriptMarket = { ...swivoxScriptMarket, loading: true };
     if (swivoxActiveEntry() === "extensions") refreshSwivoxExtensionsView();
-    const result = await postJson("/script-market/list", {});
-    if (Array.isArray(result?.scripts)) {
-      swivoxScriptMarket = {
-        scripts: result.scripts,
-        loaded: true,
-        loading: false,
-        message: result.message || "",
-      };
-    } else {
+    try {
+      const result = await postJson("/script-market/list", {});
+      if (Array.isArray(result?.scripts)) {
+        swivoxScriptMarket = {
+          scripts: result.scripts,
+          loaded: true,
+          loading: false,
+          message: result.message || "",
+        };
+      } else {
+        swivoxScriptMarket = {
+          ...swivoxScriptMarket,
+          loaded: true,
+          loading: false,
+          message: result?.message || "拓展加载失败",
+        };
+      }
+    } catch (error) {
       swivoxScriptMarket = {
         ...swivoxScriptMarket,
         loaded: true,
         loading: false,
-        message: result?.message || "拓展加载失败",
+        message: error?.message || "拓展加载失败",
       };
+    } finally {
+      if (swivoxScriptMarket.loading) {
+        swivoxScriptMarket = { ...swivoxScriptMarket, loading: false };
+      }
+      if (swivoxActiveEntry() === "extensions") refreshSwivoxExtensionsView();
     }
-    if (swivoxActiveEntry() === "extensions") refreshSwivoxExtensionsView();
   }
 
   async function installScriptFromMarket(id) {

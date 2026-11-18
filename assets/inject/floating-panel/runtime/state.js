@@ -33,6 +33,9 @@
   const HIGHLIGHT_CLASS = "codex-stepwise-outline-target-flash";
   const SCRIPT_VERSION = "2.0.8";
   const PAGE_BRIDGE = "__codexSessionDeleteBridge";
+  const INTERNAL_BRIDGE_TOKEN = typeof window.__swivoxClaimInternalBridgeToken === "function"
+    ? window.__swivoxClaimInternalBridgeToken()
+    : undefined;
   const CONVERSATION_TURN_SELECTOR = "div.contents[data-content-search-turn-key]";
   const POPOVER_ID = "codex-stepwise-popover";
   const POSITION_KEY = "codex-stepwise-float-position-v2";

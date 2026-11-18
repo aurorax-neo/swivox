@@ -558,14 +558,7 @@ pub fn load_official_accounts_state() -> OfficialAccountsState {
 }
 
 fn load_state_unlocked() -> OfficialAccountsState {
-    let path = accounts_file_path();
-    let Ok(contents) = std::fs::read_to_string(&path) else {
-        return OfficialAccountsState::default();
-    };
-    if contents.trim().is_empty() {
-        return OfficialAccountsState::default();
-    }
-    serde_json::from_str::<OfficialAccountsState>(&contents).unwrap_or_default()
+    crate::settings::load_json_state_or_quarantine(&accounts_file_path())
 }
 
 pub fn save_official_accounts_state(state: &OfficialAccountsState) -> anyhow::Result<()> {
@@ -1502,17 +1495,16 @@ pub fn switch_official_account(
     // 1. 覆盖前先把当前 live（auth.json / Keychain）中已轮换的最新 Token 保存回账号库
     sync_live_account_tokens_to_store(codex_home);
 
-    let mut state = load_official_accounts_state();
-    let account_idx = state
+    let state = load_official_accounts_state();
+    let account = state
         .accounts
         .iter()
-        .position(|a| a.id == account_id)
+        .find(|a| a.id == account_id)
+        .cloned()
         .ok_or_else(|| anyhow::anyhow!("未找到官方账号：{account_id}"))?;
-
-    state.accounts[account_idx].last_used = now_seconds();
-    let account = state.accounts[account_idx].clone();
-    state.active_account_id = Some(account.id.clone());
-    save_official_accounts_state(&state)?;
+    drop(state);
+    // 「使用中」标记放到凭据真正写入 auth.json / config.toml 之后再落盘：
+    // 中途失败时界面不会显示一个实际并未生效的账号。
 
     let mut settings = store.load()?;
     let existing_live_auth = std::fs::read_to_string(codex_home.join("auth.json")).ok();
@@ -1568,6 +1560,7 @@ pub fn switch_official_account(
             let _ = align_forced_login_method_in_config(codex_home, "chatgpt");
             write_auth_json_and_sync_store(codex_home, &merged_auth)?;
             store.save(&settings)?;
+            mark_official_account_active(account_id)?;
             return Ok(settings);
         }
     }
@@ -1622,7 +1615,58 @@ pub fn switch_official_account(
     let _ = align_forced_login_method_in_config(codex_home, "chatgpt");
     write_auth_json_and_sync_store(codex_home, &official_auth_json)?;
     store.save(&settings)?;
+    mark_official_account_active(account_id)?;
     Ok(settings)
+}
+
+fn mark_official_account_active(account_id: &str) -> anyhow::Result<()> {
+    let _guard = state_lock().lock().unwrap_or_else(|e| e.into_inner());
+    let mut state = load_state_unlocked();
+    if let Some(acct) = state.accounts.iter_mut().find(|a| a.id == account_id) {
+        acct.last_used = now_seconds();
+    }
+    state.active_account_id = Some(account_id.to_string());
+    save_state_unlocked(&state)
+}
+
+/// live auth.json 里的 ChatGPT 登录若不属于账号库中任何账号（用户直接在 Codex 里登录、未导入），
+/// 在被覆盖/删除前备份到 `~/.swivox/backups/live-auth-<毫秒>.json`（0600），避免登录态永久丢失。
+fn backup_unmanaged_live_auth(codex_home: &Path) {
+    let auth_path = codex_home.join("auth.json");
+    let Ok(contents) = std::fs::read_to_string(&auth_path) else {
+        return;
+    };
+    let Ok(value) = serde_json::from_str::<Value>(&contents) else {
+        return;
+    };
+    let Some(refresh) = value
+        .pointer("/tokens/refresh_token")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+    else {
+        return;
+    };
+    let state = load_official_accounts_state();
+    let managed = state
+        .accounts
+        .iter()
+        .any(|a| a.tokens.refresh_token.as_deref().map(str::trim) == Some(refresh));
+    if managed {
+        return;
+    }
+    let millis = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let backup = crate::paths::default_app_state_dir()
+        .join("backups")
+        .join(format!("live-auth-{millis}.json"));
+    let _ = crate::settings::atomic_write(&backup, contents.as_bytes());
+    let _ = crate::diagnostic_log::append_diagnostic_log(
+        "official_accounts.unmanaged_live_auth_backed_up",
+        json!({ "path": backup.to_string_lossy() }),
+    );
 }
 
 /// 当用户在「供应商配置」页单独切换到某个纯 API 供应商时调用：
@@ -1644,6 +1688,7 @@ pub fn deactivate_official_account_for_pure_api(
     }
     let trimmed_key = api_key.trim();
     if !trimmed_key.is_empty() {
+        backup_unmanaged_live_auth(codex_home);
         let pure_auth = serde_json::to_string_pretty(&json!({
             "auth_mode": "apikey",
             "OPENAI_API_KEY": trimmed_key,
@@ -1659,6 +1704,7 @@ pub fn deactivate_official_account_for_pure_api(
         delete_codex_keychain_if_present(codex_home);
     } else {
         let auth_path = codex_home.join("auth.json");
+        backup_unmanaged_live_auth(codex_home);
         let _ = std::fs::remove_file(&auth_path);
         delete_codex_keychain_if_present(codex_home);
     }
@@ -2522,6 +2568,14 @@ pub fn resolve_codex_launch_proxy_from(
     // 3. 全局代理配置
     match state.global_proxy_mode.trim() {
         "direct" => CodexLaunchProxy::Direct,
+        m if m.starts_with("node:") => {
+            let cfg = crate::network_proxies::load_network_proxy_config();
+            if let Some(node) = cfg.find_node(m) {
+                CodexLaunchProxy::Proxy(node.url.clone())
+            } else {
+                CodexLaunchProxy::Inherit
+            }
+        }
         "custom" => {
             if let Ok(url) = normalize_proxy_url_input(&state.global_proxy_url) {
                 CodexLaunchProxy::Proxy(url)

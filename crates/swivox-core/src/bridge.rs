@@ -127,11 +127,45 @@ pub fn build_bridge_script(binding_name: &str) -> String {
     window.__codexSessionDeleteCallbacks.delete(id);
     callback.resolve({{ status: "failed", message }});
   }};
-  window.__codexSessionDeleteBridge = (path, payload) => new Promise((resolve) => {{
-    const id = String(++window.__codexSessionDeleteSeq);
-    window.__codexSessionDeleteCallbacks.set(id, {{ resolve }});
-    window.{binding_name}(JSON.stringify({{ id, path, payload }}));
-  }});
+  const previousBridge = window.__codexSessionDeleteBridge;
+  const previousVerify = typeof previousBridge?.__swivoxVerify === "function"
+    ? previousBridge.__swivoxVerify
+    : null;
+  let everSealed = Boolean(previousBridge?.__swivoxIsSealed?.());
+  const internalSecret = Symbol("swivox.internal.bridge");
+  const verifyInternal = (token) => token === internalSecret || Boolean(previousVerify?.(token));
+  let mintOpen = true;
+  const rawBinding = window.{binding_name};
+  try {{ delete window.{binding_name}; }} catch {{}}
+  const extAllowedRoutes = new Set([
+    "/diagnostics/log",
+    "/session/export",
+    "/thread-usage-history",
+    "/archived-thread",
+    "/export-markdown",
+    "/user-scripts/list",
+  ]);
+  window.__swivoxClaimInternalBridgeToken = () => (mintOpen ? internalSecret : null);
+  window.__swivoxSealInternalBridge = () => {{
+    mintOpen = false;
+    everSealed = true;
+    try {{ delete window.__swivoxClaimInternalBridgeToken; }} catch {{}}
+  }};
+  const bridgeFn = (path, payload, internalToken) => {{
+    if ((everSealed || window.__swivoxUserScripts?.currentKey)
+      && !verifyInternal(internalToken)
+      && !extAllowedRoutes.has(path)) {{
+      return Promise.resolve({{ status: "failed", message: `未开放的路由：${{path}}` }});
+    }}
+    return new Promise((resolve) => {{
+      const id = String(++window.__codexSessionDeleteSeq);
+      window.__codexSessionDeleteCallbacks.set(id, {{ resolve }});
+      rawBinding(JSON.stringify({{ id, path, payload }}));
+    }});
+  }};
+  Object.defineProperty(bridgeFn, "__swivoxVerify", {{ value: verifyInternal }});
+  Object.defineProperty(bridgeFn, "__swivoxIsSealed", {{ value: () => everSealed }});
+  window.__codexSessionDeleteBridge = bridgeFn;
 }})();
 "#
     )
@@ -2573,5 +2607,13 @@ mod websocket_size_tests {
         assert!(received.is_text());
         assert_eq!(received.len(), payload_bytes);
         sender.await.unwrap();
+    }
+
+    #[test]
+    fn bridge_script_hides_raw_binding_and_mints_sealable_internal_token() {
+        let script = build_bridge_script("swivoxSessionDeleteNative");
+        assert!(script.contains("delete window.swivoxSessionDeleteNative"));
+        assert!(script.contains("__swivoxClaimInternalBridgeToken"));
+        assert!(script.contains("__swivoxSealInternalBridge"));
     }
 }

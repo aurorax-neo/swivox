@@ -2015,6 +2015,47 @@ fn resolve_symlink_target(path: &Path) -> Option<PathBuf> {
     resolved.then_some(current)
 }
 
+/// 读取 JSON 状态文件；文件存在但无法解析时，先把它改名为 `<name>.corrupt-<毫秒>` 隔离保留，
+/// 再返回默认值。旧实现直接 `unwrap_or_default()`，下一次保存就会用空状态永久覆盖用户数据。
+pub fn load_json_state_or_quarantine<T>(path: &Path) -> T
+where
+    T: serde::de::DeserializeOwned + Default,
+{
+    let Ok(contents) = fs::read_to_string(path) else {
+        return T::default();
+    };
+    if contents.trim().is_empty() {
+        return T::default();
+    }
+    match serde_json::from_str::<T>(&contents) {
+        Ok(value) => value,
+        Err(error) => {
+            quarantine_corrupt_file(path, &error.to_string());
+            T::default()
+        }
+    }
+}
+
+/// 把无法解析的状态文件改名隔离，并记录诊断日志（不含文件内容）。
+pub fn quarantine_corrupt_file(path: &Path, reason: &str) {
+    let millis = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let mut target = path.as_os_str().to_owned();
+    target.push(format!(".corrupt-{millis}"));
+    let target = PathBuf::from(target);
+    let moved = fs::rename(path, &target).is_ok();
+    let _ = crate::diagnostic_log::append_diagnostic_log(
+        "state_file.corrupt_quarantined",
+        serde_json::json!({
+            "path": path.to_string_lossy(),
+            "quarantined": moved.then(|| target.to_string_lossy().to_string()),
+            "reason": reason.chars().take(200).collect::<String>(),
+        }),
+    );
+}
+
 /// 渲染层 / 诊断报告看到的设置快照中用于替代密钥的占位值（保持非空，便于前端做「已配置」判断）。
 pub const REDACTED_SECRET: &str = "********";
 
@@ -4021,6 +4062,28 @@ experimental_bearer_token = "sk-existing""#
         let reloaded = store.load().unwrap();
         assert!(reloaded.codex_app_auto_takeover);
         assert_eq!(reloaded.codex_app_auto_takeover_when_active, "immediate");
+    }
+
+    #[test]
+    fn corrupt_state_json_is_quarantined_before_returning_default() {
+        let temp = tempfile::tempdir().unwrap();
+        let state_file = temp.path().join("state.json");
+        std::fs::write(&state_file, b"{corrupt-json").unwrap();
+
+        let loaded: std::collections::BTreeMap<String, String> =
+            load_json_state_or_quarantine(&state_file);
+        assert!(loaded.is_empty());
+        assert!(!state_file.exists());
+        let quarantined: Vec<_> = std::fs::read_dir(temp.path())
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|e| {
+                e.file_name()
+                    .to_string_lossy()
+                    .starts_with("state.json.corrupt-")
+            })
+            .collect();
+        assert_eq!(quarantined.len(), 1);
     }
 
 }

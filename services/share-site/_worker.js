@@ -51,12 +51,14 @@ async function createShare(request, env) {
     return json({ error: "Share is too large" }, 413);
   }
 
-  let body;
-  try {
-    body = await request.json();
-  } catch {
+  const parsed = await readJsonBodyWithLimit(request, MAX_BODY_BYTES);
+  if (parsed.tooLarge) {
+    return json({ error: "Share is too large" }, 413);
+  }
+  if (!parsed.ok) {
     return json({ error: "Invalid JSON" }, 400);
   }
+  const body = parsed.value;
 
   const ttl = Number(body.ttl);
   const encrypted = body.encrypted;
@@ -133,6 +135,44 @@ function isJsonRequest(request) {
   return (request.headers.get("content-type") || "")
     .toLowerCase()
     .startsWith("application/json");
+}
+
+async function readJsonBodyWithLimit(request, maxBytes) {
+  if (!request.body) {
+    return { ok: false, tooLarge: false, value: null };
+  }
+  const reader = request.body.getReader();
+  const chunks = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      totalBytes += value.byteLength;
+      if (totalBytes > maxBytes) {
+        try {
+          await reader.cancel();
+        } catch {}
+        return { ok: false, tooLarge: true, value: null };
+      }
+      chunks.push(value);
+    }
+  } catch {
+    return { ok: false, tooLarge: false, value: null };
+  }
+  const merged = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(merged);
+    return { ok: true, tooLarge: false, value: JSON.parse(text) };
+  } catch {
+    return { ok: false, tooLarge: false, value: null };
+  }
 }
 
 function randomToken(byteLength) {

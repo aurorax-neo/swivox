@@ -1692,10 +1692,13 @@
       sendSwivoxDiagnostic("bridge_missing_for_route", { path });
       return { status: "failed", message: "桥接不可用，请重启启动器" };
     }
+    const invokeInternalBridge = typeof callSwivoxInternalBridge === "function"
+      ? callSwivoxInternalBridge
+      : (route, body) => window.__codexSessionDeleteBridge(route, body);
     function bridgeWithBackendTimeout(path, payload) {
       let request;
       try {
-        request = window.__codexSessionDeleteBridge(path, payload);
+        request = invokeInternalBridge(path, payload);
       } catch (error) {
         recordSwivoxBridgeFailure();
         return Promise.resolve({ status: "failed", message: error?.message || "未连接" });
@@ -1732,7 +1735,7 @@
         });
         return fallback;
       }
-      const bridgeResult = await window.__codexSessionDeleteBridge(path, payload);
+      const bridgeResult = await invokeInternalBridge(path, payload);
       recordSwivoxBridgeSuccess();
       return bridgeResult;
     } catch (error) {

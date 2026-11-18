@@ -225,28 +225,15 @@ fn atomic_write_json<T: Serialize>(path: &Path, value: &T) -> anyhow::Result<()>
         std::fs::create_dir_all(parent)
             .with_context(|| format!("创建目录失败: {}", parent.display()))?;
     }
-    let tmp = path.with_extension("json.swivox-tmp");
+    // 统一走 settings::atomic_write：唯一临时文件名（并发不互相截断）+ 一开始即 0600。
     let text = serde_json::to_string_pretty(value)?;
-    {
-        let mut f = std::fs::File::create(&tmp)?;
-        f.write_all(text.as_bytes())?;
-        let _ = f.sync_all();
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt as _;
-        let _ = std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600));
-    }
-    std::fs::rename(&tmp, path)?;
-    Ok(())
+    crate::settings::atomic_write(path, text.as_bytes())
 }
 
 pub fn load_config() -> LamplighterConfig {
     let path = config_file_path();
-    let mut cfg: LamplighterConfig = std::fs::read_to_string(&path)
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default();
+    // 配置含 Bark/Webhook 地址与 MCP 密钥：损坏时隔离保留，不让下次保存覆盖成默认值。
+    let mut cfg: LamplighterConfig = crate::settings::load_json_state_or_quarantine(&path);
     cfg.normalize();
     cfg
 }

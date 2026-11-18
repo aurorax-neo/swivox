@@ -22,11 +22,14 @@ pub struct AntigravityEnhanceView {
     proxy_mode: String,
     enable_i18n: bool,
     enable_context_ring: bool,
+    /// 快照到达并写入表单后才允许保存；否则异步加载完成前的默认值会覆盖真实配置。
+    hydrated: bool,
 }
 
 impl AntigravityEnhanceView {
     pub fn new(store: Entity<AppStore>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let snap = store.read(cx).ag_snapshot.clone();
+        let hydrated = snap.is_some();
         let target_mode = snap
             .as_ref()
             .map(|s| s.preferred_target.clone())
@@ -93,20 +96,58 @@ impl AntigravityEnhanceView {
             proxy_mode,
             enable_i18n,
             enable_context_ring,
+            hydrated,
         }
     }
 
+    /// 视图先于 Antigravity 快照创建时，快照到达后补一次表单水合。
+    fn hydrate_from_snapshot(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.hydrated {
+            return;
+        }
+        let Some(snap) = self.store.read(cx).ag_snapshot.clone() else {
+            return;
+        };
+        self.target_mode = snap.preferred_target.clone();
+        self.proxy_mode = snap.launch_proxy_mode.clone();
+        self.enable_i18n = snap.enable_ui_localization;
+        self.enable_context_ring = snap.enable_context_ring;
+        for (input, value) in [
+            (&self.desktop_path_input, snap.custom_desktop_path.clone()),
+            (&self.ide_path_input, snap.custom_ide_path.clone()),
+            (&self.proxy_url_input, snap.launch_proxy_url.clone()),
+            (&self.cdp_port_input, snap.cdp_port.to_string()),
+        ] {
+            input.update(cx, |state, cx| state.set_value(value, window, cx));
+        }
+        self.hydrated = true;
+    }
+
     fn persist_now(&self, cx: &mut Context<Self>) {
+        if !self.hydrated {
+            self.store.update(cx, |s, cx| {
+                s.set_notice(t("Antigravity 增强"), t("配置仍在加载，请稍后再保存。"), "failed", cx)
+            });
+            return;
+        }
         let dp = self.desktop_path_input.read(cx).value().to_string();
         let ip = self.ide_path_input.read(cx).value().to_string();
         let pu = self.proxy_url_input.read(cx).value().to_string();
-        let port = self
+        let Some(port) = self
             .cdp_port_input
             .read(cx)
             .value()
             .trim()
             .parse::<u16>()
-            .unwrap_or(9333);
+            .ok()
+            .filter(|port| *port >= 1024)
+        else {
+            // 端口非法时不静默改回 9333：提示用户修正，保留原配置。
+            self.store.update(cx, |s, cx| {
+                s.set_notice(t("Antigravity 增强"), t("CDP 端口需为 1024–65535 之间的整数。"), "failed", cx)
+            });
+            return;
+        };
         let tm = self.target_mode.clone();
         let pm = self.proxy_mode.clone();
         let i18n = self.enable_i18n;
@@ -144,7 +185,8 @@ impl AntigravityEnhanceView {
 }
 
 impl Render for AntigravityEnhanceView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.hydrate_from_snapshot(window, cx);
         let (snap, px_snap) = {
             let s = self.store.read(cx);
             (s.ag_snapshot.clone(), s.network_proxy_snapshot.clone())

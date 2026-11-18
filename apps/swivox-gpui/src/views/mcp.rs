@@ -445,8 +445,12 @@ impl McpView {
                                                     });
                                                     built
                                                 }
-                                                Err(_) => {
-                                                    this.toml_textarea.read(cx).value().to_string()
+                                                Err(message) => {
+                                                    // 表单校验失败时不能静默改存旧 TOML（用户以为保存了新值）。
+                                                    this.store.update(cx, |s, cx| {
+                                                        s.set_notice(t("MCP 配置"), message, "failed", cx)
+                                                    });
+                                                    return;
                                                 }
                                             };
                                             this.store.update(cx, |s, cx| {

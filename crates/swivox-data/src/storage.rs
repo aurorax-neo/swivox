@@ -437,24 +437,39 @@ impl SQLiteStorageAdapter {
     }
 
     pub fn find_archived_thread_by_title(&self, title: &str) -> Option<SessionRef> {
+        let trimmed = title.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
         let db = Connection::open(&self.db_path).ok()?;
         if schema_kind(&db).ok().flatten() != Some(SchemaKind::CodexThreads)
             || !has_columns(&db, "threads", &["archived"]).ok()?
         {
             return None;
         }
+        let escaped = trimmed
+            .replace('\\', "\\\\")
+            .replace('%', "\\%")
+            .replace('_', "\\_");
         let mut stmt = db
             .prepare(
                 "SELECT id, title FROM threads
-                 WHERE archived = 1 AND (title = ?1 OR title LIKE ?2 OR ?1 LIKE '%' || title || '%')
+                 WHERE archived = 1
+                   AND title IS NOT NULL
+                   AND TRIM(title) <> ''
+                   AND (
+                       title = ?1
+                       OR title LIKE ?2 ESCAPE '\\'
+                       OR ?1 LIKE '%' || REPLACE(REPLACE(REPLACE(title, '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%' ESCAPE '\\'
+                   )
                  ORDER BY archived_at DESC LIMIT 1",
             )
             .ok()?;
-        let mut rows = stmt.query((title, format!("%{title}%"))).ok()?;
+        let mut rows = stmt.query((trimmed, format!("%{escaped}%"))).ok()?;
         let row = rows.next().ok().flatten()?;
         let id: String = row.get(0).ok()?;
         let row_title: Option<String> = row.get(1).ok()?;
-        SessionRef::new(id, row_title.unwrap_or_else(|| title.to_string())).ok()
+        SessionRef::new(id, row_title.unwrap_or_else(|| trimmed.to_string())).ok()
     }
 
     /// 解析会话对应的 rollout 文件。
@@ -1897,5 +1912,34 @@ mod wsl_path_tests {
         // 只有前缀没有剩余部分
         assert_eq!(wsl_path_alternative("/mnt/c/"), None);
         assert_eq!(wsl_path_alternative("C:/"), None);
+    }
+
+    #[test]
+    fn find_archived_thread_by_title_rejects_empty_or_wildcard_matches() {
+        let temp = tempfile::tempdir().unwrap();
+        let db_path = temp.path().join("state_5.sqlite");
+        let db = rusqlite::Connection::open(&db_path).unwrap();
+        db.execute_batch(
+            "CREATE TABLE threads (id TEXT PRIMARY KEY, rollout_path TEXT, title TEXT, archived INTEGER, archived_at INTEGER);
+             INSERT INTO threads VALUES ('01960000-0000-7000-8000-000000000001', '/tmp/a.jsonl', '', 1, 100);
+             INSERT INTO threads VALUES ('01960000-0000-7000-8000-000000000002', '/tmp/b.jsonl', 'Fix 100% bug', 1, 200);
+             INSERT INTO threads VALUES ('01960000-0000-7000-8000-000000000003', '/tmp/c.jsonl', 'Fix normal bug', 1, 300);",
+        )
+        .unwrap();
+        drop(db);
+
+        let store = super::SQLiteStorageAdapter::new(
+            &db_path,
+            crate::backup::BackupStore::new(temp.path().join("backups")),
+        );
+        assert!(store.find_archived_thread_by_title("").is_none());
+        assert!(store.find_archived_thread_by_title("   ").is_none());
+        assert!(store.find_archived_thread_by_title("_").is_none());
+        assert!(store.find_archived_thread_by_title("unrelated query").is_none());
+        // `%` 只匹配字面含 `%` 的归档会话，不会误命中更新的 `Fix normal bug`。
+        let found = store.find_archived_thread_by_title("100%").unwrap();
+        assert_eq!(found.session_id, "01960000-0000-7000-8000-000000000002");
+        let literal_pct = store.find_archived_thread_by_title("%").unwrap();
+        assert_eq!(literal_pct.session_id, "01960000-0000-7000-8000-000000000002");
     }
 }

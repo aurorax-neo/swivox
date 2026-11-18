@@ -3755,10 +3755,10 @@ pub fn restore_session_index_entries(
         return Ok(0);
     }
     let path = codex_home.join("session_index.jsonl");
-    let original_bytes = if path.exists() {
-        fs::read(&path)?
-    } else {
-        Vec::new()
+    let original_bytes = match fs::read(&path) {
+        Ok(bytes) => bytes,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(err) => return Err(err.into()),
     };
     let original_text = String::from_utf8(original_bytes.clone())?;
     let mut existing_ids = HashSet::new();
@@ -3791,7 +3791,12 @@ pub fn restore_session_index_entries(
     if appended == 0 {
         return Ok(0);
     }
-    if fs::read(&path)? != original_bytes {
+    let current_bytes = match fs::read(&path) {
+        Ok(bytes) => bytes,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(err) => return Err(err.into()),
+    };
+    if current_bytes != original_bytes {
         return Ok(0);
     }
     swivox_core::settings::atomic_write(&path, next_text.as_bytes())?;

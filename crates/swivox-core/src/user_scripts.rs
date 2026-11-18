@@ -155,8 +155,15 @@ impl UserScriptManager {
         let Ok(text) = fs::read_to_string(&self.config_path) else {
             return UserScriptConfig::default();
         };
-        let Ok(Value::Object(raw)) = serde_json::from_str::<Value>(&text) else {
-            return UserScriptConfig::default();
+        let raw = match serde_json::from_str::<Value>(&text) {
+            Ok(Value::Object(raw)) => raw,
+            Ok(_) => return UserScriptConfig::default(),
+            Err(error) => {
+                if !text.trim().is_empty() {
+                    crate::settings::quarantine_corrupt_file(&self.config_path, &error.to_string());
+                }
+                return UserScriptConfig::default();
+            }
         };
         config_from_object(&raw)
     }
@@ -451,7 +458,9 @@ fn wrap_script(script: &UserScriptFile, source: &str) -> String {
   window.__swivoxUserScripts.currentKey = key;
   window.__swivoxUserScripts.scripts[key] = {{ key, name: {name}, source: {source_name}, status: "loading", error: "", loadedAt: new Date().toISOString() }};
   try {{
+    (() => {{
 {source}
+    }})();
     window.__swivoxUserScripts.scripts[key].status = "loaded";
     window.__swivoxUserScripts.scripts[key].loadedAt = new Date().toISOString();
   }} catch (error) {{

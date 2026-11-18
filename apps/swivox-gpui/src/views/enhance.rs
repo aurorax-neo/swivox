@@ -17,7 +17,9 @@ use crate::widgets::{AppBadge, AppButton};
 
 pub struct EnhanceView {
     store: Entity<AppStore>,
-    hydrated_once: bool,
+    /// 每个输入框上次从 settings 同步的值。settings 被重置、异步加载或外部修改后，
+    /// 对应输入框随之刷新；用户正在编辑而 settings 未变时不覆盖用户输入。
+    synced_values: [String; 10],
 
     // Stepwise inputs
     stepwise_url_input: Entity<InputState>,
@@ -113,9 +115,10 @@ impl EnhanceView {
 
         cx.observe(&store, |_, _, cx| cx.notify()).detach();
 
+        let synced_values = Self::settings_values(&s);
         Self {
             store,
-            hydrated_once: true,
+            synced_values,
             stepwise_url_input,
             stepwise_key_input,
             stepwise_model_input,
@@ -127,6 +130,44 @@ impl EnhanceView {
             overlay_path_input,
             overlay_opacity_input,
             extra_args_textarea,
+        }
+    }
+
+    fn settings_values(s: &swivox_core::settings::BackendSettings) -> [String; 10] {
+        [
+            s.codex_app_stepwise_base_url.clone(),
+            s.codex_app_stepwise_api_key.clone(),
+            s.codex_app_stepwise_model.clone(),
+            s.dictation.base_url.clone(),
+            s.dictation.api_key.clone(),
+            s.dictation.api_key_env.clone(),
+            s.dictation.model.clone(),
+            s.dictation.language.clone(),
+            s.codex_app_image_overlay_path.clone(),
+            s.codex_app_image_overlay_opacity.to_string(),
+        ]
+    }
+
+    fn resync_inputs_from_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let current = Self::settings_values(&self.store.read(cx).settings);
+        let inputs = [
+            self.stepwise_url_input.clone(),
+            self.stepwise_key_input.clone(),
+            self.stepwise_model_input.clone(),
+            self.dict_url_input.clone(),
+            self.dict_key_input.clone(),
+            self.dict_env_input.clone(),
+            self.dict_model_input.clone(),
+            self.dict_lang_input.clone(),
+            self.overlay_path_input.clone(),
+            self.overlay_opacity_input.clone(),
+        ];
+        for (index, input) in inputs.iter().enumerate() {
+            if current[index] != self.synced_values[index] {
+                let value = current[index].clone();
+                input.update(cx, |state, cx| state.set_value(value, window, cx));
+                self.synced_values[index] = current[index].clone();
+            }
         }
     }
 
@@ -1114,8 +1155,8 @@ impl EnhanceView {
 }
 
 impl Render for EnhanceView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let _ = self.hydrated_once;
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.resync_inputs_from_settings(window, cx);
         let data = self.store.read(cx);
         let master = data.settings.enhancements_enabled;
         let tab = data.enhance_tab;

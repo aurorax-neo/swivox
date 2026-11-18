@@ -274,21 +274,13 @@ pub fn enumerate_antigravity_processes() -> Vec<RunningAgProcess> {
         {
             let text = String::from_utf8_lossy(&output.stdout);
             for line in text.lines() {
-                let trimmed = line.trim();
-                let mut parts = trimmed.split_whitespace();
-                let Some(pid_str) = parts.next() else { continue };
-                let Some(ppid_str) = parts.next() else { continue };
-                let Ok(pid) = pid_str.parse::<u32>() else { continue };
-                let Ok(ppid) = ppid_str.parse::<u32>() else { continue };
-                if pid == self_pid {
+                let Some((pid_p, ppid_p, cmdline)) = parse_unix_ps_line(line) else {
+                    continue;
+                };
+                if pid_p == self_pid {
                     continue;
                 }
-                let cmd_start = trimmed
-                    .find(ppid_str)
-                    .map(|idx| idx + ppid_str.len())
-                    .unwrap_or(0);
-                let cmdline = trimmed[cmd_start..].trim();
-                if let Some(classified) = classify_command_line(pid, ppid, cmdline) {
+                if let Some(classified) = classify_command_line(pid_p, ppid_p, cmdline) {
                     results.push(classified);
                 }
             }
@@ -302,32 +294,57 @@ pub fn enumerate_antigravity_processes() -> Vec<RunningAgProcess> {
                 continue;
             }
             let lower_exe = proc.exe_file.to_ascii_lowercase();
+            let probe_path = proc
+                .executable_path
+                .as_ref()
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_else(|| proc.exe_file.clone());
+            let lower_probe = probe_path.to_ascii_lowercase();
             if lower_exe.contains("swivox")
                 || lower_exe.contains("antigravity-manager")
                 || lower_exe.contains("antigravity-tools")
                 || lower_exe.contains("easyag")
+                || lower_probe.contains("swivox")
+                || lower_probe.contains("antigravity-manager")
+                || lower_probe.contains("antigravity-tools")
+                || lower_probe.contains("easyag")
             {
                 continue;
             }
             let is_ls = lower_exe.contains("language_server") || lower_exe == "agy.exe";
-            if !lower_exe.contains("antigravity") && !is_ls {
+            if !lower_exe.contains("antigravity") && !lower_probe.contains("antigravity") && !is_ls {
                 continue;
             }
-            let is_ide = lower_exe.contains("antigravity ide")
-                || lower_exe.contains("antigravity-ide")
-                || lower_exe.contains("antigravity_ide");
+            let is_ide = lower_probe.contains("antigravity ide")
+                || lower_probe.contains("antigravity-ide")
+                || lower_probe.contains("antigravity_ide");
             results.push(RunningAgProcess {
                 pid: proc.process_id,
-                ppid: 0,
+                ppid: proc.parent_process_id,
                 is_ide,
                 is_language_server: is_ls,
                 is_helper: is_ls || lower_exe.contains("crashpad"),
-                command_line: proc.exe_file,
+                command_line: probe_path,
             });
         }
     }
 
     results
+}
+
+#[cfg(any(unix, test))]
+fn parse_unix_ps_line(line: &str) -> Option<(u32, u32, &str)> {
+    let trimmed = line.trim();
+    let (pid_str, after_pid) = trimmed.split_once(char::is_whitespace)?;
+    let pid = pid_str.parse::<u32>().ok()?;
+    let after_pid = after_pid.trim_start();
+    let (ppid_str, cmdline_raw) = after_pid.split_once(char::is_whitespace)?;
+    let ppid = ppid_str.parse::<u32>().ok()?;
+    let cmdline = cmdline_raw.trim();
+    if cmdline.is_empty() {
+        return None;
+    }
+    Some((pid, ppid, cmdline))
 }
 
 fn classify_command_line(pid: u32, ppid: u32, cmdline: &str) -> Option<RunningAgProcess> {
@@ -695,4 +712,21 @@ pub fn launch_antigravity_instance(
         effective_proxy,
         message: "已启动 Antigravity（免 TUN 代理与本地 CDP 增强已就绪）。".to_string(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_unix_ps_line_keeps_cmdline_when_ppid_is_prefix_of_pid() {
+        let line = "  1234   12 /Applications/Antigravity.app/Contents/MacOS/Electron --flag";
+        let (pid, ppid, cmdline) = parse_unix_ps_line(line).unwrap();
+        assert_eq!(pid, 1234);
+        assert_eq!(ppid, 12);
+        assert_eq!(
+            cmdline,
+            "/Applications/Antigravity.app/Contents/MacOS/Electron --flag"
+        );
+    }
 }

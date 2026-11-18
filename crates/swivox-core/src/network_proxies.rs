@@ -285,10 +285,14 @@ pub fn load_network_proxy_config() -> NetworkProxyConfig {
     let path = proxies_file_path();
     if let Ok(raw) = std::fs::read_to_string(&path)
         && !raw.trim().is_empty()
-        && let Ok(mut parsed) = serde_json::from_str::<NetworkProxyConfig>(&raw)
     {
-        parsed.normalize();
-        return parsed;
+        match serde_json::from_str::<NetworkProxyConfig>(&raw) {
+            Ok(mut parsed) => {
+                parsed.normalize();
+                return parsed;
+            }
+            Err(error) => crate::settings::quarantine_corrupt_file(&path, &error.to_string()),
+        }
     }
     migrate_from_legacy_states()
 }
@@ -452,11 +456,9 @@ pub fn resolve_account_or_client_proxy_spec(
                 if let Some(node) = cfg.find_node(u) {
                     return Some(node.url.clone());
                 }
-            }
-            if let Ok(norm) = normalize_proxy_url_input(u) {
+            } else if let Ok(norm) = normalize_proxy_url_input(u) {
                 return Some(norm);
             }
-            return Some(u.to_string());
         }
     }
     resolve_client_proxy_spec_from(&cfg, client_key)

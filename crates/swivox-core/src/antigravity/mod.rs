@@ -199,35 +199,36 @@ pub fn default_antigravity_home_dir() -> PathBuf {
 
 pub fn load_antigravity_state() -> AntigravityState {
     let _guard = state_lock().lock().ok();
-    let path = crate::paths::default_antigravity_state_path();
-    let Ok(raw) = std::fs::read_to_string(&path) else {
-        return AntigravityState::default();
-    };
-    serde_json::from_str(&raw).unwrap_or_default()
+    load_antigravity_state_unlocked()
+}
+
+fn load_antigravity_state_unlocked() -> AntigravityState {
+    crate::settings::load_json_state_or_quarantine(&crate::paths::default_antigravity_state_path())
 }
 
 pub fn save_antigravity_state(state: &AntigravityState) -> anyhow::Result<()> {
     let _guard = state_lock().lock().ok();
+    save_antigravity_state_unlocked(state)
+}
+
+fn save_antigravity_state_unlocked(state: &AntigravityState) -> anyhow::Result<()> {
+    // 统一走 settings::atomic_write：唯一临时文件名 + 一开始即 0600。
     let path = crate::paths::default_antigravity_state_path();
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .with_context(|| format!("创建状态目录失败: {}", parent.display()))?;
-    }
-    let tmp = path.with_extension("json.swivox-tmp");
     let serialized = serde_json::to_string_pretty(state)?;
-    {
-        use std::io::Write as _;
-        let mut f = std::fs::File::create(&tmp)?;
-        f.write_all(serialized.as_bytes())?;
-        let _ = f.sync_all();
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt as _;
-        let _ = std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600));
-    }
-    std::fs::rename(&tmp, &path)?;
-    Ok(())
+    crate::settings::atomic_write(&path, serialized.as_bytes())
+        .with_context(|| format!("写入 Antigravity 状态失败: {}", path.display()))
+}
+
+/// 在同一把锁内完成「读取 → 修改 → 写回」。网络请求必须放在调用之前完成，
+/// 否则跨 await 持有的旧快照会覆盖期间其他任务写入的账号/配额。
+pub fn update_antigravity_state<R>(
+    mutate: impl FnOnce(&mut AntigravityState) -> R,
+) -> anyhow::Result<R> {
+    let _guard = state_lock().lock().ok();
+    let mut state = load_antigravity_state_unlocked();
+    let result = mutate(&mut state);
+    save_antigravity_state_unlocked(&state)?;
+    Ok(result)
 }
 
 pub fn effective_proxy_for_ag_account(
@@ -419,8 +420,9 @@ pub async fn upsert_account_from_tokens(
     is_gcp_tos: bool,
 ) -> anyhow::Result<AntigravityAccount> {
     let now = Utc::now().timestamp();
-    let mut state = load_antigravity_state();
-    let proxy = effective_proxy_for_ag_account(None, &state)?;
+    let snapshot = load_antigravity_state();
+    let proxy = effective_proxy_for_ag_account(None, &snapshot)?;
+    drop(snapshot);
 
     let quota = fetch_antigravity_quota(
         &access_token,
@@ -435,6 +437,8 @@ pub async fn upsert_account_from_tokens(
         .and_then(|q| q.project_id.clone())
         .or(project_id_hint);
 
+    // 网络请求完成后再在锁内读取最新状态合并，避免覆盖并发写入。
+    update_antigravity_state(move |state| {
     if let Some(existing) = state
         .accounts
         .iter_mut()
@@ -464,8 +468,7 @@ pub async fn upsert_account_from_tokens(
         if state.active_account_id.is_none() {
             state.active_account_id = Some(saved.id.clone());
         }
-        save_antigravity_state(&state)?;
-        return Ok(saved);
+        return saved;
     }
 
     let dev = generate_device_profile();
@@ -502,8 +505,8 @@ pub async fn upsert_account_from_tokens(
         state.active_account_id = Some(id);
     }
     state.accounts.push(account.clone());
-    save_antigravity_state(&state)?;
-    Ok(account)
+    account
+    })
 }
 
 /// 扫描并导入本机已登录的 Antigravity 账号（覆盖系统钥匙串、桌面版 `state.vscdb`、IDE 版 `state.vscdb` 与 `~/.antigravity_tools`）。
@@ -717,7 +720,7 @@ pub fn export_accounts_json() -> anyhow::Result<String> {
 
 /// 确保目标账号的 `access_token` 处于有效期内（距离过期 `<= 15 分钟` 时自动刷新并落盘）。
 pub async fn ensure_fresh_account_token(account_id: &str) -> anyhow::Result<AntigravityAccount> {
-    let mut state = load_antigravity_state();
+    let state = load_antigravity_state();
     let idx = state
         .accounts
         .iter()
@@ -735,9 +738,11 @@ pub async fn ensure_fresh_account_token(account_id: &str) -> anyhow::Result<Anti
     let rt = state.accounts[idx].token.refresh_token.clone();
     let ckey = state.accounts[idx].token.oauth_client_key.clone();
 
+    drop(state);
+
     match refresh_google_access_token(&rt, Some(&ckey), proxy.as_deref()).await {
-        Ok(refreshed) => {
-            let acc = &mut state.accounts[idx];
+        Ok(refreshed) => update_antigravity_state(|state| {
+            let acc = state.accounts.iter_mut().find(|a| a.id == account_id)?;
             acc.token.access_token = refreshed.access_token;
             acc.token.refresh_token = refreshed.refresh_token;
             acc.token.expiry_timestamp = refreshed.expiry_timestamp;
@@ -747,16 +752,18 @@ pub async fn ensure_fresh_account_token(account_id: &str) -> anyhow::Result<Anti
             acc.token.oauth_client_key = refreshed.client_key;
             acc.disabled = false;
             acc.disabled_reason = None;
-            let out = acc.clone();
-            save_antigravity_state(&state)?;
-            Ok(out)
-        }
+            Some(acc.clone())
+        })?
+        .context("刷新期间该 Antigravity 账号已被删除"),
         Err(err) => {
             let msg = err.to_string();
             if msg.to_ascii_lowercase().contains("invalid_grant") {
-                state.accounts[idx].disabled = true;
-                state.accounts[idx].disabled_reason = Some(msg.clone());
-                let _ = save_antigravity_state(&state);
+                let _ = update_antigravity_state(|state| {
+                    if let Some(acc) = state.accounts.iter_mut().find(|a| a.id == account_id) {
+                        acc.disabled = true;
+                        acc.disabled_reason = Some(msg.clone());
+                    }
+                });
             }
             Err(err)
         }

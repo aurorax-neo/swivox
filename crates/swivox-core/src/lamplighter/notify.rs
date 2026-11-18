@@ -145,6 +145,44 @@ pub async fn send_notification(
     }
 }
 
+fn validate_notification_url(url: &Url, label: &str) -> anyhow::Result<()> {
+    if !matches!(url.scheme(), "http" | "https") {
+        bail!("{label} 地址仅支持 HTTP 或 HTTPS");
+    }
+    let host = url
+        .host_str()
+        .map(|h| h.trim().trim_start_matches('[').trim_end_matches(']').trim_end_matches('.'))
+        .filter(|h| !h.is_empty())
+        .ok_or_else(|| anyhow::anyhow!("{label} 地址缺少主机名"))?;
+    let lower = host.to_ascii_lowercase();
+    if lower == "localhost" || lower.ends_with(".localhost") {
+        bail!("{label} 地址不允许指向本机回环地址");
+    }
+    if let Ok(ip) = host.parse::<std::net::IpAddr>() {
+        let is_local_or_meta = match ip {
+            std::net::IpAddr::V4(v4) => {
+                v4.is_loopback() || v4.is_link_local() || v4.is_unspecified() || v4.octets()[0] == 0
+            }
+            std::net::IpAddr::V6(v6) => {
+                if let Some(v4) = v6.to_ipv4_mapped() {
+                    v4.is_loopback()
+                        || v4.is_link_local()
+                        || v4.is_unspecified()
+                        || v4.octets()[0] == 0
+                } else {
+                    v6.is_loopback()
+                        || v6.is_unspecified()
+                        || (v6.segments()[0] & 0xffc0) == 0xfe80
+                }
+            }
+        };
+        if is_local_or_meta {
+            bail!("{label} 地址不允许指向本机回环或链路本地地址");
+        }
+    }
+    Ok(())
+}
+
 async fn send_bark(
     client: &reqwest::Client,
     cfg: &LamplighterConfig,
@@ -155,6 +193,7 @@ async fn send_bark(
     let encoded_body = pct_encode_rfc3986(if msg.body.is_empty() { " " } else { &msg.body });
     let raw_url = format!("{base}/{encoded_title}/{encoded_body}");
     let mut url = Url::parse(&raw_url).context("Bark 地址格式无效")?;
+    validate_notification_url(&url, "Bark")?;
     {
         let mut qp = url.query_pairs_mut();
         qp.append_pair("group", cfg.bark_group.trim());
@@ -206,6 +245,8 @@ async fn send_webhook(
 ) -> anyhow::Result<()> {
     let wh = &cfg.webhook;
     let url = wh.url.trim();
+    let parsed_url = Url::parse(url).context("Webhook 地址格式无效")?;
+    validate_notification_url(&parsed_url, "Webhook")?;
     let combined = if msg.body.is_empty() {
         msg.title.clone()
     } else {

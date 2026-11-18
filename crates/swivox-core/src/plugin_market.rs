@@ -948,16 +948,27 @@ async fn run_git(
     Ok(output.stdout)
 }
 
+struct TempDownloadDir(PathBuf);
+
+impl Drop for TempDownloadDir {
+    fn drop(&mut self) {
+        if self.0.exists() {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+}
+
 async fn download_package(
     home: &Path,
     source: Source,
     index: &PluginIndex,
     plugin: &PluginEntry,
-) -> anyhow::Result<PathBuf> {
+) -> anyhow::Result<(TempDownloadDir, PathBuf)> {
     let downloads = market_root(home).join("downloads");
     ensure_directory(home, &downloads)?;
     let work = downloads.join(uuid::Uuid::new_v4().to_string());
     ensure_directory(home, &work)?;
+    let temp_dir = TempDownloadDir(work.clone());
     let token = if source.private {
         github_token().await
     } else {
@@ -1045,7 +1056,8 @@ async fn download_package(
         &["checkout", "--quiet", "--detach", &index.revision],
     )
     .await?;
-    Ok(work.join(&plugin.path))
+    let payload_dir = work.join(&plugin.path);
+    Ok((temp_dir, payload_dir))
 }
 
 fn unsafe_payload_name(name: &str) -> bool {
@@ -1368,7 +1380,7 @@ pub async fn install_plugin(home: &Path, source: &str, id: &str) -> anyhow::Resu
         // 下载之前先验证当前配置，避免无意义下载或覆盖不可解析配置。
         updated_config(&home, source, plugin)?;
         set_status(&home, source, id, true, "fetching", "正在下载所选插件…")?;
-        let downloaded = download_package(&home, source, &index, plugin).await?;
+        let (_temp_dir, downloaded) = download_package(&home, source, &index, plugin).await?;
         set_status(&home, source, id, true, "fetching", "正在校验并启用插件…")?;
         commit_install(&home, source, plugin, Some(&downloaded))
     }

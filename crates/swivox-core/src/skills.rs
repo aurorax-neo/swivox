@@ -218,10 +218,7 @@ impl SkillsManager {
     }
 
     fn load_state_unlocked(&self) -> SkillsState {
-        let Ok(text) = std::fs::read_to_string(&self.state_path) else {
-            return SkillsState::default();
-        };
-        serde_json::from_str::<SkillsState>(&text).unwrap_or_default()
+        crate::settings::load_json_state_or_quarantine(&self.state_path)
     }
 
     fn save_state_unlocked(&self, state: &SkillsState) -> anyhow::Result<()> {

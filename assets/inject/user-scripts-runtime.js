@@ -1,4 +1,5 @@
 (() => {
+  window.__swivoxSealInternalBridge?.();
   const runtime = window.__swivoxUserScripts ||= { scripts: {} };
   runtime.registerCleanup = (cleanup) => {
     const script = runtime.scripts[runtime.currentKey];

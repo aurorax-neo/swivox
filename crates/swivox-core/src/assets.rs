@@ -287,7 +287,7 @@ pub fn injection_script_with_settings(helper_port: u16, settings: &BackendSettin
             renderer_script()
         ),
         stepwise_runtime,
-    )
+    ) + "\nif (window.__swivoxUserScriptsBootstrap || window.__swivoxUserScripts) window.__swivoxSealInternalBridge?.();\n"
 }
 
 pub fn image_overlay_config(helper_port: u16, settings: &BackendSettings) -> Value {

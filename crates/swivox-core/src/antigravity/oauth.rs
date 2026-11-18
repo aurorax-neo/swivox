@@ -28,14 +28,33 @@ pub const GOOGLE_USERINFO_URL: &str = "https://www.googleapis.com/oauth2/v2/user
 pub const TOKEN_REFRESH_SKEW_SECONDS: i64 = 900;
 pub const OAUTH_USER_AGENT: &str = "vscode/1.X.X (Antigravity/4.3.0)";
 
+/// 与 Antigravity 官方客户端（Antigravity.app 2.32.x `SIGN_IN_CLIENTS` / language_server）逐项对齐：
+/// 不请求 `openid`、不带 `include_granted_scopes`，个人账号客户端额外带 `aicode`。
 pub const ANTIGRAVITY_OAUTH_SCOPES: &[&str] = &[
-    "openid",
     "https://www.googleapis.com/auth/cloud-platform",
     "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/userinfo.profile",
     "https://www.googleapis.com/auth/cclog",
     "https://www.googleapis.com/auth/experimentsandconfigs",
 ];
+/// 个人账号客户端（1071006060591-…）在通用 scope 之外额外请求的 scope。
+pub const ANTIGRAVITY_PERSONAL_EXTRA_SCOPE: &str = "https://www.googleapis.com/auth/aicode";
+/// 官方客户端的本地回环回调路径（`SIGN_IN_CALLBACK_PATH`）。
+pub const ANTIGRAVITY_OAUTH_CALLBACK_PATH: &str = "/auth/callback";
+
+/// 按客户端返回官方完全一致的 scope 列表（顺序与官方一致，单空格拼接）。
+pub fn oauth_scopes_for_client(client_key: &str) -> Vec<&'static str> {
+    let mut scopes = ANTIGRAVITY_OAUTH_SCOPES.to_vec();
+    if client_key != "gcp" {
+        scopes.push(ANTIGRAVITY_PERSONAL_EXTRA_SCOPE);
+    }
+    scopes
+}
+
+/// 兼容旧版 Swivox 发出的 `/oauth-callback` 回调（手动粘贴时可能仍是旧地址）。
+fn is_oauth_callback_path(path: &str) -> bool {
+    path.starts_with(ANTIGRAVITY_OAUTH_CALLBACK_PATH) || path.starts_with("/oauth-callback")
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -176,9 +195,9 @@ pub fn parse_manual_oauth_input(raw_input: &str, expected_state: Option<&str>) -
         || trimmed.starts_with("[::1]:")
     {
         Url::parse(&format!("http://{trimmed}")).ok()
-    } else if trimmed.starts_with("/oauth-callback") || trimmed.starts_with('?') {
+    } else if is_oauth_callback_path(trimmed) || trimmed.starts_with('?') {
         let prefix = if trimmed.starts_with('?') {
-            format!("http://localhost/oauth-callback{trimmed}")
+            format!("http://localhost{ANTIGRAVITY_OAUTH_CALLBACK_PATH}{trimmed}")
         } else {
             format!("http://localhost{trimmed}")
         };
@@ -262,9 +281,9 @@ pub async fn start_oauth_login(client_key: Option<&str>) -> anyhow::Result<Antig
     let v6_listener = TcpListener::bind(format!("[::1]:{port}")).await.ok();
 
     let redirect_uri = if v6_listener.is_some() {
-        format!("http://localhost:{port}/oauth-callback")
+        format!("http://localhost:{port}{ANTIGRAVITY_OAUTH_CALLBACK_PATH}")
     } else {
-        format!("http://127.0.0.1:{port}/oauth-callback")
+        format!("http://127.0.0.1:{port}{ANTIGRAVITY_OAUTH_CALLBACK_PATH}")
     };
 
     let state = Uuid::new_v4().to_string();
@@ -278,18 +297,20 @@ pub async fn start_oauth_login(client_key: Option<&str>) -> anyhow::Result<Antig
     let code_challenge = pkce_challenge(&code_verifier);
 
     let mut auth_url = Url::parse(GOOGLE_AUTH_URL)?;
+    // 参数集合与官方 golang.org/x/oauth2 AuthCodeURL（含 PKCE）一致：
+    // access_type / client_id / code_challenge / code_challenge_method / prompt / redirect_uri /
+    // response_type / scope / state，不多不少。
     auth_url
         .query_pairs_mut()
+        .append_pair("access_type", "offline")
         .append_pair("client_id", client_id)
+        .append_pair("code_challenge", &code_challenge)
+        .append_pair("code_challenge_method", "S256")
+        .append_pair("prompt", "consent")
         .append_pair("redirect_uri", &redirect_uri)
         .append_pair("response_type", "code")
-        .append_pair("scope", &ANTIGRAVITY_OAUTH_SCOPES.join(" "))
-        .append_pair("access_type", "offline")
-        .append_pair("prompt", "consent")
-        .append_pair("include_granted_scopes", "true")
-        .append_pair("state", &state)
-        .append_pair("code_challenge", &code_challenge)
-        .append_pair("code_challenge_method", "S256");
+        .append_pair("scope", &oauth_scopes_for_client(normalized_key).join(" "))
+        .append_pair("state", &state);
 
     let (code_tx, code_rx) = oneshot::channel::<Result<String, String>>();
     let (cancel_tx, mut cancel_rx) = oneshot::channel::<()>();
@@ -317,7 +338,7 @@ pub async fn start_oauth_login(client_key: Option<&str>) -> anyhow::Result<Antig
                 let req_str = String::from_utf8_lossy(&buf[..n]);
                 let first_line = req_str.lines().next().unwrap_or("");
                 let path = first_line.split_whitespace().nth(1).unwrap_or("/");
-                if !path.starts_with("/oauth-callback") {
+                if !is_oauth_callback_path(path) {
                     let resp = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
                     let _ = stream.write_all(resp.as_bytes()).await;
                     continue;
@@ -631,9 +652,21 @@ mod tests {
 
     #[test]
     fn loopback_callback_requires_matching_state() {
-        assert!(callback_state_matches("/oauth-callback?state=s1&code=c", "s1"));
-        assert!(!callback_state_matches("/oauth-callback?code=attacker", "s1"));
-        assert!(!callback_state_matches("/oauth-callback?state=other&code=c", "s1"));
+        assert!(callback_state_matches("/auth/callback?state=s1&code=c", "s1"));
+        assert!(!callback_state_matches("/auth/callback?code=attacker", "s1"));
+        assert!(!callback_state_matches("/auth/callback?state=other&code=c", "s1"));
+    }
+
+    #[test]
+    fn scopes_match_official_clients_exactly() {
+        let personal = oauth_scopes_for_client("personal");
+        assert_eq!(personal.len(), 6);
+        assert_eq!(personal.last(), Some(&ANTIGRAVITY_PERSONAL_EXTRA_SCOPE));
+        assert!(!personal.contains(&"openid"));
+        let gcp = oauth_scopes_for_client("gcp");
+        assert_eq!(gcp, ANTIGRAVITY_OAUTH_SCOPES.to_vec());
+        assert!(is_oauth_callback_path("/auth/callback?code=x"));
+        assert!(is_oauth_callback_path("/oauth-callback?code=x"));
     }
 
     #[test]

@@ -69,7 +69,8 @@
 
 | 平台与架构 | 安装包 |
 | --- | --- |
-| macOS · Apple Silicon & Intel (Universal) | `Swivox-*-macos-universal.dmg` |
+| macOS · Apple Silicon (M 系列) | `Swivox-*-macos-arm64.dmg` |
+| macOS · Intel (x64) | `Swivox-*-macos-x64.dmg` |
 | Windows · x64 | `Swivox-*-windows-x64-setup.exe` / `Swivox-*-windows-x64.zip` |
 
 首次启动前请确认本机已安装官方 Codex / ChatGPT 桌面应用。
@@ -134,8 +135,8 @@ cargo test -p swivox-data --lib
 # 2. 构建 Release 原生桌面二进制
 cargo build --release -p swivox-gpui --bins
 
-# 3. 打包 macOS 通用 DMG（可选）
-bash scripts/installer/macos/build-universal.sh 0.1.5
+# 3. 按架构打包 macOS DMG（可选：arm64 / x64）
+BINARY_DIR=target/release bash scripts/installer/macos/package-dmg.sh 0.2.0 arm64
 ```
 
 > 若修改了 `assets/inject/renderer-inject/` 下的注入脚本分片，请运行 `node scripts/assemble-renderer-inject.mjs` 重新组装 `assets/inject/renderer-inject.js`。

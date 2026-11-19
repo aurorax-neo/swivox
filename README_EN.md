@@ -31,7 +31,8 @@
 
 Download the latest installer from [GitHub Releases](https://github.com/aurorax-neo/swivox/releases):
 
-- **macOS (Apple Silicon & Intel Universal)**: `Swivox-*-macos-universal.dmg`
+- **macOS (Apple Silicon / arm64)**: `Swivox-*-macos-arm64.dmg`
+- **macOS (Intel / x64)**: `Swivox-*-macos-x64.dmg`
 - **Windows (x64)**: `Swivox-*-windows-x64-setup.exe` / `Swivox-*-windows-x64.zip`
 
 1. Ensure the official Codex / ChatGPT desktop app is installed on your machine.

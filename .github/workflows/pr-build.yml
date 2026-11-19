@@ -115,10 +115,19 @@ jobs:
           if-no-files-found: error
 
   macos-dmg:
-    # PR 构建也出通用包，跟发版产物保持一致，避免只在发版时才暴露问题。
-    # 没有签名密钥，所以这里走 ad-hoc（脚本的默认行为）。
-    name: macOS DMG (universal)
+    # PR 构建按架构独立产出 arm64 / x64 DMG，与发版产物一致；未配置证书走 ad-hoc 签名。
+    name: macOS DMG (${{ matrix.arch }})
     runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            target: aarch64-apple-darwin
+            lipo_arch: arm64
+          - arch: x64
+            target: x86_64-apple-darwin
+            lipo_arch: x86_64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -126,23 +135,25 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-apple-darwin
+          targets: ${{ matrix.target }}
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
+          key: ${{ matrix.arch }}
           cache-on-failure: true
 
-      - name: Build macOS DMG
+      - name: Build macOS DMG (${{ matrix.arch }})
         run: |
+          set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
           VERSION="${VERSION#V}"
           VERSION="${VERSION//\//-}"
           if [ -z "$VERSION" ] || [ "$VERSION" = "main" ]; then
             VERSION="0.0.0-${GITHUB_RUN_NUMBER}"
           fi
-          cargo build --release -p swivox-gpui --bins
-          BINARY_DIR="target/release" bash scripts/installer/macos/package-dmg.sh "$VERSION" universal
+          cargo build --release --target "${{ matrix.target }}" -p swivox-gpui --bins
+          BINARY_DIR="target/${{ matrix.target }}/release" bash scripts/installer/macos/package-dmg.sh "$VERSION" "${{ matrix.arch }}"
       - name: Verify macOS bundle structure
         run: |
           set -euo pipefail
@@ -155,23 +166,27 @@ jobs:
           for app in "dist/macos/stage/Swivox.app" "dist/macos/stage/Swivox 管理工具.app"; do
             test -f "$app/Contents/Info.plist"
             test -f "$app/Contents/PkgInfo"
-            test -x "$app/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")"
+            exec_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")"
+            exec_path="$app/Contents/MacOS/$exec_name"
+            test -x "$exec_path"
+            actual_arch="$(lipo -archs "$exec_path")"
+            test "$actual_arch" = "${{ matrix.lipo_arch }}"
             if [[ "$app" == *"管理工具.app" ]]; then
               test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = "com.swivox.app.manager"
-              test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")" = "SwivoxManager"
+              test "$exec_name" = "SwivoxManager"
             else
               test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = "com.swivox.app"
-              test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")" = "Swivox"
+              test "$exec_name" = "Swivox"
             fi
             test "$(/usr/libexec/PlistBuddy -c 'Print :SwivoxUnifiedApp' "$app/Contents/Info.plist")" = "true"
             plutil -lint "$app/Contents/Info.plist" >/dev/null
             codesign -dv "$app" >/dev/null 2>&1
-            echo "verified: $app"
+            echo "verified: $app ($actual_arch)"
           done
 
       - name: Upload macOS DMG
         uses: actions/upload-artifact@v4
         with:
-          name: swivox-macos-universal-dmg
+          name: swivox-macos-${{ matrix.arch }}-dmg
           path: dist/macos/*.dmg
           if-no-files-found: error

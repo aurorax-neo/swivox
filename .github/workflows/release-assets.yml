@@ -128,10 +128,20 @@ jobs:
 
   macos-dmg:
     if: github.event_name == 'push' || inputs.platform != 'windows'
-    # 单个通用包（universal）同时支持 Intel 与 Apple Silicon，
-    # 用户不必再自己判断架构，Release 也只多一个而不是两个产物。
-    name: macOS DMG (universal)
+    # Apple Silicon (arm64) 与 Intel (x64) 分架构独立构建打包，不再 lipo 合并通用包，
+    # 单包体积减半且双架构并行编译更省时；应用内更新器按本机架构自动匹配对应 DMG。
+    name: macOS DMG (${{ matrix.arch }})
     runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            target: aarch64-apple-darwin
+            lipo_arch: arm64
+          - arch: x64
+            target: x86_64-apple-darwin
+            lipo_arch: x86_64
     steps:
       - name: Checkout release tag
         uses: actions/checkout@v4
@@ -199,26 +209,28 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          # 通用包需要两个架构的 std，构建脚本会各编一遍再 lipo 合并。
-          targets: x86_64-apple-darwin,aarch64-apple-darwin
+          targets: ${{ matrix.target }}
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
+          key: ${{ matrix.arch }}
           cache-on-failure: true
 
-      - name: Build universal macOS DMG
+      - name: Build macOS DMG (${{ matrix.arch }})
         env:
           MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: |
+          set -euo pipefail
           VERSION="${RELEASE_TAG#v}"
           VERSION="${VERSION#V}"
           if [ -n "${APPLE_API_KEY_P8:-}" ] && [ -n "${MACOS_SIGNING_IDENTITY:-}" ]; then
             export MACOS_NOTARY_PROFILE="swivox-notary"
           fi
+          cargo build --release --target "${{ matrix.target }}" -p swivox-gpui --bins
           # 若配置了 MACOS_SIGNING_IDENTITY 则走正式签名+公证，未配置则自动回退 ad-hoc 签名。
-          bash scripts/installer/macos/build-universal.sh "$VERSION"
+          BINARY_DIR="target/${{ matrix.target }}/release" bash scripts/installer/macos/package-dmg.sh "$VERSION" "${{ matrix.arch }}"
       - name: Verify macOS bundle structure
         env:
           MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
@@ -233,13 +245,17 @@ jobs:
           for app in "dist/macos/stage/Swivox.app" "dist/macos/stage/Swivox 管理工具.app"; do
             test -f "$app/Contents/Info.plist"
             test -f "$app/Contents/PkgInfo"
-            test -x "$app/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")"
+            exec_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")"
+            exec_path="$app/Contents/MacOS/$exec_name"
+            test -x "$exec_path"
+            actual_arch="$(lipo -archs "$exec_path")"
+            test "$actual_arch" = "${{ matrix.lipo_arch }}"
             if [[ "$app" == *"管理工具.app" ]]; then
               test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = "com.swivox.app.manager"
-              test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")" = "SwivoxManager"
+              test "$exec_name" = "SwivoxManager"
             else
               test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = "com.swivox.app"
-              test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")" = "Swivox"
+              test "$exec_name" = "Swivox"
             fi
             test "$(/usr/libexec/PlistBuddy -c 'Print :SwivoxUnifiedApp' "$app/Contents/Info.plist")" = "true"
             plutil -lint "$app/Contents/Info.plist" >/dev/null
@@ -249,7 +265,7 @@ jobs:
               codesign --verify --deep --strict "$app"
               spctl --assess --type execute "$app"
             fi
-            echo "verified: $app"
+            echo "verified: $app ($actual_arch)"
           done
 
       - name: Verify DMG notarization
@@ -319,7 +335,8 @@ jobs:
           const required = [
             "Swivox-" + version + "-windows-x64-setup.exe",
             "Swivox-" + version + "-windows-x64.zip",
-            "Swivox-" + version + "-macos-universal.dmg"
+            "Swivox-" + version + "-macos-arm64.dmg",
+            "Swivox-" + version + "-macos-x64.dmg"
           ];
           for (const name of required) {
             if (!(release.assets || []).some((asset) => asset.name === name && asset.size > 0)) {

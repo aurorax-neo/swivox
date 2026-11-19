@@ -229,13 +229,6 @@ pub struct LiveContextEntriesPayload {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ExtractRelayCommonConfigPayload {
-    pub common_config_contents: String,
-    pub profile_config_contents: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RelayProfileTestPayload {
     pub http_status: u16,
     pub endpoint: String,
@@ -256,20 +249,6 @@ pub struct RelayProfileModelsPayload {
     pub endpoint: String,
     #[serde(default)]
     pub model_windows: std::collections::HashMap<String, u64>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Sub2ApiBillingPayload {
-    pub endpoint: String,
-    pub group_rate_multiplier: f64,
-    pub user_rate_multiplier: Option<f64>,
-    pub resolved_rate_multiplier: f64,
-    pub peak_rate_enabled: bool,
-    pub peak_rate_multiplier: Option<f64>,
-    pub applied_peak_multiplier: Option<f64>,
-    pub effective_rate_multiplier: f64,
-    pub observed_at: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -348,12 +327,6 @@ pub struct ContextDeleteRequest {
     pub settings: BackendSettings,
     pub kind: String,
     pub id: String,
-}
-
-#[derive(Debug, Clone, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ExtractRelayCommonConfigRequest {
-    pub config_contents: String,
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -2632,39 +2605,6 @@ where
         on_finished();
     });
 }
-pub fn query_builtin_model_metadata(slug: String) -> CommandResult<Value> {
-    match swivox_core::model_suffix::builtin_model_metadata(slug.as_str()) {
-        Some(metadata) => ok(
-            "内置元数据已匹配。",
-            json!({
-                "matched": true,
-                "source": metadata.source,
-                "entry": metadata.entry,
-            }),
-        ),
-        None => {
-            // 回退值从 bundled 静态资产首条实时取，不写死——
-            // sync_official_models.py 调整首条后这里自动跟随。
-            let (fallback_slug, fallback_window) =
-                swivox_core::model_suffix::fallback_template_info().unwrap_or_else(|| {
-                    (
-                        "gpt-5.5".to_string(),
-                        swivox_core::model_suffix::UNMATCHED_FALLBACK_CONTEXT_WINDOW,
-                    )
-                });
-            ok(
-                "未命中内置元数据，保留原模型名并默认保底 1M。",
-                json!({
-                    "matched": false,
-                    "fallback": {
-                        "slug": fallback_slug,
-                        "context_window": fallback_window,
-                    },
-                }),
-            )
-        }
-    }
-}
 pub fn builtin_model_metadata_index() -> CommandResult<Value> {
     let index = swivox_core::model_suffix::builtin_model_metadata_index();
     let count = index.len();
@@ -2673,24 +2613,6 @@ pub fn builtin_model_metadata_index() -> CommandResult<Value> {
         json!({ "entries": index, "count": count }),
     )
 }
-pub fn refresh_builtin_model_metadata() -> CommandResult<Value> {
-    swivox_core::model_suffix::clear_builtin_metadata_cache();
-    let index = swivox_core::model_suffix::builtin_model_metadata_index();
-    let count = index.len();
-    ok(
-        "内置与运行时模型元数据缓存已刷新。",
-        json!({ "entries": index, "count": count }),
-    )
-}
-pub async fn fetch_models_dev_catalog() -> CommandResult<Value> {
-    match swivox_core::remote_model_catalog::fetch_and_cache_models_dev_catalog().await {
-        Ok(result) => ok(
-            &result.message,
-            serde_json::to_value(&result).unwrap_or_default(),
-        ),
-        Err(err) => failed(&format!("同步 models.dev 元数据失败: {err}"), json!({})),
-    }
-}
 pub fn get_models_dev_catalog_status() -> CommandResult<Value> {
     let status = swivox_core::remote_model_catalog::get_models_dev_catalog_status();
     ok(
@@ -2698,93 +2620,6 @@ pub fn get_models_dev_catalog_status() -> CommandResult<Value> {
         serde_json::to_value(&status).unwrap_or_default(),
     )
 }
-pub fn find_desktop_codex_cli() -> CommandResult<Value> {
-    // Windows 标准路径：桌面版在用户目录维护、可直接运行的 CLI。
-    // Store 包目录（WindowsApps）内的资源受系统保护，第三方进程无法执行（#2028），
-    // 因此这里不再返回包内路径，避免把必然失败的路径写进设置。
-    #[cfg(windows)]
-    {
-        return match swivox_core::app_paths::find_desktop_managed_codex_cli() {
-            Some(path) => ok(
-                "已填入桌面版内置 Codex CLI。",
-                json!({ "path": path.to_string_lossy() }),
-            ),
-            None => failed(
-                "未找到可运行的桌面版内置 Codex CLI。请先通过 Swivox 启动一次 Codex 桌面版后重试，\
-                 或将「Codex CLI 路径」留空自动查找。",
-                json!({ "path": null }),
-            ),
-        };
-    }
-    #[cfg(not(windows))]
-    {
-        let settings = match SettingsStore::default().load() {
-            Ok(settings) => settings,
-            Err(error) => {
-                return failed(
-                    &format!("读取 Codex 应用设置失败：{error}"),
-                    json!({ "path": null }),
-                );
-            }
-        };
-        let Some(app_dir) = swivox_core::app_paths::resolve_codex_app_dir_with_saved(
-            None,
-            Some(settings.codex_app_path.as_str()),
-        ) else {
-            return failed("未找到 Codex Desktop 应用。", json!({ "path": null }));
-        };
-        // 包内 CLI 可能存在于受系统保护的目录而无法执行（#2028 同类问题），
-        // 因此先验证能真正启动，失败时回退到用户目录中的独立 CLI。
-        let bundled = swivox_core::app_paths::find_bundled_codex_cli(&app_dir);
-        let standalone = swivox_core::app_paths::find_standalone_codex_cli();
-        let Some(path) = [bundled, standalone]
-            .into_iter()
-            .flatten()
-            .find(|candidate| codex_cli_can_start(candidate))
-        else {
-            return failed(
-                "已找到 Codex Desktop，但没有可用的 Codex CLI；请安装或指定用户目录中的 Codex CLI。",
-                json!({ "path": null }),
-            );
-        };
-        ok(
-            "已填入桌面版内置 Codex CLI。",
-            json!({ "path": path.to_string_lossy() }),
-        )
-    }
-}
-
-fn codex_cli_can_start(path: &std::path::Path) -> bool {
-    use std::process::{Command, Stdio};
-    use std::time::{Duration, Instant};
-    let mut command = Command::new(path);
-    command
-        .arg("--version")
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(swivox_core::windows_create_no_window());
-    }
-    let Ok(mut child) = command.spawn() else {
-        return false;
-    };
-    let deadline = Instant::now() + Duration::from_secs(5);
-    loop {
-        match child.try_wait() {
-            Ok(Some(status)) => return status.success(),
-            Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(25)),
-            _ => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return false;
-            }
-        }
-    }
-}
-
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct NativeBrowserDiagnostics {
@@ -3826,16 +3661,6 @@ pub async fn install_plugin_market_item(source: String, id: String) -> Value {
         Err(error) => json!({"status": "failed", "message": error.to_string()}),
     }
 }
-pub fn plugin_market_install_status(source: String, id: String) -> Value {
-    match swivox_core::plugin_market::install_status(
-        &swivox_core::codex_home::default_codex_home_dir(),
-        &source,
-        &id,
-    ) {
-        Ok(payload) => payload,
-        Err(error) => json!({"status": "failed", "message": error.to_string(), "busy": false}),
-    }
-}
 pub async fn refresh_user_script_inventory() -> CommandResult<SettingsPayload> {
     let debug_port = StatusStore::default()
         .load_latest()
@@ -4705,13 +4530,6 @@ pub fn switch_relay_profile(
         }
     }
 }
-pub fn write_diagnostic_event(event: String, detail: Value) -> CommandResult<Value> {
-    let event = sanitize_manager_event(&event);
-    match swivox_core::diagnostic_log::append_diagnostic_log(&event, detail) {
-        Ok(()) => ok("诊断日志已写入。", json!({})),
-        Err(error) => failed(&format!("写入诊断日志失败：{error}"), json!({})),
-    }
-}
 
 /// 预检 live config.toml 能否被回填流程解析（issue #618）。
 ///
@@ -5141,31 +4959,6 @@ pub fn delete_context_entry(request: ContextDeleteRequest) -> CommandResult<Cont
         ),
     }
 }
-pub fn extract_relay_common_config(
-    request: ExtractRelayCommonConfigRequest,
-) -> CommandResult<ExtractRelayCommonConfigPayload> {
-    match swivox_core::relay_config::extract_common_config_from_config(&request.config_contents)
-        .and_then(|common_config_contents| {
-            let profile_config_contents =
-                swivox_core::relay_config::strip_common_config_from_config(
-                    &request.config_contents,
-                    &common_config_contents,
-                )?;
-            Ok(ExtractRelayCommonConfigPayload {
-                common_config_contents,
-                profile_config_contents,
-            })
-        }) {
-        Ok(payload) => ok("通用配置已按兼容切换规则提取。", payload),
-        Err(error) => failed(
-            &format!("提取通用配置失败：{error}"),
-            ExtractRelayCommonConfigPayload {
-                common_config_contents: String::new(),
-                profile_config_contents: request.config_contents,
-            },
-        ),
-    }
-}
 pub async fn test_relay_profile(profile: RelayProfile) -> CommandResult<RelayProfileTestPayload> {
     let profile_name = if profile.name.trim().is_empty() {
         "未命名供应商"
@@ -5309,63 +5102,6 @@ pub async fn fetch_relay_profile_models(
             },
         ),
     }
-}
-pub async fn fetch_sub2api_billing(profile: RelayProfile) -> CommandResult<Sub2ApiBillingPayload> {
-    let profile_name = if profile.name.trim().is_empty() {
-        "未命名供应商"
-    } else {
-        profile.name.trim()
-    };
-    match swivox_core::sub2api::fetch_sub2api_billing_info(&profile).await {
-        Ok(info) => ok(
-            &format!(
-                "已从「{profile_name}」获取倍率：{}x。",
-                format_multiplier(info.effective_rate_multiplier)
-            ),
-            Sub2ApiBillingPayload {
-                endpoint: info.endpoint,
-                group_rate_multiplier: info.group_rate_multiplier,
-                user_rate_multiplier: info.user_rate_multiplier,
-                resolved_rate_multiplier: info.resolved_rate_multiplier,
-                peak_rate_enabled: info.peak_rate_enabled,
-                peak_rate_multiplier: info.peak_rate_multiplier,
-                applied_peak_multiplier: info.applied_peak_multiplier,
-                effective_rate_multiplier: info.effective_rate_multiplier,
-                observed_at: info.observed_at,
-            },
-        ),
-        Err(error) => failed(
-            &format!("从「{profile_name}」获取 sub2api 倍率失败：{error}"),
-            Sub2ApiBillingPayload {
-                endpoint: swivox_core::sub2api::sub2api_billing_endpoint(
-                    if profile.upstream_base_url.trim().is_empty() {
-                        profile.base_url.trim()
-                    } else {
-                        profile.upstream_base_url.trim()
-                    },
-                ),
-                group_rate_multiplier: 0.0,
-                user_rate_multiplier: None,
-                resolved_rate_multiplier: 0.0,
-                peak_rate_enabled: false,
-                peak_rate_multiplier: None,
-                applied_peak_multiplier: None,
-                effective_rate_multiplier: 0.0,
-                observed_at: String::new(),
-            },
-        ),
-    }
-}
-
-fn format_multiplier(value: f64) -> String {
-    let mut text = format!("{value:.4}");
-    while text.contains('.') && text.ends_with('0') {
-        text.pop();
-    }
-    if text.ends_with('.') {
-        text.pop();
-    }
-    text
 }
 pub async fn diagnose_relay_profile(profile: RelayProfile) -> CommandResult<ProviderDoctorPayload> {
     let profile_name = if profile.name.trim().is_empty() {
@@ -6017,28 +5753,6 @@ fn log_manager_event(event: &str, detail: Value) {
     let _ = swivox_core::diagnostic_log::append_diagnostic_log(event, detail);
 }
 
-fn sanitize_manager_event(event: &str) -> String {
-    let suffix = event
-        .trim()
-        .chars()
-        .map(|ch| {
-            if ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '.') {
-                ch
-            } else {
-                '_'
-            }
-        })
-        .collect::<String>();
-    let suffix = suffix.trim_matches(['.', '_', '-']).trim();
-    if suffix.is_empty() {
-        "manager.ui.event".to_string()
-    } else if suffix.starts_with("manager.") {
-        suffix.to_string()
-    } else {
-        format!("manager.ui.{suffix}")
-    }
-}
-
 fn relay_payload(
     status: swivox_core::relay_config::RelayStatus,
     backup_path: Option<String>,
@@ -6446,94 +6160,6 @@ fn shortcut_state(shortcut: install::ShortcutState) -> PathState {
     }
 }
 
-#[derive(Debug, Clone, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TestVlmRequest {
-    pub api_key: String,
-    pub model: String,
-    pub base_url: String,
-    pub image_data_url: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TestVlmResult {
-    pub vlm_status: String,
-    pub http_code: Option<u16>,
-    pub duration_ms: u64,
-    pub error: Option<String>,
-    pub description: Option<String>,
-    pub model: String,
-    pub raw_request: Option<String>,
-    pub raw_response: Option<String>,
-}
-
-/// 用表单当前 VLM 配置 + 用户上传图片（data URL）测试 VLM 可用性。
-/// 用表单当前值（未保存亦可）；失败也返回结构化 payload 供前端渲染诊断。
-pub async fn test_vlm(request: TestVlmRequest) -> CommandResult<TestVlmResult> {
-    // 加固 spec §4.1 第二道门：前端校验可被绕过（IPC 直调），类型与大小在
-    // 信任边界重新校验；非法输入不发起网络请求。
-    if let Err(reason) = swivox_core::vision::validate_image_data_url(&request.image_data_url) {
-        return failed(
-            "VLM 测试失败：invalid_image",
-            TestVlmResult {
-                vlm_status: "invalid_image".to_string(),
-                http_code: None,
-                duration_ms: 0,
-                error: Some(reason),
-                description: None,
-                model: request.model,
-                raw_request: None,
-                raw_response: None,
-            },
-        );
-    }
-    let config = swivox_core::vision::VlmConfig {
-        api_key: request.api_key,
-        model: request.model.clone(),
-        base_url: request.base_url,
-    };
-    let client = match swivox_core::http_client::vlm_http_client() {
-        Ok(c) => c,
-        Err(e) => {
-            return failed(
-                &format!("VLM HTTP 客户端构建失败：{e}"),
-                TestVlmResult {
-                    vlm_status: "client_error".to_string(),
-                    http_code: None,
-                    duration_ms: 0,
-                    // 加固 spec §4.2：client_error 路径同样过脱敏，全仓库一条规则
-                    error: Some(swivox_core::vision::redact_secrets(
-                        &e.to_string(),
-                        &config.api_key,
-                    )),
-                    description: None,
-                    model: request.model,
-                    raw_request: None,
-                    raw_response: None,
-                },
-            );
-        }
-    };
-    let outcome =
-        swivox_core::vision::test_vlm_once(&config, &request.image_data_url, &client).await;
-    let result = TestVlmResult {
-        vlm_status: outcome.status.clone(),
-        http_code: outcome.http_code,
-        duration_ms: outcome.duration_ms,
-        error: outcome.error,
-        description: outcome.text,
-        model: request.model,
-        raw_request: outcome.raw_request,
-        raw_response: outcome.raw_response,
-    };
-    if outcome.status == "ok" {
-        ok("VLM 测试成功。", result)
-    } else {
-        failed(&format!("VLM 测试失败：{}", outcome.status), result)
-    }
-}
-
 fn ok<T: Serialize>(message: &str, payload: T) -> CommandResult<T> {
     CommandResult {
         status: "ok".to_string(),
@@ -6632,24 +6258,6 @@ pub struct BindRelayOfficialAccountRequest {
     pub relay_profile_id: String,
     #[serde(default)]
     pub official_account_id: Option<String>,
-}
-
-#[derive(Debug, Clone, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SetRelayLaunchProxyRequest {
-    pub relay_profile_id: String,
-    #[serde(default)]
-    pub proxy_spec: Option<String>,
-}
-
-#[derive(Debug, Clone, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SaveGlobalLaunchProxyRequest {
-    pub global_proxy_mode: String,
-    #[serde(default)]
-    pub global_proxy_url: String,
-    #[serde(default)]
-    pub proxy_resources: Option<Vec<swivox_core::official_accounts::OfficialProxyResource>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -6912,41 +6520,6 @@ pub fn bind_relay_official_account(
         ),
         Err(err) => failed(
             &format!("绑定官方账号失败：{err}"),
-            swivox_core::official_accounts::get_official_accounts_snapshot(),
-        ),
-    }
-}
-pub fn set_relay_launch_proxy(
-    request: SetRelayLaunchProxyRequest,
-) -> CommandResult<swivox_core::official_accounts::OfficialAccountsSnapshot> {
-    match swivox_core::official_accounts::set_relay_profile_launch_proxy(
-        &request.relay_profile_id,
-        request.proxy_spec.as_deref(),
-    ) {
-        Ok(()) => ok(
-            "已更新供应商专属启动代理设置。",
-            swivox_core::official_accounts::get_official_accounts_snapshot(),
-        ),
-        Err(err) => failed(
-            &format!("更新供应商代理失败：{err}"),
-            swivox_core::official_accounts::get_official_accounts_snapshot(),
-        ),
-    }
-}
-pub fn save_global_launch_proxy(
-    request: SaveGlobalLaunchProxyRequest,
-) -> CommandResult<swivox_core::official_accounts::OfficialAccountsSnapshot> {
-    match swivox_core::official_accounts::update_global_launch_proxy_settings(
-        &request.global_proxy_mode,
-        &request.global_proxy_url,
-        request.proxy_resources,
-    ) {
-        Ok(_) => ok(
-            "已保存 Codex 启动代理配置。",
-            swivox_core::official_accounts::get_official_accounts_snapshot(),
-        ),
-        Err(err) => failed(
-            &format!("保存启动代理配置失败：{err}"),
             swivox_core::official_accounts::get_official_accounts_snapshot(),
         ),
     }

@@ -90,10 +90,6 @@ pub const MCP_PRESETS: &[McpPreset] = &[
     },
 ];
 
-pub fn mcp_preset_by_id(id: &str) -> Option<&'static McpPreset> {
-    MCP_PRESETS.iter().find(|p| p.id == id)
-}
-
 // ============================================================================
 // 2. 管理页多词搜索与会话分组规则（100% 对应 management-model.ts）
 // ============================================================================

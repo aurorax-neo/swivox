@@ -15,7 +15,10 @@
 - `apps/swivox-gpui/` — GPUI 原生桌面管理应用（产生物理二进制 `swivox` 与 `swivox-legacy-shim`）
 - `apps/swivox-launcher/` — Codex 进程启动、单实例唤醒与协议代理守护
 - `crates/swivox-data/` — 数据持久化与会话 SQLite 管理
-- `docs/` — 项目的设计文档、调研、计划
+- `assets/` — 编译期嵌入的注入脚本、模型元数据与 Antigravity 汉化词典
+- `scripts/` — 安装包打包、模型元数据同步与渲染脚本组装工具
+- `site/` — 项目静态官网（由 `pages.yml` 部署）
+- `docs/` — 项目的设计文档、调研、计划与 README 图示
 
 ## 关键代码位置
 

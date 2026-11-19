@@ -237,12 +237,6 @@ pub fn export_antigravity_accounts() -> CommandResult<AntigravityExportPayload> 
     }
 }
 
-pub async fn switch_antigravity_account(
-    account_id: String,
-) -> CommandResult<AntigravitySnapshotPayload> {
-    switch_antigravity_account_with_mode(account_id, "desktop_hot".to_string()).await
-}
-
 pub async fn switch_antigravity_account_with_mode(
     account_id: String,
     switch_mode: String,
@@ -433,17 +427,6 @@ pub async fn sync_antigravity_enhance_now() -> CommandResult<AntigravityEnhanceS
     }
 }
 
-pub async fn launch_antigravity(
-    force_clean_conflict: bool,
-) -> CommandResult<AntigravityLaunchPayload> {
-    let preferred = antigravity::load_antigravity_state().preferred_target;
-    let target_str = match preferred {
-        AntigravityClientKind::Ide => "ide",
-        _ => "desktop",
-    };
-    launch_antigravity_target(target_str.to_string(), force_clean_conflict).await
-}
-
 pub async fn launch_antigravity_target(
     target_kind: String,
     force_clean_conflict: bool,
@@ -521,22 +504,6 @@ pub async fn launch_antigravity_target(
             },
         ),
     }
-}
-
-pub async fn stop_antigravity() -> CommandResult<AntigravitySnapshotPayload> {
-    let state = antigravity::load_antigravity_state();
-    let (target, _) = antigravity::resolve_effective_target(
-        state.preferred_target,
-        Some(&state.custom_desktop_path),
-        Some(&state.custom_ide_path),
-        state.cdp_port,
-    );
-    let target_str = if target == AntigravityClientKind::Ide {
-        "ide"
-    } else {
-        "desktop"
-    };
-    stop_antigravity_target(target_str.to_string()).await
 }
 
 pub async fn stop_antigravity_target(

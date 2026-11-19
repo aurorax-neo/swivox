@@ -27,10 +27,6 @@ fn failed<T: Serialize>(message: impl Into<String>, payload: T) -> CommandResult
     }
 }
 
-pub fn load_lamplighter_snapshot(history_hours: u64) -> CommandResult<LamplighterPayload> {
-    load_lamplighter_client_snapshot(None, history_hours)
-}
-
 pub fn load_lamplighter_client_snapshot(
     client_id: Option<String>,
     history_hours: u64,
@@ -44,10 +40,6 @@ pub fn load_lamplighter_client_snapshot(
             ),
         },
     )
-}
-
-pub async fn refresh_lamplighter(history_hours: u64) -> CommandResult<LamplighterPayload> {
-    refresh_lamplighter_client(None, history_hours).await
 }
 
 pub async fn refresh_lamplighter_client(
@@ -74,13 +66,6 @@ pub async fn refresh_lamplighter_client(
             },
         ),
     }
-}
-
-pub async fn ignite_lamplighter_group(
-    group_key: String,
-    history_hours: u64,
-) -> CommandResult<LamplighterPayload> {
-    ignite_lamplighter_group_for_client(group_key, None, history_hours).await
 }
 
 pub async fn ignite_lamplighter_group_for_client(
@@ -142,13 +127,6 @@ pub fn save_lamplighter_config_for_client(
             },
         ),
     }
-}
-
-pub async fn test_lamplighter_notification(
-    config: LamplighterConfig,
-    history_hours: u64,
-) -> CommandResult<LamplighterPayload> {
-    test_lamplighter_notification_for_client(config, None, history_hours).await
 }
 
 pub async fn test_lamplighter_notification_for_client(

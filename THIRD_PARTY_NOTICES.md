@@ -14,7 +14,7 @@ Swivox is a derivative work originally forked from **CodexPlusPlus**:
 - **Derivative Modifications**: Copyright (C) 2026 aurorax-neo (<https://github.com/aurorax-neo/swivox>)
 
 Summary of major architectural and product modifications in Swivox:
-- Rebranded application package, bundle identifiers (`com.swivox.app`), extension namespace (`window.swivox`), isolated state directory (`~/.swivox`, including `user_scripts`), and isolated loopback ports (`58319–58321`) to **Swivox** with zero configuration overlap against upstream `Codex++`.
+- Rebranded application package, bundle identifiers (`com.swivox.app`), extension namespace (`window.swivox`), isolated state directory (`~/.swivox`, including `user_scripts` and `lamplighter`), and isolated loopback ports (`58318–58321`) to **Swivox** with zero configuration overlap against upstream `Codex++`.
 - Migrated the entire desktop management frontend from Tauri/React to a pure Rust + **GPUI** native GPU-accelerated desktop application (`apps/swivox-gpui` + `crates/swivox-backend`).
 - Added multi-account official OAuth PKCE login, automatic token refresh, real-time quota inspection, macOS Keychain synchronization, per-account third-party API provider binding, official account multi-instance launch, main-instance stop control, and unified global network proxy settings.
 

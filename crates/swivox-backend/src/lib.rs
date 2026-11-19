@@ -17,22 +17,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 static APP_EXITING: AtomicBool = AtomicBool::new(false);
 static SHUTDOWN_STARTED: AtomicBool = AtomicBool::new(false);
-static SHUTDOWN_COMPLETE: AtomicBool = AtomicBool::new(false);
 
 pub fn app_is_exiting() -> bool {
     APP_EXITING.load(Ordering::SeqCst)
 }
 
-pub fn mark_app_exiting() {
-    APP_EXITING.store(true, Ordering::SeqCst);
-}
-
 pub fn shutdown_started() -> bool {
     SHUTDOWN_STARTED.load(Ordering::SeqCst)
-}
-
-pub fn shutdown_complete() -> bool {
-    SHUTDOWN_COMPLETE.load(Ordering::SeqCst)
 }
 
 /// 执行优雅停机（停止自动接管守护并关闭 launcher 及其子服务），幂等安全。
@@ -46,7 +37,6 @@ pub fn run_graceful_shutdown() {
                 serde_json::json!({ "message": error.to_string() }),
             );
         }
-        SHUTDOWN_COMPLETE.store(true, Ordering::SeqCst);
     }
 }
 

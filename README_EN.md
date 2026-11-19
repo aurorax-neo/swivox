@@ -61,6 +61,9 @@ cargo test -p swivox-data --lib
 
 # Build release native desktop binaries
 cargo build --release -p swivox-gpui --bins
+
+# Package a single-arch macOS DMG (optional: arm64 / x64)
+BINARY_DIR=target/release bash scripts/installer/macos/package-dmg.sh 0.2.0 arm64
 ```
 
 If you edit shards under `assets/inject/renderer-inject/`, run `node scripts/assemble-renderer-inject.mjs` to reassemble `assets/inject/renderer-inject.js`.

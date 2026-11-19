@@ -33,13 +33,15 @@ Thank you for your interest in contributing to Swivox!
 Swivox/
 ├── apps/
 │   ├── swivox-gpui/          # Native GPUI desktop app (pure Rust)
-│   ├── swivox-launcher/      # Codex launcher and protocol proxy guardian
-│   └── swivox-mobile-relay/  # Mobile relay service
+│   └── swivox-launcher/      # Codex launcher and protocol proxy guardian
 ├── crates/
-│   ├── swivox-backend/ # Commands, i18n and UI rule layer
-│   ├── swivox-data/    # Data handling and provider sync
-│   └── swivox-core/    # Core Swivox logic
-└── README.md               # Project documentation
+│   ├── swivox-backend/       # Commands, i18n and UI rule layer
+│   ├── swivox-data/          # Data handling and provider sync
+│   └── swivox-core/          # Core Swivox logic
+├── assets/                   # Embedded injection scripts, model metadata & dicts
+├── scripts/                  # Packaging & assembly scripts
+├── site/                     # Project landing page
+└── README.md                 # Project documentation
 ```
 
 ## Making Changes

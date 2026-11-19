@@ -668,10 +668,6 @@ pub fn resolve_model_window_preview(model_raw: &str) -> ModelWindowPreview {
     }
 }
 
-pub fn merge_fetched_models_into_rows(rows: &mut Vec<ModelWindowRow>, fetched: &[String]) -> usize {
-    merge_fetched_models_with_windows_into_rows(rows, fetched, &HashMap::new())
-}
-
 pub fn merge_fetched_models_with_windows_into_rows(
     rows: &mut Vec<ModelWindowRow>,
     fetched: &[String],

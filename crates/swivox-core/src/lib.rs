@@ -83,14 +83,6 @@ pub fn windows_activate_process_window(process_id: u32) -> bool {
 }
 
 #[cfg(windows)]
-pub fn windows_apply_swivox_icon_to_process_window(
-    process_id: u32,
-    icon_resource_path: std::path::PathBuf,
-) -> bool {
-    windows_integration::apply_swivox_icon_to_process_window(process_id, icon_resource_path)
-}
-
-#[cfg(windows)]
 pub fn windows_process_command_line(process_id: u32) -> Option<String> {
     windows_integration::process_command_line(process_id)
 }

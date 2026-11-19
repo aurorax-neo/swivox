@@ -210,7 +210,7 @@ pub fn poll_tray_actions() -> Vec<TrayAction> {
 #[cfg(not(target_os = "macos"))]
 mod cross_platform {
     use tray_icon::menu::{Menu, MenuEvent, MenuId, MenuItem};
-    use tray_icon::{Icon, MouseButton, TrayIcon, TrayIconBuilder, TrayIconEvent};
+    use tray_icon::{Icon, MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 
     use super::{TRAY_MENU_QUIT, TRAY_MENU_SHOW, TrayAction, decode_brand_tray_rgba, t};
 
@@ -240,7 +240,8 @@ mod cross_platform {
                 .with_menu(Box::new(tray_menu))
                 .with_tooltip("Swivox")
                 .with_icon(icon)
-                .with_menu_on_left_click(true)
+                // Windows/Linux 标准托盘交互：左键点击直接恢复主窗口，右键弹出菜单（显示主窗口 / 退出程序）。
+                .with_menu_on_left_click(false)
                 .build()?;
 
             Ok(Self {
@@ -269,14 +270,21 @@ mod cross_platform {
                 actions.push(TrayAction::QuitApp);
             }
         }
+        let mut requested_show = actions.contains(&TrayAction::ShowMainWindow);
         while let Ok(event) = TrayIconEvent::receiver().try_recv() {
-            if matches!(
+            let is_left_activate = matches!(
                 event,
-                TrayIconEvent::DoubleClick {
+                TrayIconEvent::Click {
+                    button: MouseButton::Left,
+                    button_state: MouseButtonState::Up,
+                    ..
+                } | TrayIconEvent::DoubleClick {
                     button: MouseButton::Left,
                     ..
                 }
-            ) {
+            );
+            if is_left_activate && !requested_show {
+                requested_show = true;
                 actions.push(TrayAction::ShowMainWindow);
             }
         }

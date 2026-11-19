@@ -135,7 +135,11 @@ fn main() {
     swivox_core::lamplighter::ensure_lamplighter_engine_started(tokio_handle.clone());
 
     let reopen_tx = wake_tx.clone();
-    let app = gpui_kit::application().with_assets(gpui_kit::assets::AllAssets);
+    // 显式退出模式：Windows/Linux 下关闭主窗口仅隐藏到系统托盘而不退出后台进程，
+    // 只有用户在托盘菜单点击「退出程序」或应用内主动调用 quit 时才真正退出。
+    let app = gpui_kit::application()
+        .with_assets(gpui_kit::assets::AllAssets)
+        .with_quit_mode(QuitMode::Explicit);
     app.on_reopen(move |_cx| {
         let _ = reopen_tx.send(ExternalWakeEvent::FocusAndConsumeNavigation);
     });
@@ -159,6 +163,18 @@ fn main() {
             open_or_focus_main_window(&mut main_window, &store, cx);
 
             let window_cell = Rc::new(std::cell::RefCell::new(main_window));
+
+            // 主窗口关闭时清空句柄，确保下次点击托盘图标或单实例唤醒时立即干净重建窗口。
+            {
+                let window_cell = window_cell.clone();
+                cx.on_window_closed(move |_cx, closed_id| {
+                    let mut slot = window_cell.borrow_mut();
+                    if slot.is_some_and(|handle| handle.window_id() == closed_id) {
+                        *slot = None;
+                    }
+                })
+                .detach();
+            }
 
             // 应用退出时执行优雅停机
             cx.on_app_quit(|_cx| {
@@ -1251,5 +1267,15 @@ mod visual_audit {
         }
 
         i18n::set_language(Language::Zh);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn app_uses_explicit_quit_mode_so_closing_window_keeps_tray_alive() {
+        let source = include_str!("main.rs");
+        assert!(source.contains(".with_quit_mode(QuitMode::Explicit)"));
+        assert!(source.contains("cx.on_window_closed("));
     }
 }

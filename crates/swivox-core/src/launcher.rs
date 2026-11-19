@@ -899,35 +899,6 @@ fn remote_control_provider_proxy_enabled(settings: &BackendSettings) -> bool {
     profile.relay_mode == crate::settings::RelayMode::Official && profile.official_mix_api_key
 }
 
-#[cfg(windows)]
-fn apply_swivox_window_icon_after_launch(process_id: u32) {
-    let icon_resource_path =
-        std::env::current_exe().unwrap_or_else(|_| PathBuf::from("swivox.exe"));
-    tokio::spawn(async move {
-        for attempt in 1..=30 {
-            if crate::windows_apply_swivox_icon_to_process_window(
-                process_id,
-                icon_resource_path.clone(),
-            ) {
-                return;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-            if attempt == 30 {
-                let _ = crate::diagnostic_log::append_diagnostic_log(
-                    "launcher.window_icon.apply_failed",
-                    serde_json::json!({
-                        "process_id": process_id,
-                        "icon_resource_path": icon_resource_path.to_string_lossy()
-                    }),
-                );
-            }
-        }
-    });
-}
-
-#[cfg(not(windows))]
-fn apply_swivox_window_icon_after_launch(_process_id: u32) {}
-
 pub trait IntoLaunchHooks {
     fn into_launch_hooks(self) -> Arc<dyn LaunchHooks>;
 }
@@ -1217,7 +1188,6 @@ impl LaunchHooks for DefaultLaunchHooks {
                             *self.packaged_activation_process.lock().await = process;
                             *self.packaged_launch_identity.lock().await = None;
                         }
-                        apply_swivox_window_icon_after_launch(process_id);
                         return Ok(match activation {
                             CodexLaunch::PackagedActivation {
                                 app_user_model_id,

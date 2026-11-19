@@ -866,11 +866,11 @@ fn launcher_packaged_activation_can_preserve_process_id() {
 }
 
 #[test]
-fn launcher_applies_swivox_window_icon_after_packaged_activation() {
+fn launcher_preserves_official_codex_window_icon_after_packaged_activation() {
     let source = include_str!("../src/launcher.rs");
 
-    assert!(source.contains("apply_swivox_window_icon_after_launch(process_id);"));
-    assert!(source.contains("windows_apply_swivox_icon_to_process_window"));
+    assert!(!source.contains("apply_swivox_window_icon_after_launch"));
+    assert!(!source.contains("windows_apply_swivox_icon_to_process_window"));
 }
 
 #[test]

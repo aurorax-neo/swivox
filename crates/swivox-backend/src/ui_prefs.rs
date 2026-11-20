@@ -33,6 +33,8 @@ pub struct UiPreferences {
     pub theme: UiThemeMode,
     #[serde(default)]
     pub language: Language,
+    #[serde(default)]
+    pub start_to_tray: bool,
 }
 
 impl Default for UiPreferences {
@@ -40,6 +42,7 @@ impl Default for UiPreferences {
         Self {
             theme: UiThemeMode::Dark,
             language: Language::Zh,
+            start_to_tray: false,
         }
     }
 }
@@ -84,10 +87,19 @@ mod tests {
         let defaults = load_ui_preferences_from(&path);
         assert_eq!(defaults.theme, UiThemeMode::Dark);
         assert_eq!(defaults.language, Language::Zh);
+        assert!(!defaults.start_to_tray);
+
+        // 兼容未包含 startToTray 的旧版 JSON
+        fs::write(&path, r#"{"theme":"light","language":"en"}"#).unwrap();
+        let legacy = load_ui_preferences_from(&path);
+        assert_eq!(legacy.theme, UiThemeMode::Light);
+        assert_eq!(legacy.language, Language::En);
+        assert!(!legacy.start_to_tray);
 
         let updated = UiPreferences {
             theme: UiThemeMode::Light,
             language: Language::En,
+            start_to_tray: true,
         };
         save_ui_preferences_to(&path, &updated).unwrap();
         assert_eq!(load_ui_preferences_from(&path), updated);

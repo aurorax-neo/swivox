@@ -1030,11 +1030,13 @@ impl ManagerShell {
             let email = target.email.clone();
             let is_reapply = target.is_active;
             let id_write = target.id.clone();
+            let id_desk_restart = target.id.clone();
             let id_desk = target.id.clone();
             let id_ide = target.id.clone();
             let st_dismiss = self.store.clone();
             let st_cancel = self.store.clone();
             let st_write = self.store.clone();
+            let st_desk_restart = self.store.clone();
             let st_desk = self.store.clone();
             let st_ide = self.store.clone();
 
@@ -1090,6 +1092,18 @@ impl ManagerShell {
                             let id = id_ide.clone();
                             st_ide.update(cx, |s, cx| {
                                 s.switch_antigravity_account_with_mode(id, "ide_restart", cx)
+                            });
+                        })
+                        .into_any_element(),
+                    AppButton::new("ag-confirm-use-desktop-restart")
+                        .outline()
+                        .small()
+                        .icon(IconName::RefreshCw)
+                        .label(t("切换并重启桌面版"))
+                        .on_click(move |_, _, cx| {
+                            let id = id_desk_restart.clone();
+                            st_desk_restart.update(cx, |s, cx| {
+                                s.switch_antigravity_account_with_mode(id, "desktop_restart", cx)
                             });
                         })
                         .into_any_element(),

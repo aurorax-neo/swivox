@@ -661,6 +661,7 @@ impl AppStore {
             Route::About => self.refresh_about_page(false, cx),
             Route::Settings => {
                 self.refresh_settings_silent(cx);
+                self.watcher_state = Some(commands::load_watcher_state().payload);
                 self.network_proxy_snapshot = commands::load_network_proxies().payload;
                 self.official_snapshot = Some(commands::load_official_accounts().payload);
                 cx.notify();
@@ -823,6 +824,28 @@ impl AppStore {
         cx.refresh_windows();
     }
 
+    pub fn set_start_to_tray(&mut self, enabled: bool, cx: &mut Context<Self>) {
+        self.prefs.start_to_tray = enabled;
+        match ui_prefs::save_ui_preferences(&self.prefs) {
+            Ok(()) => {
+                let msg = if enabled {
+                    t("已开启启动到托盘（下次启动时静默驻留系统托盘）")
+                } else {
+                    t("已关闭启动到托盘（下次启动时直接显示主窗口）")
+                };
+                self.set_notice(t("启动到托盘"), msg, "ok", cx);
+            }
+            Err(err) => {
+                self.set_notice(
+                    t("启动到托盘"),
+                    format!("{}: {err}", t("保存偏好失败")),
+                    "failed",
+                    cx,
+                );
+            }
+        }
+    }
+
     pub fn refresh_current(&mut self, cx: &mut Context<Self>) {
         match self.route {
             Route::Overview => {
@@ -858,6 +881,7 @@ impl AppStore {
             Route::About => self.refresh_about_page(true, cx),
             Route::Settings => {
                 self.refresh_settings_silent(cx);
+                self.watcher_state = Some(commands::load_watcher_state().payload);
                 self.network_proxy_snapshot = commands::load_network_proxies().payload;
                 self.official_snapshot = Some(commands::load_official_accounts().payload);
                 cx.notify();

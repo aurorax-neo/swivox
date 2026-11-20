@@ -2356,6 +2356,18 @@ pub const EN_BACKEND_ENTRIES: &[(&str, &str)] = &[
     ("确认对齐", "Align Now"),
     ("确认立即手动点火？", "Trigger Manual Ignition Now?"),
     ("将通过隔离代理「{1}」向「{0}」发送极小点火请求；若当前尚未开启 5 小时周期，将立即触发新一轮 5 小时额度倒计时。", "Send a minimal ignition request to \"{0}\" via isolated proxy \"{1}\"? If a 5h cycle is not active yet, this immediately starts a new 5h quota window."),
+    ("启动与系统托盘", "Startup & System Tray"),
+    ("登录时自动启动", "Launch at login"),
+    ("系统登录时自动拉起 Swivox 后台驻留与守护服务", "Automatically start Swivox background residency and supervisor on OS login"),
+    ("启动到托盘", "Start to tray"),
+    ("启动时不弹出主窗口，静默驻留在系统托盘 / 菜单栏", "Start silently in the system tray / menu bar without opening the main window"),
+    ("已开启启动到托盘（下次启动时静默驻留系统托盘）", "Enabled start to tray (next launch stays resident in the system tray)"),
+    ("已关闭启动到托盘（下次启动时直接显示主窗口）", "Disabled start to tray (next launch opens the main window directly)"),
+    ("保存偏好失败", "Failed to save preference"),
+    ("快捷方式与桌面入口", "Shortcuts & Desktop Entrypoints"),
+    ("快捷方式修复、官方客户端接管与应用路径", "Shortcut repair, official app takeover, and application path"),
+    ("界面主题、语言偏好、开机自启与托盘、代理节点列表", "Theme, language, login startup & tray, and proxy node pool"),
+    ("切换并重启桌面版", "Switch & Restart Desktop"),
 ];
 
 pub const EN_BACKEND_PATTERN_ENTRIES: &[(&str, &str)] = &[

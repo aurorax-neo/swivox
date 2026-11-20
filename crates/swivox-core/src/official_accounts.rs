@@ -383,23 +383,37 @@ fn build_codex_keychain_account(codex_home: &Path) -> String {
 }
 
 #[cfg(all(target_os = "macos", not(test)))]
+fn codex_uses_keychain_store(codex_home: &Path) -> bool {
+    let config_path = codex_home.join("config.toml");
+    let Ok(raw) = std::fs::read_to_string(config_path) else {
+        return false;
+    };
+    let Ok(doc) = raw.parse::<toml::Value>() else {
+        return false;
+    };
+    match doc
+        .get("cli_auth_credentials_store")
+        .and_then(toml::Value::as_str)
+        .map(|s| s.trim().to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("keychain") => true,
+        Some("auto") => !codex_home.join("auth.json").is_file(),
+        _ => false,
+    }
+}
+
+#[cfg(all(target_os = "macos", not(test)))]
 fn read_codex_keychain_raw_json(codex_home: &Path) -> Option<String> {
-    let account = build_codex_keychain_account(codex_home);
-    let output = std::process::Command::new("security")
-        .args([
-            "find-generic-password",
-            "-s",
-            CODEX_KEYCHAIN_SERVICE,
-            "-a",
-            &account,
-            "-w",
-        ])
-        .output()
-        .ok()?;
-    if !output.status.success() {
+    if !codex_uses_keychain_store(codex_home) {
         return None;
     }
-    let secret = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let account = build_codex_keychain_account(codex_home);
+    let bytes = crate::macos_keychain::find_generic_password_silent(
+        CODEX_KEYCHAIN_SERVICE,
+        &account,
+    )?;
+    let secret = String::from_utf8(bytes).ok()?.trim().to_string();
     (!secret.is_empty()).then_some(secret)
 }
 
@@ -410,18 +424,20 @@ fn read_codex_keychain_raw_json(_codex_home: &Path) -> Option<String> {
 
 #[cfg(all(target_os = "macos", not(test)))]
 fn sync_codex_keychain_if_present(codex_home: &Path, auth_json: &str) {
+    if !codex_uses_keychain_store(codex_home) {
+        return;
+    }
     let account = build_codex_keychain_account(codex_home);
     let compact = serde_json::from_str::<Value>(auth_json)
         .ok()
         .and_then(|v| serde_json::to_string(&v).ok())
         .unwrap_or_else(|| auth_json.trim().to_string());
-    // 密钥经 stdin 传给 `security -i`，不出现在进程参数里。
     if let Err(error) = crate::macos_keychain::add_generic_password(
         CODEX_KEYCHAIN_SERVICE,
         &account,
         compact.as_bytes(),
         true,
-        false,
+        true,
     ) {
         let _ = crate::diagnostic_log::append_diagnostic_log(
             "official_accounts.keychain_sync_failed",
@@ -432,16 +448,11 @@ fn sync_codex_keychain_if_present(codex_home: &Path, auth_json: &str) {
 
 #[cfg(all(target_os = "macos", not(test)))]
 pub fn delete_codex_keychain_if_present(codex_home: &Path) {
+    if !codex_uses_keychain_store(codex_home) {
+        return;
+    }
     let account = build_codex_keychain_account(codex_home);
-    let _ = std::process::Command::new("security")
-        .args([
-            "delete-generic-password",
-            "-s",
-            CODEX_KEYCHAIN_SERVICE,
-            "-a",
-            &account,
-        ])
-        .output();
+    let _ = crate::macos_keychain::delete_generic_password(CODEX_KEYCHAIN_SERVICE, &account);
 }
 
 #[cfg(not(all(target_os = "macos", not(test))))]

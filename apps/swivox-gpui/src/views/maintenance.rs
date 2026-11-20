@@ -39,10 +39,6 @@ impl Render for MaintenanceView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let data = self.store.read(cx);
         let ov = data.overview.as_ref();
-        let watcher_enabled = data
-            .watcher_state
-            .as_ref()
-            .is_some_and(|w| w.enabled);
         let takeover = data.auto_takeover_state.clone();
         let takeover_enabled = data.settings.codex_app_auto_takeover;
         let takeover_policy = data.settings.codex_app_auto_takeover_when_active.clone();
@@ -78,7 +74,6 @@ impl Render for MaintenanceView {
             .unwrap_or((false, "not_checked".to_string(), t("正在检测…")));
 
         let store_repair = self.store.clone();
-        let store_watcher = self.store.clone();
         let store_takeover_sw = self.store.clone();
         let store_policy_defer = self.store.clone();
         let store_policy_imm = self.store.clone();
@@ -114,7 +109,7 @@ impl Render for MaintenanceView {
                                     .text_sm()
                                     .font_semibold()
                                     .text_color(cx.theme().foreground)
-                                    .child(t("快捷入口与开机自启")),
+                                    .child(t("快捷方式与桌面入口")),
                             )
                             .child(
                                 AppButton::new("maint-repair-shortcuts")
@@ -146,49 +141,7 @@ impl Render for MaintenanceView {
                         t("管理界面快捷方式"),
                         mgmt_path,
                         &mgmt_status,
-                    ))
-                    .child(
-                        div()
-                            .h_flex()
-                            .w_full()
-                            .items_center()
-                            .justify_between()
-                            .gap_4()
-                            .p_3p5()
-                            .rounded(px(10.))
-                            .bg(cx.theme().secondary.opacity(0.28))
-                            .border_1()
-                            .border_color(cx.theme().border)
-                            .child(
-                                div()
-                                    .v_flex()
-                                    .flex_1()
-                                    .min_w_0()
-                                    .gap_0p5()
-                                    .child(
-                                        div()
-                                            .text_sm()
-                                            .font_medium()
-                                            .text_color(cx.theme().foreground)
-                                            .child(t("系统登录时后台自启守护")),
-                                    )
-                                    .child(
-                                        div()
-                                            .text_xs()
-                                            .text_color(cx.theme().muted_foreground)
-                                            .child(t("开机自动拉起 Swivox 驻留托盘与接管守护")),
-                                    ),
-                            )
-                            .child(
-                                Switch::new("maint-watcher-sw")
-                                    .checked(watcher_enabled)
-                                    .on_change(move |val, _, cx| {
-                                        let v = *val;
-                                        store_watcher
-                                            .update(cx, |s, cx| s.set_login_startup(v, cx));
-                                    }),
-                            ),
-                    ),
+                    )),
             ))
             .child(panel_card(
                 cx,

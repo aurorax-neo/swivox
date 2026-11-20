@@ -159,8 +159,23 @@ fn main() {
                 s
             });
 
+            let force_open_window = std::env::var("SWIVOX_SHOW_UPDATE").is_ok()
+                || std::env::var("SWIVOX_CAPTURE_TOUR_DIR")
+                    .ok()
+                    .is_some_and(|v| !v.trim().is_empty());
+            let start_hidden_in_tray = prefs.start_to_tray && !force_open_window;
+
             let mut main_window: Option<AnyWindowHandle> = None;
-            open_or_focus_main_window(&mut main_window, &store, cx);
+            if !start_hidden_in_tray {
+                open_or_focus_main_window(&mut main_window, &store, cx);
+            } else {
+                let _ = swivox_core::diagnostic_log::append_diagnostic_log(
+                    "manager.start_to_tray",
+                    serde_json::json!({
+                        "autostart_arg": std::env::args().any(|a| a == "--autostart"),
+                    }),
+                );
+            }
 
             let window_cell = Rc::new(std::cell::RefCell::new(main_window));
 
@@ -431,6 +446,7 @@ mod visual_audit {
         let initial_prefs = UiPreferences {
             theme: UiThemeMode::Dark,
             language: Language::Zh,
+            start_to_tray: false,
         };
 
         let store = hcx.update(|app| {

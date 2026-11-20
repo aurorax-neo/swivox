@@ -128,6 +128,8 @@ impl Render for SettingsView {
         let data = self.store.read(cx);
         let theme = data.prefs.theme;
         let lang = data.prefs.language;
+        let start_to_tray = data.prefs.start_to_tray;
+        let watcher_enabled = data.watcher_state.as_ref().is_some_and(|w| w.enabled);
         let auto_models_dev = data.settings.auto_update_models_dev;
         let draft_proxy_testing = data.is_proxy_testing("draft");
         let px_snap = data.network_proxy_snapshot.clone();
@@ -137,6 +139,8 @@ impl Render for SettingsView {
         let store_light = self.store.clone();
         let store_zh = self.store.clone();
         let store_en = self.store.clone();
+        let store_autostart = self.store.clone();
+        let store_tray = self.store.clone();
         let store_models_dev = self.store.clone();
         let store_reset_open = self.store.clone();
 
@@ -408,7 +412,105 @@ impl Render for SettingsView {
                             ),
                     ),
             ))
-            // 2. 代理节点列表（供本程序、各客户端与点火统一选取）
+            // 2. 启动与系统托盘
+            .child(panel_card(
+                cx,
+                div()
+                    .v_flex()
+                    .w_full()
+                    .gap_3p5()
+                    .child(
+                        div()
+                            .text_sm()
+                            .font_semibold()
+                            .text_color(cx.theme().foreground)
+                            .child(t("启动与系统托盘")),
+                    )
+                    .child(
+                        div()
+                            .h_flex()
+                            .w_full()
+                            .items_center()
+                            .justify_between()
+                            .gap_4()
+                            .p_3p5()
+                            .rounded(px(10.))
+                            .bg(cx.theme().secondary.opacity(0.24))
+                            .border_1()
+                            .border_color(cx.theme().border)
+                            .child(
+                                div()
+                                    .v_flex()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .gap_0p5()
+                                    .child(
+                                        div()
+                                            .text_sm()
+                                            .font_medium()
+                                            .text_color(cx.theme().foreground)
+                                            .child(t("登录时自动启动")),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_xs()
+                                            .text_color(cx.theme().muted_foreground)
+                                            .child(t("系统登录时自动拉起 Swivox 后台驻留与守护服务")),
+                                    ),
+                            )
+                            .child(
+                                Switch::new("set-login-autostart-sw")
+                                    .checked(watcher_enabled)
+                                    .on_change(move |val, _, cx| {
+                                        let v = *val;
+                                        store_autostart
+                                            .update(cx, |s, cx| s.set_login_startup(v, cx));
+                                    }),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .h_flex()
+                            .w_full()
+                            .items_center()
+                            .justify_between()
+                            .gap_4()
+                            .p_3p5()
+                            .rounded(px(10.))
+                            .bg(cx.theme().secondary.opacity(0.24))
+                            .border_1()
+                            .border_color(cx.theme().border)
+                            .child(
+                                div()
+                                    .v_flex()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .gap_0p5()
+                                    .child(
+                                        div()
+                                            .text_sm()
+                                            .font_medium()
+                                            .text_color(cx.theme().foreground)
+                                            .child(t("启动到托盘")),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_xs()
+                                            .text_color(cx.theme().muted_foreground)
+                                            .child(t("启动时不弹出主窗口，静默驻留在系统托盘 / 菜单栏")),
+                                    ),
+                            )
+                            .child(
+                                Switch::new("set-start-to-tray-sw")
+                                    .checked(start_to_tray)
+                                    .on_change(move |val, _, cx| {
+                                        let v = *val;
+                                        store_tray.update(cx, |s, cx| s.set_start_to_tray(v, cx));
+                                    }),
+                            ),
+                    ),
+            ))
+            // 3. 代理节点列表（供本程序、各客户端与点火统一选取）
             .child(panel_card(
                 cx,
                 div()

@@ -848,20 +848,25 @@ pub async fn switch_active_account_with_mode(
         state.cdp_port
     };
 
+    let (eff_proxy_mode, eff_proxy_url): (&str, &str) = match acc.proxy_mode.trim() {
+        "" | "inherit" => (state.launch_proxy_mode.as_str(), state.launch_proxy_url.as_str()),
+        other => (other, acc.egress_proxy_url.as_deref().unwrap_or("")),
+    };
+    let has_account_proxy_override = !matches!(acc.proxy_mode.trim(), "" | "inherit");
+
     let apply_for_target = |kind: AntigravityClientKind| -> anyhow::Result<()> {
         let data_dir = user_data_dir_for(kind);
         if let Some(ref dev) = acc.device_profile {
             let _ = write_device_profile_to_storage_json(&storage_json_path(&data_dir), dev);
         }
-        if kind != AntigravityClientKind::Ide {
-            let _ = keyring::write_system_keyring_and_gemini_files(
-                &acc.email,
-                &acc.token.access_token,
-                &acc.token.refresh_token,
-                acc.token.expiry_timestamp,
-                acc.token.id_token.as_deref(),
-            );
-        }
+        keyring::write_system_keyring_and_gemini_files(
+            &acc.email,
+            &acc.token.access_token,
+            &acc.token.refresh_token,
+            acc.token.expiry_timestamp,
+            acc.token.id_token.as_deref(),
+            acc.token.project_id.as_deref(),
+        )?;
         db::write_credentials_to_state_vscdb(
             &state_vscdb_path(&data_dir),
             &acc.email,
@@ -889,15 +894,14 @@ pub async fn switch_active_account_with_mode(
             ))
         }
         "ide_restart" | "ide" => {
-            apply_for_target(AntigravityClientKind::Ide)?;
             let _ = stop_antigravity_target(true);
             apply_for_target(AntigravityClientKind::Ide)?;
             launch_antigravity_instance(
                 AntigravityClientKind::Ide,
                 Some(&state.custom_desktop_path),
                 Some(&state.custom_ide_path),
-                &state.launch_proxy_mode,
-                &state.launch_proxy_url,
+                eff_proxy_mode,
+                eff_proxy_url,
                 cdp_port,
                 true,
             )?;
@@ -907,15 +911,17 @@ pub async fn switch_active_account_with_mode(
             ))
         }
         "desktop_restart" => {
-            apply_for_target(AntigravityClientKind::Desktop)?;
             let _ = stop_antigravity_target(false);
             apply_for_target(AntigravityClientKind::Desktop)?;
+            if user_data_dir_for(AntigravityClientKind::Ide).exists() {
+                let _ = apply_for_target(AntigravityClientKind::Ide);
+            }
             launch_antigravity_instance(
                 AntigravityClientKind::Desktop,
                 Some(&state.custom_desktop_path),
                 Some(&state.custom_ide_path),
-                &state.launch_proxy_mode,
-                &state.launch_proxy_url,
+                eff_proxy_mode,
+                eff_proxy_url,
                 cdp_port,
                 true,
             )?;
@@ -934,29 +940,39 @@ pub async fn switch_active_account_with_mode(
                 Some(&state.custom_desktop_path),
                 cdp_port,
             );
+            let effective_proxy = process::resolve_launch_proxy_for_target(
+                AntigravityClientKind::Desktop,
+                eff_proxy_mode,
+                eff_proxy_url,
+            );
+            let needs_full_restart_for_proxy = has_account_proxy_override
+                || (effective_proxy.is_some() && !desktop_inst.proxy_injected);
+
             if desktop_inst.running {
-                let hot_ok = process::hot_reload_desktop_language_server(|| {
-                    let _ = apply_for_target(AntigravityClientKind::Desktop);
-                });
-                if hot_ok {
-                    return Ok(format!(
-                        "已无感热切换至 {}（主窗口保持运行，语言服务已重载新凭据）。",
-                        acc.email
-                    ));
+                if !needs_full_restart_for_proxy {
+                    let hot_ok = process::hot_reload_desktop_language_server(|| {
+                        let _ = apply_for_target(AntigravityClientKind::Desktop);
+                    });
+                    if hot_ok {
+                        return Ok(format!(
+                            "已无感热切换至 {}（主窗口保持运行，语言服务已重载新凭据）。",
+                            acc.email
+                        ));
+                    }
                 }
                 let _ = stop_antigravity_target(false);
                 apply_for_target(AntigravityClientKind::Desktop)?;
             }
             if desktop_inst.found {
-                let _ = launch_antigravity_instance(
+                launch_antigravity_instance(
                     AntigravityClientKind::Desktop,
                     Some(&state.custom_desktop_path),
                     Some(&state.custom_ide_path),
-                    &state.launch_proxy_mode,
-                    &state.launch_proxy_url,
+                    eff_proxy_mode,
+                    eff_proxy_url,
                     cdp_port,
                     true,
-                );
+                )?;
                 return Ok(format!(
                     "已切换至 {} 并拉起 Antigravity 桌面版生效。",
                     acc.email

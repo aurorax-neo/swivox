@@ -414,7 +414,8 @@ pub fn enumerate_antigravity_processes() -> Vec<RunningAgProcess> {
             let is_ide = lower_probe.contains("antigravity ide")
                 || lower_probe.contains("antigravity-ide")
                 || lower_probe.contains("antigravity_ide")
-                || lower_cmd.contains("--subclient_type=ide");
+                || lower_cmd.contains("--subclient_type=ide")
+                || lower_cmd.contains("--subclient_type ide");
             let is_helper = is_ls
                 || lower_exe.contains("crashpad")
                 || lower_cmd.contains("--type=")
@@ -484,7 +485,8 @@ fn classify_command_line(pid: u32, ppid: u32, cmdline: &str) -> Option<RunningAg
     let is_ide = exe_probe.contains("antigravity ide")
         || exe_probe.contains("antigravity-ide")
         || exe_probe.contains("antigravity_ide")
-        || lower.contains("--subclient_type=ide");
+        || lower.contains("--subclient_type=ide")
+        || lower.contains("--subclient_type ide");
 
     let is_helper = is_language_server
         || lower.contains("--type=")
@@ -564,13 +566,18 @@ pub fn stop_antigravity_target(is_ide: bool) -> anyhow::Result<usize> {
             }
             std::thread::sleep(Duration::from_millis(160));
         }
-        // 清理仍未退出的主进程与孤儿 language_server
+        // 清理仍未退出的主进程与孤儿 language_server，并等待文件锁释放
+        let mut killed_extra = false;
         for p in enumerate_antigravity_processes() {
             if p.is_ide == is_ide && (!p.is_helper || p.is_language_server) {
                 let _ = Command::new("/bin/kill")
                     .args(["-KILL", &p.pid.to_string()])
                     .status();
+                killed_extra = true;
             }
+        }
+        if killed_extra {
+            std::thread::sleep(Duration::from_millis(250));
         }
     }
 
@@ -579,12 +586,32 @@ pub fn stop_antigravity_target(is_ide: bool) -> anyhow::Result<usize> {
         for pid in &main_pids {
             let mut cmd = Command::new("taskkill");
             cmd.args(["/F", "/T", "/PID", &pid.to_string()]);
-            #[cfg(windows)]
             {
                 use std::os::windows::process::CommandExt as _;
                 cmd.creation_flags(0x0800_0000);
             }
             let _ = cmd.status();
+        }
+        for p in enumerate_antigravity_processes() {
+            if p.is_ide == is_ide && (!p.is_helper || p.is_language_server) {
+                let mut cmd = Command::new("taskkill");
+                cmd.args(["/F", "/PID", &p.pid.to_string()]);
+                {
+                    use std::os::windows::process::CommandExt as _;
+                    cmd.creation_flags(0x0800_0000);
+                }
+                let _ = cmd.status();
+            }
+        }
+        let deadline = Instant::now() + Duration::from_secs(4);
+        while Instant::now() < deadline {
+            let remaining = enumerate_antigravity_processes()
+                .into_iter()
+                .any(|p| p.is_ide == is_ide && (!p.is_helper || p.is_language_server));
+            if !remaining {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(150));
         }
     }
 
@@ -592,7 +619,7 @@ pub fn stop_antigravity_target(is_ide: bool) -> anyhow::Result<usize> {
 }
 
 /// 桌面版无感热切号：仅重启主进程后代的 `language_server` / `agy` 子进程，保留主窗口与对话上下文。
-/// 返回 `true` 表示热切成功；返回 `false` 表示未找到语言服务子进程或重生超时，调用方可降级为完整重启。
+/// 返回 `true` 表示热切成功；返回 `false` 表示未找到语言服务子进程或重生超时（如触发 3 次崩溃保护），调用方可降级为完整重启。
 pub fn hot_reload_desktop_language_server(reapply_credentials: impl Fn()) -> bool {
     let procs = enumerate_antigravity_processes();
     let desktop_running = procs
@@ -630,9 +657,9 @@ pub fn hot_reload_desktop_language_server(reapply_credentials: impl Fn()) -> boo
     // 立即补写一次凭据，消除旧 language_server 退出瞬间回写旧 Token 的竞态
     reapply_credentials();
 
-    let deadline = Instant::now() + Duration::from_secs(12);
+    let deadline = Instant::now() + Duration::from_secs(6);
     while Instant::now() < deadline {
-        std::thread::sleep(Duration::from_millis(450));
+        std::thread::sleep(Duration::from_millis(350));
         let respawned = enumerate_antigravity_processes()
             .into_iter()
             .any(|p| !p.is_ide && p.is_language_server && !ls_pids.contains(&p.pid));

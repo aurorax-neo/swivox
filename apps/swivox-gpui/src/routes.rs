@@ -189,9 +189,9 @@ impl Route {
             Route::UserScripts => t("内置和用户自定义拓展清单"),
             Route::PluginMarket => t("检索插件，按需下载并安装到 Codex"),
             Route::AgentCache => t("扫描 Codex 与 Swivox 的已知缓存目录，由你选择清理项目。"),
-            Route::Maintenance => t("入口检查与修复、开机启动与应用路径"),
+            Route::Maintenance => t("快捷方式修复、官方客户端接管与应用路径"),
             Route::About => t("版本信息、项目链接、GitHub Release 更新、日志与诊断"),
-            Route::Settings => t("界面主题、语言偏好、代理节点列表与本程序自身代理"),
+            Route::Settings => t("界面主题、语言偏好、开机自启与托盘、代理节点列表"),
         }
     }
 }

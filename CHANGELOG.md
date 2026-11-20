@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.2 - 2026-11-20
+
+- **修复 Antigravity（反重力）切换账号失效（macOS & Windows）**：对齐新版 `language_server` 的 `StoredToken` 结构（省略已弃用的超长 `LegacyIDToken`，避免超限截断），补齐 Windows Credential Manager 的 `go-keyring-base64:` 编解码与 `CredReadW` / `CredWriteW` / `CredDeleteW` 完整支持，优先落盘 `~/.gemini/` 文件级回退凭据，并在切号时透传账号专属代理、补齐 Windows 停止进程锁释放等待及新增「切换并重启桌面版」选项。
+- **根治 macOS 钥匙串频繁弹出 `security` 密码授权窗口**：移除全仓生产代码中的 `/usr/bin/security` 子进程调用，重构为纯原生 `Security.framework` 进程内静默读写（全程包裹 `SecKeychainSetUserInteractionAllowed(false)`，在内存中直接构造 `-A` 免确认 ACL 且解除 4096 字节行长上限），并仅在 `config.toml` 显式启用 `keychain` 存储时同步 `Codex Auth`。
+- **开机自启迁移至全局「设置」并新增「启动到托盘」**：将开机自启开关从「安装维护」迁移至全局「设置 -> 启动与系统托盘」，提供「登录时自动启动」与「启动到托盘」两个独立开关（支持中英双语切换与静默驻留托盘启动）。
+
 ## 0.2.1 - 2026-11-19
 
 - **修复 Windows 点击关闭按钮 (`X`) 导致程序全部退出与托盘消失**：主程序显式启用 `QuitMode::Explicit` 并在窗口关闭后自动清理句柄，点击关闭按钮仅隐藏到系统托盘、保留后台守护与托盘图标常驻；同时优化 Windows 托盘为左键点击直接恢复主窗口、右键弹出「显示主窗口 / 退出程序」菜单。

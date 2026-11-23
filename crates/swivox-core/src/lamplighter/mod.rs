@@ -286,7 +286,9 @@ pub fn get_lamplighter_snapshot_for_client(
                             next_ignition_at: next_ig,
                             last_ignition_at: (ts.last_success_at > 0).then_some(ts.last_success_at),
                             last_ignition_model: ts.last_model,
-                            paused_reason: ts.paused_reason,
+                            paused_reason: (ts.paused_until > now)
+                                .then_some(ts.paused_reason)
+                                .flatten(),
                             last_updated_at: q.updated_at,
                         });
                     }
@@ -336,7 +338,9 @@ pub fn get_lamplighter_snapshot_for_client(
                 next_ignition_at: next_ig,
                 last_ignition_at: (ts.last_success_at > 0).then_some(ts.last_success_at),
                 last_ignition_model: ts.last_model,
-                paused_reason: ts.paused_reason,
+                paused_reason: (ts.paused_until > now)
+                    .then_some(ts.paused_reason)
+                    .flatten(),
                 last_updated_at,
             });
         }
@@ -868,6 +872,18 @@ async fn run_poll_and_ignition_cycle_for_client(
                             };
 
                         let ts = state.scheduler.entry(gkey.clone()).or_default();
+                        // 熔断到期自动清理；且若此前因过期 access_token (HTTP 401) 被误熔断，而本轮配额查询已携新 Token 成功，立即自愈恢复
+                        if (ts.paused_until > 0 && ts.paused_until <= now)
+                            || ts
+                                .paused_reason
+                                .as_deref()
+                                .is_some_and(|r| r.to_ascii_lowercase().contains("http 401"))
+                        {
+                            ts.paused_until = 0;
+                            ts.paused_reason = None;
+                            ts.consecutive_failures = 0;
+                            ts.retry_at = 0;
+                        }
                         if let Some(win5) = w5 {
                             ignite::observe_five_hour_reset(ts, win5.reset_at, now, false);
                         }
@@ -991,7 +1007,9 @@ async fn run_poll_and_ignition_cycle_for_client(
                             next_ignition_at: next_due,
                             last_ignition_at: (ts.last_success_at > 0).then_some(ts.last_success_at),
                             last_ignition_model: ts.last_model.clone(),
-                            paused_reason: ts.paused_reason.clone(),
+                            paused_reason: (ts.paused_until > now)
+                                .then(|| ts.paused_reason.clone())
+                                .flatten(),
                             last_updated_at: now,
                         });
                     }

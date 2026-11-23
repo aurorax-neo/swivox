@@ -11,7 +11,10 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use super::config::{IgnitionConfig, LamplighterConfig, normalize_client_id};
-use super::providers::{UnifiedCredential, build_account_http_client, query_credential_quotas};
+use super::providers::{
+    UnifiedCredential, build_account_http_client, query_credential_quotas,
+    summarize_upstream_error_body,
+};
 use super::store::IgnitionTargetState;
 
 pub const IGNITION_TRIGGER_PROMPT: &str =
@@ -311,6 +314,107 @@ pub struct IgnitionExecutionResult {
     pub confirmed_reset_at: i64,
 }
 
+async fn ensure_credential_fresh_before_ignition(cred: &mut UnifiedCredential) -> anyhow::Result<()> {
+    match cred.source_kind {
+        "swivox_ag" => {
+            let acc = crate::antigravity::ensure_fresh_account_token(&cred.raw_account_id).await?;
+            cred.access_token = acc.token.access_token;
+            cred.refresh_token = Some(acc.token.refresh_token);
+            if let Some(pid) = acc
+                .token
+                .project_id
+                .or_else(|| acc.quota.and_then(|q| q.project_id))
+                .filter(|s| !s.trim().is_empty())
+            {
+                cred.google_project_id = Some(pid);
+            }
+            if cred
+                .google_project_id
+                .as_deref()
+                .map(str::trim)
+                .unwrap_or("")
+                .is_empty()
+                && let Ok(snap) = crate::antigravity::refresh_account_quota(&cred.raw_account_id).await
+                && let Some(pid) = snap.project_id.filter(|s| !s.trim().is_empty())
+            {
+                cred.google_project_id = Some(pid);
+            }
+        }
+        "swivox_codex" => {
+            if crate::official_accounts::is_access_token_expired_or_near_expiry(&cred.access_token)
+                && crate::official_accounts::refresh_official_account_quota(&cred.raw_account_id)
+                    .await
+                    .is_ok()
+            {
+                let reloaded = crate::official_accounts::load_official_accounts_state();
+                if let Some(updated) = reloaded
+                    .accounts
+                    .into_iter()
+                    .find(|a| a.id == cred.raw_account_id)
+                {
+                    cred.access_token = updated.tokens.access_token;
+                    cred.refresh_token = updated.tokens.refresh_token;
+                }
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+async fn force_refresh_credential_on_401(cred: &mut UnifiedCredential) -> bool {
+    match cred.source_kind {
+        "swivox_ag" => {
+            if let Ok(acc) =
+                crate::antigravity::force_refresh_account_token(&cred.raw_account_id).await
+            {
+                cred.access_token = acc.token.access_token;
+                cred.refresh_token = Some(acc.token.refresh_token);
+                if acc.token.project_id.is_some() {
+                    cred.google_project_id = acc.token.project_id;
+                }
+                return true;
+            }
+            false
+        }
+        "swivox_codex" => {
+            if crate::official_accounts::refresh_official_account_quota(&cred.raw_account_id)
+                .await
+                .is_ok()
+            {
+                let reloaded = crate::official_accounts::load_official_accounts_state();
+                if let Some(updated) = reloaded
+                    .accounts
+                    .into_iter()
+                    .find(|a| a.id == cred.raw_account_id)
+                {
+                    cred.access_token = updated.tokens.access_token;
+                    cred.refresh_token = updated.tokens.refresh_token;
+                    return true;
+                }
+            }
+            false
+        }
+        _ => {
+            if cred.provider == "antigravity"
+                && let Some(ref rt) = cred.refresh_token.clone()
+                && !rt.trim().is_empty()
+                && let Ok(refreshed) = crate::antigravity::refresh_google_access_token(
+                    rt,
+                    None,
+                    cred.proxy_spec.as_deref(),
+                )
+                .await
+            {
+                cred.access_token = refreshed.access_token;
+                cred.refresh_token = Some(refreshed.refresh_token);
+                return true;
+            }
+            false
+        }
+    }
+}
+
 /// 对指定账号与额度组执行一次真实最小流式点火（收到首包非空文本后最多读 2 秒即主动关闭流，随后确认新 5h 重置时间）。
 pub async fn execute_ignition_once(
     cfg: &LamplighterConfig,
@@ -318,6 +422,8 @@ pub async fn execute_ignition_once(
     group_key: &str,
     group_label: &str,
 ) -> anyhow::Result<IgnitionExecutionResult> {
+    ensure_credential_fresh_before_ignition(cred).await?;
+
     let candidates = resolve_ignition_candidates(cfg, cred, group_key, group_label).await;
     if candidates.is_empty() {
         bail!("未找到可用的点火候选模型。");
@@ -376,78 +482,119 @@ pub async fn execute_ignition_once(
 }
 
 async fn send_minimal_streaming_prompt(
-    cred: &UnifiedCredential,
+    cred: &mut UnifiedCredential,
     model: &str,
 ) -> Result<(), (Option<u16>, String)> {
-    let resp = match cred.provider.as_str() {
-        "codex" => {
-            let ua = "codex-tui/0.154.0 (Mac OS 26.5.2; arm64) Swivox-Lamplighter";
-            let client = build_account_http_client(cred, 45, ua)
-                .map_err(|e| (None, e.to_string()))?;
-            let mut req = client
-                .post("https://chatgpt.com/backend-api/codex/responses")
-                .bearer_auth(cred.access_token.trim())
-                .header("Content-Type", "application/json")
-                .header("Accept", "text/event-stream")
-                .json(&json!({
-                    "model": model,
-                    "instructions": "Reply with only OK.",
-                    "input": [{
-                        "role": "user",
-                        "content": [{ "type": "input_text", "text": IGNITION_TRIGGER_PROMPT }]
-                    }],
-                    "tools": [],
-                    "stream": true,
-                    "store": false
-                }));
-            if let Some(ref aid) = cred.chatgpt_account_id
-                && !aid.trim().is_empty()
-            {
-                req = req.header("Chatgpt-Account-Id", aid.trim());
-            }
-            req.send().await.map_err(|e| (None, e.to_string()))?
-        }
-        "antigravity" => {
-            let client = build_account_http_client(
-                cred,
-                45,
-                crate::antigravity::ANTIGRAVITY_HUB_USER_AGENT,
-            )
-            .map_err(|e| (None, e.to_string()))?;
-            let body = json!({
-                "project": cred.google_project_id.clone().unwrap_or_default(),
-                "requestId": format!("agent-{}", Uuid::new_v4()),
-                "model": model,
-                "userAgent": "antigravity",
-                "request": {
-                    "contents": [{
-                        "role": "user",
-                        "parts": [{ "text": IGNITION_TRIGGER_PROMPT }]
-                    }],
-                    "generationConfig": { "temperature": 0.0 }
+    let mut resp_opt = None;
+    for attempt in 0..2 {
+        let resp = match cred.provider.as_str() {
+            "codex" => {
+                let ua = "codex-tui/0.154.0 (Mac OS 26.5.2; arm64) Swivox-Lamplighter";
+                let client = build_account_http_client(cred, 45, ua)
+                    .map_err(|e| (None, e.to_string()))?;
+                let mut req = client
+                    .post("https://chatgpt.com/backend-api/codex/responses")
+                    .bearer_auth(cred.access_token.trim())
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "text/event-stream")
+                    .json(&json!({
+                        "model": model,
+                        "instructions": "Reply with only OK.",
+                        "input": [{
+                            "role": "user",
+                            "content": [{ "type": "input_text", "text": IGNITION_TRIGGER_PROMPT }]
+                        }],
+                        "tools": [],
+                        "stream": true,
+                        "store": false
+                    }));
+                if let Some(ref aid) = cred.chatgpt_account_id
+                    && !aid.trim().is_empty()
+                {
+                    req = req.header("Chatgpt-Account-Id", aid.trim());
                 }
-            });
-            client
-                .post("https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse")
-                .bearer_auth(cred.access_token.trim())
-                .header("Content-Type", "application/json")
-                .json(&body)
-                .send()
-                .await
-                .map_err(|e| (None, e.to_string()))?
-        }
-        other => {
-            return Err((None, format!("该服务不支持自动点火: {other}")));
-        }
-    };
+                req.send().await.map_err(|e| (None, e.to_string()))?
+            }
+            "antigravity" => {
+                let client = build_account_http_client(
+                    cred,
+                    45,
+                    crate::antigravity::ANTIGRAVITY_HUB_USER_AGENT,
+                )
+                .map_err(|e| (None, e.to_string()))?;
+                let body = json!({
+                    "project": cred.google_project_id.clone().unwrap_or_default(),
+                    "requestId": format!("agent-{}", Uuid::new_v4()),
+                    "model": model,
+                    "userAgent": "antigravity",
+                    "request": {
+                        "contents": [{
+                            "role": "user",
+                            "parts": [{ "text": IGNITION_TRIGGER_PROMPT }]
+                        }],
+                        "generationConfig": { "temperature": 0.0 }
+                    }
+                });
+                let endpoints = [
+                    "https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse",
+                    "https://cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse",
+                ];
+                let mut last_net_err = None;
+                let mut got_resp = None;
+                for (ep_idx, ep) in endpoints.iter().enumerate() {
+                    match client
+                        .post(*ep)
+                        .bearer_auth(cred.access_token.trim())
+                        .header("Content-Type", "application/json")
+                        .json(&body)
+                        .send()
+                        .await
+                    {
+                        Ok(r) => {
+                            if r.status().is_server_error() && ep_idx + 1 < endpoints.len() {
+                                continue;
+                            }
+                            got_resp = Some(r);
+                            break;
+                        }
+                        Err(e) => {
+                            last_net_err = Some(e.to_string());
+                        }
+                    }
+                }
+                match got_resp {
+                    Some(r) => r,
+                    None => {
+                        return Err((
+                            None,
+                            last_net_err.unwrap_or_else(|| "请求 Cloud Code 流式接口失败".to_string()),
+                        ));
+                    }
+                }
+            }
+            other => {
+                return Err((None, format!("该服务不支持自动点火: {other}")));
+            }
+        };
 
+        if resp.status().as_u16() == 401
+            && attempt == 0
+            && force_refresh_credential_on_401(cred).await
+        {
+            continue;
+        }
+        resp_opt = Some(resp);
+        break;
+    }
+
+    let resp = resp_opt.ok_or_else(|| (None, "点火请求未能完成发送".to_string()))?;
     let status = resp.status();
     if !status.is_success() {
         let code = status.as_u16();
         let err_text = resp.text().await.unwrap_or_default();
         return Err((
             Some(code),
-            format!("HTTP {code}: {}", err_text.chars().take(240).collect::<String>()),
+            format!("HTTP {code}: {}", summarize_upstream_error_body(&err_text, 220)),
         ));
     }
 
@@ -515,14 +662,21 @@ pub fn record_auto_ignition_failure_for_client(
 ) -> Option<(String, i64)> {
     let ig_cfg = cfg.ignition_for_client(client_id);
     let lower = err_msg.to_ascii_lowercase();
-    let is_hard = ["http 400", "http 401", "http 403", "http 404", "http 429", "尚未确认"]
-        .iter()
-        .any(|pat| lower.contains(pat));
+    // 仅对不可自动恢复的永久权限/凭据吊销错误立即熔断至次日；偶发 401/429/窗口延迟走 5m -> 15m -> 次日阶梯退避
+    let is_permanent_hard = [
+        "http 403",
+        "invalid_grant",
+        "account_deactivated",
+        "token_revoked",
+    ]
+    .iter()
+    .any(|pat| lower.contains(pat));
 
     ts.consecutive_failures = ts.consecutive_failures.saturating_add(1);
-    let summary: String = err_msg.lines().next().unwrap_or(err_msg).chars().take(160).collect();
+    let collapsed = err_msg.split_whitespace().collect::<Vec<_>>().join(" ");
+    let summary: String = collapsed.chars().take(180).collect();
 
-    if is_hard || ts.consecutive_failures >= ig_cfg.max_transient_failures {
+    if is_permanent_hard || ts.consecutive_failures >= ig_cfg.max_transient_failures {
         let pause_to = next_morning_start_epoch_for(ig_cfg, now);
         ts.paused_until = pause_to;
         ts.paused_reason = Some(summary.clone());
@@ -549,4 +703,46 @@ pub fn record_auto_ignition_failure(
     now: i64,
 ) -> Option<(String, i64)> {
     record_auto_ignition_failure_for_client(cfg, "codex", ts, err_msg, now)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn summarizes_multiline_google_json_401_without_truncating_at_brace() {
+        let raw = "{\n  \"error\": {\n    \"code\": 401,\n    \"message\": \"Request had invalid authentication credentials.\"\n  }\n}";
+        let summary = summarize_upstream_error_body(raw, 200);
+        assert_eq!(summary, "Request had invalid authentication credentials.");
+    }
+
+    #[test]
+    fn transient_401_uses_step_backoff_before_morning_circuit_break() {
+        let cfg = LamplighterConfig::default();
+        let mut ts = IgnitionTargetState::default();
+        let now = 1_795_396_500;
+
+        // 第 1 次偶发 401：退避重试而非直接暂停至次日
+        let first = record_auto_ignition_failure_for_client(
+            &cfg,
+            "antigravity",
+            &mut ts,
+            "HTTP 401: Request had invalid authentication credentials.",
+            now,
+        );
+        assert!(first.is_none());
+        assert_eq!(ts.paused_until, 0);
+        assert!(ts.retry_at > now);
+
+        // 永久 403 / invalid_grant：立即熔断保护
+        let hard = record_auto_ignition_failure_for_client(
+            &cfg,
+            "antigravity",
+            &mut ts,
+            "HTTP 403: Permission denied",
+            now + 60,
+        );
+        assert!(hard.is_some());
+        assert!(ts.paused_until > now + 60);
+    }
 }

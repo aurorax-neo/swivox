@@ -248,6 +248,32 @@ pub fn build_account_http_client(
     }
 }
 
+/// 提取上游多行 JSON 或文本错误响应中的核心单行可读原因，避免被 `.lines().next()` 截断为 `HTTP 401: {`。
+pub fn summarize_upstream_error_body(raw_body: &str, max_chars: usize) -> String {
+    let trimmed = raw_body.trim();
+    if trimmed.is_empty() {
+        return "无详细错误信息".to_string();
+    }
+    if let Ok(val) = serde_json::from_str::<Value>(trimmed) {
+        for ptr in [
+            "/error/message",
+            "/message",
+            "/error_description",
+            "/detail",
+            "/error",
+        ] {
+            if let Some(msg) = val.pointer(ptr).and_then(Value::as_str).map(str::trim)
+                && !msg.is_empty()
+            {
+                let collapsed = msg.split_whitespace().collect::<Vec<_>>().join(" ");
+                return collapsed.chars().take(max_chars).collect();
+            }
+        }
+    }
+    let collapsed = trimmed.split_whitespace().collect::<Vec<_>>().join(" ");
+    collapsed.chars().take(max_chars).collect()
+}
+
 fn parse_epoch_or_rfc3339(val: Option<&Value>) -> Option<i64> {
     let v = val?;
     if let Some(i) = v.as_i64() {
@@ -322,7 +348,11 @@ async fn query_codex_quota(
         }
 
         if !status.is_success() {
-            bail!("HTTP {}: {}", status.as_u16(), text.chars().take(260).collect::<String>());
+            bail!(
+                "HTTP {}: {}",
+                status.as_u16(),
+                summarize_upstream_error_body(&text, 220)
+            );
         }
 
         let payload: Value = serde_json::from_str(&text).context("解析 ChatGPT 额度 JSON 失败")?;
@@ -400,7 +430,22 @@ async fn query_codex_quota(
 
 async fn query_antigravity_quota(cred: &mut UnifiedCredential) -> anyhow::Result<Vec<RawQuotaGroup>> {
     let snap = if cred.source_kind == "swivox_ag" {
-        crate::antigravity::refresh_account_quota(&cred.raw_account_id).await?
+        let s = crate::antigravity::refresh_account_quota(&cred.raw_account_id).await?;
+        // 关键修复：refresh_account_quota 内部可能已使用 refresh_token 刷新了过期 access_token 并落盘，
+        // 必须同步回内存中的 `cred`，否则紧接着在同一轮循环触发的自动点火仍会携带旧的过期 Token 导致 HTTP 401。
+        let reloaded = crate::antigravity::load_antigravity_state();
+        if let Some(updated) = reloaded
+            .accounts
+            .into_iter()
+            .find(|a| a.id == cred.raw_account_id)
+        {
+            cred.access_token = updated.token.access_token;
+            cred.refresh_token = Some(updated.token.refresh_token);
+            if updated.token.project_id.is_some() {
+                cred.google_project_id = updated.token.project_id;
+            }
+        }
+        s
     } else {
         if let Some(ref rt) = cred.refresh_token
             && (cred.access_token.trim().is_empty() || rt.len() > 8)

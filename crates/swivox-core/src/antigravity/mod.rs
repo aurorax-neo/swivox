@@ -720,6 +720,18 @@ pub fn export_accounts_json() -> anyhow::Result<String> {
 
 /// 确保目标账号的 `access_token` 处于有效期内（距离过期 `<= 15 分钟` 时自动刷新并落盘）。
 pub async fn ensure_fresh_account_token(account_id: &str) -> anyhow::Result<AntigravityAccount> {
+    refresh_account_token_inner(account_id, false).await
+}
+
+/// 强制使用 `refresh_token` 换取全新 `access_token` 并落盘（用于上游意外返回 `HTTP 401` 时的自愈重试）。
+pub async fn force_refresh_account_token(account_id: &str) -> anyhow::Result<AntigravityAccount> {
+    refresh_account_token_inner(account_id, true).await
+}
+
+async fn refresh_account_token_inner(
+    account_id: &str,
+    force: bool,
+) -> anyhow::Result<AntigravityAccount> {
     let state = load_antigravity_state();
     let idx = state
         .accounts
@@ -727,7 +739,8 @@ pub async fn ensure_fresh_account_token(account_id: &str) -> anyhow::Result<Anti
         .position(|a| a.id == account_id)
         .context("未找到指定的 Antigravity 账号")?;
     let now = Utc::now().timestamp();
-    let needs_refresh = state.accounts[idx].token.access_token.trim().is_empty()
+    let needs_refresh = force
+        || state.accounts[idx].token.access_token.trim().is_empty()
         || state.accounts[idx].token.expiry_timestamp - now <= TOKEN_REFRESH_SKEW_SECONDS;
 
     if !needs_refresh {

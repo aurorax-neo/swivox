@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.3 - 2026-11-23
+
+- **修复 Lamplighter（点灯人）休眠唤醒后自动点火报 `HTTP 401: {` 误触发熔断问题**：
+  - 修复配额轮询通过 `refresh_account_quota` 刷新落盘新 `access_token` 后未同步回写内存凭据的问题，避免同轮自动点火仍携带旧过期 Token 触发 `HTTP 401`；
+  - 点火前新增主动 Token 有效期校验（`ensure_fresh_account_token` / `is_access_token_expired_or_near_expiry`），并在流式点火遇到偶发 `HTTP 401` 时自动强制刷新 Token 重试一次，同时补充 Cloud Code 备用端点回退；
+  - 新增 `summarize_upstream_error_body` 自动提取多行 JSON 响应中的 `error.message`（杜绝首行截断为 `HTTP 401: {`），优化熔断策略（仅永久权限/吊销错误立即熔断，偶发错误走阶梯退避），并在配额查询恢复正常时自动自愈解除历史 `HTTP 401` 误暂停。
+
 ## 0.2.2 - 2026-11-20
 
 - **修复 Antigravity（反重力）切换账号失效（macOS & Windows）**：对齐新版 `language_server` 的 `StoredToken` 结构（省略已弃用的超长 `LegacyIDToken`，避免超限截断），补齐 Windows Credential Manager 的 `go-keyring-base64:` 编解码与 `CredReadW` / `CredWriteW` / `CredDeleteW` 完整支持，优先落盘 `~/.gemini/` 文件级回退凭据，并在切号时透传账号专属代理、补齐 Windows 停止进程锁释放等待及新增「切换并重启桌面版」选项。

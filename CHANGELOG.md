@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.4 - 2026-11-24
+
+- **修复 Antigravity（反重力）`2.34.0+` 上下文监控圆环展示异常**：
+  - 适配 Antigravity `2.34.0+` 移除 `language_server` 命令行 `--csrf_token` 参数的变化，Hub 页面改为同源携带 Session Cookie 与 `agy_session_csrf_token` 直连 Connect-RPC，并支持已打开窗口免重启原地热升级组件；
+  - 切换至轻量增量接口 `GetCascadeTrajectoryGeneratorMetadata`（带游标增量拉取，空闲轮询零重算，旧版自动回退 `GetCascadeTrajectory`），彻底消除长对话拉取数十 MB 轨迹载荷导致的卡顿；
+  - 修正 `.agy-composer-footer` 工具栏插入锚点使其紧贴模型选择器右侧，升级为等高胶囊进度环与百分比标签，补齐亮/暗主题自适应卡片样式、顶部水位条、`M`/`K` 单位格式化以及点击外部 / `Escape` 关闭。
+- **大幅提速 Lamplighter（点灯人）手动点火与多账号配额刷新**：
+  - 重构候选模型低延迟分档排序（优先选用 `flash-lite`、`haiku`、`sonnet-*-low` 等低首包延迟模型，规避慢速 `tiered` / `thinking` 模型）；
+  - 重构 SSE 流式截断器（跨包行缓冲，命中首个生成分片或结束标记即刻断开连接，移除 2 秒硬等待）与渐进式快速确认（`350ms` 起步，Codex 支持响应头零等待确认），并移除手动点火末尾冗余的全客户端串行重轮询；
+  - Antigravity 三端点配额查询（`loadCodeAssist` / `retrieveUserQuotaSummary` / `fetchAvailableModels`）与多账号轮询全面改为并发执行。
+
 ## 0.2.3 - 2026-11-23
 
 - **修复 Lamplighter（点灯人）休眠唤醒后自动点火报 `HTTP 401: {` 误触发熔断问题**：

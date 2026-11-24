@@ -168,20 +168,25 @@ const AG_RENDERER_TEMPLATE: &str = r#"(() => {
     return !queue.length && ids.size === 1 ? [...ids][0] : null;
   }
 
+  const WIDGET_VERSION = 2;
+
   function installContextWidget(win, doc, enabled, report) {
     if (!enabled) {
       win.__easyagContext?.dispose();
       return;
     }
-    if (win.__easyagContext?.active === true) {
+    if (win.__easyagContext?.active === true && win.__easyagContext?.version === WIDGET_VERSION) {
       win.__easyagContext.updateReporter?.(report);
       win.__easyagContext.syncNow?.();
       return;
     }
     win.__easyagContext?.dispose();
+    const canDirectFetch = TARGET !== 'ide' && (win.location.protocol === 'https:' || win.location.protocol === 'http:');
     let currentReport = report;
-    let node, shadow, button, card, composer, data, route = '', pending, lastFetch = 0, sequence = 0, disposed = false;
-    let observer, resizeObserver, frame;
+    let node, shadow, button, card, barFill, composer, data, route = '', pending, lastFetch = 0, sequence = 0, disposed = false;
+    let modelMap = {}, modelMapAt = 0, modelMapPromise = null;
+    let cursor = { conversationId: '', nextOffset: 0, merged: null, maxByModel: {}, fullSyncAt: 0, useLegacyRpc: false };
+
     const visible = el => el?.isConnected && !el.closest('[hidden],[inert]') && el.getClientRects().length && win.getComputedStyle(el).visibility !== 'hidden';
     function safeLayout(pair) {
       const style = win.getComputedStyle(pair.row), bStyle = win.getComputedStyle(pair.branch);
@@ -194,23 +199,48 @@ const AG_RENDERER_TEMPLATE: &str = r#"(() => {
         && Math.min(r.bottom, e.bottom) - Math.max(r.top, e.top) <= 2
         && Math.min(r.right, e.right) > Math.max(r.left, e.left) && p.height <= e.height + r.height + 96;
     }
+    function resolveInsertAnchor(row, branch, anchor) {
+      if (branch !== anchor) {
+        const bStyle = win.getComputedStyle(branch);
+        if (['flex', 'inline-flex'].includes(bStyle.display) && bStyle.flexDirection === 'row') {
+          let sub = anchor;
+          while (sub?.parentElement && sub.parentElement !== branch) sub = sub.parentElement;
+          if (sub?.parentElement === branch) return { insertParent: branch, insertAfter: sub };
+        }
+      }
+      return { insertParent: row, insertAfter: branch };
+    }
     function findComposer() {
       const editors = [...doc.querySelectorAll('[contenteditable="true"][role="textbox"],[contenteditable="true"][role="combobox"]')].filter(visible);
       const pairs = [];
       for (const anchor of doc.querySelectorAll('[data-testid="model-selector-trigger"]')) {
         if (!visible(anchor)) continue;
+        let bestForAnchor = null;
         for (const editor of editors) {
           let row = anchor.parentElement, distance = 0;
           while (row?.parentElement && !row.parentElement.contains(editor) && row.parentElement !== doc.body) { row = row.parentElement; distance++; }
           if (!row || row.contains(editor) || !row.parentElement?.contains(editor) || [doc.body, doc.documentElement].includes(row.parentElement)) continue;
           let branch = anchor;
           while (branch.parentElement !== row) branch = branch.parentElement;
-          const pair = { row, branch, editor, anchor, distance };
-          if (safeLayout(pair)) pairs.push(pair);
+          const slot = resolveInsertAnchor(row, branch, anchor);
+          const pair = {
+            row, branch, editor, anchor, distance,
+            insertParent: slot.insertParent,
+            insertAfter: slot.insertAfter,
+            isFooter: row.classList?.contains('agy-composer-footer') || Boolean(row.closest?.('.agy-composer-footer')),
+            bottom: row.getBoundingClientRect().bottom
+          };
+          if (safeLayout(pair) && (!bestForAnchor || pair.distance < bestForAnchor.distance)) bestForAnchor = pair;
         }
+        if (bestForAnchor) pairs.push(bestForAnchor);
       }
-      pairs.sort((a, b) => a.distance - b.distance);
-      return pairs.length && (pairs.length === 1 || pairs[0].distance < pairs[1].distance) ? pairs[0] : null;
+      if (!pairs.length) return null;
+      if (TARGET === 'ide') {
+        pairs.sort((a, b) => a.distance - b.distance);
+        return pairs.length === 1 || pairs[0].distance < pairs[1].distance ? pairs[0] : null;
+      }
+      pairs.sort((a, b) => (Number(b.isFooter) - Number(a.isFooter)) || (b.bottom - a.bottom) || (a.distance - b.distance));
+      return pairs[0];
     }
     function hideCard() {
       if (!card) return;
@@ -220,11 +250,12 @@ const AG_RENDERER_TEMPLATE: &str = r#"(() => {
     }
     function positionCard() {
       if (!card || card.hidden || !node?.isConnected) return;
-      const r = button.getBoundingClientRect(), width = Math.min(304, win.innerWidth - 16);
+      const r = button.getBoundingClientRect(), width = Math.min(312, win.innerWidth - 16);
       card.style.width = Math.max(0, width) + 'px';
       card.style.left = Math.max(8, Math.min(r.left, win.innerWidth - width - 8)) + 'px';
       const height = card.getBoundingClientRect().height;
-      card.style.top = Math.max(8, Math.min(r.top - height - 8, win.innerHeight - height - 8)) + 'px';
+      const preferTop = r.top - height - 8;
+      card.style.top = (preferTop >= 8 ? preferTop : Math.max(8, Math.min(r.bottom + 8, win.innerHeight - height - 8))) + 'px';
     }
     function showCard() {
       if (!node?.isConnected || node.hidden) return;
@@ -233,53 +264,305 @@ const AG_RENDERER_TEMPLATE: &str = r#"(() => {
       if (card.hasAttribute('popover') && !card.matches(':popover-open')) card.showPopover();
       button.setAttribute('aria-expanded', 'true');
       positionCard();
+      if (canDirectFetch && route && Date.now() - cursor.fullSyncAt > 5000) refresh(true);
     }
-    const compact = v => v >= 1000 ? (v / 1000).toFixed(1).replace(/\.0$/, '') + 'K' : String(v);
+    const onDocPointerDown = ev => {
+      if (!card || card.hidden || !node) return;
+      const path = ev.composedPath?.();
+      if (Array.isArray(path) ? !path.includes(node) : !node.contains(ev.target)) hideCard();
+    };
+    const onDocKeyDown = ev => {
+      if (ev.key === 'Escape' && card && !card.hidden) hideCard();
+    };
+    doc.addEventListener('pointerdown', onDocPointerDown, true);
+    doc.addEventListener('keydown', onDocKeyDown);
+
+    const compact = v => {
+      if (typeof v !== 'number' || !Number.isFinite(v)) return '0';
+      if (v >= 1000000) return (v / 1000000).toFixed(2).replace(/\.?0+$/, '') + 'M';
+      if (v >= 1000) return (v / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+      return String(v);
+    };
+    const parseIntVal = v => {
+      if (typeof v === 'number' && Number.isFinite(v) && v >= 0) return Math.floor(v);
+      if (typeof v === 'string') {
+        const n = Number(v.trim());
+        if (Number.isFinite(n) && n >= 0) return Math.floor(n);
+      }
+      return null;
+    };
+    const parseDurSecs = v => {
+      if (typeof v === 'string') {
+        const m = v.trim().match(/^(-?\d+(?:\.\d+)?)s$/);
+        return m ? Number(m[1]) : null;
+      }
+      if (v && typeof v === 'object') {
+        const s = Number(v.seconds || 0), ns = Number(v.nanos || 0);
+        return Number.isFinite(s) && Number.isFinite(ns) ? s + ns / 1e9 : null;
+      }
+      return null;
+    };
+    const readCsrfToken = () => {
+      try {
+        return win.localStorage?.getItem('agy_session_csrf_token')
+          || win.sessionStorage?.getItem('agy_session_csrf_token') || '';
+      } catch {
+        return '';
+      }
+    };
+    async function rpcPost(method, body) {
+      const headers = {
+        'Content-Type': 'application/json',
+        'Connect-Protocol-Version': '1'
+      };
+      const csrf = readCsrfToken();
+      if (csrf) headers['x-codeium-csrf-token'] = csrf;
+      const resp = await win.fetch(`/exa.language_server_pb.LanguageServerService/${method}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers,
+        body: JSON.stringify(body)
+      });
+      if (!resp.ok) {
+        const err = new Error(`HTTP ${resp.status}`);
+        err.status = resp.status;
+        throw err;
+      }
+      return resp.json();
+    }
+    async function ensureModelMap() {
+      if (Date.now() - modelMapAt < 300000 && Object.keys(modelMap).length) return modelMap;
+      if (modelMapPromise) return modelMapPromise;
+      modelMapPromise = (async () => {
+        try {
+          const val = await rpcPost('GetUserStatus', {});
+          const configs = val?.userStatus?.cascadeModelConfigData?.clientModelConfigs;
+          if (Array.isArray(configs)) {
+            const next = {};
+            for (const cfg of configs) {
+              const label = typeof cfg?.label === 'string' ? cfg.label : '';
+              if (!label) continue;
+              const m = cfg?.modelOrAlias?.model;
+              const id = cfg?.modelId;
+              if (typeof m === 'string' && m) next[m] = label;
+              if (typeof id === 'string' && id) next[id] = label;
+            }
+            modelMap = next;
+            modelMapAt = Date.now();
+          }
+        } catch {}
+        modelMapPromise = null;
+        return modelMap;
+      })();
+      return modelMapPromise;
+    }
+    function buildMetricsFromItems(convId, items, labels, maxByModel, previous) {
+      for (const item of items) {
+        const chat = item?.chatModel;
+        if (!chat) continue;
+        const cwm = chat?.chatStartMetadata?.contextWindowMetadata || item?.chatStartMetadata?.contextWindowMetadata;
+        const rawModel = chat.modelDisplayName || chat.modelName || chat.model || '';
+        const maxT = parseIntVal(cwm?.maxContextTokens);
+        if (rawModel && maxT && maxT > 0) maxByModel[rawModel] = maxT;
+      }
+      let contextVal = null;
+      let speedVal = null;
+      for (let i = items.length - 1; i >= 0; i--) {
+        const item = items[i];
+        const chat = item?.chatModel;
+        if (!chat) continue;
+        if (!contextVal) {
+          const cwm = chat?.chatStartMetadata?.contextWindowMetadata || item?.chatStartMetadata?.contextWindowMetadata;
+          const u = chat?.usage;
+          const uIn = parseIntVal(u?.inputTokens) || 0;
+          const uCache = parseIntVal(u?.cacheReadTokens) || 0;
+          const usageFallback = uIn + uCache > 0 ? uIn + uCache : null;
+          const est = parseIntVal(cwm?.estimatedTokensUsed)
+            ?? parseIntVal(cwm?.tokenBreakdown?.totalTokens)
+            ?? usageFallback;
+          if (cwm || est !== null) {
+            const used = est ?? 0;
+            const rawModel = chat.modelDisplayName || chat.modelName || chat.model || '';
+            const maxTokens = parseIntVal(cwm?.maxContextTokens)
+              || (rawModel ? maxByModel[rawModel] : null)
+              || null;
+            const usedFraction = maxTokens && maxTokens > 0 ? Math.max(0, Math.min(1, used / maxTokens)) : null;
+            const model = labels[rawModel] || rawModel || '';
+            const rawEnd = chat.responseModel || chat?.usage?.responseModel || '';
+            const endpointModel = typeof rawEnd === 'string' && !rawEnd.startsWith('MODEL_PLACEHOLDER_') ? rawEnd : '';
+            contextVal = { usedTokens: used, maxTokens, usedFraction, model, endpointModel };
+          }
+        }
+        if (!speedVal) {
+          const dur = parseDurSecs(chat.streamingDuration);
+          const u = chat.usage;
+          if (dur !== null && dur > 0.05 && u) {
+            const outTokens = parseIntVal(u.responseOutputTokens) ?? parseIntVal(u.outputTokens) ?? 0;
+            if (outTokens > 0) {
+              const ttft = parseDurSecs(chat.timeToFirstToken);
+              speedVal = {
+                tokensPerSecond: outTokens / dur,
+                ttftSeconds: ttft,
+                basis: 'response',
+                shortSample: dur < 1.0
+              };
+            }
+          }
+        }
+        if (contextVal && speedVal) break;
+      }
+      if (!items.length && !previous) {
+        return {
+          conversationId: convId,
+          state: 'empty',
+          sampledAt: Date.now(),
+          context: { usedTokens: 0, maxTokens: null, usedFraction: 0, model: '', endpointModel: '' },
+          speed: null
+        };
+      }
+      return {
+        conversationId: convId,
+        state: 'live',
+        sampledAt: Date.now(),
+        context: contextVal || previous?.context || null,
+        speed: speedVal || previous?.speed || null
+      };
+    }
+    async function fetchDirectMetrics(convId, forceFull) {
+      if (cursor.conversationId !== convId) {
+        cursor = { conversationId: convId, nextOffset: 0, merged: null, maxByModel: {}, fullSyncAt: 0, useLegacyRpc: cursor.useLegacyRpc };
+      }
+      await ensureModelMap();
+      const periodicFull = Date.now() - cursor.fullSyncAt > 60000;
+      const offset = forceFull || periodicFull || !cursor.merged ? 0 : cursor.nextOffset;
+      let items = null;
+      if (!cursor.useLegacyRpc) {
+        try {
+          const res = await rpcPost('GetCascadeTrajectoryGeneratorMetadata', {
+            cascadeId: convId,
+            generatorMetadataOffset: offset,
+            includeMessages: false
+          });
+          if (Array.isArray(res?.generatorMetadata) || (res && typeof res === 'object' && Object.keys(res).length === 0)) {
+            items = Array.isArray(res?.generatorMetadata) ? res.generatorMetadata : [];
+          }
+        } catch (err) {
+          if (err?.status === 404 || err?.status === 501) cursor.useLegacyRpc = true;
+          else throw err;
+        }
+      }
+      let activeOffset = offset;
+      if (items === null) {
+        activeOffset = 0;
+        const legacy = await rpcPost('GetCascadeTrajectory', { cascadeId: convId, trajectoryVerbosity: 2 });
+        items = Array.isArray(legacy?.trajectory?.generatorMetadata) ? legacy.trajectory.generatorMetadata : [];
+      }
+      if (activeOffset === 0) cursor.fullSyncAt = Date.now();
+      if (activeOffset > 0 && items.length === 0 && cursor.merged) {
+        return { ...cursor.merged, conversationId: convId, sampledAt: Date.now() };
+      }
+      const nextMerged = buildMetricsFromItems(
+        convId,
+        items,
+        modelMap,
+        cursor.maxByModel,
+        activeOffset > 0 ? cursor.merged : null
+      );
+      cursor.merged = nextMerged;
+      if (items.length > 0) {
+        const tailChat = items[items.length - 1]?.chatModel;
+        const tailDone = Boolean(tailChat?.streamingDuration && tailChat?.usage);
+        cursor.nextOffset = tailDone ? activeOffset + items.length : Math.max(0, activeOffset + items.length - 1);
+      } else if (activeOffset === 0) {
+        cursor.nextOffset = 0;
+      }
+      return nextMerged;
+    }
+
     function render() {
       if (!shadow) return;
-      const context = data?.context, speed = data?.speed;
-      const pct = typeof context?.usedFraction === 'number' ? Math.round(context.usedFraction * 100) : null;
-      shadow.getElementById('context-value').textContent = pct !== null ? String(Math.min(999, pct)) + (pct > 999 ? '+' : '') : '—';
-      shadow.getElementById('context-fill').style.strokeDashoffset = String(62.832 * (1 - Math.max(0, Math.min(1, context?.usedFraction ?? 0))));
-      button.dataset.tone = pct >= 90 ? 'high' : pct >= 75 ? 'medium' : 'normal';
-      button.title = pct !== null ? `Swivox 上下文估算 ${pct}% · 点击查看详情` : 'Swivox 上下文估算暂不可用 · 点击查看详情';
-      shadow.getElementById('usage').textContent = context ? `${compact(context.usedTokens)} / ${context.maxTokens ? compact(context.maxTokens) : '未知'} tokens` : '暂不可用';
+      const context = data?.context, speed = data?.speed, isEmpty = data?.state === 'empty';
+      const hasFrac = typeof context?.usedFraction === 'number';
+      const pct = hasFrac ? Math.round(context.usedFraction * 100) : (isEmpty ? 0 : null);
+      const valText = pct !== null ? `${Math.min(999, pct)}${pct > 999 ? '+' : ''}%` : '—';
+      shadow.getElementById('context-value').textContent = valText;
+      const frac = hasFrac ? Math.max(0, Math.min(1, context.usedFraction)) : 0;
+      const fill = shadow.getElementById('context-fill');
+      fill.style.strokeDashoffset = (47.124 * (1 - frac)).toFixed(3);
+      button.dataset.tone = pct !== null && pct >= 90 ? 'high' : pct !== null && pct >= 75 ? 'medium' : 'normal';
+      button.dataset.empty = pct === null ? 'true' : (frac > 0 ? 'false' : 'zero');
+      button.title = pct !== null
+        ? (isEmpty ? 'Swivox 上下文监控：新会话 0% · 点击查看详情' : `Swivox 上下文占用 ${pct}% · 点击查看详情`)
+        : 'Swivox 上下文估算暂不可用 · 点击查看详情';
+      if (barFill) {
+        barFill.style.width = `${(frac * 100).toFixed(1)}%`;
+        barFill.dataset.tone = button.dataset.tone;
+      }
+      shadow.getElementById('usage').textContent = isEmpty
+        ? '0 tokens（新会话）'
+        : context
+          ? `${compact(context.usedTokens)} / ${context.maxTokens ? compact(context.maxTokens) : '未知'} tokens`
+          : '暂不可用';
       const domModel = typeof composer?.anchor?.textContent === 'string' ? composer.anchor.textContent.replace(/\s+/g, ' ').trim().slice(0, 80) : '';
       shadow.getElementById('model').textContent = context?.model || speed?.model || domModel || '—';
       shadow.getElementById('endpoint').textContent = context?.endpointModel || speed?.endpointModel || '—';
-      shadow.getElementById('speed').textContent = speed ? `${speed.tokensPerSecond.toFixed(1)} tok/s` : '等待有效请求';
+      shadow.getElementById('speed').textContent = speed ? `${speed.tokensPerSecond.toFixed(1)} tok/s` : (isEmpty ? '尚无生成记录' : '等待有效请求');
       shadow.getElementById('ttft').textContent = typeof speed?.ttftSeconds === 'number' ? `${speed.ttftSeconds.toFixed(2)} 秒` : '—';
       positionCard();
     }
     function createNode() {
       node = doc.createElement('span');
       node.id = 'swivox-ag-context-monitor';
-      node.style.cssText = 'display:flex;flex:0 1 auto;min-width:0;max-width:130px;margin:0 4px;position:relative;overflow:visible;';
+      node.style.cssText = 'display:inline-flex;align-items:center;flex:0 0 auto;min-width:0;margin:0 2px;position:relative;overflow:visible;';
       shadow = node.attachShadow({ mode: 'open' });
       function make(tag, attrs, ...children) {
-        const el = ['svg', 'circle', 'text'].includes(tag) ? doc.createElementNS('http://www.w3.org/2000/svg', tag) : doc.createElement(tag);
+        const el = ['svg', 'circle'].includes(tag) ? doc.createElementNS('http://www.w3.org/2000/svg', tag) : doc.createElement(tag);
         for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
         for (const c of children) el.appendChild(typeof c === 'string' ? doc.createTextNode(c) : c);
         return el;
       }
       shadow.appendChild(make('style', {}, `
-        :host{font:11px system-ui,sans-serif;color:inherit}.strip{display:flex;align-items:center;gap:3px}button{font:inherit;color:inherit;cursor:pointer;border:0;border-radius:5px;background:transparent;padding:3px}
-        .indicator{display:flex;align-items:center;justify-content:center;height:28px;min-width:28px;font-variant-numeric:tabular-nums}.indicator svg{width:24px;height:24px}.ring-track{opacity:.17}.ring-fill{transform:rotate(-90deg);transform-origin:12px 12px}.ring-number{font:700 7px system-ui,sans-serif;fill:currentColor}
-        button:hover{background:color-mix(in srgb,currentColor 10%,transparent)}button[data-tone=medium]{color:#c69026}button[data-tone=high]{color:#e16e65}
-        .card{box-sizing:border-box;position:fixed;inset:auto;margin:0;z-index:2147483000;padding:14px;border-radius:10px;border:1px solid var(--vscode-widget-border,#7776);background:var(--vscode-editorWidget-background,Canvas);color:var(--vscode-editor-foreground,CanvasText);box-shadow:0 8px 24px #0003;font:12px system-ui,sans-serif}
-        [hidden]{display:none!important}.head{display:flex;justify-content:space-between;align-items:center}dl{margin:10px 0}dl div{display:flex;gap:12px;justify-content:space-between;margin:8px 0}dt{opacity:.7}dd{margin:0;max-width:65%;text-align:right;overflow-wrap:anywhere}
+        :host{font:12px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:inherit}
+        .strip{display:inline-flex;align-items:center}
+        button{font:inherit;color:inherit;cursor:pointer;border:0;background:transparent}
+        .indicator{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 8px 0 6px;border-radius:9999px;font-size:12px;font-weight:500;font-variant-numeric:tabular-nums;color:var(--vscode-descriptionForeground,color-mix(in srgb,var(--foreground,currentColor) 76%,transparent));transition:background .15s ease,color .15s ease}
+        .indicator:hover{background:var(--vscode-toolbar-hoverBackground,color-mix(in srgb,var(--foreground,currentColor) 8%,transparent));color:var(--vscode-foreground,var(--foreground,currentColor))}
+        .indicator svg{width:15px;height:15px;flex:0 0 auto}
+        .ring-track{stroke:currentColor;opacity:.2}
+        .ring-fill{transform:rotate(-90deg);transform-origin:10px 10px;stroke:#2563eb;transition:stroke-dashoffset .35s ease,stroke .2s ease}
+        .indicator[data-empty=zero] .ring-fill,.indicator[data-empty=true] .ring-fill{stroke:currentColor;opacity:.45}
+        .indicator[data-tone=medium]{color:#d97706}
+        .indicator[data-tone=medium] .ring-fill{stroke:#d97706}
+        .indicator[data-tone=high]{color:#dc2626}
+        .indicator[data-tone=high] .ring-fill{stroke:#dc2626}
+        .card{box-sizing:border-box;position:fixed;inset:auto;margin:0;z-index:2147483000;padding:12px 14px;border-radius:12px;border:1px solid var(--vscode-widget-border,color-mix(in srgb,var(--foreground,currentColor) 14%,transparent));background:var(--vscode-editorWidget-background,var(--card,var(--background,Canvas)));color:var(--vscode-editor-foreground,var(--foreground,CanvasText));box-shadow:0 10px 28px rgba(0,0,0,.14),0 2px 6px rgba(0,0,0,.06);font:12px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+        [hidden]{display:none!important}
+        .head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+        .head strong{font-size:12.5px;font-weight:600}
+        .close-btn{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;font-size:15px;line-height:1;opacity:.65}
+        .close-btn:hover{opacity:1;background:color-mix(in srgb,var(--foreground,currentColor) 8%,transparent)}
+        .bar-track{height:4px;border-radius:9999px;background:color-mix(in srgb,var(--foreground,currentColor) 10%,transparent);overflow:hidden;margin-bottom:10px}
+        .bar-fill{height:100%;width:0;border-radius:9999px;background:#2563eb;transition:width .3s ease,background .2s ease}
+        .bar-fill[data-tone=medium]{background:#d97706}
+        .bar-fill[data-tone=high]{background:#dc2626}
+        dl{margin:0}
+        dl div{display:flex;gap:12px;justify-content:space-between;align-items:baseline;margin:6px 0}
+        dl div:last-child{margin-bottom:0}
+        dt{opacity:.68;flex:0 0 auto}
+        dd{margin:0;max-width:66%;text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;font-weight:500}
       `));
       shadow.appendChild(make('div', { class: 'strip' },
-        make('button', { id: 'trigger', class: 'indicator', type: 'button', 'aria-expanded': 'false' },
-          make('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' },
-            make('circle', { class: 'ring-track', cx: '12', cy: '12', r: '10', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }),
-            make('circle', { id: 'context-fill', class: 'ring-fill', cx: '12', cy: '12', r: '10', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-dasharray': '62.832', 'stroke-dashoffset': '62.832' }),
-            make('text', { id: 'context-value', class: 'ring-number', x: '12', y: '12', 'text-anchor': 'middle', 'dominant-baseline': 'central' }, '—')
-          )
+        make('button', { id: 'trigger', class: 'indicator', type: 'button', 'aria-expanded': 'false', 'data-tone': 'normal', 'data-empty': 'true' },
+          make('svg', { viewBox: '0 0 20 20', 'aria-hidden': 'true' },
+            make('circle', { class: 'ring-track', cx: '10', cy: '10', r: '7.5', fill: 'none', 'stroke-width': '2' }),
+            make('circle', { id: 'context-fill', class: 'ring-fill', cx: '10', cy: '10', r: '7.5', fill: 'none', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-dasharray': '47.124', 'stroke-dashoffset': '47.124' })
+          ),
+          make('span', { id: 'context-value' }, '—')
         )
       ));
       shadow.appendChild(make('section', { id: 'details', class: 'card', hidden: '' },
-        make('div', { class: 'head' }, make('strong', {}, 'Swivox 上下文估算'), make('button', { id: 'close', type: 'button' }, '×')),
+        make('div', { class: 'head' }, make('strong', {}, 'Swivox 上下文监控'), make('button', { id: 'close', class: 'close-btn', type: 'button', 'aria-label': '关闭' }, '×')),
+        make('div', { class: 'bar-track' }, make('div', { id: 'bar-fill', class: 'bar-fill' })),
         make('dl', {},
           make('div', {}, make('dt', {}, '占用 / 容量'), make('dd', { id: 'usage' })),
           make('div', {}, make('dt', {}, '采样模型'), make('dd', { id: 'model' })),
@@ -290,6 +573,7 @@ const AG_RENDERER_TEMPLATE: &str = r#"(() => {
       ));
       button = shadow.getElementById('trigger');
       card = shadow.getElementById('details');
+      barFill = shadow.getElementById('bar-fill');
       if (typeof card.showPopover === 'function') card.setAttribute('popover', 'manual');
       button.addEventListener('click', () => { if (card.hidden) showCard(); else hideCard(); });
       shadow.getElementById('close').addEventListener('click', () => hideCard());
@@ -301,30 +585,56 @@ const AG_RENDERER_TEMPLATE: &str = r#"(() => {
       if (next !== route) { route = next; pending = null; data = null; lastFetch = 0; hideCard(); render(); }
       const found = route && findComposer();
       if (!found) { hideCard(); node?.remove(); composer = null; return; }
-      const changed = composer?.row !== found.row || composer?.branch !== found.branch;
+      const changed = !node || !node.isConnected
+        || node.parentElement !== found.insertParent
+        || node.previousElementSibling !== found.insertAfter;
       composer = found;
       if (!node) createNode();
-      if (!node.isConnected || changed) { hideCard(); found.row.insertBefore(node, found.branch.nextSibling); }
+      if (changed) {
+        hideCard();
+        found.insertParent.insertBefore(node, found.insertAfter.nextSibling);
+        render();
+      }
     }
     function refresh(force = false) {
       if (!enabled || disposed || (!force && doc.hidden) || !route || !node?.isConnected) return;
       if (force) pending = null;
-      if (pending && Date.now() - pending.at < 20000) return;
-      if (!force && Date.now() - lastFetch < 3000) return;
+      if (pending && Date.now() - pending.at < 15000) return;
+      if (!force && Date.now() - lastFetch < 2400) return;
       const requestId = String(++sequence);
-      pending = { requestId, conversationId: route, at: Date.now() };
+      const targetRoute = route;
+      pending = { requestId, conversationId: targetRoute, at: Date.now() };
       lastFetch = Date.now();
-      try { currentReport({ type: 'context-metrics', requestId, conversationId: route }); } catch { pending = null; }
+      if (canDirectFetch) {
+        fetchDirectMetrics(targetRoute, force)
+          .then(res => receive(requestId, res))
+          .catch(() => {
+            if (pending?.requestId === requestId) pending = null;
+            if (!data && route === targetRoute) {
+              data = { conversationId: targetRoute, state: 'unavailable' };
+              render();
+            }
+          });
+        return;
+      }
+      try { currentReport({ type: 'context-metrics', requestId, conversationId: targetRoute }); } catch { pending = null; }
     }
     function receive(requestId, result) {
       if (disposed || !pending || pending.requestId !== requestId || result?.conversationId !== pending.conversationId) return;
       pending = null; data = result; render();
     }
-    const timer = win.setInterval(() => { mount(); refresh(false); }, 1200);
+    const timer = win.setInterval(() => {
+      mount();
+      if (canDirectFetch) refresh(false);
+    }, canDirectFetch ? 2500 : 1500);
     win.__easyagContext = {
       active: true,
+      version: WIDGET_VERSION,
       hasRoute() {
         return Boolean(route && node?.isConnected);
+      },
+      usesHostBridge() {
+        return !canDirectFetch;
       },
       updateReporter(fn) {
         if (typeof fn === 'function') currentReport = fn;
@@ -335,7 +645,12 @@ const AG_RENDERER_TEMPLATE: &str = r#"(() => {
       },
       receive,
       dispose() {
-        disposed = true; hideCard(); node?.remove(); win.clearInterval(timer);
+        disposed = true;
+        doc.removeEventListener('pointerdown', onDocPointerDown, true);
+        doc.removeEventListener('keydown', onDocKeyDown);
+        hideCard();
+        node?.remove();
+        win.clearInterval(timer);
         delete win.__easyagContext;
       }
     };
@@ -355,10 +670,13 @@ const AG_RENDERER_TEMPLATE: &str = r#"(() => {
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', boot, { once: true });
-    return { hasRoute: false };
+    return { hasRoute: false, usesHostBridge: TARGET === 'ide' };
   }
   boot();
-  return { hasRoute: Boolean(window.__easyagContext?.hasRoute?.()) };
+  return {
+    hasRoute: Boolean(window.__easyagContext?.hasRoute?.()),
+    usesHostBridge: Boolean(window.__easyagContext?.usesHostBridge?.())
+  };
 })();"#;
 
 fn merged_dictionary_json() -> &'static String {
@@ -637,10 +955,9 @@ async fn eval_on_cdp_page(ws_url: &str, script: &str, bind_context: bool) -> any
             if bind_context
                 && msg_id == Some(4)
                 && !metrics_requested
-                && msg
-                    .pointer("/result/result/value/hasRoute")
-                    .and_then(Value::as_bool)
-                    == Some(false)
+                && let Some(val) = msg.pointer("/result/result/value")
+                && (val.get("hasRoute").and_then(Value::as_bool) == Some(false)
+                    || val.get("usesHostBridge").and_then(Value::as_bool) == Some(false))
             {
                 break;
             }
@@ -660,7 +977,18 @@ fn build_ls_http_client(is_https: bool, timeout: Duration) -> Option<reqwest::Cl
     builder.build().ok()
 }
 
-/// 通过本机 `language_server` 只读 Connect-RPC (`GetUserStatus` + `GetCascadeTrajectory`) 查询会话上下文估算与生成速度。
+fn apply_ls_headers(req: reqwest::RequestBuilder, csrf: &str) -> reqwest::RequestBuilder {
+    let req = req
+        .header("Content-Type", "application/json")
+        .header("Connect-Protocol-Version", "1");
+    if csrf.is_empty() {
+        req
+    } else {
+        req.header("x-codeium-csrf-token", csrf)
+    }
+}
+
+/// 通过本机 `language_server` 只读 Connect-RPC (`GetUserStatus` + `GetCascadeTrajectoryGeneratorMetadata` / `GetCascadeTrajectory`) 查询会话上下文估算与生成速度。
 async fn query_local_language_server_metrics(conversation_id: &str) -> Value {
     let Some(ep) = discover_local_language_server_endpoint().await else {
         return json!({
@@ -675,11 +1003,7 @@ async fn query_local_language_server_metrics(conversation_id: &str) -> Value {
 
     let base = &ep.base_url;
     let mut placeholder_labels = BTreeMap::<String, String>::new();
-    if let Ok(resp) = client
-        .post(format!("{base}/GetUserStatus"))
-        .header("Content-Type", "application/json")
-        .header("Connect-Protocol-Version", "1")
-        .header("x-codeium-csrf-token", &ep.csrf)
+    if let Ok(resp) = apply_ls_headers(client.post(format!("{base}/GetUserStatus")), &ep.csrf)
         .json(&json!({}))
         .send()
         .await
@@ -700,17 +1024,34 @@ async fn query_local_language_server_metrics(conversation_id: &str) -> Value {
         }
     }
 
-    let Ok(traj_resp) = client
-        .post(format!("{base}/GetCascadeTrajectory"))
-        .header("Content-Type", "application/json")
-        .header("Connect-Protocol-Version", "1")
-        .header("x-codeium-csrf-token", &ep.csrf)
-        .json(&json!({
-            "cascadeId": conversation_id,
-            "trajectoryVerbosity": 2
-        }))
-        .send()
-        .await
+    // 优先请求轻量级 GetCascadeTrajectoryGeneratorMetadata（不含庞大 steps），若不支持再回退全量 GetCascadeTrajectory。
+    if let Ok(meta_resp) = apply_ls_headers(
+        client.post(format!("{base}/GetCascadeTrajectoryGeneratorMetadata")),
+        &ep.csrf,
+    )
+    .json(&json!({
+        "cascadeId": conversation_id,
+        "generatorMetadataOffset": 0,
+        "includeMessages": false
+    }))
+    .send()
+    .await
+        && meta_resp.status().is_success()
+        && let Ok(meta_json) = meta_resp.json::<Value>().await
+        && (meta_json.get("generatorMetadata").is_some()
+            || meta_json.as_object().is_some_and(|m| m.is_empty()))
+    {
+        return extract_trajectory_metrics(conversation_id, &meta_json, &placeholder_labels);
+    }
+
+    let Ok(traj_resp) =
+        apply_ls_headers(client.post(format!("{base}/GetCascadeTrajectory")), &ep.csrf)
+            .json(&json!({
+                "cascadeId": conversation_id,
+                "trajectoryVerbosity": 2
+            }))
+            .send()
+            .await
     else {
         if let Ok(mut guard) = CACHED_LS_ENDPOINT.get_or_init(|| Mutex::new(None)).lock() {
             *guard = None;
@@ -718,6 +1059,9 @@ async fn query_local_language_server_metrics(conversation_id: &str) -> Value {
         return json!({ "conversationId": conversation_id, "state": "unavailable" });
     };
 
+    if !traj_resp.status().is_success() {
+        return json!({ "conversationId": conversation_id, "state": "unavailable" });
+    }
     let Ok(traj_json) = traj_resp.json::<Value>().await else {
         return json!({ "conversationId": conversation_id, "state": "unavailable" });
     };
@@ -736,10 +1080,49 @@ fn extract_trajectory_metrics(
     placeholder_labels: &BTreeMap<String, String>,
 ) -> Value {
     let items = traj_json
-        .pointer("/trajectory/generatorMetadata")
+        .get("generatorMetadata")
+        .or_else(|| traj_json.pointer("/trajectory/generatorMetadata"))
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
+
+    let now_ms = chrono::Utc::now().timestamp_millis();
+    if items.is_empty() {
+        return json!({
+            "conversationId": conversation_id,
+            "state": "empty",
+            "sampledAt": now_ms,
+            "context": {
+                "usedTokens": 0,
+                "maxTokens": Value::Null,
+                "usedFraction": 0.0,
+                "model": "",
+                "endpointModel": "",
+            },
+            "speed": Value::Null,
+        });
+    }
+
+    // 预扫描同模型历史出现过的最大上下文窗口容量，避免新轮次缺省 maxContextTokens 时丢失分母。
+    let mut max_by_model = BTreeMap::<String, u64>::new();
+    for item in &items {
+        let Some(chat) = item.get("chatModel") else { continue };
+        let cwm = chat
+            .pointer("/chatStartMetadata/contextWindowMetadata")
+            .or_else(|| item.pointer("/chatStartMetadata/contextWindowMetadata"));
+        let raw_model = chat
+            .get("modelDisplayName")
+            .or_else(|| chat.get("modelName"))
+            .or_else(|| chat.get("model"))
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        if !raw_model.is_empty()
+            && let Some(max_toks) = cwm.and_then(|c| parse_u64_json(c.get("maxContextTokens")))
+            && max_toks > 0
+        {
+            max_by_model.insert(raw_model.to_string(), max_toks);
+        }
+    }
 
     let mut context_val = Value::Null;
     let mut speed_val = Value::Null;
@@ -747,7 +1130,7 @@ fn extract_trajectory_metrics(
     for item in items.iter().rev() {
         let Some(chat) = item.get("chatModel") else { continue };
         if context_val.is_null() {
-            // Antigravity 2.x 将 chatStartMetadata 挂在 chatModel 下；同时兼容旧版顶层挂法与 usage 估算兜底。
+            // Antigravity 2.x 将 chatStartMetadata 挂在 chatModel 下；同时兼容旧版顶层挂法与 tokenBreakdown/usage 估算兜底。
             let cwm = chat
                 .pointer("/chatStartMetadata/contextWindowMetadata")
                 .or_else(|| item.pointer("/chatStartMetadata/contextWindowMetadata"));
@@ -760,19 +1143,25 @@ fn extract_trajectory_metrics(
 
             if cwm.is_some() || usage_fallback_tokens.is_some() {
                 let used = cwm
-                    .and_then(|c| parse_u64_json(c.get("estimatedTokensUsed")))
+                    .and_then(|c| {
+                        parse_u64_json(c.get("estimatedTokensUsed"))
+                            .or_else(|| parse_u64_json(c.pointer("/tokenBreakdown/totalTokens")))
+                    })
                     .or(usage_fallback_tokens)
                     .unwrap_or(0);
-                let max_toks = cwm.and_then(|c| parse_u64_json(c.get("maxContextTokens")));
-                let frac = max_toks
-                    .filter(|m| *m > 0)
-                    .map(|m| (used as f64 / m as f64).clamp(0.0, 1.0));
                 let raw_model = chat
                     .get("modelDisplayName")
                     .or_else(|| chat.get("modelName"))
                     .or_else(|| chat.get("model"))
                     .and_then(Value::as_str)
                     .unwrap_or("");
+                let max_toks = cwm
+                    .and_then(|c| parse_u64_json(c.get("maxContextTokens")))
+                    .filter(|m| *m > 0)
+                    .or_else(|| (!raw_model.is_empty()).then(|| max_by_model.get(raw_model).copied()).flatten());
+                let frac = max_toks
+                    .filter(|m| *m > 0)
+                    .map(|m| (used as f64 / m as f64).clamp(0.0, 1.0));
                 let model_label = placeholder_labels
                     .get(raw_model)
                     .cloned()
@@ -817,7 +1206,6 @@ fn extract_trajectory_metrics(
         }
     }
 
-    let now_ms = chrono::Utc::now().timestamp_millis();
     json!({
         "conversationId": conversation_id,
         "state": "live",
@@ -851,7 +1239,7 @@ async fn discover_local_language_server_endpoint() -> Option<LanguageServerEndpo
     let candidates: Vec<_> = procs
         .iter()
         .filter(|p| p.is_language_server)
-        .filter_map(|p| Some((p.pid, extract_csrf_from_cmdline(&p.command_line)?)))
+        .map(|p| (p.pid, extract_csrf_from_cmdline(&p.command_line).unwrap_or_default()))
         .collect();
     if candidates.is_empty() {
         return None;
@@ -880,14 +1268,11 @@ async fn discover_local_language_server_endpoint() -> Option<LanguageServerEndpo
                 let base_url = format!(
                     "{scheme}://127.0.0.1:{port}/exa.language_server_pb.LanguageServerService"
                 );
-                if let Ok(resp) = client
-                    .post(format!("{base_url}/GetUserStatus"))
-                    .header("Content-Type", "application/json")
-                    .header("Connect-Protocol-Version", "1")
-                    .header("x-codeium-csrf-token", &csrf)
-                    .json(&json!({}))
-                    .send()
-                    .await
+                if let Ok(resp) =
+                    apply_ls_headers(client.post(format!("{base_url}/GetUserStatus")), &csrf)
+                        .json(&json!({}))
+                        .send()
+                        .await
                     && resp.status().is_success()
                 {
                     let ep = LanguageServerEndpoint {
@@ -1074,6 +1459,63 @@ mod tests {
         assert_eq!(out["context"]["endpointModel"], "gemini-4-hydrogen");
         assert_eq!(out["speed"]["tokensPerSecond"], 200.0);
         assert_eq!(out["speed"]["ttftSeconds"], 0.5);
+    }
+
+    #[test]
+    fn extracts_top_level_generator_metadata_with_total_tokens_and_max_backfill() {
+        let resp = json!({
+            "generatorMetadata": [
+                {
+                    "chatModel": {
+                        "modelDisplayName": "Claude Opus 5.5 (High)",
+                        "chatStartMetadata": {
+                            "contextWindowMetadata": {
+                                "estimatedTokensUsed": 120000,
+                                "maxContextTokens": 840000
+                            }
+                        }
+                    }
+                },
+                {
+                    "chatModel": {
+                        "modelDisplayName": "Claude Opus 5.5 (High)",
+                        "responseModel": "claude-opus-5-5-high",
+                        "streamingDuration": "2.0s",
+                        "timeToFirstToken": "0.4s",
+                        "usage": {
+                            "responseOutputTokens": "300"
+                        },
+                        "chatStartMetadata": {
+                            "contextWindowMetadata": {
+                                "tokenBreakdown": { "totalTokens": 652678 }
+                            }
+                        }
+                    }
+                }
+            ]
+        });
+        let out = extract_trajectory_metrics("conv-2", &resp, &BTreeMap::new());
+        assert_eq!(out["state"], "live");
+        assert_eq!(out["context"]["usedTokens"], 652678);
+        assert_eq!(out["context"]["maxTokens"], 840000);
+        assert_eq!(out["context"]["endpointModel"], "claude-opus-5-5-high");
+        assert_eq!(out["speed"]["tokensPerSecond"], 150.0);
+    }
+
+    #[test]
+    fn empty_generator_metadata_returns_empty_state() {
+        let out = extract_trajectory_metrics("conv-empty", &json!({}), &BTreeMap::new());
+        assert_eq!(out["state"], "empty");
+        assert_eq!(out["context"]["usedTokens"], 0);
+        assert_eq!(out["context"]["usedFraction"], 0.0);
+    }
+
+    #[test]
+    fn renderer_script_contains_direct_rpc_and_v2_widget_markers() {
+        let script = build_renderer_injection_script(false, true, false);
+        assert!(script.contains("const WIDGET_VERSION = 2;"));
+        assert!(script.contains("GetCascadeTrajectoryGeneratorMetadata"));
+        assert!(script.contains("agy_session_csrf_token"));
     }
 
     #[test]

@@ -1,6 +1,6 @@
 //! Lamplighter 5 小时额度窗口自动点火引擎（`07:00..22:30` 排期、滑动占位检测、24h 被拒模型记忆、首包 2 秒流截断与窗口确认）。
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
@@ -12,8 +12,8 @@ use uuid::Uuid;
 
 use super::config::{IgnitionConfig, LamplighterConfig, normalize_client_id};
 use super::providers::{
-    UnifiedCredential, build_account_http_client, query_credential_quotas,
-    summarize_upstream_error_body,
+    RawQuotaGroup, UnifiedCredential, build_account_http_client, parse_passive_response_headers,
+    query_credential_quotas, summarize_upstream_error_body,
 };
 use super::store::IgnitionTargetState;
 
@@ -232,14 +232,22 @@ fn default_candidate_models(provider: &str, group_label: &str) -> Vec<String> {
             "gpt-5".to_string(),
         ],
         "antigravity" => {
-            if group_label.to_ascii_lowercase().contains("claude") {
+            let lower = group_label.to_ascii_lowercase();
+            if lower.contains("argon") {
                 vec![
+                    "gemini-4-argon-low".to_string(),
+                    "gemini-4-argon-medium".to_string(),
+                ]
+            } else if lower.contains("claude") || lower.contains("gpt") {
+                vec![
+                    "claude-sonnet-5-5-low".to_string(),
                     "claude-sonnet-4-6".to_string(),
                     "claude-sonnet-4-5".to_string(),
                     "gpt-oss-120b-medium".to_string(),
                 ]
             } else {
                 vec![
+                    "gemini-3.5-flash-lite".to_string(),
                     "gemini-2.5-flash".to_string(),
                     "gemini-3-flash".to_string(),
                     "gemini-2.5-pro".to_string(),
@@ -248,6 +256,111 @@ fn default_candidate_models(provider: &str, group_label: &str) -> Vec<String> {
         }
         _ => Vec::new(),
     }
+}
+
+/// 按低首包延迟优先级对 Antigravity 可用模型列表分组排序（优先 `flash-lite` / `-low`，规避慢速 `tiered`/`high`/`thinking` 模型）。
+pub fn rank_antigravity_ignition_models(
+    available_model_ids: &[String],
+    group_label: &str,
+) -> Vec<String> {
+    let lower_label = group_label.to_ascii_lowercase();
+    let is_argon = lower_label.contains("argon");
+    let is_3p = lower_label.contains("claude") || lower_label.contains("gpt");
+
+    let mut buckets: [Vec<String>; 5] = Default::default();
+    for raw in available_model_ids {
+        let l = raw.to_ascii_lowercase();
+        if l.contains("image")
+            || l.contains("tab_")
+            || l.contains("embedding")
+            || l.contains("tts")
+            || l.contains("audio")
+        {
+            continue;
+        }
+        if is_argon {
+            if !l.contains("argon") || l.contains("thinking") {
+                continue;
+            }
+            let tier = if l.contains("low") {
+                0
+            } else if l.contains("medium") {
+                1
+            } else {
+                2
+            };
+            buckets[tier].push(raw.clone());
+        } else if is_3p {
+            if !(l.contains("claude") || l.contains("gpt")) || l.contains("thinking") {
+                continue;
+            }
+            let tier = if l.contains("haiku") || (l.contains("claude-sonnet") && l.ends_with("-low"))
+            {
+                0
+            } else if l.contains("claude-sonnet") && !l.contains("high") {
+                1
+            } else if l.contains("gpt-oss") {
+                2
+            } else if l.contains("claude-opus") && l.ends_with("-low") {
+                3
+            } else {
+                4
+            };
+            buckets[tier].push(raw.clone());
+        } else {
+            if !l.contains("gemini") || l.contains("argon") || l.contains("thinking") {
+                continue;
+            }
+            let has_heavy_tier =
+                l.contains("tiered") || l.contains("high") || l.contains("medium");
+            let tier = if l.contains("flash-lite") {
+                0
+            } else if l.contains("flash-low") || (l.contains("flash") && !has_heavy_tier) {
+                1
+            } else if l.contains("flash") {
+                2
+            } else if l.contains("-low") {
+                3
+            } else {
+                4
+            };
+            buckets[tier].push(raw.clone());
+        }
+    }
+
+    let mut ordered = Vec::new();
+    for (idx, bucket) in buckets.iter_mut().enumerate() {
+        if is_3p && idx == 2 && bucket.len() > 1 {
+            // gpt-oss 同档内低延迟后缀 (-low) 优先于 -medium/-high
+            let mut low = Vec::new();
+            let mut mid = Vec::new();
+            let mut rest = Vec::new();
+            for m in bucket.drain(..) {
+                let lm = m.to_ascii_lowercase();
+                if lm.ends_with("-low") {
+                    low.push(m);
+                } else if lm.ends_with("-medium") {
+                    mid.push(m);
+                } else {
+                    rest.push(m);
+                }
+            }
+            sort_models_newest_first(&mut low);
+            sort_models_newest_first(&mut mid);
+            sort_models_newest_first(&mut rest);
+            ordered.extend(low);
+            ordered.extend(mid);
+            ordered.extend(rest);
+            continue;
+        }
+        sort_models_newest_first(bucket);
+        for m in bucket.iter() {
+            if !ordered.contains(m) {
+                ordered.push(m.clone());
+            }
+        }
+    }
+    ordered
 }
 
 async fn resolve_ignition_candidates(
@@ -272,30 +385,7 @@ async fn resolve_ignition_candidates(
         if let Some(acc) = ag_state.accounts.iter().find(|a| a.id == cred.raw_account_id)
             && let Some(ref q) = acc.quota
         {
-            let is_3p = group_label.to_ascii_lowercase().contains("claude");
-            let mut flash = Vec::new();
-            let mut other = Vec::new();
-            for m in &q.available_model_ids {
-                let l = m.to_ascii_lowercase();
-                if l.contains("image") || l.contains("argon") {
-                    continue;
-                }
-                if is_3p {
-                    if (l.contains("claude") || l.contains("gpt")) && !l.contains("thinking") {
-                        other.push(m.clone());
-                    }
-                } else if l.contains("gemini") {
-                    if l.contains("flash") {
-                        flash.push(m.clone());
-                    } else {
-                        other.push(m.clone());
-                    }
-                }
-            }
-            sort_models_newest_first(&mut flash);
-            sort_models_newest_first(&mut other);
-            candidates.extend(flash);
-            candidates.extend(other);
+            candidates = rank_antigravity_ignition_models(&q.available_model_ids, group_label);
         }
     }
 
@@ -312,6 +402,7 @@ async fn resolve_ignition_candidates(
 pub struct IgnitionExecutionResult {
     pub model_used: String,
     pub confirmed_reset_at: i64,
+    pub refreshed_groups: Vec<RawQuotaGroup>,
 }
 
 async fn ensure_credential_fresh_before_ignition(cred: &mut UnifiedCredential) -> anyhow::Result<()> {
@@ -415,7 +506,7 @@ async fn force_refresh_credential_on_401(cred: &mut UnifiedCredential) -> bool {
     }
 }
 
-/// 对指定账号与额度组执行一次真实最小流式点火（收到首包非空文本后最多读 2 秒即主动关闭流，随后确认新 5h 重置时间）。
+/// 对指定账号与额度组执行一次真实最小流式点火（命中首个活跃生成事件即刻截断流，随后快速轮询确认新 5h 重置时间）。
 pub async fn execute_ignition_once(
     cfg: &LamplighterConfig,
     cred: &mut UnifiedCredential,
@@ -431,12 +522,14 @@ pub async fn execute_ignition_once(
 
     let start_ts = Utc::now().timestamp();
     let mut chosen_model = None;
+    let mut passive_groups: Option<Vec<RawQuotaGroup>> = None;
     let mut last_send_err = None;
 
     for (idx, model) in candidates.iter().take(2).enumerate() {
         match send_minimal_streaming_prompt(cred, model).await {
-            Ok(()) => {
+            Ok(passive) => {
                 chosen_model = Some(model.clone());
+                passive_groups = passive;
                 break;
             }
             Err((status_code, msg)) => {
@@ -457,23 +550,41 @@ pub async fn execute_ignition_once(
         );
     };
 
-    // 按 [4s, 8s, 12s] 轮询确认该组 5h 窗口产生了固定的未来 reset_at
-    for wait_secs in [4u64, 8, 12] {
-        tokio::time::sleep(Duration::from_secs(wait_secs)).await;
+    // Codex 若在响应头已返回已计时的 5h 窗口，可直接零等待确认
+    let check_now = Utc::now().timestamp();
+    if cred.provider == "codex"
+        && let Some(groups) = passive_groups
+        && let Some(rst) = groups
+            .iter()
+            .flat_map(|g| g.windows.iter())
+            .find(|w| w.is_five_hour && w.remaining_percent < 100.0)
+            .and_then(|w| w.reset_at.filter(|r| *r > check_now))
+    {
+        return Ok(IgnitionExecutionResult {
+            model_used,
+            confirmed_reset_at: rst,
+            refreshed_groups: groups,
+        });
+    }
+
+    // 快速渐进轮询确认该组 5h 窗口产生了固定的未来 reset_at（[350ms, 1000ms, 2000ms, 3500ms]）
+    for wait_ms in [350u64, 1000, 2000, 3500] {
+        tokio::time::sleep(Duration::from_millis(wait_ms)).await;
         if let Ok(groups) = query_credential_quotas(cred, cfg.request_timeout_seconds).await {
             let now = Utc::now().timestamp();
-            for grp in groups {
-                if grp.source_label == group_label || candidates.len() == 1 || cred.provider != "antigravity" {
-                    if let Some(w5) = grp.windows.iter().find(|w| w.is_five_hour)
-                        && let Some(rst) = w5.reset_at
-                        && rst > now
-                    {
-                        return Ok(IgnitionExecutionResult {
-                            model_used,
-                            confirmed_reset_at: rst,
-                        });
-                    }
-                }
+            let confirmed_rst = groups
+                .iter()
+                .filter(|grp| cred.provider != "antigravity" || grp.source_label == group_label)
+                .flat_map(|grp| grp.windows.iter())
+                .find(|w| w.is_five_hour)
+                .and_then(|w| w.reset_at)
+                .filter(|rst| *rst > now);
+            if let Some(rst) = confirmed_rst {
+                return Ok(IgnitionExecutionResult {
+                    model_used,
+                    confirmed_reset_at: rst,
+                    refreshed_groups: groups,
+                });
             }
         }
     }
@@ -484,13 +595,13 @@ pub async fn execute_ignition_once(
 async fn send_minimal_streaming_prompt(
     cred: &mut UnifiedCredential,
     model: &str,
-) -> Result<(), (Option<u16>, String)> {
+) -> Result<Option<Vec<RawQuotaGroup>>, (Option<u16>, String)> {
     let mut resp_opt = None;
     for attempt in 0..2 {
         let resp = match cred.provider.as_str() {
             "codex" => {
                 let ua = "codex-tui/0.154.0 (Mac OS 26.5.2; arm64) Swivox-Lamplighter";
-                let client = build_account_http_client(cred, 45, ua)
+                let client = build_account_http_client(cred, 20, ua)
                     .map_err(|e| (None, e.to_string()))?;
                 let mut req = client
                     .post("https://chatgpt.com/backend-api/codex/responses")
@@ -518,7 +629,7 @@ async fn send_minimal_streaming_prompt(
             "antigravity" => {
                 let client = build_account_http_client(
                     cred,
-                    45,
+                    20,
                     crate::antigravity::ANTIGRAVITY_HUB_USER_AGENT,
                 )
                 .map_err(|e| (None, e.to_string()))?;
@@ -598,58 +709,113 @@ async fn send_minimal_streaming_prompt(
         ));
     }
 
-    // 流式读取：捕获首个非空输出后计时 2 秒立即主动关闭连接（不耗费多余额度）
+    let passive_groups = if cred.provider == "codex" {
+        let hdrs: BTreeMap<String, String> = resp
+            .headers()
+            .iter()
+            .filter_map(|(k, v)| {
+                Some((k.as_str().to_ascii_lowercase(), v.to_str().ok()?.to_string()))
+            })
+            .collect();
+        parse_passive_response_headers(&hdrs, Utc::now().timestamp()).map(|(_, wins)| {
+            vec![RawQuotaGroup {
+                raw_group_key: "codex:main".to_string(),
+                source_label: "GPT".to_string(),
+                windows: wins,
+                detected_plan: None,
+            }]
+        })
+    } else {
+        None
+    };
+
+    // 按跨包行缓冲监听 SSE：命中首个有效生成/结束帧立即关闭连接，不再硬等 2 秒
     let mut stream = resp.bytes_stream();
-    let mut first_token_deadline: Option<tokio::time::Instant> = None;
-    let hard_deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+    let hard_deadline = tokio::time::Instant::now() + Duration::from_secs(12);
+    let mut line_buf = String::new();
 
     loop {
-        let wait_until = first_token_deadline.unwrap_or(hard_deadline).min(hard_deadline);
-        match tokio::time::timeout_at(wait_until, stream.next()).await {
+        match tokio::time::timeout_at(hard_deadline, stream.next()).await {
             Ok(Some(Ok(chunk))) => {
-                let s = String::from_utf8_lossy(&chunk);
-                if first_token_deadline.is_none() && sse_chunk_has_visible_output(&s) {
-                    first_token_deadline =
-                        Some(tokio::time::Instant::now() + Duration::from_secs(2));
+                line_buf.push_str(&String::from_utf8_lossy(&chunk));
+                let mut should_stop = false;
+                while let Some(pos) = line_buf.find('\n') {
+                    let line = line_buf[..pos].trim();
+                    if let Some(data) = line.strip_prefix("data:").map(str::trim)
+                        && sse_data_indicates_stream_active(data)
+                    {
+                        should_stop = true;
+                        break;
+                    }
+                    line_buf.drain(..=pos);
                 }
-                if s.contains("[DONE]") || s.contains("response.completed") || s.contains("message_stop") {
+                if should_stop {
                     break;
                 }
             }
             Ok(Some(Err(_))) | Ok(None) | Err(_) => {
-                // 2 秒截断或流自然结束均视为正常收尾
                 break;
             }
         }
     }
 
-    Ok(())
+    Ok(passive_groups)
 }
 
-fn sse_chunk_has_visible_output(chunk: &str) -> bool {
-    for line in chunk.lines() {
-        let Some(data) = line.strip_prefix("data:").map(str::trim) else {
-            continue;
-        };
-        if data.is_empty() || data == "[DONE]" {
-            continue;
-        }
-        if let Ok(val) = serde_json::from_str::<Value>(data) {
-            if val.get("delta").and_then(Value::as_str).is_some_and(|s| !s.is_empty())
-                || val
-                    .pointer("/delta/text")
-                    .and_then(Value::as_str)
-                    .is_some_and(|s| !s.is_empty())
-                || val
-                    .pointer("/response/candidates/0/content/parts/0/text")
-                    .and_then(Value::as_str)
-                    .is_some_and(|s| !s.is_empty())
-            {
-                return true;
-            }
-        }
+/// 判定单个 SSE `data:` 负载是否已表明上游开始生成或完成响应（覆盖 OpenAI / Anthropic / Google Cloud Code 格式）。
+pub fn sse_data_indicates_stream_active(data: &str) -> bool {
+    let trimmed = data.trim();
+    if trimmed.is_empty() {
+        return false;
     }
-    false
+    if trimmed == "[DONE]" {
+        return true;
+    }
+    let Ok(val) = serde_json::from_str::<Value>(trimmed) else {
+        return false;
+    };
+    if val
+        .get("delta")
+        .and_then(Value::as_str)
+        .is_some_and(|s| !s.is_empty())
+        || val
+            .pointer("/delta/text")
+            .and_then(Value::as_str)
+            .is_some_and(|s| !s.is_empty())
+    {
+        return true;
+    }
+    if val
+        .get("type")
+        .and_then(Value::as_str)
+        .is_some_and(|t| {
+            matches!(
+                t,
+                "response.output_text.delta"
+                    | "response.output_text.done"
+                    | "response.completed"
+                    | "content_block_delta"
+                    | "message_delta"
+                    | "message_stop"
+            )
+        })
+    {
+        return true;
+    }
+    let has_parts = ["/response/candidates/0/content/parts", "/candidates/0/content/parts"]
+        .iter()
+        .any(|ptr| {
+            val.pointer(ptr)
+                .and_then(Value::as_array)
+                .is_some_and(|arr| !arr.is_empty())
+        });
+    if has_parts {
+        return true;
+    }
+    val.pointer("/response/candidates/0/finishReason").is_some()
+        || val.pointer("/candidates/0/finishReason").is_some()
+        || val.pointer("/response/usageMetadata").is_some()
+        || val.get("usageMetadata").is_some()
 }
 
 /// 记录指定客户端的自动点火失败并应用 `5m -> 15m -> 次日 07:00` 熔断保护规则（返回是否需要发送熔断告警）。
@@ -744,5 +910,59 @@ mod tests {
         );
         assert!(hard.is_some());
         assert!(ts.paused_until > now + 60);
+    }
+
+    #[test]
+    fn ranks_fast_lite_and_low_models_first_for_antigravity_groups() {
+        let models = vec![
+            "claude-opus-5-5-high".to_string(),
+            "claude-sonnet-5-5-high".to_string(),
+            "claude-sonnet-5-5-low".to_string(),
+            "claude-sonnet-5-5-medium".to_string(),
+            "gemini-2.5-flash".to_string(),
+            "gemini-3-flash".to_string(),
+            "gemini-3.5-flash-lite".to_string(),
+            "gemini-3.8-flash-high".to_string(),
+            "gemini-3.8-flash-low".to_string(),
+            "gemini-3.8-flash-tiered".to_string(),
+            "gemini-4-argon-high".to_string(),
+            "gemini-4-argon-low".to_string(),
+            "gemini-4-argon-medium".to_string(),
+            "gpt-oss-120b-medium".to_string(),
+            "tab_flash_lite_preview".to_string(),
+        ];
+
+        let gemini_ranked = rank_antigravity_ignition_models(&models, "Gemini");
+        assert_eq!(gemini_ranked.first().map(String::as_str), Some("gemini-3.5-flash-lite"));
+        assert!(!gemini_ranked.contains(&"tab_flash_lite_preview".to_string()));
+        let lite_pos = gemini_ranked.iter().position(|m| m == "gemini-3.5-flash-lite").unwrap();
+        let tiered_pos = gemini_ranked.iter().position(|m| m == "gemini-3.8-flash-tiered").unwrap();
+        assert!(lite_pos < tiered_pos);
+
+        let cp_ranked = rank_antigravity_ignition_models(&models, "Claude / GPT");
+        assert_eq!(cp_ranked.first().map(String::as_str), Some("claude-sonnet-5-5-low"));
+        let sonnet_low_pos = cp_ranked.iter().position(|m| m == "claude-sonnet-5-5-low").unwrap();
+        let oss_pos = cp_ranked.iter().position(|m| m == "gpt-oss-120b-medium").unwrap();
+        let opus_high_pos = cp_ranked.iter().position(|m| m == "claude-opus-5-5-high").unwrap();
+        assert!(sonnet_low_pos < oss_pos && oss_pos < opus_high_pos);
+
+        let argon_ranked = rank_antigravity_ignition_models(&models, "Gemini 4 Argon");
+        assert_eq!(argon_ranked.first().map(String::as_str), Some("gemini-4-argon-low"));
+    }
+
+    #[test]
+    fn sse_stream_activity_detector_handles_openai_anthropic_and_cloudcode_chunks() {
+        assert!(!sse_data_indicates_stream_active(""));
+        assert!(sse_data_indicates_stream_active("[DONE]"));
+        assert!(sse_data_indicates_stream_active(r#"{"delta":"OK"}"#));
+        assert!(sse_data_indicates_stream_active(
+            r#"{"type":"content_block_delta","delta":{"text":"OK"}}"#
+        ));
+        assert!(sse_data_indicates_stream_active(
+            r#"{"response":{"candidates":[{"content":{"parts":[{"thought":true,"text":""}]}}]}}"#
+        ));
+        assert!(sse_data_indicates_stream_active(
+            r#"{"response":{"candidates":[{"finishReason":"STOP"}]}}"#
+        ));
     }
 }

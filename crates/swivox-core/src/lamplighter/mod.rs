@@ -390,7 +390,7 @@ pub async fn refresh_all_now() -> anyhow::Result<LamplighterSnapshot> {
     refresh_client_now(None).await
 }
 
-/// 手动点击「立即点火」：对指定 `group_key` 使用其所属客户端与账号隔离代理立即发送最小点火请求。
+/// 手动点击「立即点火」：对指定 `group_key` 使用其所属客户端与账号隔离代理立即发送最小点火请求，并复用确认阶段配额直接更新缓存后返回。
 pub async fn manual_ignite_group(group_key: &str) -> anyhow::Result<String> {
     let cfg = store::load_config();
     let creds = providers::collect_unified_credentials(&cfg);
@@ -403,49 +403,190 @@ pub async fn manual_ignite_group(group_key: &str) -> anyhow::Result<String> {
     let client_id = target_cred.client_id.clone();
     let mut state = store::load_client_state(&client_id);
 
-    let group_label = if group_key.ends_with("claude_gpt") {
+    let group_label = if group_key.ends_with(":claude_gpt") {
         "Claude / GPT"
+    } else if group_key.ends_with(":argon") {
+        "Gemini 4 Argon"
     } else if target_cred.provider == "antigravity" {
         "Gemini"
     } else {
         provider_display_title(&target_cred.provider)
     };
+    let display_full_label = if target_cred.provider == "antigravity" {
+        format!("{disp_label} · {group_label}")
+    } else {
+        disp_label.clone()
+    };
 
-    let now = Utc::now().timestamp();
+    let req_ts = Utc::now().timestamp();
     match ignite::execute_ignition_once(&cfg, &mut target_cred, group_key, group_label).await {
         Ok(res) => {
-            let ts = state.scheduler.entry(group_key.to_string()).or_default();
-            ts.last_success_at = now;
-            ts.last_model = Some(res.model_used.clone());
-            ts.consecutive_failures = 0;
-            ts.retry_at = 0;
-            ts.paused_until = 0;
-            ts.paused_reason = None;
-            ts.rolling_reset = false;
-            ts.last_reset_seen = res.confirmed_reset_at;
-            ts.last_seen_at = now;
+            let finish_now = Utc::now().timestamp();
+            {
+                let ts = state.scheduler.entry(group_key.to_string()).or_default();
+                ts.last_success_at = finish_now;
+                ts.last_model = Some(res.model_used.clone());
+                ts.consecutive_failures = 0;
+                ts.retry_at = 0;
+                ts.paused_until = 0;
+                ts.paused_reason = None;
+                ts.rolling_reset = false;
+                ts.last_reset_seen = res.confirmed_reset_at;
+                ts.last_seen_at = finish_now;
+            }
+
+            // 原地用确认阶段已拿到的最新配额刷新当前账号缓存与历史采样，避免再串行重查同客户端所有账号
+            if !res.refreshed_groups.is_empty() {
+                let detected_raw_plan = res
+                    .refreshed_groups
+                    .iter()
+                    .find_map(|g| g.detected_plan.clone())
+                    .or_else(|| {
+                        state
+                            .plans
+                            .get(&target_cred.account_key)
+                            .map(|p| p.plan.clone())
+                            .filter(|s| !s.is_empty())
+                    })
+                    .or_else(|| target_cred.cached_plan.clone());
+                let (plan_name, weight, custom_weight) = providers::resolve_account_plan_and_weight(
+                    &cfg,
+                    &target_cred.account_key,
+                    &target_cred.provider,
+                    detected_raw_plan.as_deref(),
+                );
+                let rule = cfg.provider_rule(&target_cred.provider);
+                let effective_proxy = describe_cred_effective_proxy(&target_cred);
+                let mut refreshed_views = Vec::new();
+
+                for rg in res.refreshed_groups {
+                    let gkey = format!(
+                        "{}:{}:{}",
+                        target_cred.provider, target_cred.account_key, rg.raw_group_key
+                    );
+                    let rg_full_label = if target_cred.provider == "antigravity" {
+                        format!("{disp_label} · {}", rg.source_label)
+                    } else {
+                        disp_label.clone()
+                    };
+
+                    let gs = state.groups.entry(gkey.clone()).or_default();
+                    gs.label = rg_full_label.clone();
+                    gs.last_seen = finish_now;
+                    gs.active_windows = Some(rg.windows.iter().map(|w| w.id.clone()).collect());
+
+                    for w in &rg.windows {
+                        store::append_client_history_sample(
+                            &client_id,
+                            finish_now,
+                            &gkey,
+                            &w.id,
+                            w.remaining_percent,
+                            w.reset_at,
+                            "active",
+                        );
+                        let ws = gs.windows.entry(w.id.clone()).or_default();
+                        ws.remaining = w.remaining_percent;
+                        ws.reset = w.reset_at.unwrap_or(0);
+                        ws.read_at = finish_now;
+                        ws.notified_severity = severity_for_remaining(&cfg, w.remaining_percent);
+                        ws.exhausted = ws.notified_severity >= 4;
+                    }
+
+                    let w5 = rg.windows.iter().find(|w| w.is_five_hour);
+                    let seven_exhausted = rg
+                        .windows
+                        .iter()
+                        .any(|w| !w.is_five_hour && w.remaining_percent <= 0.01);
+                    let ignite_supported =
+                        provider_supports_ignition(&target_cred.provider) && w5.is_some();
+                    let ignite_enabled = ignite_supported
+                        && if target_cred.provider == "antigravity" {
+                            cfg.is_antigravity_group_ignite_enabled(&rg.source_label)
+                        } else {
+                            rule.ignite
+                        };
+
+                    let ts_entry = state.scheduler.entry(gkey.clone()).or_default();
+                    if let Some(win5) = w5 {
+                        ignite::observe_five_hour_reset(ts_entry, win5.reset_at, finish_now, false);
+                    }
+                    let next_due = if ignite_enabled && !seven_exhausted {
+                        ignite::compute_next_ignition_due_for_client(
+                            &cfg,
+                            &client_id,
+                            ts_entry,
+                            w5.and_then(|w| w.reset_at),
+                            finish_now,
+                        )
+                    } else {
+                        None
+                    };
+
+                    refreshed_views.push(MonitoredGroupView {
+                        client_id: client_id.clone(),
+                        group_key: gkey,
+                        account_key: target_cred.account_key.clone(),
+                        provider: target_cred.provider.clone(),
+                        account_email: target_cred.email.clone(),
+                        source_kind: target_cred.source_kind.to_string(),
+                        display_label: rg_full_label,
+                        group_title: rg.source_label,
+                        plan_name: plan_name.clone(),
+                        weight,
+                        custom_weight,
+                        effective_proxy: effective_proxy.clone(),
+                        windows: rg.windows,
+                        ignite_supported,
+                        ignite_enabled,
+                        seven_day_exhausted: seven_exhausted,
+                        next_ignition_at: next_due,
+                        last_ignition_at: (ts_entry.last_success_at > 0)
+                            .then_some(ts_entry.last_success_at),
+                        last_ignition_model: ts_entry.last_model.clone(),
+                        paused_reason: (ts_entry.paused_until > finish_now)
+                            .then(|| ts_entry.paused_reason.clone())
+                            .flatten(),
+                        last_updated_at: finish_now,
+                    });
+                }
+
+                if let Ok(mut cache) = runtime_cache().lock()
+                    && let Some(prev) = cache.groups_by_client.get(&client_id)
+                    && !prev.is_empty()
+                {
+                    let mut updated: Vec<MonitoredGroupView> = prev
+                        .iter()
+                        .filter(|v| v.account_key != target_cred.account_key)
+                        .cloned()
+                        .collect();
+                    updated.extend(refreshed_views);
+                    cache.groups_by_client.insert(client_id.clone(), updated);
+                    cache.last_poll_by_client.insert(client_id.clone(), finish_now);
+                }
+            }
+
             let _ = store::save_client_state(&client_id, &state);
 
             let clock = notify::format_local_mmdd_hhmm(res.confirmed_reset_at);
             store::append_client_event_record(
                 &client_id,
                 &LamplighterEventRecord {
-                    timestamp: now,
+                    timestamp: finish_now,
                     group_key: group_key.to_string(),
                     kind: "ignite".to_string(),
                     level: "info".to_string(),
-                    label: disp_label.clone(),
+                    label: display_full_label.clone(),
                     message: format!(
-                        "{disp_label} 手动点火成功（{}），下次重置 {clock}",
+                        "{display_full_label} 手动点火成功（{}），下次重置 {clock}",
                         res.model_used
                     ),
                     detail: Some(format!("model={} · reset={clock}", res.model_used)),
                 },
             );
 
-            let _ = run_poll_and_ignition_cycle_for_client(Some(&client_id), true).await;
             Ok(format!(
-                "{disp_label} 点火成功（模型：{}），新 5 小时窗口将于 {clock} 重置。",
+                "{display_full_label} 点火成功（模型：{}），新 5 小时窗口将于 {clock} 重置。",
                 res.model_used
             ))
         }
@@ -453,12 +594,12 @@ pub async fn manual_ignite_group(group_key: &str) -> anyhow::Result<String> {
             store::append_client_event_record(
                 &client_id,
                 &LamplighterEventRecord {
-                    timestamp: now,
+                    timestamp: req_ts,
                     group_key: group_key.to_string(),
                     kind: "ignite_failed".to_string(),
                     level: "error".to_string(),
-                    label: disp_label.clone(),
-                    message: format!("{disp_label} 手动点火失败：{}", err),
+                    label: display_full_label.clone(),
+                    message: format!("{display_full_label} 手动点火失败：{err}"),
                     detail: None,
                 },
             );
@@ -611,7 +752,8 @@ async fn run_poll_and_ignition_cycle_for_client(
             std::collections::HashSet::new();
         let mut updated_views: Vec<MonitoredGroupView> = Vec::new();
 
-        for (mut cred, base_label) in client_creds {
+        let mut active_creds = Vec::new();
+        for (cred, base_label) in client_creds {
             if !force_active
                 && cred.provider == "codex"
                 && cfg.passive_skip_seconds > 0
@@ -626,11 +768,23 @@ async fn run_poll_and_ignition_cycle_for_client(
                     continue;
                 }
             }
+            active_creds.push((cred, base_label));
+        }
 
+        let timeout_secs = cfg.request_timeout_seconds;
+        let query_results = futures_util::future::join_all(
+            active_creds.into_iter().map(|(mut cred, base_label)| async move {
+                let res = providers::query_credential_quotas(&mut cred, timeout_secs).await;
+                (cred, base_label, res)
+            }),
+        )
+        .await;
+
+        for (mut cred, base_label, query_res) in query_results {
             let rule = cfg.provider_rule(&cred.provider);
             let effective_proxy = describe_cred_effective_proxy(&cred);
 
-            match providers::query_credential_quotas(&mut cred, cfg.request_timeout_seconds).await {
+            match query_res {
                 Ok(raw_groups) => {
                     refreshed_account_keys.insert(cred.account_key.clone());
                     if let Ok(mut cache) = runtime_cache().lock() {

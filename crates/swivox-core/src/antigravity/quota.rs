@@ -15,20 +15,20 @@ pub const ANTIGRAVITY_HUB_USER_AGENT: &str =
 
 pub const LOAD_CODE_ASSIST_ENDPOINTS: [&str; 3] = [
     "https://daily-cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
-    "https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal:loadCodeAssist",
     "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
+    "https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal:loadCodeAssist",
 ];
 
 pub const QUOTA_SUMMARY_ENDPOINTS: [&str; 3] = [
     "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
-    "https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal:retrieveUserQuotaSummary",
     "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
+    "https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal:retrieveUserQuotaSummary",
 ];
 
 pub const FETCH_MODELS_ENDPOINTS: [&str; 3] = [
     "https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels",
-    "https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal:fetchAvailableModels",
     "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels",
+    "https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal:fetchAvailableModels",
 ];
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -286,27 +286,78 @@ pub async fn fetch_antigravity_quota(
     existing_project_id: Option<&str>,
     proxy_spec: Option<&str>,
 ) -> anyhow::Result<AntigravityQuotaSnapshot> {
-    let client = build_http_client_for_proxy(proxy_spec, 25)?;
+    let client = build_http_client_for_proxy(proxy_spec, 15)?;
     let now = Utc::now().timestamp();
 
-    // 1. loadCodeAssist 获取权威订阅等级与 project_id（每次必查，不用模型列表猜 Pro）
-    let (assist_code, assist_text) = post_cloudcode_with_fallback(
-        &client,
-        access_token,
-        &LOAD_CODE_ASSIST_ENDPOINTS,
-        &json!({ "metadata": { "ideType": "ANTIGRAVITY" } }),
-    )
-    .await
-    .context("请求 loadCodeAssist 失败")?;
+    let preset_project_id = existing_project_id
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(ToString::to_string);
+
+    let assist_body = json!({ "metadata": { "ideType": "ANTIGRAVITY" } });
+
+    let (assist_code, assist_text, summary_res, models_res) =
+        if let Some(ref pid) = preset_project_id {
+            let project_body = json!({ "project": pid });
+            // 已知 project_id 时 3 个只读端点并发发起，将 3 轮跨洋 RTT 压缩为 1 轮
+            let (assist_out, sum_out, mod_out) = tokio::join!(
+                post_cloudcode_with_fallback(
+                    &client,
+                    access_token,
+                    &LOAD_CODE_ASSIST_ENDPOINTS,
+                    &assist_body,
+                ),
+                post_cloudcode_with_fallback(
+                    &client,
+                    access_token,
+                    &QUOTA_SUMMARY_ENDPOINTS,
+                    &project_body,
+                ),
+                post_cloudcode_with_fallback(
+                    &client,
+                    access_token,
+                    &FETCH_MODELS_ENDPOINTS,
+                    &project_body,
+                ),
+            );
+            let (ac, at) = assist_out.context("请求 loadCodeAssist 失败")?;
+            (ac, at, sum_out, mod_out)
+        } else {
+            // 首次无 project_id 时先取 loadCodeAssist，再并发查询后两项
+            let (ac, at) = post_cloudcode_with_fallback(
+                &client,
+                access_token,
+                &LOAD_CODE_ASSIST_ENDPOINTS,
+                &assist_body,
+            )
+            .await
+            .context("请求 loadCodeAssist 失败")?;
+
+            if ac == 401 {
+                bail!("HTTP 401: Antigravity access_token 已失效: {at}");
+            }
+
+            let parsed_pid = (200..300)
+                .contains(&ac)
+                .then(|| serde_json::from_str::<LoadProjectResponse>(&at).ok())
+                .flatten()
+                .and_then(|p| extract_project_id_string(p.project_id.as_ref()));
+            let body = match parsed_pid.as_deref() {
+                Some(pid) => json!({ "project": pid }),
+                None => json!({}),
+            };
+            let (sum_out, mod_out) = tokio::join!(
+                post_cloudcode_with_fallback(&client, access_token, &QUOTA_SUMMARY_ENDPOINTS, &body),
+                post_cloudcode_with_fallback(&client, access_token, &FETCH_MODELS_ENDPOINTS, &body),
+            );
+            (ac, at, sum_out, mod_out)
+        };
 
     if assist_code == 401 {
         bail!("HTTP 401: Antigravity access_token 已失效: {assist_text}");
     }
 
-    let mut project_id = existing_project_id
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(ToString::to_string);
+    let mut project_id = preset_project_id;
     let mut raw_tier_id: Option<String> = None;
 
     if (200..300).contains(&assist_code)
@@ -331,20 +382,12 @@ pub async fn fetch_antigravity_quota(
             });
     }
 
-    let subscription_tier = normalize_subscription_tier(raw_tier_id.as_deref());
-    let project_body = match project_id.as_deref() {
-        Some(pid) => json!({ "project": pid }),
-        None => json!({}),
-    };
+    let (summary_code, summary_text) = summary_res?;
+    if summary_code == 401 {
+        bail!("HTTP 401: Antigravity access_token 已失效: {summary_text}");
+    }
 
-    // 2. retrieveUserQuotaSummary 获取 5H / Weekly 双窗口分组桶
-    let (summary_code, summary_text) = post_cloudcode_with_fallback(
-        &client,
-        access_token,
-        &QUOTA_SUMMARY_ENDPOINTS,
-        &project_body,
-    )
-    .await?;
+    let subscription_tier = normalize_subscription_tier(raw_tier_id.as_deref());
 
     if summary_code == 403 || assist_code == 403 {
         let err_body = if summary_code == 403 {
@@ -377,16 +420,10 @@ pub async fn fetch_antigravity_quota(
         });
     }
 
-    // 3. fetchAvailableModels 获取可用模型列表与补充配额信息
+    // 3. 解析 fetchAvailableModels 获取可用模型列表与补充配额信息
     let mut available_model_ids = Vec::new();
     let mut fallback_model_quotas: HashMap<String, (Option<f64>, Option<i64>)> = HashMap::new();
-    if let Ok((models_code, models_text)) = post_cloudcode_with_fallback(
-        &client,
-        access_token,
-        &FETCH_MODELS_ENDPOINTS,
-        &project_body,
-    )
-    .await
+    if let Ok((models_code, models_text)) = models_res
         && (200..300).contains(&models_code)
         && let Ok(models_json) = serde_json::from_str::<Value>(&models_text)
         && let Some(models_obj) = models_json.get("models").and_then(Value::as_object)
